@@ -6594,7 +6594,10 @@ int bt_enable(bt_ready_cb_t cb)
 	}
 
 	if (atomic_test_and_set_bit(bt_dev.flags, BT_DEV_ENABLE)) {
-		return -EALREADY;
+		if (cb) {
+			cb(0);
+		}
+		return 0;
 	}
 
 	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {

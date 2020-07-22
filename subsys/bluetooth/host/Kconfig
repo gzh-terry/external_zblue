@@ -120,7 +120,7 @@ config BT_HCI_RESERVE
 	default 1 if BT_USERCHAN
 	# Even if no driver is selected the following default is still
 	# needed e.g. for unit tests.
-	default 0
+	default 1
 	help
 	  Headroom that the driver needs for sending and receiving buffers. Add a
 	  new 'default' entry for each new driver.
@@ -166,7 +166,7 @@ config BT_HOST_CRYPTO
 	# encryption support using TinyCrypt library if this is not provided
 	# by the controller implementation.
 	bool
-	default y if !BT_CTLR_CRYPTO
+	default y
 	select TINYCRYPT
 	select TINYCRYPT_AES
 	select TINYCRYPT_SHA256
@@ -498,8 +498,8 @@ config BT_KEYS_SAVE_AGING_COUNTER_ON_PAIRING
 
 endif # BT_SMP
 
-source "subsys/bluetooth/host/Kconfig.l2cap"
-source "subsys/bluetooth/host/Kconfig.gatt"
+source "$APPSDIR/external/zblue/subsys/bluetooth/host/Kconfig.l2cap"
+source "$APPSDIR/external/zblue/subsys/bluetooth/host/Kconfig.gatt"
 
 config BT_MAX_PAIRED
 	int "Maximum number of paired devices"
