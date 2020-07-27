@@ -203,6 +203,11 @@ CFLAGS += ${shell $(INCDIR) $(INCDIROPT) "$(CC)" $(APPDIR)/external/zblue/subsys
 CFLAGS += ${shell $(INCDIR) $(INCDIROPT) "$(CC)" $(APPDIR)/external/zblue/subsys/bluetooth/common}
 CFLAGS += ${shell $(INCDIR) $(INCDIROPT) "$(CC)" $(APPDIR)/external/tinycrypt/lib/include}
 
+ifeq ($(CONFIG_ARCH_SIM),y)
+  CFLAGS += -O2 -fno-strict-aliasing
+  CFLAGS += -ffunction-sections -fdata-sections
+endif
+
 ifneq ($(CONFIG_BT_SAMPLE),)
 
   PRIORITY = SCHED_PRIORITY_DEFAULT
