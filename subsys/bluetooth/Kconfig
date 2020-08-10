@@ -203,6 +203,7 @@ config BT_CTLR_TO_HOST_UART_DEV_NAME
 source "$APPSDIR/external/zblue/subsys/bluetooth/common/Kconfig"
 source "$APPSDIR/external/zblue/subsys/bluetooth/host/Kconfig"
 source "$APPSDIR/external/zblue/subsys/bluetooth/controller/Kconfig"
+source "$APPSDIR/external/zblue/subsys/bluetooth/shell/Kconfig"
 
 endif # BT_HCI
 
