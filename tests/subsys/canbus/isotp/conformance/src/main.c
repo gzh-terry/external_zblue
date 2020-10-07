@@ -221,7 +221,7 @@ static void send_frame_series(struct frame_desired *frames, size_t length,
 	struct zcan_frame frame = {
 		.id_type = CAN_STANDARD_IDENTIFIER,
 		.rtr = CAN_DATAFRAME,
-		.std_id = id
+		.id = id
 	};
 	struct frame_desired *desired = frames;
 
@@ -263,9 +263,9 @@ static int attach_msgq(uint32_t id)
 	struct zcan_filter filter = {
 		.id_type = CAN_STANDARD_IDENTIFIER,
 		.rtr = CAN_DATAFRAME,
-		.std_id = id,
+		.id = id,
 		.rtr_mask = 1,
-		.std_id_mask = CAN_STD_ID_MASK
+		.id_mask = CAN_STD_ID_MASK
 	};
 
 	filter_id = can_attach_msgq(can_dev, &frame_msgq, &filter);
@@ -882,7 +882,7 @@ void test_main(void)
 	can_dev = device_get_binding(CAN_DEVICE_NAME);
 	zassert_not_null(can_dev, "CAN device not not found");
 
-	ret = can_configure(can_dev, CAN_LOOPBACK_MODE, 0);
+	ret = can_set_mode(can_dev, CAN_LOOPBACK_MODE);
 	zassert_equal(ret, 0, "Failed to set loopback mode [%d]", ret);
 
 	k_sem_init(&send_compl_sem, 0, 1);

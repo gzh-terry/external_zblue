@@ -121,7 +121,7 @@ typedef void (*net_context_send_cb_t)(struct net_context *context,
  * context is used here. Keep processing in the callback minimal to reduce the
  * time spent blocked while handling packets.
  *
- * @param context The context to use.
+ * @param new_context The context to use.
  * @param addr The peer address.
  * @param addrlen Length of the peer address.
  * @param status The status code, 0 on success, < 0 otherwise
@@ -1124,6 +1124,22 @@ static inline void net_context_setup_pools(struct net_context *context,
 #else
 #define net_context_setup_pools(context, tx_pool, data_pool)
 #endif
+
+/**
+ * @brief Check if a port is in use (bound)
+ *
+ * This function checks if a port is bound with respect to the specified
+ * @p ip_proto and @p local_addr.
+ *
+ * @param ip_proto the IP protocol
+ * @param local_port the port to check
+ * @param local_addr the network address
+ *
+ * @return true if the port is bound
+ * @return false if the port is not bound
+ */
+bool net_context_port_in_use(enum net_ip_protocol ip_proto,
+	uint16_t local_port, const struct sockaddr *local_addr);
 
 #ifdef __cplusplus
 }
