@@ -144,14 +144,6 @@ config BT_MESH_PROXY_FILTER_SIZE
 	  This option specifies how many Proxy Filter entries the local
 	  node supports.
 
-config BT_MESH_ADV_STACK_SIZE
-	int "Mesh advertiser thread stack size"
-	default 1024 if BT_HOST_CRYPTO
-	default 768
-	help
-	  NOTE: This is an advanced setting and should not be changed unless
-	  absolutely necessary
-
 endif # BT_CONN
 
 config BT_MESH_SELF_TEST
