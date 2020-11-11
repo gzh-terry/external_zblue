@@ -929,9 +929,8 @@ static int i2s_sam_initialize(const struct device *dev)
 	k_sem_init(&dev_data->tx.sem, CONFIG_I2S_SAM_SSC_TX_BLOCK_COUNT,
 		   CONFIG_I2S_SAM_SSC_TX_BLOCK_COUNT);
 
-	dev_data->dev_dma = device_get_binding(DT_INST_DMAS_LABEL_BY_NAME(0, tx));
-	if (!dev_data->dev_dma) {
-		LOG_ERR("%s device not found", DT_INST_DMAS_LABEL_BY_NAME(0, tx));
+	if (!device_is_ready(dev_data->dev_dma)) {
+		LOG_ERR("%s device not ready", dev_data->dev_dma->name);
 		return -ENODEV;
 	}
 
@@ -962,17 +961,15 @@ static const struct i2s_driver_api i2s_sam_driver_api = {
 
 /* I2S0 */
 
-DEVICE_DECLARE(i2s0_sam);
-
 static const struct device *get_dev_from_dma_channel(uint32_t dma_channel)
 {
-	return &DEVICE_NAME_GET(i2s0_sam);
+	return &DEVICE_DT_NAME_GET(DT_DRV_INST(0));
 }
 
 static void i2s0_sam_irq_config(void)
 {
 	IRQ_CONNECT(DT_INST_IRQN(0), DT_INST_IRQ(0, priority), i2s_sam_isr,
-		    DEVICE_GET(i2s0_sam), 0);
+		    DEVICE_DT_INST_GET(0), 0);
 }
 
 static const struct soc_gpio_pin i2s0_pins[] = ATMEL_SAM_DT_PINS(0);
@@ -990,6 +987,7 @@ struct queue_item rx_0_ring_buf[CONFIG_I2S_SAM_SSC_RX_BLOCK_COUNT + 1];
 struct queue_item tx_0_ring_buf[CONFIG_I2S_SAM_SSC_TX_BLOCK_COUNT + 1];
 
 static struct i2s_sam_dev_data i2s0_sam_data = {
+	.dev_dma = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(0, tx)),
 	.rx = {
 		.dma_channel = DT_INST_DMAS_CELL_BY_NAME(0, rx, channel),
 		.dma_cfg = {
@@ -1026,6 +1024,6 @@ static struct i2s_sam_dev_data i2s0_sam_data = {
 	},
 };
 
-DEVICE_AND_API_INIT(i2s0_sam, DT_INST_LABEL(0), &i2s_sam_initialize,
+DEVICE_DT_INST_DEFINE(0, &i2s_sam_initialize, device_pm_control_nop,
 		    &i2s0_sam_data, &i2s0_sam_config, POST_KERNEL,
 		    CONFIG_I2S_INIT_PRIORITY, &i2s_sam_driver_api);

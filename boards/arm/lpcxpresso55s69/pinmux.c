@@ -13,6 +13,8 @@ static int lpcxpresso_55s69_pinmux_init(const struct device *dev)
 {
 	ARG_UNUSED(dev);
 
+#ifdef CONFIG_BOARD_LPCXPRESSO55S69_CPU0
+/* Only CPU0 configures GPIO port inputs. */
 #ifdef CONFIG_PINMUX_MCUX_LPC_PORT0
 	const struct device *port0 =
 		device_get_binding(CONFIG_PINMUX_MCUX_LPC_PORT0_NAME);
@@ -22,10 +24,11 @@ static int lpcxpresso_55s69_pinmux_init(const struct device *dev)
 	const struct device *port1 =
 		device_get_binding(CONFIG_PINMUX_MCUX_LPC_PORT1_NAME);
 #endif
+#endif
 
 #if DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(flexcomm0), nxp_lpc_usart, okay) && CONFIG_SERIAL
 	/* USART0 RX,  TX */
-	const uint32_t port0_pin29_config = (
+	uint32_t port0_pin29_config = (
 			IOCON_PIO_FUNC1 |
 			IOCON_PIO_MODE_INACT |
 			IOCON_PIO_INV_DI |
@@ -34,7 +37,7 @@ static int lpcxpresso_55s69_pinmux_init(const struct device *dev)
 			IOCON_PIO_OPENDRAIN_DI
 			);
 
-	const uint32_t port0_pin30_config = (
+	uint32_t port0_pin30_config = (
 			IOCON_PIO_FUNC1 |
 			IOCON_PIO_MODE_INACT |
 			IOCON_PIO_INV_DI |
@@ -49,7 +52,7 @@ static int lpcxpresso_55s69_pinmux_init(const struct device *dev)
 #endif
 
 #if DT_PHA_HAS_CELL(DT_ALIAS(sw0), gpios, pin)
-	const uint32_t sw0_config = (
+	uint32_t sw0_config = (
 			IOCON_PIO_FUNC0 |
 			IOCON_PIO_MODE_PULLUP |
 			IOCON_PIO_INV_DI |
@@ -63,7 +66,7 @@ static int lpcxpresso_55s69_pinmux_init(const struct device *dev)
 
 
 #if DT_PHA_HAS_CELL(DT_ALIAS(sw1), gpios, pin)
-	const uint32_t sw1_config = (
+	uint32_t sw1_config = (
 			IOCON_PIO_FUNC0 |
 			IOCON_PIO_MODE_PULLUP |
 			IOCON_PIO_INV_DI |
@@ -76,7 +79,7 @@ static int lpcxpresso_55s69_pinmux_init(const struct device *dev)
 #endif
 
 #if DT_PHA_HAS_CELL(DT_ALIAS(sw2), gpios, pin)
-	const uint32_t sw2_config = (
+	uint32_t sw2_config = (
 			IOCON_PIO_FUNC0 |
 			IOCON_PIO_MODE_PULLUP |
 			IOCON_PIO_INV_DI |

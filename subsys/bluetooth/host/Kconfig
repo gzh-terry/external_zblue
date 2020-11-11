@@ -91,7 +91,8 @@ config BT_HCI_TX_STACK_SIZE
 	help
 	  Stack size needed for executing bt_send with specified driver.
 	  NOTE: This is an advanced setting and should not be changed unless
-	  absolutely necessary
+	  absolutely necessary.  To change this you must first select
+	  BT_HCI_TX_STACK_SIZE_WITH_PROMPT.
 
 config BT_HCI_TX_STACK_SIZE_WITH_PROMPT
 	bool "Override HCI Tx thread stack size"
@@ -112,7 +113,7 @@ config BT_HCI_TX_PRIO
 
 config BT_HCI_RESERVE
 	int
-	default 1 if BT_H4
+	default 0 if BT_H4
 	default 1 if BT_H5
 	default 1 if BT_RPMSG
 	default 1 if BT_SPI
@@ -120,7 +121,7 @@ config BT_HCI_RESERVE
 	default 1 if BT_USERCHAN
 	# Even if no driver is selected the following default is still
 	# needed e.g. for unit tests.
-	default 1
+	default 0
 	help
 	  Headroom that the driver needs for sending and receiving buffers. Add a
 	  new 'default' entry for each new driver.
@@ -142,9 +143,6 @@ config BT_RX_STACK_SIZE
 	default 2048 if BT_MESH
 	default 2200 if BT_SETTINGS
 	default 1024
-	range 512 65536 if BT_HCI_RAW
-	range 1100 65536 if BT_MESH
-	range 1024 65536
 	help
 	  Size of the receiving thread stack. This is the context from
 	  which all event callbacks to the application occur. The
@@ -166,14 +164,12 @@ config BT_DRIVER_RX_HIGH_PRIO
 
 if BT_HCI_HOST
 
-source "$APPSDIR/external/zblue/subsys/bluetooth/host/audio/Kconfig"
-
 config BT_HOST_CRYPTO
 	# Hidden option that compiles in random number generation and AES
 	# encryption support using TinyCrypt library if this is not provided
 	# by the controller implementation.
 	bool
-	default y
+	default y if !BT_CTLR_CRYPTO
 	select TINYCRYPT
 	select TINYCRYPT_AES
 	select TINYCRYPT_SHA256
@@ -331,6 +327,7 @@ config BT_SMP
 	select TINYCRYPT_AES
 	select TINYCRYPT_AES_CMAC
 	select BT_RPA
+	select BT_ECC
 	help
 	  This option enables support for the Security Manager Protocol
 	  (SMP), making it possible to pair devices over LE.
@@ -433,7 +430,6 @@ config BT_FIXED_PASSKEY
 
 config BT_USE_DEBUG_KEYS
 	bool "Enable Security Manager Debug Mode"
-	depends on BT_TINYCRYPT_ECC
 	help
 	  This option places Security Manager in a Debug Mode. In this mode
 	  predefined Diffie-Hellman private/public key pair is used as described
@@ -505,8 +501,8 @@ config BT_KEYS_SAVE_AGING_COUNTER_ON_PAIRING
 
 endif # BT_SMP
 
-source "$APPSDIR/external/zblue/subsys/bluetooth/host/Kconfig.l2cap"
-source "$APPSDIR/external/zblue/subsys/bluetooth/host/Kconfig.gatt"
+source "subsys/bluetooth/host/Kconfig.l2cap"
+source "subsys/bluetooth/host/Kconfig.gatt"
 
 config BT_MAX_PAIRED
 	int "Maximum number of paired devices"
@@ -526,13 +522,19 @@ config BT_CREATE_CONN_TIMEOUT
 config BT_CONN_PARAM_UPDATE_TIMEOUT
 	int "Peripheral connection parameter update timeout in milliseconds"
 	default 5000
-	range 1 65535
+	range 0 65535
 
 	help
 	  The value is a timeout used by peripheral device to wait until it
-	  starts the connection parameters update procedure to change default
-	  connection parameters. The default value is set to 5s, to comply
-	  with BT protocol specification: Core 4.2 Vol 3, Part C, 9.3.12.2
+	  starts the first connection parameters update procedure after a
+	  connection has been established.
+	  The connection parameters requested will be the parameters set by the
+	  application, or the peripheral preferred connection parameters if
+	  configured.
+	  The default value is set to 5 seconds, to comply with the Bluetooth
+	  Core specification: Core 4.2 Vol 3, Part C, 9.3.12.2:
+	  "The Peripheral device should not perform a Connection Parameter
+	  Update procedure within 5 seconds after establishing a connection."
 
 endif # BT_CONN
 
@@ -598,6 +600,19 @@ config BT_ID_MAX
 	  Maximum number of supported local identity addresses. For most
 	  products this is safe to leave as the default value (1).
 
+config BT_DF
+	bool "Enable Direction Finding support [EXPERIMENTAL]"
+	help
+	  Enable support for Bluetooth 5.1 Direction Finding.
+	  It will allow to: get information about antennae, configure
+	  Constant Tone Extension, transmit CTE and sample incoming CTE.
+
+config BT_DEBUG_DF
+	bool "Bluetooth Direction Finding debug"
+	depends on BT_DF
+	help
+	  This option enables debug support for Bluetooth Direction Finding
+
 endif # BT_HCI_HOST
 
 config BT_ECC
@@ -607,11 +622,11 @@ config BT_ECC
 	  This option adds support for ECDH HCI commands.
 
 config BT_TINYCRYPT_ECC
-	bool "Use TinyCrypt library for ECDH"
+	bool "Emulate ECDH in the Host using TinyCrypt library"
 	select TINYCRYPT
 	select TINYCRYPT_ECC_DH
 	depends on BT_ECC && (BT_HCI_RAW || BT_HCI_HOST)
-	default y if BT_CTLR
+	default y if BT_CTLR && !BT_CTLR_ECDH
 	help
 	  If this option is set TinyCrypt library is used for emulating the
 	  ECDH HCI commands and events needed by e.g. LE Secure Connections.
@@ -650,6 +665,12 @@ config BT_DEBUG_CONN
 	help
 	  This option enables debug support for Bluetooth
 	  connection handling.
+
+config BT_DEBUG_ISO
+	bool "ISO channel debug"
+	help
+	  Use this option to enable ISO channels debug logs for the
+	  Bluetooth Audio functionality.
 
 config BT_DEBUG_KEYS
 	bool "Bluetooth security keys debug"

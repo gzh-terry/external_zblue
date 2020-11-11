@@ -23,8 +23,8 @@ LOG_MODULE_REGISTER(net_test, CONFIG_NET_SOCKETS_LOG_LEVEL);
 #define SERVER_PORT 4242
 #define CLIENT_PORT 9898
 
-/* On QEMU, poll() which waits takes +10ms from the requested time. */
-#define FUZZ 10
+/* On QEMU, poll() which waits takes +20ms from the requested time. */
+#define FUZZ 20
 
 void test_fd_set(void)
 {
@@ -167,6 +167,13 @@ void test_select(void)
 
 void test_main(void)
 {
+	if (IS_ENABLED(CONFIG_NET_TC_THREAD_COOPERATIVE)) {
+		k_thread_priority_set(k_current_get(),
+				K_PRIO_COOP(CONFIG_NUM_COOP_PRIORITIES - 1));
+	} else {
+		k_thread_priority_set(k_current_get(), K_PRIO_PREEMPT(9));
+	}
+
 	k_thread_system_pool_assign(k_current_get());
 
 	ztest_test_suite(socket_select,

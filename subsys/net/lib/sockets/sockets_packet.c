@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Intel Corporation
+ * Copyright (c) 2021 Nordic Semiconductor
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -149,6 +150,8 @@ ssize_t zpacket_sendto_ctx(struct net_context *ctx, const void *buf, size_t len,
 
 	if ((flags & ZSOCK_MSG_DONTWAIT) || sock_is_nonblock(ctx)) {
 		timeout = K_NO_WAIT;
+	} else {
+		net_context_get_option(ctx, NET_OPT_SNDTIMEO, &timeout, NULL);
 	}
 
 	/* Register the callback before sending in order to receive the response
@@ -180,6 +183,8 @@ ssize_t zpacket_sendmsg_ctx(struct net_context *ctx, const struct msghdr *msg,
 
 	if ((flags & ZSOCK_MSG_DONTWAIT) || sock_is_nonblock(ctx)) {
 		timeout = K_NO_WAIT;
+	} else {
+		net_context_get_option(ctx, NET_OPT_SNDTIMEO, &timeout, NULL);
 	}
 
 	status = net_context_sendmsg(ctx, msg, flags, NULL, timeout, NULL);
@@ -201,6 +206,8 @@ ssize_t zpacket_recvfrom_ctx(struct net_context *ctx, void *buf, size_t max_len,
 
 	if ((flags & ZSOCK_MSG_DONTWAIT) || sock_is_nonblock(ctx)) {
 		timeout = K_NO_WAIT;
+	} else {
+		net_context_get_option(ctx, NET_OPT_RCVTIMEO, &timeout, NULL);
 	}
 
 	if (flags & ZSOCK_MSG_PEEK) {
