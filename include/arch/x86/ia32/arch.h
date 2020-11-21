@@ -28,6 +28,7 @@
 
 #include <arch/common/addr_types.h>
 #include <arch/x86/ia32/segmentation.h>
+#include <power/power.h>
 
 #endif /* _ASMLANGUAGE */
 
@@ -36,6 +37,19 @@
 #define DATA_SEG	0x10
 #define MAIN_TSS	0x18
 #define DF_TSS		0x20
+
+/*
+ * Use for thread local storage.
+ * Match these to gen_gdt.py.
+ * The 0x03 is added to limit privilege.
+ */
+#if defined(CONFIG_USERSPACE)
+#define GS_TLS_SEG	(0x38 | 0x03)
+#elif defined(CONFIG_HW_STACK_PROTECTION)
+#define GS_TLS_SEG	(0x28 | 0x03)
+#else
+#define GS_TLS_SEG	(0x18 | 0x03)
+#endif
 
 /**
  * Macro used internally by NANO_CPU_INT_REGISTER and NANO_CPU_INT_REGISTER_ASM.
@@ -220,20 +234,14 @@ typedef struct s_isrList {
 				   (flags_p)); \
 }
 
-#ifdef CONFIG_SYS_POWER_MANAGEMENT
-/*
- * FIXME: z_sys_power_save_idle_exit is defined in kernel.h, which cannot be
- *	  included here due to circular dependency
- */
-extern void z_sys_power_save_idle_exit(int32_t ticks);
-
+#ifdef CONFIG_PM
 static inline void arch_irq_direct_pm(void)
 {
 	if (_kernel.idle) {
 		int32_t idle_val = _kernel.idle;
 
 		_kernel.idle = 0;
-		z_sys_power_save_idle_exit(idle_val);
+		z_pm_save_idle_exit(idle_val);
 	}
 }
 
