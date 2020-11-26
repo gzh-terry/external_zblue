@@ -21,8 +21,7 @@
 
 #include <stm32l1xx.h>
 
-/* Add include for DTS generated information */
-#include <devicetree.h>
+#include <st_stm32_dt.h>
 
 #include <stm32l1xx_ll_system.h>
 
@@ -31,10 +30,6 @@
 #include <stm32l1xx_ll_bus.h>
 #include <stm32l1xx_ll_rcc.h>
 #endif /* CONFIG_CLOCK_CONTROL_STM32_CUBE */
-
-#ifdef CONFIG_SERIAL_HAS_DRIVER
-#include <stm32l1xx_ll_usart.h>
-#endif
 
 #ifdef CONFIG_GPIO_STM32
 #include <stm32l1xx_ll_gpio.h>

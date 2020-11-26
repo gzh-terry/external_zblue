@@ -25,7 +25,7 @@
 #include <stm32g4xx.h>
 
 /* Add include for DTS generated information */
-#include <devicetree.h>
+#include <st_stm32_dt.h>
 
 #ifdef CONFIG_CLOCK_CONTROL_STM32_CUBE
 #include <stm32g4xx_ll_utils.h>
@@ -42,11 +42,6 @@
 #ifdef CONFIG_GPIO_STM32
 #include <stm32g4xx_ll_gpio.h>
 #endif
-
-#ifdef CONFIG_SERIAL_HAS_DRIVER
-#include <stm32g4xx_ll_usart.h>
-#include <stm32g4xx_ll_lpuart.h>
-#endif /* CONFIG_SERIAL_HAS_DRIVER */
 
 #ifdef CONFIG_SPI_STM32
 #include <stm32g4xx_ll_spi.h>

@@ -10,7 +10,7 @@
 #include <exc_handle.h>
 #include <logging/log.h>
 #include <x86_mmu.h>
-LOG_MODULE_DECLARE(os);
+LOG_MODULE_DECLARE(os, CONFIG_KERNEL_LOG_LEVEL);
 
 #if defined(CONFIG_BOARD_QEMU_X86) || defined(CONFIG_BOARD_QEMU_X86_64)
 FUNC_NORETURN void arch_system_halt(unsigned int reason)
@@ -308,9 +308,10 @@ static void dump_page_fault(z_arch_esf_t *esf)
 
 	if ((err & RSVD) != 0) {
 		LOG_ERR("Reserved bits set in page tables");
-	} else if ((err & PRESENT) == 0) {
-		LOG_ERR("Linear address not present in page tables");
 	} else {
+		if ((err & PRESENT) == 0) {
+			LOG_ERR("Linear address not present in page tables");
+		}
 		LOG_ERR("Access violation: %s thread not allowed to %s",
 			(err & US) != 0U ? "user" : "supervisor",
 			(err & ID) != 0U ? "execute" : ((err & WR) != 0U ?

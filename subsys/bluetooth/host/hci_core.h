@@ -143,6 +143,9 @@ enum {
 	/** Periodic advertising is attempting sync sync */
 	BT_PER_ADV_SYNC_SYNCING,
 
+	/** Periodic advertising is attempting sync sync */
+	BT_PER_ADV_SYNC_RECV_DISABLED,
+
 	BT_PER_ADV_SYNC_NUM_FLAGS,
 };
 
@@ -167,9 +170,6 @@ struct bt_le_per_adv_sync {
 
 	/** Flags */
 	ATOMIC_DEFINE(flags, BT_PER_ADV_SYNC_NUM_FLAGS);
-
-	/** Callbacks */
-	const struct bt_le_per_adv_sync_cb *cb;
 };
 
 struct bt_dev_le {
@@ -339,6 +339,8 @@ int bt_le_adv_start_internal(const struct bt_le_adv_param *param,
 
 void bt_le_adv_resume(void);
 bool bt_le_scan_random_addr_check(void);
+
+void bt_hci_host_num_completed_packets(struct net_buf *buf);
 
 /* HCI event handlers */
 void hci_evt_pin_code_req(struct net_buf *buf);

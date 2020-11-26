@@ -55,7 +55,7 @@ static void access_test(void)
 	(void) k_timer_status_get(&inherit_timer);
 	k_msgq_put(&inherit_msgq, (void *)&msg_q_data, K_NO_WAIT);
 	k_mutex_unlock(&inherit_mutex);
-	inherit_buf[10] = 0xA5;
+	inherit_buf[MEM_REGION_ALLOC-1] = 0xA5;
 }
 
 static void test_thread_1_for_user(void *p1, void *p2, void *p3)
@@ -98,7 +98,7 @@ static void test_thread_1_for_SU(void *p1, void *p2, void *p3)
  * @see k_mem_domain_init(), k_mem_domain_add_thread(),
  * k_thread_access_grant()
  */
-void test_permission_inheritance(void *p1, void *p2, void *p3)
+void test_permission_inheritance(void)
 {
 	k_mem_domain_init(&inherit_mem_domain,
 			  ARRAY_SIZE(inherit_memory_partition_array),
@@ -169,7 +169,7 @@ void parent_handler(void *p1, void *p2, void *p3)
  *
  * @see k_thread_resource_pool_assign()
  */
-void test_inherit_resource_pool(void *p1, void *p2, void *p3)
+void test_inherit_resource_pool(void)
 {
 	k_sem_reset(&sync_sem);
 	k_thread_create(&parent_thr, parent_thr_stack,

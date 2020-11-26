@@ -15,7 +15,7 @@
 #include <stm32h7xx.h>
 
 /* Add include for DTS generated information */
-#include <devicetree.h>
+#include <st_stm32_dt.h>
 
 #ifdef CONFIG_STM32H7_DUAL_CORE
 #include <stm32h7xx_ll_hsem.h>
@@ -50,10 +50,6 @@
 #include <stm32h7xx_ll_wwdg.h>
 #endif
 
-#ifdef CONFIG_SERIAL_HAS_DRIVER
-#include <stm32h7xx_ll_usart.h>
-#endif /* CONFIG_SERIAL_HAS_DRIVER */
-
 #if defined(CONFIG_HWINFO_STM32) || defined(CONFIG_CLOCK_CONTROL_STM32_CUBE)
 #include <stm32h7xx_ll_utils.h>
 #endif
@@ -67,6 +63,10 @@
 #ifdef CONFIG_I2C_STM32
 #include <stm32h7xx_ll_i2c.h>
 #endif /* CONFIG_I2C_STM32 */
+
+#ifdef CONFIG_SPI_STM32
+#include <stm32h7xx_ll_spi.h>
+#endif /* CONFIG_SPI_STM32 */
 
 #ifdef CONFIG_ADC_STM32
 #include <stm32h7xx_ll_adc.h>

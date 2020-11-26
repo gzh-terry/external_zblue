@@ -217,7 +217,7 @@ function(zephyr_get_system_include_directories_for_lang lang i)
 
   process_flags(${lang} flags output_list)
   string(REPLACE ";" "$<SEMICOLON>" genexp_output_list "${output_list}")
-  set(result_output_list "-isystem$<JOIN:${genexp_output_list}, -isystem>")
+  set(result_output_list "$<$<BOOL:${genexp_output_list}>:-isystem$<JOIN:${genexp_output_list}, -isystem>>")
 
   set(${i} ${result_output_list} PARENT_SCOPE)
 endfunction()
@@ -252,6 +252,9 @@ function(zephyr_get_parse_args return_dict)
   foreach(x ${ARGN})
     if(x STREQUAL STRIP_PREFIX)
       set(${return_dict}_STRIP_PREFIX 1 PARENT_SCOPE)
+    endif()
+    if(x STREQUAL NO_SPLIT)
+      set(${return_dict}_NO_SPLIT 1 PARENT_SCOPE)
     endif()
   endforeach()
 endfunction()
@@ -1012,9 +1015,12 @@ endfunction(zephyr_linker_sources)
 # Helper function for CONFIG_CODE_DATA_RELOCATION
 # Call this function with 2 arguments file and then memory location
 function(zephyr_code_relocate file location)
+  if(NOT IS_ABSOLUTE ${file})
+    set(file ${CMAKE_CURRENT_SOURCE_DIR}/${file})
+  endif()
   set_property(TARGET code_data_relocation_target
     APPEND PROPERTY COMPILE_DEFINITIONS
-    "${location}:${CMAKE_CURRENT_SOURCE_DIR}/${file}")
+    "${location}:${file}")
 endfunction()
 
 # Usage:
@@ -1378,15 +1384,26 @@ function(target_cc_option_fallback target scope option1 option2)
 endfunction()
 
 function(target_ld_options target scope)
+  zephyr_get_parse_args(args ${ARGN})
+  list(REMOVE_ITEM ARGN NO_SPLIT)
+
   foreach(option ${ARGN})
-    string(MAKE_C_IDENTIFIER check${option} check)
+    if(args_NO_SPLIT)
+      set(option ${ARGN})
+    endif()
+    string(JOIN "" check_identifier "check" ${option})
+    string(MAKE_C_IDENTIFIER ${check_identifier} check)
 
     set(SAVED_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
-    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${option}")
+    string(JOIN " " CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS} ${option})
     zephyr_check_compiler_flag(C "" ${check})
     set(CMAKE_REQUIRED_FLAGS ${SAVED_CMAKE_REQUIRED_FLAGS})
 
     target_link_libraries_ifdef(${check} ${target} ${scope} ${option})
+
+    if(args_NO_SPLIT)
+      break()
+    endif()
   endforeach()
 endfunction()
 
@@ -1680,4 +1697,93 @@ function(generate_unique_target_name_from_filename filename target_name)
   string(MD5 unique_chars ${filename})
 
   set(${target_name} gen_${x}_${unique_chars} PARENT_SCOPE)
+endfunction()
+
+# Usage:
+#   zephyr_file(<mode> <arg> ...)
+#
+# Zephyr file function extension.
+# This function currently support the following <modes>
+#
+# APPLICATION_ROOT <path>: Check all paths in provided variable, and convert
+#                          those paths that are defined with `-D<path>=<val>`
+#                          to absolute path, relative from `APPLICATION_SOURCE_DIR`
+#                          Issue an error for any relative path not specified
+#                          by user with `-D<path>`
+#
+# returns an updated list of absolute paths
+function(zephyr_file)
+  set(options APPLICATION_ROOT)
+  cmake_parse_arguments(FILE "${options}" "" "" ${ARGN})
+  if(NOT FILE_APPLICATION_ROOT)
+    message(FATAL_ERROR "No <mode> given to `zephyr_file(<mode> <args>...)` function,\n \
+Please provide one of following: APPLICATION_ROOT")
+  endif()
+
+  if(FILE_APPLICATION_ROOT)
+    if(NOT (${ARGC} EQUAL 2))
+      math(EXPR ARGC "${ARGC} - 1")
+      message(FATAL_ERROR "zephyr_file(APPLICATION_ROOT <path-variable>) takes exactly 1 argument, ${ARGC} were given")
+    endif()
+
+    # Note: user can do: `-D<var>=<relative-path>` and app can at same
+    # time specify `list(APPEND <var> <abs-path>)`
+    # Thus need to check and update only CACHED variables (-D<var>).
+    set(CACHED_PATH $CACHE{${ARGV1}})
+    foreach(path ${CACHED_PATH})
+      # The cached variable is relative path, i.e. provided by `-D<var>` or
+      # `set(<var> CACHE)`, so let's update current scope variable to absolute
+      # path from  `APPLICATION_SOURCE_DIR`.
+      if(NOT IS_ABSOLUTE ${path})
+        set(abs_path ${APPLICATION_SOURCE_DIR}/${path})
+        list(FIND ${ARGV1} ${path} index)
+        if(NOT ${index} LESS 0)
+          list(REMOVE_AT ${ARGV1} ${index})
+          list(INSERT ${ARGV1} ${index} ${abs_path})
+        endif()
+      endif()
+    endforeach()
+
+    # Now all cached relative paths has been updated.
+    # Let's check if anyone uses relative path as scoped variable, and fail
+    foreach(path ${${ARGV1}})
+      if(NOT IS_ABSOLUTE ${path})
+        message(FATAL_ERROR
+"Relative path encountered in scoped variable: ${ARGV1}, value=${path}\n \
+Please adjust any `set(${ARGV1} ${path})` or `list(APPEND ${ARGV1} ${path})`\n \
+to absolute path using `\${CMAKE_CURRENT_SOURCE_DIR}/${path}` or similar. \n \
+Relative paths are only allowed with `-D${ARGV1}=<path>`")
+      endif()
+    endforeach()
+
+    # This updates the provided argument in parent scope (callers scope)
+    set(${ARGV1} ${${ARGV1}} PARENT_SCOPE)
+  endif()
+endfunction()
+
+# Usage:
+#   zephyr_get_targets(<directory> <types> <targets>)
+#
+# Get build targets for a given directory and sub-directories.
+#
+# This functions will traverse the build tree, starting from <directory>.
+# It will read the `BUILDSYSTEM_TARGETS` for each directory in the build tree
+# and return the build types matching the <types> list.
+# Example of types: OBJECT_LIBRARY, STATIC_LIBRARY, INTERFACE_LIBRARY, UTILITY.
+#
+# returns a list of targets in <targets> matching the required <types>.
+function(zephyr_get_targets directory types targets)
+    get_property(sub_directories DIRECTORY ${directory} PROPERTY SUBDIRECTORIES)
+    get_property(dir_targets DIRECTORY ${directory} PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(dir_target ${dir_targets})
+      get_property(target_type TARGET ${dir_target} PROPERTY TYPE)
+      if(${target_type} IN_LIST types)
+        list(APPEND ${targets} ${dir_target})
+      endif()
+    endforeach()
+
+    foreach(directory ${sub_directories})
+        zephyr_get_targets(${directory} "${types}" ${targets})
+    endforeach()
+    set(${targets} ${${targets}} PARENT_SCOPE)
 endfunction()

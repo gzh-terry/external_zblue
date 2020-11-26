@@ -37,6 +37,9 @@
 #include "gatt_internal.h"
 #include "audio/iso_internal.h"
 
+/* Peripheral timeout to initialize Connection Parameter Update procedure */
+#define CONN_UPDATE_TIMEOUT  K_MSEC(CONFIG_BT_CONN_PARAM_UPDATE_TIMEOUT)
+
 struct tx_meta {
 	struct bt_conn_tx *tx;
 };
@@ -341,9 +344,9 @@ static void tx_complete_work(struct k_work *work)
 	tx_notify(conn);
 }
 
-static void conn_update_timeout(struct k_work *work)
+static void deferred_work(struct k_work *work)
 {
-	struct bt_conn *conn = CONTAINER_OF(work, struct bt_conn, update_work);
+	struct bt_conn *conn = CONTAINER_OF(work, struct bt_conn, deferred_work);
 	const struct bt_le_conn_param *param;
 
 	BT_DBG("conn %p", conn);
@@ -373,27 +376,23 @@ static void conn_update_timeout(struct k_work *work)
 		return;
 	}
 
-	if (IS_ENABLED(CONFIG_BT_GAP_AUTO_UPDATE_CONN_PARAMS)) {
-		/* if application set own params use those, otherwise
-		 * use defaults.
-		 */
-		if (atomic_test_and_clear_bit(conn->flags,
-					      BT_CONN_SLAVE_PARAM_SET)) {
-			param = BT_LE_CONN_PARAM(conn->le.interval_min,
-						conn->le.interval_max,
-						conn->le.pending_latency,
-						conn->le.pending_timeout);
-			send_conn_le_param_update(conn, param);
-		} else {
+	/* if application set own params use those, otherwise use defaults. */
+	if (atomic_test_and_clear_bit(conn->flags,
+				      BT_CONN_SLAVE_PARAM_SET)) {
+		param = BT_LE_CONN_PARAM(conn->le.interval_min,
+					 conn->le.interval_max,
+					 conn->le.pending_latency,
+					 conn->le.pending_timeout);
+		send_conn_le_param_update(conn, param);
+	} else if (IS_ENABLED(CONFIG_BT_GAP_AUTO_UPDATE_CONN_PARAMS)) {
 #if defined(CONFIG_BT_GAP_PERIPHERAL_PREF_PARAMS)
-			param = BT_LE_CONN_PARAM(
-					CONFIG_BT_PERIPHERAL_PREF_MIN_INT,
-					CONFIG_BT_PERIPHERAL_PREF_MAX_INT,
-					CONFIG_BT_PERIPHERAL_PREF_SLAVE_LATENCY,
-					CONFIG_BT_PERIPHERAL_PREF_TIMEOUT);
-			send_conn_le_param_update(conn, param);
+		param = BT_LE_CONN_PARAM(
+				CONFIG_BT_PERIPHERAL_PREF_MIN_INT,
+				CONFIG_BT_PERIPHERAL_PREF_MAX_INT,
+				CONFIG_BT_PERIPHERAL_PREF_SLAVE_LATENCY,
+				CONFIG_BT_PERIPHERAL_PREF_TIMEOUT);
+		send_conn_le_param_update(conn, param);
 #endif
-		}
 	}
 
 	atomic_set_bit(conn->flags, BT_CONN_SLAVE_PARAM_UPDATE);
@@ -431,7 +430,7 @@ static struct bt_conn *acl_conn_new(void)
 		return conn;
 	}
 
-	k_delayed_work_init(&conn->update_work, conn_update_timeout);
+	k_delayed_work_init(&conn->deferred_work, deferred_work);
 
 	k_work_init(&conn->tx_complete_work, tx_complete_work);
 
@@ -876,20 +875,17 @@ void bt_conn_cb_register(struct bt_conn_cb *cb)
 
 void bt_conn_reset_rx_state(struct bt_conn *conn)
 {
-	if (!conn->rx_len) {
+	if (!conn->rx) {
 		return;
 	}
 
 	net_buf_unref(conn->rx);
 	conn->rx = NULL;
-	conn->rx_len = 0U;
 }
 
 void bt_conn_recv(struct bt_conn *conn, struct net_buf *buf, uint8_t flags)
 {
-	struct bt_l2cap_hdr *hdr;
-	uint16_t len;
-
+	uint16_t acl_total_len;
 	/* Make sure we notify any pending TX callbacks before processing
 	 * new data for this connection.
 	 */
@@ -906,40 +902,30 @@ void bt_conn_recv(struct bt_conn *conn, struct net_buf *buf, uint8_t flags)
 	/* Check packet boundary flags */
 	switch (flags) {
 	case BT_ACL_START:
-		hdr = (void *)buf->data;
-		len = sys_le16_to_cpu(hdr->len);
-
-		BT_DBG("First, len %u final %u", buf->len, len);
-
-		if (conn->rx_len) {
+		if (conn->rx) {
 			BT_ERR("Unexpected first L2CAP frame");
 			bt_conn_reset_rx_state(conn);
 		}
 
-		conn->rx_len = (sizeof(*hdr) + len) - buf->len;
-		BT_DBG("rx_len %u", conn->rx_len);
-		if (conn->rx_len) {
-			conn->rx = buf;
-			return;
-		}
+		BT_DBG("First, len %u final %u", buf->len,
+		       (buf->len < sizeof(uint16_t)) ?
+		       0 : sys_get_le16(buf->data));
 
+		conn->rx = buf;
 		break;
 	case BT_ACL_CONT:
-		if (!conn->rx_len) {
+		if (!conn->rx) {
 			BT_ERR("Unexpected L2CAP continuation");
 			bt_conn_reset_rx_state(conn);
 			net_buf_unref(buf);
 			return;
 		}
 
-		if (buf->len > conn->rx_len) {
-			BT_ERR("L2CAP data overflow");
-			bt_conn_reset_rx_state(conn);
+		if (!buf->len) {
+			BT_DBG("Empty ACL_CONT");
 			net_buf_unref(buf);
 			return;
 		}
-
-		BT_DBG("Cont, len %u rx_len %u", buf->len, conn->rx_len);
 
 		if (buf->len > net_buf_tailroom(conn->rx)) {
 			BT_ERR("Not enough buffer space for L2CAP data");
@@ -949,17 +935,7 @@ void bt_conn_recv(struct bt_conn *conn, struct net_buf *buf, uint8_t flags)
 		}
 
 		net_buf_add_mem(conn->rx, buf->data, buf->len);
-		conn->rx_len -= buf->len;
 		net_buf_unref(buf);
-
-		if (conn->rx_len) {
-			return;
-		}
-
-		buf = conn->rx;
-		conn->rx = NULL;
-		conn->rx_len = 0U;
-
 		break;
 	default:
 		/* BT_ACL_START_NO_FLUSH and BT_ACL_COMPLETE are not allowed on
@@ -972,17 +948,32 @@ void bt_conn_recv(struct bt_conn *conn, struct net_buf *buf, uint8_t flags)
 		return;
 	}
 
-	hdr = (void *)buf->data;
-	len = sys_le16_to_cpu(hdr->len);
-
-	if (sizeof(*hdr) + len != buf->len) {
-		BT_ERR("ACL len mismatch (%u != %u)", len, buf->len);
-		net_buf_unref(buf);
+	if (conn->rx->len < sizeof(uint16_t)) {
+		/* Still not enough data recieved to retrieve the L2CAP header
+		 * length field.
+		 */
 		return;
 	}
 
-	BT_DBG("Successfully parsed %u byte L2CAP packet", buf->len);
+	acl_total_len = sys_get_le16(conn->rx->data) + sizeof(struct bt_l2cap_hdr);
 
+	if (conn->rx->len < acl_total_len) {
+		/* L2CAP frame not complete. */
+		return;
+	}
+
+	if (conn->rx->len > acl_total_len) {
+		BT_ERR("ACL len mismatch (%u > %u)",
+		       conn->rx->len, acl_total_len);
+		bt_conn_reset_rx_state(conn);
+		return;
+	}
+
+	/* L2CAP frame complete. */
+	buf = conn->rx;
+	conn->rx = NULL;
+
+	BT_DBG("Successfully parsed %u byte L2CAP packet", buf->len);
 	bt_l2cap_recv(conn, buf);
 }
 
@@ -1293,7 +1284,7 @@ static void conn_cleanup(struct bt_conn *conn)
 
 	bt_conn_reset_rx_state(conn);
 
-	k_delayed_work_submit(&conn->update_work, K_NO_WAIT);
+	k_delayed_work_submit(&conn->deferred_work, K_NO_WAIT);
 }
 
 static int conn_prepare_events(struct bt_conn *conn,
@@ -1530,7 +1521,7 @@ void bt_conn_set_state(struct bt_conn *conn, bt_conn_state_t state)
 	case BT_CONN_CONNECT:
 		if (IS_ENABLED(CONFIG_BT_CENTRAL) &&
 		    conn->type == BT_CONN_TYPE_LE) {
-			k_delayed_work_cancel(&conn->update_work);
+			k_delayed_work_cancel(&conn->deferred_work);
 		}
 		break;
 	default:
@@ -1557,6 +1548,13 @@ void bt_conn_set_state(struct bt_conn *conn, bt_conn_state_t state)
 
 		bt_l2cap_connected(conn);
 		notify_connected(conn);
+
+		if (IS_ENABLED(CONFIG_BT_PERIPHERAL) &&
+		    conn->role == BT_CONN_ROLE_SLAVE) {
+			k_delayed_work_submit(&conn->deferred_work,
+					      CONN_UPDATE_TIMEOUT);
+		}
+
 		break;
 	case BT_CONN_DISCONNECTED:
 		if (conn->type == BT_CONN_TYPE_SCO) {
@@ -1573,6 +1571,11 @@ void bt_conn_set_state(struct bt_conn *conn, bt_conn_state_t state)
 				bt_iso_disconnected(iso);
 				bt_iso_cleanup(iso);
 				bt_conn_unref(iso);
+
+				/* Stop if only ISO was Disconnected */
+				if (iso == conn) {
+					break;
+				}
 			}
 		}
 
@@ -1586,7 +1589,7 @@ void bt_conn_set_state(struct bt_conn *conn, bt_conn_state_t state)
 
 			/* Cancel Connection Update if it is pending */
 			if (conn->type == BT_CONN_TYPE_LE) {
-				k_delayed_work_cancel(&conn->update_work);
+				k_delayed_work_cancel(&conn->deferred_work);
 			}
 
 			atomic_set_bit(conn->flags, BT_CONN_CLEANUP);
@@ -1663,7 +1666,8 @@ void bt_conn_set_state(struct bt_conn *conn, bt_conn_state_t state)
 		 */
 		if (IS_ENABLED(CONFIG_BT_CENTRAL) &&
 		    conn->type == BT_CONN_TYPE_LE) {
-			k_delayed_work_submit(&conn->update_work,
+			k_delayed_work_submit(
+				&conn->deferred_work,
 				K_MSEC(10 * bt_dev.create_param.timeout));
 		}
 
@@ -2062,7 +2066,7 @@ int bt_conn_disconnect(struct bt_conn *conn, uint8_t reason)
 #endif /* CONFIG_BT_BREDR */
 
 		if (IS_ENABLED(CONFIG_BT_CENTRAL)) {
-			k_delayed_work_cancel(&conn->update_work);
+			k_delayed_work_cancel(&conn->deferred_work);
 			return bt_le_create_conn_cancel();
 		}
 

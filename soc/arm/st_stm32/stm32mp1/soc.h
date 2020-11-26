@@ -21,8 +21,7 @@
 #include <autoconf.h>
 #include <stm32mp1xx.h>
 
-/* Add include for DTS generated information */
-#include <devicetree.h>
+#include <st_stm32_dt.h>
 
 #include <stm32mp1xx_ll_hsem.h>
 
@@ -39,10 +38,6 @@
 #include <stm32mp1xx_ll_bus.h>
 #include <stm32mp1xx_ll_rcc.h>
 #include <stm32mp1xx_ll_system.h>
-#endif
-
-#ifdef CONFIG_SERIAL_HAS_DRIVER
-#include <stm32mp1xx_ll_usart.h>
 #endif
 
 #ifdef CONFIG_SPI_STM32
