@@ -2,8 +2,7 @@
 
 # kernel is a normal CMake library and not a zephyr_library because it
 # should not be --whole-archive'd
-
-list(APPEND kernel_files
+add_library(kernel
   device.c
   errno.c
   fatal.c
@@ -12,6 +11,7 @@ list(APPEND kernel_files
   kheap.c
   mailbox.c
   mem_slab.c
+  mempool.c
   msg_q.c
   mutex.c
   pipes.c
@@ -25,15 +25,7 @@ list(APPEND kernel_files
   version.c
   work_q.c
   smp.c
-  banner.c
   )
-
-if(CONFIG_XIP)
-list(APPEND kernel_files
-     xip.c)
-endif()
-
-add_library(kernel ${kernel_files})
 
 # Kernel files has the macro __ZEPHYR_SUPERVISOR__ set so that it
 # optimizes the code when userspace is enabled.
@@ -50,17 +42,9 @@ target_sources_ifdef(CONFIG_ATOMIC_OPERATIONS_C   kernel PRIVATE atomic_c.c)
 target_sources_ifdef(CONFIG_MMU                   kernel PRIVATE mmu.c)
 target_sources_ifdef(CONFIG_POLL                  kernel PRIVATE poll.c)
 
-if(${CONFIG_KERNEL_MEM_POOL})
-  target_sources(kernel PRIVATE mempool.c)
-
-  if(${CONFIG_MEM_POOL_HEAP_BACKEND})
-  else()
-    target_sources(kernel PRIVATE mempool_sys.c)
-  endif()
-endif()
-
-if(NOT CONFIG_MULTITHREADING)
-  message(WARNING "Single threaded mode (CONFIG_MULTITHREADING=n) is deprecated")
+if(${CONFIG_MEM_POOL_HEAP_BACKEND})
+else()
+  target_sources(kernel PRIVATE mempool_sys.c)
 endif()
 
 # The last 2 files inside the target_sources_ifdef should be

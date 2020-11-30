@@ -111,9 +111,8 @@ struct nrf_usbd_ep_buf {
  *				a data transfer.
  * @param write_in_progress	A flag indicating that write operation has
  *				been scheduled.
- * @param trans_zlp		Flag required for Control IN Endpoint. It
- *				indicates that ZLP is required to end data
- *				stage of the control request.
+ * @param write_fragmented	A flag indicating that IN transfer has
+ *				been fragmented.
  */
 struct nrf_usbd_ep_ctx {
 	struct nrf_usbd_ep_cfg cfg;
@@ -121,7 +120,7 @@ struct nrf_usbd_ep_ctx {
 	volatile bool read_complete;
 	volatile bool read_pending;
 	volatile bool write_in_progress;
-	bool trans_zlp;
+	bool write_fragmented;
 };
 
 /**
@@ -223,7 +222,9 @@ K_MEM_POOL_DEFINE(fifo_elem_pool, FIFO_ELEM_MIN_SZ, FIFO_ELEM_MAX_SZ,
 		    CFG_EPOUT_CNT + CFG_EP_ISOOUT_CNT)
 
 /** Total buffer size for all endpoints */
-#define EP_BUF_TOTAL ((CFG_EPOUT_CNT * EP_BUF_MAX_SZ) +	       \
+#define EP_BUF_TOTAL ((CFG_EPIN_CNT * EP_BUF_MAX_SZ) +	       \
+		      (CFG_EPOUT_CNT * EP_BUF_MAX_SZ) +	       \
+		      (CFG_EP_ISOIN_CNT * ISO_EP_BUF_MAX_SZ) + \
 		      (CFG_EP_ISOOUT_CNT * ISO_EP_BUF_MAX_SZ))
 
 /** Total number of maximum sized buffers needed */
@@ -241,7 +242,6 @@ K_MEM_POOL_DEFINE(ep_buf_pool, EP_BUF_POOL_BLOCK_MIN_SZ,
  * @brief USBD control structure
  *
  * @param status_cb	Status callback for USB DC notifications
- * @param setup		Setup packet for Control requests
  * @param hfxo_cli	Onoff client used to control HFXO
  * @param hfxo_mgr	Pointer to onoff manager associated with HFXO.
  * @param clk_requested	Flag used to protect against double stop.
@@ -254,7 +254,6 @@ K_MEM_POOL_DEFINE(ep_buf_pool, EP_BUF_POOL_BLOCK_MIN_SZ,
  */
 struct nrf_usbd_ctx {
 	usb_dc_status_callback status_cb;
-	struct usb_setup_packet setup;
 	struct onoff_client hfxo_cli;
 	struct onoff_manager *hfxo_mgr;
 	atomic_t clk_requested;
@@ -616,7 +615,6 @@ static void ep_ctx_reset(struct nrf_usbd_ep_ctx *ep_ctx)
 	ep_ctx->read_complete = true;
 	ep_ctx->read_pending = false;
 	ep_ctx->write_in_progress = false;
-	ep_ctx->trans_zlp = false;
 }
 
 /**
@@ -635,6 +633,15 @@ static int eps_ctx_init(void)
 	for (i = 0U; i < CFG_EPIN_CNT; i++) {
 		ep_ctx = in_endpoint_ctx(i);
 		__ASSERT_NO_MSG(ep_ctx);
+
+		if (!ep_ctx->buf.block.data) {
+			err = k_mem_pool_alloc(&ep_buf_pool, &ep_ctx->buf.block,
+					       EP_BUF_MAX_SZ, K_NO_WAIT);
+			if (err < 0) {
+				LOG_ERR("Buffer alloc failed for EP 0x%02x", i);
+				return -ENOMEM;
+			}
+		}
 
 		ep_ctx_reset(ep_ctx);
 	}
@@ -658,6 +665,16 @@ static int eps_ctx_init(void)
 	if (CFG_EP_ISOIN_CNT) {
 		ep_ctx = in_endpoint_ctx(NRF_USBD_EPIN(8));
 		__ASSERT_NO_MSG(ep_ctx);
+
+		if (!ep_ctx->buf.block.data) {
+			err = k_mem_pool_alloc(&ep_buf_pool, &ep_ctx->buf.block,
+					       ISO_EP_BUF_MAX_SZ,
+					       K_NO_WAIT);
+			if (err < 0) {
+				LOG_ERR("EP buffer alloc failed for ISOIN");
+				return -ENOMEM;
+			}
+		}
 
 		ep_ctx_reset(ep_ctx);
 	}
@@ -690,6 +707,7 @@ static void eps_ctx_uninit(void)
 	for (i = 0U; i < CFG_EPIN_CNT; i++) {
 		ep_ctx = in_endpoint_ctx(i);
 		__ASSERT_NO_MSG(ep_ctx);
+		k_mem_pool_free(&ep_ctx->buf.block);
 		memset(ep_ctx, 0, sizeof(*ep_ctx));
 	}
 
@@ -703,6 +721,7 @@ static void eps_ctx_uninit(void)
 	if (CFG_EP_ISOIN_CNT) {
 		ep_ctx = in_endpoint_ctx(NRF_USBD_EPIN(8));
 		__ASSERT_NO_MSG(ep_ctx);
+		k_mem_pool_free(&ep_ctx->buf.block);
 		memset(ep_ctx, 0, sizeof(*ep_ctx));
 	}
 
@@ -801,9 +820,6 @@ static inline void usbd_work_process_setup(struct nrf_usbd_ep_ctx *ep_ctx)
 	usbd_setup->wLength = nrf_usbd_setup_wlength_get(NRF_USBD);
 	ep_ctx->buf.len = sizeof(struct usb_setup_packet);
 
-	/* Copy setup packet to driver internal structure */
-	memcpy(&usbd_ctx.setup, usbd_setup, sizeof(struct usb_setup_packet));
-
 	LOG_DBG("SETUP: bR:0x%02x bmRT:0x%02x wV:0x%04x wI:0x%04x wL:%d",
 		(uint32_t)usbd_setup->bRequest,
 		(uint32_t)usbd_setup->bmRequestType,
@@ -874,11 +890,12 @@ static inline void usbd_work_process_ep_events(struct usbd_ep_event *ep_evt)
 		break;
 
 	case EP_EVT_WRITE_COMPLETE:
-		if (ep_ctx->cfg.type == USB_DC_EP_CONTROL &&
-		    !ep_ctx->trans_zlp) {
+		if ((ep_ctx->cfg.type == USB_DC_EP_CONTROL)
+		    && (!ep_ctx->write_fragmented)) {
 			/* Trigger the hardware to perform
 			 * status stage, but only if there is
-			 * no ZLP required.
+			 * no more data to send (IN transfer
+			 * has not beed fragmented).
 			 */
 			k_mutex_lock(&ctx->drv_lock, K_FOREVER);
 			nrfx_usbd_setup_clear();
@@ -1316,6 +1333,12 @@ int usb_dc_attach(void)
 		return 0;
 	}
 
+	k_work_q_start(&usbd_work_queue,
+		       usbd_work_queue_stack,
+		       K_KERNEL_STACK_SIZEOF(usbd_work_queue_stack),
+		       CONFIG_SYSTEM_WORKQUEUE_PRIORITY);
+
+	k_work_init(&ctx->usb_work, usbd_work_handler);
 	k_mutex_init(&ctx->drv_lock);
 	ctx->hfxo_mgr =
 		z_nrf_clock_control_get_onoff(
@@ -1542,11 +1565,6 @@ int usb_dc_ep_clear_stall(const uint8_t ep)
 		return -EINVAL;
 	}
 
-	if (NRF_USBD_EPISO_CHECK(ep)) {
-		/* ISO transactions do not support a handshake phase. */
-		return -EINVAL;
-	}
-
 	nrfx_usbd_ep_dtoggle_clear(ep_addr_to_nrfx(ep));
 	nrfx_usbd_ep_stall_clear(ep_addr_to_nrfx(ep));
 	LOG_DBG("Unstall on EP 0x%02x", ep);
@@ -1594,16 +1612,7 @@ int usb_dc_ep_enable(const uint8_t ep)
 		return -EINVAL;
 	}
 
-	if (!NRF_USBD_EPISO_CHECK(ep)) {
-		/* ISO transactions for full-speed device do not support
-		 * toggle sequencing and should only send DATA0 PID.
-		 */
-		nrfx_usbd_ep_dtoggle_clear(ep_addr_to_nrfx(ep));
-		/** Endpoint is enabled on SetInterface request.
-		 * This should also clear EP's halt status.
-		 */
-		nrfx_usbd_ep_stall_clear(ep_addr_to_nrfx(ep));
-	}
+	nrfx_usbd_ep_dtoggle_clear(ep_addr_to_nrfx(ep));
 	if (ep_ctx->cfg.en) {
 		return -EALREADY;
 	}
@@ -1672,6 +1681,7 @@ int usb_dc_ep_write(const uint8_t ep, const uint8_t *const data,
 	LOG_DBG("ep_write: ep 0x%02x, len %d", ep, data_len);
 	struct nrf_usbd_ctx *ctx = get_usbd_ctx();
 	struct nrf_usbd_ep_ctx *ep_ctx;
+	uint32_t bytes_to_copy;
 	int result = 0;
 
 	if (!dev_attached() || !dev_ready()) {
@@ -1703,25 +1713,25 @@ int usb_dc_ep_write(const uint8_t ep, const uint8_t *const data,
 		return -EAGAIN;
 	}
 
-	/** Clear the ZLP flag if current write is ZLP. After the ZLP will be
-	 * send the driver will perform status stage.
+	/* NRFX driver performs the fragmentation if buffer length exceeds
+	 * maximum packet size, however in current implementation, data is
+	 * copied to the internal buffer and must me fragmented here.
+	 * In case of fragmentation, a flag is set to prevent triggering
+	 * status stage which is handled by hardware, because there will be
+	 * another write coming.
 	 */
-	if (!data_len && ep_ctx->trans_zlp) {
-		ep_ctx->trans_zlp = false;
+	if (data_len > ep_ctx->cfg.max_sz) {
+		bytes_to_copy = ep_ctx->cfg.max_sz;
+		ep_ctx->write_fragmented = true;
+	} else {
+		bytes_to_copy = data_len;
+		ep_ctx->write_fragmented = false;
 	}
+	memcpy(ep_ctx->buf.data, data, bytes_to_copy);
+	ep_ctx->buf.len = bytes_to_copy;
 
-	/** If writing to a Control Endpoint there might be a need to transfer
-	 * ZLP. If the Hosts asks for more data that the device may return and
-	 * the last packet is wMaxPacketSize long. The driver must send ZLP.
-	 * For consistance with the Zephyr USB stack sending ZLP must be issued
-	 * from the stack level. Making trans_zlp flag true results in blocking
-	 * the driver from starting setup stage without required ZLP.
-	 */
-	if (ep_ctx->cfg.type == USB_DC_EP_CONTROL) {
-		if (data_len && usbd_ctx.setup.wLength > data_len &&
-		    !(data_len % ep_ctx->cfg.max_sz)) {
-			ep_ctx->trans_zlp = true;
-		}
+	if (ret_bytes) {
+		*ret_bytes = bytes_to_copy;
 	}
 
 	/* Setup stage is handled by hardware.
@@ -1736,20 +1746,13 @@ int usb_dc_ep_write(const uint8_t ep, const uint8_t *const data,
 	}
 
 	ep_ctx->write_in_progress = true;
-	NRFX_USBD_TRANSFER_IN(transfer, data, data_len, 0);
+	NRFX_USBD_TRANSFER_IN(transfer, ep_ctx->buf.data, ep_ctx->buf.len, 0);
 	nrfx_err_t err = nrfx_usbd_ep_transfer(ep_addr_to_nrfx(ep), &transfer);
 
 	if (err != NRFX_SUCCESS) {
 		ep_ctx->write_in_progress = false;
-		if (ret_bytes) {
-			*ret_bytes = 0;
-		}
 		result = -EIO;
 		LOG_ERR("nRF USBD write error: %d", (uint32_t)err);
-	} else {
-		if (ret_bytes) {
-			*ret_bytes = data_len;
-		}
 	}
 
 	k_mutex_unlock(&ctx->drv_lock);
@@ -1927,8 +1930,6 @@ int usb_dc_wakeup_request(void)
 
 static int usb_init(const struct device *arg)
 {
-	struct nrf_usbd_ctx *ctx = get_usbd_ctx();
-
 #ifdef CONFIG_HAS_HW_NRF_USBREG
 	/* Use CLOCK/POWER priority for compatibility with other series where
 	 * USB events are handled by CLOCK interrupt handler.
@@ -1939,13 +1940,8 @@ static int usb_init(const struct device *arg)
 	irq_enable(USBREGULATOR_IRQn);
 #endif
 
-	static const nrfx_power_config_t power_config = {
-		.dcdcen = IS_ENABLED(CONFIG_SOC_DCDC_NRF52X) ||
-			  IS_ENABLED(CONFIG_SOC_DCDC_NRF53X_APP),
-#if NRFX_POWER_SUPPORTS_DCDCEN_VDDH
-		.dcdcenhv = IS_ENABLED(CONFIG_SOC_DCDC_NRF53X_HV),
-#endif
-	};
+	/* Use default configuration of the nrfx_power driver. */
+	static const nrfx_power_config_t power_config = { 0 };
 
 	static const nrfx_power_usbevt_config_t usbevt_config = {
 		.handler = usb_dc_power_event_handler
@@ -1957,14 +1953,7 @@ static int usb_init(const struct device *arg)
 	(void)nrfx_power_init(&power_config);
 	nrfx_power_usbevt_init(&usbevt_config);
 
-	k_work_q_start(&usbd_work_queue,
-		usbd_work_queue_stack,
-		K_KERNEL_STACK_SIZEOF(usbd_work_queue_stack),
-		CONFIG_SYSTEM_WORKQUEUE_PRIORITY);
-
-	k_work_init(&ctx->usb_work, usbd_work_handler);
-
 	return 0;
 }
 
-SYS_INIT(usb_init, POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE);
+SYS_INIT(usb_init, PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE);

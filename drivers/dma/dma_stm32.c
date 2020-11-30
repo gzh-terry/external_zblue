@@ -135,6 +135,33 @@ static void dma_stm32_shared_irq_handler(const struct device *dev)
 
 #endif /* CONFIG_DMA_STM32_SHARED_IRQS */
 
+static int dma_stm32_width_config(struct dma_config *config,
+				    bool source_periph,
+				    DMA_TypeDef *dma,
+				    LL_DMA_InitTypeDef *DMA_InitStruct,
+				    uint32_t id)
+{
+	uint32_t periph, memory;
+	uint32_t m_size = 0, p_size = 0;
+
+	if (source_periph) {
+		periph = config->source_data_size;
+		memory = config->dest_data_size;
+	} else {
+		periph = config->dest_data_size;
+		memory = config->source_data_size;
+	}
+	int index = find_lsb_set(config->source_data_size) - 1;
+
+	m_size = table_m_size[index];
+	index = find_lsb_set(config->dest_data_size) - 1;
+	p_size = table_p_size[index];
+
+	DMA_InitStruct->PeriphOrM2MSrcDataSize = p_size;
+	DMA_InitStruct->MemoryOrM2MDstDataSize = m_size;
+	return 0;
+}
+
 static int dma_stm32_get_priority(uint8_t priority, uint32_t *ll_priority)
 {
 	switch (priority) {
@@ -246,6 +273,7 @@ DMA_STM32_EXPORT_API int dma_stm32_configure(const struct device *dev,
 				&dev_config->streams[id - STREAM_OFFSET];
 	DMA_TypeDef *dma = (DMA_TypeDef *)dev_config->base;
 	LL_DMA_InitTypeDef DMA_InitStruct;
+	uint32_t msize;
 	int ret;
 
 	/* give channel from index 0 */
@@ -283,17 +311,19 @@ DMA_STM32_EXPORT_API int dma_stm32_configure(const struct device *dev,
 	}
 #endif /* CONFIG_DMA_STM32_V1 */
 
-	/* support only the same data width for source and dest */
-	if ((config->dest_data_size != config->source_data_size)) {
-		LOG_ERR("source and dest data size differ.");
-		return -EINVAL;
-	}
-
 	if (config->source_data_size != 4U &&
 	    config->source_data_size != 2U &&
 	    config->source_data_size != 1U) {
-		LOG_ERR("source and dest unit size error, %d",
+		LOG_ERR("Source unit size error, %d",
 			config->source_data_size);
+		return -EINVAL;
+	}
+
+	if (config->dest_data_size != 4U &&
+	    config->dest_data_size != 2U &&
+	    config->dest_data_size != 1U) {
+		LOG_ERR("Dest unit size error, %d",
+			config->dest_data_size);
 		return -EINVAL;
 	}
 
@@ -385,12 +415,12 @@ DMA_STM32_EXPORT_API int dma_stm32_configure(const struct device *dev,
 	}
 
 	stream->source_periph = stream->direction == MEMORY_TO_PERIPHERAL;
-
-	/* set the data width, when source_data_size equals dest_data_size */
-	int index = find_lsb_set(config->source_data_size) - 1;
-	DMA_InitStruct.PeriphOrM2MSrcDataSize = table_p_size[index];
-	index = find_lsb_set(config->dest_data_size) - 1;
-	DMA_InitStruct.MemoryOrM2MDstDataSize = table_m_size[index];
+	ret = dma_stm32_width_config(config, stream->source_periph, dma,
+				     &DMA_InitStruct, id);
+	if (ret < 0) {
+		return ret;
+	}
+	msize = DMA_InitStruct.MemoryOrM2MDstDataSize;
 
 #if defined(CONFIG_DMA_STM32_V1)
 	DMA_InitStruct.MemBurst = stm32_dma_get_mburst(config,
@@ -563,11 +593,16 @@ static int dma_stm32_init(const struct device *dev)
 
 	config->config_irq(dev);
 
+#ifdef CONFIG_DMAMUX_STM32
+	int offset = ((dev == device_get_binding((const char *)"DMA_1"))
+			? 0 : config->max_streams);
+#endif /* CONFIG_DMAMUX_STM32 */
+
 	for (uint32_t i = 0; i < config->max_streams; i++) {
 		config->streams[i].busy = false;
 #ifdef CONFIG_DMAMUX_STM32
 		/* each further stream->mux_channel is fixed here */
-		config->streams[i].mux_channel = i + config->offset;
+		config->streams[i].mux_channel = i + offset;
 #endif /* CONFIG_DMAMUX_STM32 */
 	}
 
@@ -603,13 +638,6 @@ static const struct dma_driver_api dma_funcs = {
 	.get_status	 = dma_stm32_get_status,
 };
 
-#ifdef CONFIG_DMAMUX_STM32
-#define DMA_STM32_OFFSET_INIT(index)			\
-	.offset = DT_INST_PROP(index, dma_offset),
-#else
-#define DMA_STM32_OFFSET_INIT(index)
-#endif /* CONFIG_DMAMUX_STM32 */
-
 #define DMA_STM32_INIT_DEV(index)					\
 static struct dma_stm32_stream						\
 	dma_stm32_streams_##index[DMA_STM32_##index##_STREAM_COUNT];	\
@@ -622,7 +650,6 @@ const struct dma_stm32_config dma_stm32_config_##index = {		\
 	.support_m2m = DT_INST_PROP(index, st_mem2mem),			\
 	.max_streams = DMA_STM32_##index##_STREAM_COUNT,		\
 	.streams = dma_stm32_streams_##index,				\
-	DMA_STM32_OFFSET_INIT(index)					\
 };									\
 									\
 static struct dma_stm32_data dma_stm32_data_##index = {			\

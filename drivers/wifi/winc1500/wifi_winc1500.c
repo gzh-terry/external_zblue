@@ -298,21 +298,19 @@ static int winc1500_get(sa_family_t family,
 			struct net_context **context)
 {
 	struct socket_data *sd;
-	SOCKET sock;
 
 	if (family != AF_INET) {
 		LOG_ERR("Only AF_INET is supported!");
 		return -1;
 	}
 
-	sock = socket(family, type, 0);
-	if (sock < 0) {
+	(*context)->offload_context = (void *)(sint32)socket(family, type, 0);
+	if ((*context)->offload_context < 0) {
 		LOG_ERR("socket error!");
 		return -1;
 	}
 
-	(*context)->offload_context = (void *)(intptr_t)sock;
-	sd = &w1500_data.socket_data[sock];
+	sd = &w1500_data.socket_data[(int)(*context)->offload_context];
 
 	k_sem_init(&sd->wait_sem, 0, 1);
 
@@ -436,6 +434,9 @@ static int winc1500_accept(struct net_context *context,
 			       K_MSEC(timeout))) {
 			return -ETIMEDOUT;
 		}
+	} else {
+		k_sem_take(&w1500_data.socket_data[socket].wait_sem,
+			   K_FOREVER);
 	}
 
 	return w1500_data.socket_data[socket].ret_code;
@@ -938,6 +939,7 @@ static void winc1500_socket_cb(SOCKET sock, uint8 message, void *pvMsg)
 		break;
 	case SOCKET_MSG_ACCEPT:
 		handle_socket_msg_accept(sd, pvMsg);
+		k_sem_give(&sd->wait_sem);
 
 		break;
 	}

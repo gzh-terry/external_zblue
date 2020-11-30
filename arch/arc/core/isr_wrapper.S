@@ -24,7 +24,7 @@
 GTEXT(_isr_wrapper)
 GTEXT(_isr_demux)
 
-#ifdef CONFIG_SYS_POWER_MANAGEMENT
+#if defined(CONFIG_SYS_POWER_MANAGEMENT)
 GTEXT(z_sys_power_save_idle_exit)
 #endif
 
@@ -201,7 +201,7 @@ From RIRQ:
  */
 
 SECTION_FUNC(TEXT, _isr_wrapper)
-#ifdef CONFIG_ARC_FIRQ
+#if defined(CONFIG_ARC_FIRQ)
 #if CONFIG_RGF_NUM_BANKS == 1
 /* free r0 here, use r0 to check whether irq is firq.
  * for rirq,  as sp will not change and r0 already saved, this action
@@ -220,7 +220,8 @@ SECTION_FUNC(TEXT, _isr_wrapper)
 	_create_irq_stack_frame
 	lr r0, [_ARC_V2_STATUS32_P0]
 	st_s r0, [sp, ___isf_t_status32_OFFSET]
-	st ilink, [sp, ___isf_t_pc_OFFSET]
+	lr r0, [_ARC_V2_ERET]
+	st_s r0, [sp, ___isf_t_pc_OFFSET]
 
 	mov_s r3, _firq_exit
 	mov_s r2, _firq_enter
@@ -243,13 +244,12 @@ rirq_path:
 	j_s [r2]
 #endif
 
-/* r0, r1, and r3 will be used in exit_tickless_idle macro */
 .macro exit_tickless_idle
-#ifdef CONFIG_SYS_POWER_MANAGEMENT
+#if defined(CONFIG_SYS_POWER_MANAGEMENT)
 	clri r0 /* do not interrupt exiting tickless idle operations */
 	mov_s r1, _kernel
-	ld_s r3, [r1, _kernel_offset_to_idle] /* requested idle duration */
-	breq r3, 0, _skip_sys_power_save_idle_exit
+	ld_s r0, [r1, _kernel_offset_to_idle] /* requested idle duration */
+	breq r0, 0, _skip_sys_power_save_idle_exit
 
 	st 0, [r1, _kernel_offset_to_idle] /* zero idle duration */
 	push_s blink
@@ -275,10 +275,11 @@ SECTION_FUNC(TEXT, _isr_demux)
 	push r59
 #endif
 
-#ifdef CONFIG_TRACING_ISR
+#if defined(CONFIG_TRACING_ISR)
 	bl sys_trace_isr_enter
 #endif
 	/* cannot be done before this point because we must be able to run C */
+	/* r0 is available to be stomped here, and exit_tickless_idle uses it */
 	exit_tickless_idle
 
 	lr r0, [_ARC_V2_ICAUSE]
@@ -297,7 +298,7 @@ irq_hint_handled:
 	jl_s.d [r1]
 	ld_s r0, [r0] /* delay slot: ISR parameter into r0  */
 
-#ifdef CONFIG_TRACING_ISR
+#if defined(CONFIG_TRACING_ISR)
 	bl sys_trace_isr_exit
 #endif
 

@@ -820,16 +820,16 @@ bool ull_filter_lll_rl_enabled(void)
 #if defined(CONFIG_BT_CTLR_SW_DEFERRED_PRIVACY)
 uint8_t ull_filter_deferred_resolve(bt_addr_t *rpa, resolve_callback_t cb)
 {
-	if (rl_enable) {
-		if (!k_work_pending(&(resolve_work.prpa_work))) {
-			/* copy input param to work variable */
-			memcpy(resolve_work.rpa.val, rpa->val, sizeof(bt_addr_t));
-			resolve_work.cb = cb;
+	LL_ASSERT(rl_enable);
 
-			k_work_submit(&(resolve_work.prpa_work));
+	if (!k_work_pending(&(resolve_work.prpa_work))) {
+		/* copy input param to work variable */
+		memcpy(resolve_work.rpa.val, rpa->val, sizeof(bt_addr_t));
+		resolve_work.cb = cb;
 
-			return 1;
-		}
+		k_work_submit(&(resolve_work.prpa_work));
+
+		return 1;
 	}
 
 	return 0;
@@ -838,18 +838,19 @@ uint8_t ull_filter_deferred_resolve(bt_addr_t *rpa, resolve_callback_t cb)
 uint8_t ull_filter_deferred_targeta_resolve(bt_addr_t *rpa, uint8_t rl_idx,
 					 resolve_callback_t cb)
 {
-	if (rl_enable) {
-		if (!k_work_pending(&(t_work.target_work))) {
-			/* copy input param to work variable */
-			memcpy(t_work.rpa.val, rpa->val, sizeof(bt_addr_t));
-			t_work.cb = cb;
-			t_work.idx = rl_idx;
+	LL_ASSERT(rl_enable);
 
-			k_work_submit(&(t_work.target_work));
+	if (!k_work_pending(&(t_work.target_work))) {
+		/* copy input param to work variable */
+		memcpy(t_work.rpa.val, rpa->val, sizeof(bt_addr_t));
+		t_work.cb = cb;
+		t_work.idx = rl_idx;
 
-			return 1;
-		}
+		k_work_submit(&(t_work.target_work));
+
+		return 1;
 	}
+
 	return 0;
 }
 #endif /* CONFIG_BT_CTLR_SW_DEFERRED_PRIVACY */
@@ -1052,7 +1053,7 @@ static uint32_t filter_add(struct lll_filter *filter, uint8_t addr_type,
 {
 	int index;
 
-	if (filter->enable_bitmask == LLL_FILTER_BITMASK_ALL) {
+	if (filter->enable_bitmask == 0xFF) {
 		return BT_HCI_ERR_MEM_CAPACITY_EXCEEDED;
 	}
 
@@ -1074,7 +1075,7 @@ static uint32_t filter_remove(struct lll_filter *filter, uint8_t addr_type,
 		return BT_HCI_ERR_INVALID_PARAM;
 	}
 
-	index = WL_SIZE;
+	index = 8;
 	while (index--) {
 		if ((filter->enable_bitmask & BIT(index)) &&
 		    (((filter->addr_type_bitmask >> index) & 0x01) ==

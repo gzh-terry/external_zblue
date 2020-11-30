@@ -14,11 +14,6 @@
 #include <logging/log.h>
 #include <shell/shell.h>
 
-#if defined(CONFIG_SOC_NRF5340_CPUAPP) && \
-	!defined(CONFIG_TRUSTED_EXECUTION_NONSECURE)
-#include <hal/nrf_gpio.h>
-#endif
-
 LOG_MODULE_REGISTER(clock_control, CONFIG_CLOCK_CONTROL_LOG_LEVEL);
 
 #define DT_DRV_COMPAT nordic_nrf_clock
@@ -155,7 +150,7 @@ static int set_starting_state(uint32_t *flags, uint32_t ctx)
 	} else if (current_ctx != ctx) {
 		err = -EPERM;
 	} else {
-		err = -EALREADY;
+		err = -EBUSY;
 	}
 
 	irq_unlock(key);
@@ -201,6 +196,7 @@ static inline void anomaly_132_workaround(void)
 
 static void lfclk_start(void)
 {
+
 	if (IS_ENABLED(CONFIG_NRF52_ANOMALY_132_WORKAROUND)) {
 		anomaly_132_workaround();
 	}
@@ -339,8 +335,9 @@ static int api_stop(const struct device *dev, clock_control_subsys_t subsys)
 	return stop(dev, subsys, CTX_API);
 }
 
-static int async_start(const struct device *dev, clock_control_subsys_t subsys,
-			clock_control_cb_t cb, void *user_data, uint32_t ctx)
+static int async_start(const struct device *dev,
+			clock_control_subsys_t subsys,
+			struct clock_control_async_data *data, uint32_t ctx)
 {
 	enum clock_control_nrf_type type = (enum clock_control_nrf_type)subsys;
 	struct nrf_clock_control_sub_data *subdata = get_sub_data(dev, type);
@@ -351,8 +348,8 @@ static int async_start(const struct device *dev, clock_control_subsys_t subsys,
 		return err;
 	}
 
-	subdata->cb = cb;
-	subdata->user_data = user_data;
+	subdata->cb = data->cb;
+	subdata->user_data = data->user_data;
 
 	 get_sub_config(dev, type)->start();
 
@@ -360,9 +357,9 @@ static int async_start(const struct device *dev, clock_control_subsys_t subsys,
 }
 
 static int api_start(const struct device *dev, clock_control_subsys_t subsys,
-		     clock_control_cb_t cb, void *user_data)
+			     struct clock_control_async_data *data)
 {
-	return async_start(dev, subsys, cb, user_data, CTX_API);
+	return async_start(dev, subsys, data, CTX_API);
 }
 
 static void blocking_start_callback(const struct device *dev,
@@ -378,13 +375,17 @@ static int api_blocking_start(const struct device *dev,
 			      clock_control_subsys_t subsys)
 {
 	struct k_sem sem = Z_SEM_INITIALIZER(sem, 0, 1);
+	struct clock_control_async_data data = {
+		.cb = blocking_start_callback,
+		.user_data = &sem
+	};
 	int err;
 
 	if (!IS_ENABLED(CONFIG_MULTITHREADING)) {
 		return -ENOTSUP;
 	}
 
-	err = api_start(dev, subsys, blocking_start_callback, &sem);
+	err = api_start(dev, subsys, &data);
 	if (err < 0) {
 		return err;
 	}
@@ -423,100 +424,26 @@ static void onoff_started_callback(const struct device *dev,
 static void onoff_start(struct onoff_manager *mgr,
 			onoff_notify_fn notify)
 {
+	struct clock_control_async_data data = {
+		.cb = onoff_started_callback,
+		.user_data = notify
+	};
 	int err;
 
 	err = async_start(DEVICE_GET(clock_nrf), get_subsys(mgr),
-			  onoff_started_callback, notify, CTX_ONOFF);
+			  &data, CTX_ONOFF);
 	if (err < 0) {
 		notify(mgr, err);
 	}
 }
 
-/** @brief Wait for LF clock availability or stability.
- *
- * If LF clock source is SYNTH or RC then there is no distinction between
- * availability and stability. In case of XTAL source clock, system is initially
- * starting RC and then seamlessly switches to XTAL. Running RC means clock
- * availability and running target source means stability, That is because
- * significant difference in startup time (<1ms vs >200ms).
- *
- * In order to get event/interrupt when RC is ready (allowing CPU sleeping) two
- * stage startup sequence is used. Initially, LF source is set to RC and when
- * LFSTARTED event is handled it is reconfigured to the target source clock.
- * This approach is implemented in nrfx_clock driver and utilized here.
- *
- * @param mode Start mode.
- */
-static void lfclk_spinwait(enum nrf_lfclk_start_mode mode)
+static void lfclk_spinwait(nrf_clock_lfclk_t t)
 {
-	static const nrf_clock_domain_t d = NRF_CLOCK_DOMAIN_LFCLK;
-	static const nrf_clock_lfclk_t target_type =
-		/* For sources XTAL, EXT_LOW_SWING, and EXT_FULL_SWING,
-		 * NRF_CLOCK_LFCLK_Xtal is returned as the type of running clock.
-		 */
-		(IS_ENABLED(CONFIG_CLOCK_CONTROL_NRF_K32SRC_XTAL) ||
-		 IS_ENABLED(CONFIG_CLOCK_CONTROL_NRF_K32SRC_EXT_LOW_SWING) ||
-		 IS_ENABLED(CONFIG_CLOCK_CONTROL_NRF_K32SRC_EXT_FULL_SWING))
-		? NRF_CLOCK_LFCLK_Xtal
-		: CLOCK_CONTROL_NRF_K32SRC;
+	nrf_clock_domain_t d = NRF_CLOCK_DOMAIN_LFCLK;
 	nrf_clock_lfclk_t type;
 
-	if ((mode == CLOCK_CONTROL_NRF_LF_START_AVAILABLE) &&
-	    (target_type == NRF_CLOCK_LFCLK_Xtal) &&
-	    (nrf_clock_lf_srccopy_get(NRF_CLOCK) == CLOCK_CONTROL_NRF_K32SRC)) {
-		/* If target clock source is using XTAL then due to two-stage
-		 * clock startup sequence, RC might already be running.
-		 * It can be determined by checking current LFCLK source. If it
-		 * is set to the target clock source then it means that RC was
-		 * started.
-		 */
-		return;
-	}
-
-	bool isr_mode = k_is_in_isr() || k_is_pre_kernel();
-	int key = isr_mode ? irq_lock() : 0;
-
-	if (!isr_mode) {
-		nrf_clock_int_disable(NRF_CLOCK, NRF_CLOCK_INT_LF_STARTED_MASK);
-	}
-
-	while (!(nrfx_clock_is_running(d, (void *)&type)
-		 && ((type == target_type)
-		     || (mode == CLOCK_CONTROL_NRF_LF_START_AVAILABLE)))) {
-		/* Synth source start is almost instant and LFCLKSTARTED may
-		 * happen before calling idle. That would lead to deadlock.
-		 */
-		if (!IS_ENABLED(CONFIG_CLOCK_CONTROL_NRF_K32SRC_SYNTH)) {
-			if (isr_mode) {
-				k_cpu_atomic_idle(key);
-			} else {
-				k_msleep(1);
-			}
-		}
-
-		/* Clock interrupt is locked, LFCLKSTARTED is handled here. */
-		if ((target_type ==  NRF_CLOCK_LFCLK_Xtal)
-		    && (nrf_clock_lf_src_get(NRF_CLOCK) == NRF_CLOCK_LFCLK_RC)
-		    && nrf_clock_event_check(NRF_CLOCK,
-					     NRF_CLOCK_EVENT_LFCLKSTARTED)) {
-			nrf_clock_event_clear(NRF_CLOCK,
-					      NRF_CLOCK_EVENT_LFCLKSTARTED);
-			nrf_clock_lf_src_set(NRF_CLOCK,
-					     CLOCK_CONTROL_NRF_K32SRC);
-
-			/* Clear pending interrupt, otherwise new clock event
-			 * would not wake up from idle.
-			 */
-			NVIC_ClearPendingIRQ(DT_INST_IRQN(0));
-			nrf_clock_task_trigger(NRF_CLOCK,
-					       NRF_CLOCK_TASK_LFCLKSTART);
-		}
-	}
-
-	if (isr_mode) {
-		irq_unlock(key);
-	} else {
-		nrf_clock_int_enable(NRF_CLOCK, NRF_CLOCK_INT_LF_STARTED_MASK);
+	while (!(nrfx_clock_is_running(d, (void *)&type) && (type == t))) {
+		/* empty */
 	}
 }
 
@@ -536,18 +463,16 @@ void z_nrf_clock_control_lf_on(enum nrf_lfclk_start_mode start_mode)
 		__ASSERT_NO_MSG(err >= 0);
 	}
 
-	/* In case of simulated board leave immediately. */
-	if (IS_ENABLED(CONFIG_SOC_SERIES_BSIM_NRFXX)) {
-		return;
-	}
-
 	switch (start_mode) {
-	case CLOCK_CONTROL_NRF_LF_START_AVAILABLE:
-	case CLOCK_CONTROL_NRF_LF_START_STABLE:
-		lfclk_spinwait(start_mode);
+	case NRF_LFCLK_START_MODE_SPINWAIT_STABLE:
+		lfclk_spinwait(CLOCK_CONTROL_NRF_K32SRC);
 		break;
 
-	case CLOCK_CONTROL_NRF_LF_START_NOWAIT:
+	case NRF_LFCLK_START_MODE_SPINWAIT_RUNNING:
+		lfclk_spinwait(NRF_CLOCK_LFCLK_RC);
+		break;
+
+	case NRF_LFCLK_START_MODE_NOWAIT:
 		break;
 
 	default:
@@ -574,11 +499,6 @@ static void clock_event_handler(nrfx_clock_evt_type_t event)
 
 		break;
 	}
-#if NRF_CLOCK_HAS_HFCLK192M
-	case NRFX_CLOCK_EVT_HFCLK192M_STARTED:
-		clkstarted_handle(dev, CLOCK_CONTROL_NRF_TYPE_HFCLK192M);
-		break;
-#endif
 	case NRFX_CLOCK_EVT_LFCLK_STARTED:
 		if (IS_ENABLED(
 			CONFIG_CLOCK_CONTROL_NRF_K32SRC_RC_CALIBRATION)) {

@@ -423,10 +423,6 @@ static size_t put_s16(struct lwm2m_output_context *out,
 	struct oma_tlv tlv;
 	int16_t net_value;
 
-	if (INT8_MIN <= value && value <= INT8_MAX) {
-		return put_s8(out, path, (int8_t)value);
-	}
-
 	fd = engine_get_out_user_data(out);
 	if (!fd) {
 		return 0;
@@ -441,16 +437,12 @@ static size_t put_s16(struct lwm2m_output_context *out,
 }
 
 static size_t put_s32(struct lwm2m_output_context *out,
-		      struct lwm2m_obj_path *path, int32_t value)
+			struct lwm2m_obj_path *path, int32_t value)
 {
 	struct tlv_out_formatter_data *fd;
 	size_t len;
 	struct oma_tlv tlv;
 	int32_t net_value;
-
-	if (INT16_MIN <= value && value <= INT16_MAX) {
-		return put_s16(out, path, (int16_t)value);
-	}
 
 	fd = engine_get_out_user_data(out);
 	if (!fd) {
@@ -462,21 +454,16 @@ static size_t put_s32(struct lwm2m_output_context *out,
 		  tlv_calc_id(fd->writer_flags, path), sizeof(net_value));
 
 	len = oma_tlv_put(&tlv, out, (uint8_t *)&net_value, false);
-
 	return len;
 }
 
 static size_t put_s64(struct lwm2m_output_context *out,
-		      struct lwm2m_obj_path *path, int64_t value)
+			struct lwm2m_obj_path *path, int64_t value)
 {
 	struct tlv_out_formatter_data *fd;
 	size_t len;
 	struct oma_tlv tlv;
 	int64_t net_value;
-
-	if (INT32_MIN <= value && value <= INT32_MAX) {
-		return put_s32(out, path, (int32_t)value);
-	}
 
 	fd = engine_get_out_user_data(out);
 	if (!fd) {
@@ -771,23 +758,13 @@ static size_t get_bool(struct lwm2m_input_context *in, bool *value)
 }
 
 static size_t get_opaque(struct lwm2m_input_context *in,
-			 uint8_t *value, size_t buflen,
-			 struct lwm2m_opaque_context *opaque,
-			 bool *last_block)
+			 uint8_t *value, size_t buflen, bool *last_block)
 {
 	struct oma_tlv tlv;
-	size_t size;
 
-	/* Get the TLV header only on first read. */
-	if (opaque->remaining == 0) {
-		size = oma_tlv_get(&tlv, in, false);
-
-		opaque->len = tlv.length;
-		opaque->remaining = tlv.length;
-	}
-
-	return lwm2m_engine_get_opaque_more(in, value, buflen,
-					    opaque, last_block);
+	oma_tlv_get(&tlv, in, false);
+	in->opaque_len = tlv.length;
+	return lwm2m_engine_get_opaque_more(in, value, buflen, last_block);
 }
 
 static size_t get_objlnk(struct lwm2m_input_context *in,
@@ -982,7 +959,7 @@ int do_write_op_tlv(struct lwm2m_message *msg)
 
 #ifdef CONFIG_LWM2M_RD_CLIENT_SUPPORT
 				if (!msg->ctx->bootstrap_mode) {
-					engine_trigger_update(true);
+					engine_trigger_update();
 				}
 #endif
 			}

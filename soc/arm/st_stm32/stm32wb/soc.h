@@ -24,12 +24,17 @@
 #include <stm32wbxx.h>
 
 /* Add include for DTS generated information */
-#include <st_stm32_dt.h>
+#include <devicetree.h>
 
 #include <stm32wbxx_ll_hsem.h>
 
 #ifdef CONFIG_GPIO_STM32
 #include <stm32wbxx_ll_gpio.h>
+#endif
+
+#ifdef CONFIG_SERIAL_HAS_DRIVER
+#include <stm32wbxx_ll_usart.h>
+#include <stm32wbxx_ll_lpuart.h>
 #endif
 
 #if defined(CONFIG_COUNTER_RTC_STM32)

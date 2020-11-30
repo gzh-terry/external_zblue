@@ -27,10 +27,15 @@
 #include <stm32l4xx.h>
 
 /* Add include for DTS generated information */
-#include <st_stm32_dt.h>
+#include <devicetree.h>
 
 #ifdef CONFIG_EXTI_STM32
 #include <stm32l4xx_ll_exti.h>
+#endif
+
+#ifdef CONFIG_SERIAL_HAS_DRIVER
+#include <stm32l4xx_ll_usart.h>
+#include <stm32l4xx_ll_lpuart.h>
 #endif
 
 #ifdef CONFIG_CLOCK_CONTROL_STM32_CUBE

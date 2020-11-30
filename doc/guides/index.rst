@@ -22,7 +22,6 @@ User and Developer Guides
    device_mgmt/index
    device_mgmt/dfu
    dts/index
-   emulator/index.rst
    env_vars.rst
    coverage.rst
    kconfig/index
@@ -36,4 +35,3 @@ User and Developer Guides
    west/index
    optimizations/index
    zephyr_cmake_package.rst
-   thread_local_storage.rst

@@ -76,7 +76,7 @@ static struct {
 	volatile size_t rx_counter;
 	volatile size_t rx_offset;
 	int32_t rx_timeout;
-	struct k_timer rx_timeout_timer;
+	struct k_delayed_work rx_timeout_work;
 	bool rx_enabled;
 
 	bool tx_abort;
@@ -85,7 +85,7 @@ static struct {
 	volatile size_t tx_counter;
 #if HW_FLOW_CONTROL_AVAILABLE
 	int32_t tx_timeout;
-	struct k_timer tx_timeout_timer;
+	struct k_delayed_work tx_timeout_work;
 #endif
 } uart0_cb;
 #endif /* CONFIG_UART_0_ASYNC */
@@ -446,7 +446,7 @@ static int uart_nrfx_tx_abort(const struct device *dev)
 	}
 #if	HW_FLOW_CONTROL_AVAILABLE
 	if (uart0_cb.tx_timeout != SYS_FOREVER_MS) {
-		k_timer_stop(&uart0_cb.tx_timeout_timer);
+		k_delayed_work_cancel(&uart0_cb.tx_timeout_work);
 	}
 #endif
 	nrf_uart_task_trigger(uart0_addr, NRF_UART_TASK_STOPTX);
@@ -525,7 +525,7 @@ static int uart_nrfx_rx_disable(const struct device *dev)
 
 	uart0_cb.rx_enabled = 0;
 	if (uart0_cb.rx_timeout != SYS_FOREVER_MS) {
-		k_timer_stop(&uart0_cb.rx_timeout_timer);
+		k_delayed_work_cancel(&uart0_cb.rx_timeout_work);
 	}
 	nrf_uart_task_trigger(uart0_addr, NRF_UART_TASK_STOPRX);
 
@@ -597,15 +597,14 @@ static void rx_isr(const struct device *dev)
 		if (uart0_cb.rx_timeout == 0) {
 			rx_rdy_evt(dev);
 		} else if (uart0_cb.rx_timeout != SYS_FOREVER_MS) {
-			k_timer_start(&uart0_cb.rx_timeout_timer,
-				      K_MSEC(uart0_cb.rx_timeout),
-				      K_NO_WAIT);
+			k_delayed_work_submit(&uart0_cb.rx_timeout_work,
+					      K_MSEC(uart0_cb.rx_timeout));
 		}
 	}
 
 	if (uart0_cb.rx_buffer_length == uart0_cb.rx_counter) {
 		if (uart0_cb.rx_timeout != SYS_FOREVER_MS) {
-			k_timer_stop(&uart0_cb.rx_timeout_timer);
+			k_delayed_work_cancel(&uart0_cb.rx_timeout_work);
 		}
 		rx_rdy_evt(dev);
 
@@ -641,9 +640,8 @@ static void tx_isr(const struct device *dev)
 	    !uart0_cb.tx_abort) {
 #if	HW_FLOW_CONTROL_AVAILABLE
 		if (uart0_cb.tx_timeout != SYS_FOREVER_MS) {
-			k_timer_start(&uart0_cb.tx_timeout_timer,
-				      K_MSEC(uart0_cb.tx_timeout),
-				      K_NO_WAIT);
+			k_delayed_work_submit(&uart0_cb.tx_timeout_work,
+					      K_MSEC(uart0_cb.tx_timeout));
 		}
 #endif
 		nrf_uart_event_clear(uart0_addr, NRF_UART_EVENT_TXDRDY);
@@ -655,7 +653,7 @@ static void tx_isr(const struct device *dev)
 #if	HW_FLOW_CONTROL_AVAILABLE
 
 		if (uart0_cb.tx_timeout != SYS_FOREVER_MS) {
-			k_timer_stop(&uart0_cb.tx_timeout_timer);
+			k_delayed_work_cancel(&uart0_cb.tx_timeout_work);
 		}
 #endif
 		nrf_uart_task_trigger(uart0_addr, NRF_UART_TASK_STOPTX);
@@ -684,7 +682,7 @@ static void tx_isr(const struct device *dev)
 static void error_isr(const struct device *dev)
 {
 	if (uart0_cb.rx_timeout != SYS_FOREVER_MS) {
-		k_timer_stop(&uart0_cb.rx_timeout_timer);
+		k_delayed_work_cancel(&uart0_cb.rx_timeout_work);
 	}
 	nrf_uart_event_clear(uart0_addr, NRF_UART_EVENT_ERROR);
 
@@ -753,18 +751,18 @@ void uart_nrfx_isr(const struct device *uart)
 	}
 }
 
-static void rx_timeout(struct k_timer *timer)
+static void rx_timeout(struct k_work *work)
 {
 	rx_rdy_evt(DEVICE_GET(uart_nrfx_uart0));
 }
 
 #if HW_FLOW_CONTROL_AVAILABLE
-static void tx_timeout(struct k_timer *timer)
+static void tx_timeout(struct k_work *work)
 {
 	struct uart_event evt;
 
 	if (uart0_cb.tx_timeout != SYS_FOREVER_MS) {
-		k_timer_stop(&uart0_cb.tx_timeout_timer);
+		k_delayed_work_cancel(&uart0_cb.tx_timeout_work);
 	}
 	nrf_uart_task_trigger(uart0_addr, NRF_UART_TASK_STOPTX);
 	evt.type = UART_TX_ABORTED;
@@ -773,6 +771,7 @@ static void tx_timeout(struct k_timer *timer)
 	uart0_cb.tx_buffer_length = 0;
 	uart0_cb.tx_counter = 0;
 	user_callback(DEVICE_GET(uart_nrfx_uart0), &evt);
+
 }
 #endif
 
@@ -1048,9 +1047,9 @@ static int uart_nrfx_init(const struct device *dev)
 #endif
 
 #ifdef CONFIG_UART_0_ASYNC
-	k_timer_init(&uart0_cb.rx_timeout_timer, rx_timeout, NULL);
+	k_delayed_work_init(&uart0_cb.rx_timeout_work, rx_timeout);
 #if HW_FLOW_CONTROL_AVAILABLE
-	k_timer_init(&uart0_cb.tx_timeout_timer, tx_timeout, NULL);
+	k_delayed_work_init(&uart0_cb.tx_timeout_work, tx_timeout);
 #endif
 #endif
 	return 0;

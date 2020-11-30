@@ -24,9 +24,6 @@
 
 #include <stm32g0xx.h>
 
-/* Add include for DTS generated information */
-#include <st_stm32_dt.h>
-
 #include <stm32g0xx_ll_system.h>
 
 #ifdef CONFIG_CLOCK_CONTROL_STM32_CUBE
@@ -53,6 +50,11 @@
 
 #ifdef CONFIG_WWDG_STM32
 #include <stm32g0xx_ll_wwdg.h>
+#endif
+
+#ifdef CONFIG_SERIAL_HAS_DRIVER
+#include <stm32g0xx_ll_usart.h>
+#include <stm32g0xx_ll_lpuart.h>
 #endif
 
 #ifdef CONFIG_HWINFO_STM32

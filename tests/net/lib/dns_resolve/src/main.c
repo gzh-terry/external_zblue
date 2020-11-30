@@ -39,7 +39,6 @@ LOG_MODULE_REGISTER(net_test, CONFIG_DNS_RESOLVER_LOG_LEVEL);
 #define NAME_IPV6 "2001:db8::1"
 
 #define DNS_TIMEOUT 500 /* ms */
-#define THREAD_SLEEP 10
 
 #if defined(CONFIG_NET_IPV6)
 /* Interface 1 addresses */
@@ -617,8 +616,7 @@ static void test_dns_query_ipv4(void)
 
 	DBG("Query id %u\n", current_dns_id);
 
-	/* Let the network stack to proceed */
-	k_msleep(THREAD_SLEEP);
+	k_yield(); /* mandatory so that net_if send func gets to run */
 
 	if (k_sem_take(&wait_data2, WAIT_TIME)) {
 		zassert_true(false, "Timeout while waiting data");

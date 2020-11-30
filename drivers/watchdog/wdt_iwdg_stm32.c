@@ -11,6 +11,7 @@
 #include <drivers/watchdog.h>
 #include <soc.h>
 #include <errno.h>
+#include <assert.h>
 
 #include "wdt_iwdg_stm32.h"
 

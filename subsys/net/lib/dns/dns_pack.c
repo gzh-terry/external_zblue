@@ -557,10 +557,7 @@ int dns_unpack_query(struct dns_msg_t *dns_msg, struct net_buf *buf,
 	}
 
 	query_type = dns_unpack_query_qtype(end_of_label);
-	if (query_type != DNS_RR_TYPE_A && query_type != DNS_RR_TYPE_AAAA
-		&& query_type != DNS_RR_TYPE_PTR
-		&& query_type != DNS_RR_TYPE_SRV
-		&& query_type != DNS_RR_TYPE_TXT) {
+	if (query_type != DNS_RR_TYPE_A && query_type != DNS_RR_TYPE_AAAA) {
 		return -EINVAL;
 	}
 

@@ -5,8 +5,8 @@ Devicetree access from C/C++
 
 This guide describes Zephyr's ``<devicetree.h>`` API for reading the devicetree
 from C source files. It assumes you're familiar with the concepts in
-:ref:`devicetree-intro` and :ref:`dt-bindings`. See :ref:`devicetree` for
-reference material.
+:ref:`devicetree-intro` and :ref:`dt-bindings`. See :ref:`devicetree_api` for
+API reference documentation.
 
 A note for Linux developers
 ***************************

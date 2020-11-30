@@ -49,6 +49,7 @@ struct ll_adv_aux_set {
 	uint8_t is_started:1;
 };
 
+#if defined(CONFIG_BT_CTLR_ADV_PERIODIC)
 struct ll_adv_sync_set {
 	struct evt_hdr      evt;
 	struct ull_hdr      ull;
@@ -59,4 +60,5 @@ struct ll_adv_sync_set {
 	uint8_t is_enabled:1;
 	uint8_t is_started:1;
 };
+#endif /* CONFIG_BT_CTLR_ADV_PERIODIC */
 #endif /* CONFIG_BT_CTLR_ADV_EXT */

@@ -44,10 +44,6 @@ config ENTROPY_SAM_RNG
 	default y
 	depends on ENTROPY_GENERATOR
 
-config I2C_SAM_TWIM
-	default y
-	depends on I2C
-
 config SPI_SAM
 	default y
 	depends on SPI

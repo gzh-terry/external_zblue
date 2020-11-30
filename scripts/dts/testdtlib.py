@@ -1,105 +1,76 @@
+#!/usr/bin/env python3
+
 # Copyright (c) 2019, Nordic Semiconductor
 # SPDX-License-Identifier: BSD-3-Clause
 
-import contextlib
 import os
-import re
-import tempfile
-
-import pytest
+import shutil
+import sys
 
 import dtlib
 
-# Test suite for dtlib.py.
+# Test suite for dtlib.py. Run it directly as an executable, in this directory:
 #
-# Run it using pytest (https://docs.pytest.org/en/stable/usage.html):
-#
-#   $ pytest testdtlib.py
-#
-# Extra options you can pass to pytest for debugging:
-#
-#   - to stop on the first failure with shorter traceback output,
-#     use '-x --tb=native'
-#   - to drop into a debugger on failure, use '--pdb'
-#   - to run a particular test function or functions, use
-#     '-k test_function_pattern_goes_here'
+#   $ ./testdtlib.py
 
-def parse(dts, include_path=()):
-    '''Parse a DTS string 'dts', using the given include path.'''
+# TODO: Factor out common code from error tests
 
-    fd, path = tempfile.mkstemp(prefix='pytest-', suffix='.dts')
+
+def run():
+    """
+    Runs all dtlib tests. Immediately exits with status 1 and a message on
+    stderr on test suite failures.
+    """
+    # Note: All code is within this function, even though some triple-quoted
+    # strings are unindented to make things less awkward
+
+    def fail(msg):
+        sys.exit("test failed: {}".format(msg))
+
+    def parse(dts, include_path=()):
+        open(".tmp.dts", "w").write(dts)
+        return dtlib.DT(".tmp.dts", include_path)
+
+    def verify_parse(dts, expected, include_path=()):
+        # The [1:] is so that the first line can be put on a separate line
+        # after """
+        dt = parse(dts[1:], include_path)
+
+        actual = str(dt)
+        expected = expected[1:-1]
+        if actual != expected:
+            fail("expected '{}' to parse as '{}', parsed as '{}'"
+                 .format(dts, expected, actual))
+
+        return dt
+
+    def verify_error(dts, msg):
+        prefix = "expected '{}' to generate the error '{}', generated" \
+                 .format(dts, msg)
+        try:
+            parse(dts[1:])
+            fail(prefix + " no error")
+        except dtlib.DTError as e:
+            if str(e) != msg:
+                fail("{} the error '{}'".format(prefix, e))
+        except Exception as e:
+            fail("{} the non-DTError '{}'".format(prefix, e))
+
+    # These might already exist from failed earlier runs
+
     try:
-        os.write(fd, dts.encode('utf-8'))
-        return dtlib.DT(path, include_path)
-    finally:
-        os.close(fd)
-        os.unlink(path)
+        os.mkdir(".tmp")
+    except OSError:
+        pass
 
-def verify_parse(dts, expected, include_path=()):
-    '''Like parse(), but also verifies that the parsed DT object's string
-    representation is expected[1:-1].
-
-    The [1:] is so that the first line can be put on a separate line
-    after triple quotes, as is done below.'''
-
-    dt = parse(dts[1:], include_path)
-
-    actual = str(dt)
-    expected = expected[1:-1]
-    assert actual == expected, f'unexpected round-trip on {dts}'
-
-    return dt
-
-def verify_error(dts, expected_msg):
-    '''Verify that parsing 'dts' results in a DTError with the
-    given error message 'msg'. The message must match exactly.'''
-
-    with pytest.raises(dtlib.DTError) as e:
-        parse(dts[1:])
-    actual_msg = str(e.value)
-    assert actual_msg == expected_msg, f'wrong error from {dts}'
-
-def verify_error_endswith(dts, expected_msg):
-    '''
-    Like verify_error(), but checks the message ends with
-    'expected_msg' instead of checking for strict equality.
-    '''
-
-    with pytest.raises(dtlib.DTError) as e:
-        parse(dts[1:])
-    actual_msg = str(e.value)
-    assert actual_msg.endswith(expected_msg), f'wrong error from {dts}'
-
-def verify_error_matches(dts, expected_re):
-    '''
-    Like verify_error(), but checks the message fully matches regular
-    expression 'expected_re' instead of checking for strict equality.
-    '''
-
-    with pytest.raises(dtlib.DTError) as e:
-        parse(dts[1:])
-    actual_msg = str(e.value)
-    assert re.fullmatch(expected_re, actual_msg), \
-        f'wrong error from {dts}' \
-        f'actual message:\n{actual_msg!r}\n' \
-        f'does not match:\n{expected_re!r}'
-
-@contextlib.contextmanager
-def temporary_chdir(dirname):
-    '''A context manager that changes directory to 'dirname'.
-
-    The current working directory is unconditionally returned to its
-    present location after the context manager exits.
-    '''
-    here = os.getcwd()
     try:
-        os.chdir(dirname)
-        yield
-    finally:
-        os.chdir(here)
+        os.mkdir(".tmp2")
+    except OSError:
+        pass
 
-def test_cell_parsing():
-    '''Miscellaneous properties containing zero or more cells'''
+    #
+    # Test cell parsing
+    #
 
     verify_parse("""
 /dts-v1/;
@@ -138,35 +109,36 @@ def test_cell_parsing():
 };
 """)
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
 	a = /bits/ 16 < 0x10000 >;
 };
 """,
-":4 (column 18): parse error: 65536 does not fit in 16 bits")
+".tmp.dts:4 (column 18): parse error: 65536 does not fit in 16 bits")
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
 	a = < 0x100000000 >;
 };
 """,
-":4 (column 8): parse error: 4294967296 does not fit in 32 bits")
+".tmp.dts:4 (column 8): parse error: 4294967296 does not fit in 32 bits")
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
 	a = /bits/ 128 < 0 >;
 };
 """,
-":4 (column 13): parse error: expected 8, 16, 32, or 64")
+".tmp.dts:4 (column 13): parse error: expected 8, 16, 32, or 64")
 
-def test_bytes_parsing():
-    '''Properties with byte array values'''
+    #
+    # Test bytes parsing
+    #
 
     verify_parse("""
 /dts-v1/;
@@ -187,17 +159,18 @@ def test_bytes_parsing():
 };
 """)
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
 	a = [ 123 ];
 };
 """,
-":4 (column 10): parse error: expected two-digit byte or ']'")
+".tmp.dts:4 (column 10): parse error: expected two-digit byte or ']'")
 
-def test_string_parsing():
-    '''Properties with string values'''
+    #
+    # Test string parsing
+    #
 
     verify_parse(r"""
 /dts-v1/;
@@ -218,17 +191,18 @@ r"""
 };
 """)
 
-    verify_error_endswith(r"""
+    verify_error(r"""
 /dts-v1/;
 
 / {
 	a = "\400";
 };
 """,
-":4 (column 6): parse error: octal escape out of range (> 255)")
+".tmp.dts:4 (column 6): parse error: octal escape out of range (> 255)")
 
-def test_char_literal_parsing():
-    '''Properties with character literal values'''
+    #
+    # Test character literal parsing
+    #
 
     verify_parse(r"""
 /dts-v1/;
@@ -247,7 +221,7 @@ def test_char_literal_parsing():
 };
 """)
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
@@ -255,42 +229,40 @@ def test_char_literal_parsing():
 	a = 'x';
 };
 """,
-":5 (column 6): parse error: malformed value")
+".tmp.dts:5 (column 6): parse error: malformed value")
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
 	a = < '' >;
 };
 """,
-":4 (column 7): parse error: character literals must be length 1")
+".tmp.dts:4 (column 7): parse error: character literals must be length 1")
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
 	a = < '12' >;
 };
 """,
-":4 (column 7): parse error: character literals must be length 1")
+".tmp.dts:4 (column 7): parse error: character literals must be length 1")
 
-def test_incbin(tmp_path):
-    '''Test /incbin/, an undocumented feature that allows for
-    binary file inclusion.
+    #
+    # Test /incbin/
+    #
 
-    https://github.com/dgibson/dtc/commit/e37ec7d5889fa04047daaa7a4ff55150ed7954d4'''
+    open(".tmp.bin", "wb").write(b"\00\01\02\03")
 
-    open(tmp_path / "tmp_bin", "wb").write(b"\00\01\02\03")
-
-    verify_parse(f"""
+    verify_parse("""
 /dts-v1/;
 
-/ {{
-	a = /incbin/ ("{tmp_path}/tmp_bin");
-	b = /incbin/ ("{tmp_path}/tmp_bin", 1, 1);
-	c = /incbin/ ("{tmp_path}/tmp_bin", 1, 2);
-}};
+/ {
+	a = /incbin/ (".tmp.bin");
+	b = /incbin/ (".tmp.bin", 1, 1);
+	c = /incbin/ (".tmp.bin", 1, 2);
+};
 """,
 """
 /dts-v1/;
@@ -302,36 +274,36 @@ def test_incbin(tmp_path):
 };
 """)
 
+    open(".tmp/in_subdir", "wb").write(b"\00\01\02")
+
     verify_parse("""
 /dts-v1/;
 
 / {
-	a = /incbin/ ("tmp_bin");
+	a = /incbin/ ("in_subdir");
 };
 """,
 """
 /dts-v1/;
 
 / {
-	a = [ 00 01 02 03 ];
+	a = [ 00 01 02 ];
 };
 """,
-                 include_path=(tmp_path,))
+    include_path=(".tmp",))
 
-    verify_error_endswith(r"""
+    verify_error(r"""
 /dts-v1/;
 
 / {
 	a = /incbin/ ("missing");
 };
 """,
-":4 (column 25): parse error: 'missing' could not be found")
+".tmp.dts:4 (column 25): parse error: 'missing' could not be found")
 
-def test_node_merging():
-    '''
-    Labels and properties specified for the same node in different
-    statements should be merged.
-    '''
+    #
+    # Test node merging
+    #
 
     verify_parse("""
 /dts-v1/;
@@ -393,7 +365,7 @@ l3: &l1 {
 };
 """)
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
@@ -402,9 +374,9 @@ l3: &l1 {
 &missing {
 };
 """,
-":6 (column 1): parse error: undefined node label 'missing'")
+".tmp.dts:6 (column 1): parse error: undefined node label 'missing'")
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
@@ -413,9 +385,9 @@ l3: &l1 {
 &{foo} {
 };
 """,
-":6 (column 1): parse error: node path 'foo' does not start with '/'")
+".tmp.dts:6 (column 1): parse error: node path 'foo' does not start with '/'")
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
@@ -424,14 +396,17 @@ l3: &l1 {
 &{/foo} {
 };
 """,
-":6 (column 1): parse error: component 'foo' in path '/foo' does not exist")
+".tmp.dts:6 (column 1): parse error: component 'foo' in path '/foo' does not exist")
 
-def test_property_labels():
-    '''Like nodes, properties can have labels too.'''
+    #
+    # Test property labels
+    #
 
     def verify_label2prop(label, expected):
         actual = dt.label2prop[label].name
-        assert actual == expected, f"label '{label}' mapped to wrong property"
+        if actual != expected:
+            fail("expected label '{}' to map to prop '{}', mapped to prop '{}'"
+                 .format(label, expected, actual))
 
     dt = verify_parse("""
 /dts-v1/;
@@ -467,18 +442,18 @@ def test_property_labels():
     verify_label2prop("l5", "d")
     verify_label2prop("l6", "d")
 
-def test_property_offset_labels():
-    '''
-    It's possible to give labels to data at nonnegative byte offsets
-    within a property value.
-    '''
+    #
+    # Test offset labels
+    #
 
     def verify_label2offset(label, expected_prop, expected_offset):
         actual_prop, actual_offset = dt.label2prop_offset[label]
         actual_prop = actual_prop.name
-        assert (actual_prop, actual_offset) == \
-            (expected_prop, expected_offset), \
-            f"label '{label}' maps to wrong offset or property"
+        if (actual_prop, actual_offset) != (expected_prop, expected_offset):
+            fail("expected label '{}' to map to offset {} on prop '{}', "
+                 "mapped to offset {} on prop '{}'"
+                 .format(label, expected_offset, expected_prop, actual_offset,
+                         actual_prop))
 
     dt = verify_parse("""
 /dts-v1/;
@@ -516,13 +491,15 @@ def test_property_offset_labels():
     verify_label2offset("l23", "b", 4)
     verify_label2offset("l24", "b", 4)
 
-def test_unit_addr():
-    '''Node unit addresses must be correctly extracted from their names.'''
+    #
+    # Test unit_addr
+    #
 
     def verify_unit_addr(path, expected):
         node = dt.get_node(path)
-        assert node.unit_addr == expected, \
-            f"{node!r} has unexpected unit address"
+        if node.unit_addr != expected:
+            fail("expected {!r} to have unit_addr '{}', was '{}'"
+                 .format(node, expected, node.unit_addr))
 
     dt = verify_parse("""
 /dts-v1/;
@@ -555,8 +532,9 @@ def test_unit_addr():
     verify_unit_addr("/unit-addr@ABC", "ABC")
     verify_unit_addr("/unit-addr-non-numeric@foo-bar", "foo-bar")
 
-def test_node_path_references():
-    '''Node phandles may be specified using a reference to the node's path.'''
+    #
+    # Test node path references
+    #
 
     verify_parse("""
 /dts-v1/;
@@ -609,8 +587,9 @@ def test_node_path_references():
 """,
 "/sub: component 'missing' in path '/sub/missing' does not exist")
 
-def test_phandles():
-    '''Various tests related to phandles.'''
+    #
+    # Test phandles
+    #
 
     verify_parse("""
 /dts-v1/;
@@ -706,7 +685,7 @@ def test_phandles():
 """,
 "/sub: undefined node label 'missing'")
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
@@ -715,7 +694,7 @@ def test_phandles():
 	};
 };
 """,
-":5 (column 19): parse error: phandle references are only allowed in arrays with 32-bit elements")
+".tmp.dts:5 (column 19): parse error: phandle references are only allowed in arrays with 32-bit elements")
 
     verify_error("""
 /dts-v1/;
@@ -779,15 +758,15 @@ def test_phandles():
 """,
 "/foo: phandle refers to another node")
 
-def test_phandle2node():
-    '''Test the phandle2node dict in a dt instance.'''
+    # Test phandle2node
 
     def verify_phandle2node(prop, offset, expected_name):
         phandle = dtlib.to_num(dt.root.props[prop].value[offset:offset + 4])
         actual_name = dt.phandle2node[phandle].name
 
-        assert actual_name == expected_name, \
-            f"'{prop}' is a phandle for the wrong thing"
+        if actual_name != expected_name:
+            fail("expected {} to be a phandle for {}, was a phandle for {}"
+                 .format(prop, expected_name, actual_name))
 
     dt = parse("""
 /dts-v1/;
@@ -812,8 +791,9 @@ def test_phandle2node():
     verify_phandle2node("phandles", 4, "node2")
     verify_phandle2node("phandles", 12, "node3")
 
-def test_mixed_assign():
-    '''Test mixed value type assignments'''
+    #
+    # Test mixed value type assignments
+    #
 
     verify_parse("""
 /dts-v1/;
@@ -841,10 +821,9 @@ def test_mixed_assign():
 };
 """)
 
-def test_deletion():
-    '''Properties and nodes may be deleted from the tree.'''
-
+    #
     # Test property deletion
+    #
 
     verify_parse("""
 /dts-v1/;
@@ -873,7 +852,9 @@ def test_deletion():
 };
 """)
 
+    #
     # Test node deletion
+    #
 
     verify_parse("""
 /dts-v1/;
@@ -909,7 +890,7 @@ def test_deletion():
 };
 """)
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
@@ -917,44 +898,41 @@ def test_deletion():
 
 /delete-node/ &missing;
 """,
-":6 (column 15): parse error: undefined node label 'missing'")
+".tmp.dts:6 (column 15): parse error: undefined node label 'missing'")
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 /delete-node/ {
 """,
-":3 (column 15): parse error: expected label (&foo) or path (&{/foo/bar}) reference")
+".tmp.dts:3 (column 15): parse error: expected label (&foo) or path (&{/foo/bar}) reference")
 
-def test_include_curdir(tmp_path):
-    '''Verify that /include/ (which is handled in the lexer) searches the
-    current directory'''
+    #
+    # Test /include/ (which is handled in the lexer)
+    #
 
-    with temporary_chdir(tmp_path):
-        with open("same-dir-1", "w") as f:
-            f.write("""
-    x = [ 00 ];
-    /include/ "same-dir-2"
+    # Verify that /include/ searches the current directory
+
+    open(".tmp/same-dir-1", "w").write("""
+	x = [ 00 ];
+	/include/ "same-dir-2"
 """)
-        with open("same-dir-2", "w") as f:
-            f.write("""
-    y = [ 01 ];
-    /include/ "same-dir-3"
+    open(".tmp/same-dir-2", "w").write("""
+	y = [ 01 ];
+	/include/ "same-dir-3"
 """)
-        with open("same-dir-3", "w") as f:
-            f.write("""
-    z = [ 02 ];
+    open(".tmp/same-dir-3", "w").write("""
+	z = [ 02 ];
 """)
-        with open("test.dts", "w") as f:
-            f.write("""
+
+    verify_parse("""
 /dts-v1/;
 
 / {
-	/include/ "same-dir-1"
+	/include/ ".tmp/same-dir-1"
 };
-""")
-        dt = dtlib.DT("test.dts")
-        assert str(dt) == """
+""",
+"""
 /dts-v1/;
 
 / {
@@ -962,127 +940,92 @@ def test_include_curdir(tmp_path):
 	y = [ 01 ];
 	z = [ 02 ];
 };
-"""[1:-1]
+""")
 
-def test_include_is_lexical(tmp_path):
-    '''/include/ is done in the lexer, which means that property
-    definitions can span multiple included files in different
-    directories.'''
+    # Test tricky includes and include paths
 
-    with open(tmp_path / "tmp2.dts", "w") as f:
-        f.write("""
+    open(".tmp2.dts", "w").write("""
 /dts-v1/;
 / {
 """)
-    with open(tmp_path / "tmp3.dts", "w") as f:
-        f.write("""
+    open(".tmp3.dts", "w").write("""
     x = <1>;
 """)
-
-    subdir_1 = tmp_path / "subdir-1"
-    subdir_1.mkdir()
-    with open(subdir_1 / "via-include-path-1", "w") as f:
-        f.write("""
+    open(".tmp/via-include-path-1", "w").write("""
       = /include/ "via-include-path-2"
 """)
-
-    subdir_2 = tmp_path / "subdir-2"
-    subdir_2.mkdir()
-    with open(subdir_2 / "via-include-path-2", "w") as f:
-        f.write("""
+    open(".tmp2/via-include-path-2", "w").write("""
         <2>;
 };
 """)
 
-    with open(tmp_path / "test.dts", "w") as test_dts:
-        test_dts.write("""
-/include/ "tmp2.dts"
-/include/ "tmp3.dts"
+    verify_parse("""
+/include/ ".tmp2.dts"
+/include/ ".tmp3.dts"
 y /include/ "via-include-path-1"
-""")
-
-    with temporary_chdir(tmp_path):
-        dt = dtlib.DT("test.dts", include_path=(subdir_1, subdir_2))
-    expected_dt = """
+""",
+"""
 /dts-v1/;
 
 / {
 	x = < 0x1 >;
 	y = < 0x2 >;
 };
-"""[1:-1]
-    assert str(dt) == expected_dt
+""",
+    include_path=(".tmp", ".tmp2",))
 
-def test_include_misc(tmp_path):
-    '''Miscellaneous /include/ tests.'''
-
-    # Missing includes should error out.
-
-    verify_error_endswith("""
+    verify_error("""
 /include/ "missing"
 """,
-":1 (column 1): parse error: 'missing' could not be found")
+".tmp.dts:1 (column 1): parse error: 'missing' could not be found")
 
     # Verify that an error in an included file points to the right location
 
-    with temporary_chdir(tmp_path):
-        with open("tmp2.dts", "w") as f:
-            f.write("""\
+    open(".tmp2.dts", "w").write("""\
 
 
   x
 """)
-        with open("tmp.dts", "w") as f:
-            f.write("""
+
+    verify_error("""
 
 
-/include/ "tmp2.dts"
+/include/ ".tmp2.dts"
+""",
+".tmp2.dts:3 (column 3): parse error: expected '/dts-v1/;' at start of file")
+
+# Test recursive /include/ detection
+
+    open(".tmp2.dts", "w").write("""\
+/include/ ".tmp3.dts"
 """)
-        with pytest.raises(dtlib.DTError) as e:
-            dtlib.DT("tmp.dts")
+    open(".tmp3.dts", "w").write("""\
+/include/ ".tmp.dts"
+""")
 
-        assert str(e.value) == \
-            "tmp2.dts:3 (column 3): parse error: expected '/dts-v1/;' at start of file"
+    verify_error("""
+/include/ ".tmp2.dts"
+""",
+"""\
+.tmp3.dts:1 (column 1): parse error: recursive /include/:
+.tmp.dts:1 ->
+.tmp2.dts:1 ->
+.tmp3.dts:1 ->
+.tmp.dts\
+""")
 
-def test_include_recursion(tmp_path):
-    '''Test recursive /include/ detection'''
+    verify_error("""
+/include/ ".tmp.dts"
+""",
+"""\
+.tmp.dts:1 (column 1): parse error: recursive /include/:
+.tmp.dts:1 ->
+.tmp.dts\
+""")
 
-    with temporary_chdir(tmp_path):
-        with open("tmp2.dts", "w") as f:
-            f.write('/include/ "tmp3.dts"\n')
-        with open("tmp3.dts", "w") as f:
-            f.write('/include/ "tmp.dts"\n')
-
-        with open("tmp.dts", "w") as f:
-            f.write('/include/ "tmp2.dts"\n')
-        with pytest.raises(dtlib.DTError) as e:
-            dtlib.DT("tmp.dts")
-
-        expected_err = """\
-tmp3.dts:1 (column 1): parse error: recursive /include/:
-tmp.dts:1 ->
-tmp2.dts:1 ->
-tmp3.dts:1 ->
-tmp.dts"""
-        assert str(e.value) == expected_err
-
-        with open("tmp.dts", "w") as f:
-            f.write('/include/ "tmp.dts"\n')
-        with pytest.raises(dtlib.DTError) as e:
-            dtlib.DT("tmp.dts")
-        expected_err = """\
-tmp.dts:1 (column 1): parse error: recursive /include/:
-tmp.dts:1 ->
-tmp.dts"""
-        assert str(e.value) == expected_err
-
-def test_omit_if_no_ref():
-    '''The /omit-if-no-ref/ marker is a bit of undocumented
-    dtc magic that removes a node from the tree if it isn't
-    referred to elsewhere.
-
-    https://elinux.org/Device_Tree_Source_Undocumented
-    '''
+    #
+    # Test /omit-if-no-ref/
+    #
 
     verify_parse("""
 /dts-v1/;
@@ -1129,25 +1072,25 @@ def test_omit_if_no_ref():
 };
 """)
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
 	/omit-if-no-ref/ x = "";
 };
 """,
-":4 (column 21): parse error: /omit-if-no-ref/ can only be used on nodes")
+".tmp.dts:4 (column 21): parse error: /omit-if-no-ref/ can only be used on nodes")
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
 	/omit-if-no-ref/ x;
 };
 """,
-":4 (column 20): parse error: /omit-if-no-ref/ can only be used on nodes")
+".tmp.dts:4 (column 20): parse error: /omit-if-no-ref/ can only be used on nodes")
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
@@ -1155,18 +1098,18 @@ def test_omit_if_no_ref():
 	};
 };
 """,
-":4 (column 19): parse error: expected node or property name")
+".tmp.dts:4 (column 19): parse error: expected node or property name")
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
 	/omit-if-no-ref/ = < 0 >;
 };
 """,
-":4 (column 19): parse error: expected node or property name")
+".tmp.dts:4 (column 19): parse error: expected node or property name")
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
@@ -1174,17 +1117,18 @@ def test_omit_if_no_ref():
 
 /omit-if-no-ref/ &missing;
 """,
-":6 (column 18): parse error: undefined node label 'missing'")
+".tmp.dts:6 (column 18): parse error: undefined node label 'missing'")
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 /omit-if-no-ref/ {
 """,
-":3 (column 18): parse error: expected label (&foo) or path (&{/foo/bar}) reference")
+".tmp.dts:3 (column 18): parse error: expected label (&foo) or path (&{/foo/bar}) reference")
 
-def test_expr():
-    '''Property values may contain expressions.'''
+    #
+    # Test expressions
+    #
 
     verify_parse("""
 /dts-v1/;
@@ -1291,26 +1235,27 @@ def test_expr():
 };
 """)
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
 	a = < (1/(-1 + 1)) >;
 };
 """,
-":4 (column 18): parse error: division by zero")
+".tmp.dts:4 (column 18): parse error: division by zero")
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
 	a = < (1%0) >;
 };
 """,
-":4 (column 11): parse error: division by zero")
+".tmp.dts:4 (column 11): parse error: division by zero")
 
-def test_comment_removal():
-    '''Comments should be removed when round-tripped to a str.'''
+    #
+    # Test comment removal
+    #
 
     verify_parse("""
 /**//dts-v1//**/;//
@@ -1329,25 +1274,38 @@ foo
 };
 """)
 
-def verify_path_is(path, node_name, dt):
-    '''Verify 'node.name' matches 'node_name' in 'dt'.'''
+    #
+    # Test get_node()
+    #
 
-    try:
-        node = dt.get_node(path)
-        assert node.name == node_name, f'unexpected path {path}'
-    except dtlib.DTError:
-        assert False, f'no node found for path {path}'
+    def verify_path_is(path, node_name):
+        try:
+            node = dt.get_node(path)
+            if node.name != node_name:
+                fail("expected {} to lead to {}, lead to {}"
+                     .format(path, node_name, node.name))
+        except dtlib.DTError:
+            fail("no node found for path " + path)
 
-def verify_path_error(path, msg, dt):
-    '''Verify that an attempt to get node 'path' from 'dt' raises
-    a DTError whose str is 'msg'.'''
+    def verify_path_error(path, msg):
+        prefix = "expected looking up '{}' to generate the error '{}', " \
+                 "generated ".format(path, msg)
+        try:
+            dt.get_node(path)
+            fail(prefix + " no error")
+        except dtlib.DTError as e:
+            if str(e) != msg:
+                fail("{} the error '{}'".format(prefix, e))
+        except Exception as e:
+            fail("{} the non-DTError '{}'".format(prefix, e))
 
-    with pytest.raises(dtlib.DTError) as e:
-        dt.get_node(path)
-    assert str(e.value) == msg, f"'{path}' gives the wrong error"
+    def verify_path_exists(path):
+        if not dt.has_node(path):
+            fail("expected path '{}' to exist, didn't".format(path))
 
-def test_get_node():
-    '''Test DT.get_node().'''
+    def verify_path_missing(path):
+        if dt.has_node(path):
+            fail("expected path '{}' to not exist, did".format(path))
 
     dt = parse("""
 /dts-v1/;
@@ -1363,39 +1321,21 @@ def test_get_node():
 };
 """)
 
-    verify_path_is("/", "/", dt)
-    verify_path_is("//", "/", dt)
-    verify_path_is("///", "/", dt)
-    verify_path_is("/foo", "foo", dt)
-    verify_path_is("//foo", "foo", dt)
-    verify_path_is("///foo", "foo", dt)
-    verify_path_is("/foo/bar", "bar", dt)
-    verify_path_is("//foo//bar", "bar", dt)
-    verify_path_is("///foo///bar", "bar", dt)
-    verify_path_is("/baz", "baz", dt)
+    verify_path_is("/", "/")
+    verify_path_is("//", "/")
+    verify_path_is("///", "/")
+    verify_path_is("/foo", "foo")
+    verify_path_is("//foo", "foo")
+    verify_path_is("///foo", "foo")
+    verify_path_is("/foo/bar", "bar")
+    verify_path_is("//foo//bar", "bar")
+    verify_path_is("///foo///bar", "bar")
+    verify_path_is("/baz", "baz")
 
-    verify_path_error(
-        "",
-        "no alias '' found -- did you forget the leading '/' in the node path?",
-        dt)
-    verify_path_error(
-        "missing",
-        "no alias 'missing' found -- did you forget the leading '/' in the node path?",
-        dt)
-    verify_path_error(
-        "/missing",
-        "component 'missing' in path '/missing' does not exist",
-        dt)
-    verify_path_error(
-        "/foo/missing",
-        "component 'missing' in path '/foo/missing' does not exist",
-        dt)
-
-    def verify_path_exists(path):
-        assert dt.has_node(path), f"path '{path}' does not exist"
-
-    def verify_path_missing(path):
-        assert not dt.has_node(path), f"path '{path}' exists"
+    verify_path_error("", "no alias '' found -- did you forget the leading '/' in the node path?")
+    verify_path_error("missing", "no alias 'missing' found -- did you forget the leading '/' in the node path?")
+    verify_path_error("/missing", "component 'missing' in path '/missing' does not exist")
+    verify_path_error("/foo/missing", "component 'missing' in path '/foo/missing' does not exist")
 
     verify_path_exists("/")
     verify_path_exists("/foo")
@@ -1404,8 +1344,17 @@ def test_get_node():
     verify_path_missing("/missing")
     verify_path_missing("/foo/missing")
 
-def test_aliases():
-    '''Test /aliases'''
+    #
+    # Test /aliases
+    #
+
+    def verify_alias_target(alias, node_name):
+        verify_path_is(alias, node_name)
+        if alias not in dt.alias2node:
+            fail("expected {} to be in alias2node".format(alias))
+        if dt.alias2node[alias].name != node_name:
+            fail("expected alias {} to lead to {}, lead to {}"
+                 .format(alias, node_name, dt.alias2node[alias].name))
 
     dt = parse("""
 /dts-v1/;
@@ -1436,22 +1385,15 @@ def test_aliases():
 };
 """)
 
-    def verify_alias_target(alias, node_name):
-        verify_path_is(alias, node_name, dt)
-        assert alias in dt.alias2node
-        assert dt.alias2node[alias].name == node_name, f"bad result for {alias}"
-
     verify_alias_target("alias1", "node1")
     verify_alias_target("alias2", "node2")
     verify_alias_target("alias3", "node3")
-    verify_path_is("alias4/node5", "node5", dt)
+    verify_path_is("alias4/node5", "node5")
 
-    verify_path_error(
-        "alias4/node5/node6",
-        "component 'node6' in path 'alias4/node5/node6' does not exist",
-        dt)
+    verify_path_error("alias4/node5/node6",
+                      "component 'node6' in path 'alias4/node5/node6' does not exist")
 
-    verify_error_matches("""
+    verify_error("""
 /dts-v1/;
 
 / {
@@ -1460,10 +1402,9 @@ def test_aliases():
 	};
 };
 """,
-"expected property 'a' on /aliases in .*" +
-re.escape("to be assigned with either 'a = &foo' or 'a = \"/path/to/node\"', not 'a = [ 00 ];'"))
+"expected property 'a' on /aliases in .tmp.dts to be assigned with either 'a = &foo' or 'a = \"/path/to/node\"', not 'a = [ 00 ];'")
 
-    verify_error_matches(r"""
+    verify_error(r"""
 /dts-v1/;
 
 / {
@@ -1472,8 +1413,7 @@ re.escape("to be assigned with either 'a = &foo' or 'a = \"/path/to/node\"', not
 	};
 };
 """,
-re.escape(r"value of property 'a' (b'\xff\x00') on /aliases in ") +
-".* is not valid UTF-8")
+r"value of property 'a' (b'\xff\x00') on /aliases in .tmp.dts is not valid UTF-8")
 
     verify_error("""
 /dts-v1/;
@@ -1486,7 +1426,7 @@ re.escape(r"value of property 'a' (b'\xff\x00') on /aliases in ") +
 """,
 "/aliases: alias property name 'A' should include only characters from [0-9a-z-]")
 
-    verify_error_matches(r"""
+    verify_error(r"""
 /dts-v1/;
 
 / {
@@ -1495,14 +1435,17 @@ re.escape(r"value of property 'a' (b'\xff\x00') on /aliases in ") +
 	};
 };
 """,
-"property 'a' on /aliases in .* points to the non-existent node \"/missing\"")
+"property 'a' on /aliases in .tmp.dts points to the non-existent node \"/missing\"")
 
-def test_prop_type():
-    '''Test Property.type'''
+    #
+    # Test Property.type
+    #
 
     def verify_type(prop, expected):
         actual = dt.root.props[prop].type
-        assert actual == expected, f'{prop} has wrong type'
+        if actual != expected:
+            fail("expected {} to have type {}, had type {}"
+                 .format(prop, expected, actual))
 
     dt = parse("""
 /dts-v1/;
@@ -1563,8 +1506,9 @@ def test_prop_type():
     verify_type("compound1", dtlib.TYPE_COMPOUND)
     verify_type("compound2", dtlib.TYPE_COMPOUND)
 
-def test_prop_type_casting():
-    '''Test Property.to_{num,nums,string,strings,node}()'''
+    #
+    # Test Property.to_{num,nums,string,strings,node}()
+    #
 
     dt = parse(r"""
 /dts-v1/;
@@ -1606,59 +1550,65 @@ def test_prop_type_casting():
     # Test Property.to_num()
 
     def verify_to_num(prop, signed, expected):
-        signed_str = "a signed" if signed else "an unsigned"
-        actual = dt.root.props[prop].to_num(signed)
-        assert actual == expected, \
-            f"{prop} has bad {signed_str} numeric value"
+        try:
+            actual = dt.root.props[prop].to_num(signed)
+        except dtlib.DTError as e:
+            fail("failed to convert '{}' to {} number: {}"
+                 .format(prop, "a signed" if signed else "an unsigned", e))
 
-    def verify_to_num_error_matches(prop, expected_re):
-        with pytest.raises(dtlib.DTError) as e:
+        if actual != expected:
+            fail("expected {} to have the {} numeric value {:#x}, had the "
+                 "value {:#x}".format(prop, "signed" if signed else "unsigned",
+                                      expected, actual))
+
+    def verify_to_num_error(prop, msg):
+        prefix = "expected fetching '{}' as a number to generate the error " \
+                 "'{}', generated".format(prop, msg)
+        try:
             dt.root.props[prop].to_num()
-        actual_msg = str(e.value)
-        assert re.fullmatch(expected_re, actual_msg), \
-            f"'{prop}' to_num gives the wrong error: " \
-            f"actual message:\n{actual_msg!r}\n" \
-            f"does not match:\n{expected_re!r}"
+            fail(prefix + " no error")
+        except dtlib.DTError as e:
+            if str(e) != msg:
+                fail("{} the error '{}'".format(prefix, e))
+        except Exception as e:
+            fail("{} the non-DTError '{}'".format(prefix, e))
 
     verify_to_num("u", False, 1)
     verify_to_num("u", True, 1)
     verify_to_num("s", False, 0xFFFFFFFF)
     verify_to_num("s", True, -1)
 
-    verify_to_num_error_matches(
-        "two_u",
-        "expected property 'two_u' on / in .* to be assigned with " +
-        re.escape("'two_u = < (number) >;', not 'two_u = < 0x1 0x2 >;'"))
-    verify_to_num_error_matches(
-        "u8",
-        "expected property 'u8' on / in .* to be assigned with " +
-        re.escape("'u8 = < (number) >;', not 'u8 = [ 01 ];'"))
-    verify_to_num_error_matches(
-        "u16",
-        "expected property 'u16' on / in .* to be assigned with " +
-        re.escape("'u16 = < (number) >;', not 'u16 = /bits/ 16 < 0x1 0x2 >;'"))
-    verify_to_num_error_matches(
-        "u64",
-        "expected property 'u64' on / in .* to be assigned with " +
-        re.escape("'u64 = < (number) >;', not 'u64 = /bits/ 64 < 0x1 >;'"))
-    verify_to_num_error_matches(
-        "string",
-        "expected property 'string' on / in .* to be assigned with " +
-        re.escape("'string = < (number) >;', not 'string = \"foo\\tbar baz\";'"))
+    verify_to_num_error("two_u", "expected property 'two_u' on / in .tmp.dts to be assigned with 'two_u = < (number) >;', not 'two_u = < 0x1 0x2 >;'")
+    verify_to_num_error("u8", "expected property 'u8' on / in .tmp.dts to be assigned with 'u8 = < (number) >;', not 'u8 = [ 01 ];'")
+    verify_to_num_error("u16", "expected property 'u16' on / in .tmp.dts to be assigned with 'u16 = < (number) >;', not 'u16 = /bits/ 16 < 0x1 0x2 >;'")
+    verify_to_num_error("u64", "expected property 'u64' on / in .tmp.dts to be assigned with 'u64 = < (number) >;', not 'u64 = /bits/ 64 < 0x1 >;'")
+    verify_to_num_error("string", "expected property 'string' on / in .tmp.dts to be assigned with 'string = < (number) >;', not 'string = \"foo\\tbar baz\";'")
 
     # Test Property.to_nums()
 
     def verify_to_nums(prop, signed, expected):
-        signed_str = "signed" if signed else "unsigned"
-        actual = dt.root.props[prop].to_nums(signed)
-        assert actual == expected, \
-            f"'{prop}' gives the wrong {signed_str} numbers"
+        try:
+            actual = dt.root.props[prop].to_nums(signed)
+        except dtlib.DTError as e:
+            fail("failed to convert '{}' to {} numbers: {}"
+                 .format(prop, "signed" if signed else "unsigned", e))
 
-    def verify_to_nums_error_matches(prop, expected_re):
-        with pytest.raises(dtlib.DTError) as e:
+        if actual != expected:
+            fail("expected {} to give the {} numbers {}, gave {}"
+                 .format(prop, "signed" if signed else "unsigned", expected,
+                         actual))
+
+    def verify_to_nums_error(prop, msg):
+        prefix = "expected converting '{}' to numbers to generate the error " \
+                 "'{}', generated".format(prop, msg)
+        try:
             dt.root.props[prop].to_nums()
-        assert re.fullmatch(expected_re, str(e.value)), \
-            f"'{prop}' to_nums gives the wrong error"
+            fail(prefix + " no error")
+        except dtlib.DTError as e:
+            if str(e) != msg:
+                fail("{} the error '{}'".format(prefix, e))
+        except Exception as e:
+            fail("{} the non-DTError '{}'".format(prefix, e))
 
     verify_to_nums("zero", False, [])
     verify_to_nums("u", False, [1])
@@ -1669,183 +1619,218 @@ def test_prop_type_casting():
     verify_to_nums("three_u", False, [1, 2, 3])
     verify_to_nums("three_u_split", False, [1, 2, 3])
 
-    verify_to_nums_error_matches(
-        "empty",
-        "expected property 'empty' on / in .* to be assigned with " +
-        re.escape("'empty = < (number) (number) ... >;', not 'empty;'"))
-    verify_to_nums_error_matches(
-        "string",
-        "expected property 'string' on / in .* to be assigned with " +
-        re.escape("'string = < (number) (number) ... >;', ") +
-        re.escape("not 'string = \"foo\\tbar baz\";'"))
+    verify_to_nums_error("empty", "expected property 'empty' on / in .tmp.dts to be assigned with 'empty = < (number) (number) ... >;', not 'empty;'")
+    verify_to_nums_error("string", "expected property 'string' on / in .tmp.dts to be assigned with 'string = < (number) (number) ... >;', not 'string = \"foo\\tbar baz\";'")
 
     # Test Property.to_bytes()
 
     def verify_to_bytes(prop, expected):
-        actual = dt.root.props[prop].to_bytes()
-        assert actual == expected, f"'{prop}' gives the wrong bytes"
+        try:
+            actual = dt.root.props[prop].to_bytes()
+        except dtlib.DTError as e:
+            fail("failed to convert '{}' to bytes: {}".format(prop, e))
 
-    def verify_to_bytes_error_matches(prop, expected_re):
-        with pytest.raises(dtlib.DTError) as e:
+        if actual != expected:
+            fail("expected {} to give the bytes {}, gave {}"
+                 .format(prop, expected, actual))
+
+    def verify_to_bytes_error(prop, msg):
+        prefix = "expected converting '{}' to bytes to generate the error " \
+                 "'{}', generated".format(prop, msg)
+        try:
             dt.root.props[prop].to_bytes()
-        assert re.fullmatch(expected_re, str(e.value)), \
-            f"'{prop}' gives the wrong error"
+            fail(prefix + " no error")
+        except dtlib.DTError as e:
+            if str(e) != msg:
+                fail("{} the error '{}'".format(prefix, e))
+        except Exception as e:
+            fail("{} the non-DTError '{}'".format(prefix, e))
 
     verify_to_bytes("u8", b"\x01")
     verify_to_bytes("bytes", b"\x01\x02\x03")
 
-    verify_to_bytes_error_matches(
-        "u16",
-        "expected property 'u16' on / in .* to be assigned with " +
-        re.escape("'u16 = [ (byte) (byte) ... ];', ") +
-        re.escape("not 'u16 = /bits/ 16 < 0x1 0x2 >;'"))
-    verify_to_bytes_error_matches(
-        "empty",
-        "expected property 'empty' on / in .* to be assigned with " +
-        re.escape("'empty = [ (byte) (byte) ... ];', not 'empty;'"))
+    verify_to_bytes_error("u16", "expected property 'u16' on / in .tmp.dts to be assigned with 'u16 = [ (byte) (byte) ... ];', not 'u16 = /bits/ 16 < 0x1 0x2 >;'")
+    verify_to_bytes_error("empty", "expected property 'empty' on / in .tmp.dts to be assigned with 'empty = [ (byte) (byte) ... ];', not 'empty;'")
 
     # Test Property.to_string()
 
     def verify_to_string(prop, expected):
-        actual = dt.root.props[prop].to_string()
-        assert actual == expected, f"'{prop}' to_string gives the wrong string"
+        try:
+            actual = dt.root.props[prop].to_string()
+        except dtlib.DTError as e:
+            fail("failed to convert '{}' to string: {}".format(prop, e))
 
-    def verify_to_string_error_matches(prop, expected_re):
-        with pytest.raises(dtlib.DTError) as e:
+        if actual != expected:
+            fail("expected {} to have the value '{}', had the value '{}'"
+                 .format(prop, expected, actual))
+
+    def verify_to_string_error(prop, msg):
+        prefix = "expected converting '{}' to string to generate the error " \
+                 "'{}', generated".format(prop, msg)
+        try:
             dt.root.props[prop].to_string()
-        assert re.fullmatch(expected_re, str(e.value)), \
-            f"'{prop}' gives the wrong error"
+            fail(prefix + " no error")
+        except dtlib.DTError as e:
+            if str(e) != msg:
+                fail("{} the error '{}'".format(prefix, e))
+        except Exception as e:
+            fail("{} the non-DTError '{}'".format(prefix, e))
 
     verify_to_string("empty_string", "")
     verify_to_string("string", "foo\tbar baz")
 
-    verify_to_string_error_matches(
-        "u",
-        "expected property 'u' on / in .* to be assigned with " +
-        re.escape("'u = \"string\";', not 'u = < 0x1 >;'"))
-    verify_to_string_error_matches(
-        "strings",
-        "expected property 'strings' on / in .* to be assigned with " +
-        re.escape("'strings = \"string\";', ")+
-        re.escape("not 'strings = \"foo\", \"bar\", \"baz\";'"))
-    verify_to_string_error_matches(
-        "invalid_string",
-        re.escape(r"value of property 'invalid_string' (b'\xff\x00') on / ") +
-        "in .* is not valid UTF-8")
+    verify_to_string_error("u", "expected property 'u' on / in .tmp.dts to be assigned with 'u = \"string\";', not 'u = < 0x1 >;'")
+    verify_to_string_error("strings", "expected property 'strings' on / in .tmp.dts to be assigned with 'strings = \"string\";', not 'strings = \"foo\", \"bar\", \"baz\";'")
+    verify_to_string_error("invalid_string", r"value of property 'invalid_string' (b'\xff\x00') on / in .tmp.dts is not valid UTF-8")
 
     # Test Property.to_strings()
 
     def verify_to_strings(prop, expected):
-        actual = dt.root.props[prop].to_strings()
-        assert actual == expected, f"'{prop}' to_strings gives the wrong value"
+        try:
+            actual = dt.root.props[prop].to_strings()
+        except dtlib.DTError as e:
+            fail("failed to convert '{}' to strings: {}".format(prop, e))
 
-    def verify_to_strings_error_matches(prop, expected_re):
-        with pytest.raises(dtlib.DTError) as e:
+        if actual != expected:
+            fail("expected {} to have the value '{}', had the value '{}'"
+                 .format(prop, expected, actual))
+
+    def verify_to_strings_error(prop, msg):
+        prefix = "expected converting '{}' to strings to generate the error " \
+                 "'{}', generated".format(prop, msg)
+        try:
             dt.root.props[prop].to_strings()
-        assert re.fullmatch(expected_re, str(e.value)), \
-            f"'{prop}' gives the wrong error"
+            fail(prefix + " no error")
+        except dtlib.DTError as e:
+            if str(e) != msg:
+                fail("{} the error '{}'".format(prefix, e))
+        except Exception as e:
+            fail("{} the non-DTError '{}'".format(prefix, e))
 
     verify_to_strings("empty_string", [""])
     verify_to_strings("string", ["foo\tbar baz"])
     verify_to_strings("strings", ["foo", "bar", "baz"])
 
-    verify_to_strings_error_matches(
-        "u",
-        "expected property 'u' on / in .* to be assigned with " +
-        re.escape("'u = \"string\", \"string\", ... ;', not 'u = < 0x1 >;'"))
-    verify_to_strings_error_matches(
-        "invalid_strings",
-        "value of property 'invalid_strings' " +
-        re.escape(r"(b'foo\x00\xff\x00bar\x00') on / in ") +
-        ".* is not valid UTF-8")
+    verify_to_strings_error("u", "expected property 'u' on / in .tmp.dts to be assigned with 'u = \"string\", \"string\", ... ;', not 'u = < 0x1 >;'")
+    verify_to_strings_error("invalid_strings", r"value of property 'invalid_strings' (b'foo\x00\xff\x00bar\x00') on / in .tmp.dts is not valid UTF-8")
 
     # Test Property.to_node()
 
     def verify_to_node(prop, path):
-        actual = dt.root.props[prop].to_node().path
-        assert actual == path, f"'{prop}' points at wrong path"
+        try:
+            actual = dt.root.props[prop].to_node().path
+        except dtlib.DTError as e:
+            fail("failed to convert '{}' to node: {}".format(prop, e))
 
-    def verify_to_node_error_matches(prop, expected_re):
-        with pytest.raises(dtlib.DTError) as e:
+        if actual != path:
+            fail("expected {} to point to {}, pointed to {}"
+                 .format(prop, path, actual))
+
+    def verify_to_node_error(prop, msg):
+        prefix = "expected converting '{}' to a node to generate the error " \
+                 "'{}', generated".format(prop, msg)
+        try:
             dt.root.props[prop].to_node()
-        assert re.fullmatch(expected_re, str(e.value)), \
-            f"'{prop} gives the wrong error"
+            fail(prefix + " no error")
+        except dtlib.DTError as e:
+            if str(e) != msg:
+                fail("{} the error '{}'".format(prefix, e))
+        except Exception as e:
+            fail("{} the non-DTError '{}'".format(prefix, e))
 
     verify_to_node("ref", "/target")
 
-    verify_to_node_error_matches(
-        "u",
-        "expected property 'u' on / in .* to be assigned with " +
-        re.escape("'u = < &foo >;', not 'u = < 0x1 >;'"))
-    verify_to_node_error_matches(
-        "string",
-        "expected property 'string' on / in .* to be assigned with " +
-        re.escape("'string = < &foo >;', not 'string = \"foo\\tbar baz\";'"))
+    verify_to_node_error("u", "expected property 'u' on / in .tmp.dts to be assigned with 'u = < &foo >;', not 'u = < 0x1 >;'")
+    verify_to_node_error("string", "expected property 'string' on / in .tmp.dts to be assigned with 'string = < &foo >;', not 'string = \"foo\\tbar baz\";'")
 
     # Test Property.to_nodes()
 
     def verify_to_nodes(prop, paths):
-        actual = [node.path for node in dt.root.props[prop].to_nodes()]
-        assert actual == paths, f"'{prop} gives wrong node paths"
+        try:
+            actual = [node.path for node in dt.root.props[prop].to_nodes()]
+        except dtlib.DTError as e:
+            fail("failed to convert '{}' to nodes: {}".format(prop, e))
 
-    def verify_to_nodes_error_matches(prop, expected_re):
-        with pytest.raises(dtlib.DTError) as e:
+        if actual != paths:
+            fail("expected {} to point to the paths {}, pointed to {}"
+                 .format(prop, paths, actual))
+
+    def verify_to_nodes_error(prop, msg):
+        prefix = "expected converting '{}' to a nodes to generate the error " \
+                 "'{}', generated".format(prop, msg)
+        try:
             dt.root.props[prop].to_nodes()
-        assert re.fullmatch(expected_re, str(e.value)), \
-            f"'{prop} gives wrong error"
+            fail(prefix + " no error")
+        except dtlib.DTError as e:
+            if str(e) != msg:
+                fail("{} the error '{}'".format(prefix, e))
+        except Exception as e:
+            fail("{} the non-DTError '{}'".format(prefix, e))
 
     verify_to_nodes("zero", [])
     verify_to_nodes("ref", ["/target"])
     verify_to_nodes("refs", ["/target", "/target2"])
     verify_to_nodes("refs2", ["/target", "/target2"])
 
-    verify_to_nodes_error_matches(
-        "u",
-        "expected property 'u' on / in .* to be assigned with " +
-        re.escape("'u = < &foo &bar ... >;', not 'u = < 0x1 >;'"))
-    verify_to_nodes_error_matches(
-        "string",
-        "expected property 'string' on / in .* to be assigned with " +
-        re.escape("'string = < &foo &bar ... >;', ") +
-        re.escape("not 'string = \"foo\\tbar baz\";'"))
+    verify_to_nodes_error("u", "expected property 'u' on / in .tmp.dts to be assigned with 'u = < &foo &bar ... >;', not 'u = < 0x1 >;'")
+    verify_to_nodes_error("string", "expected property 'string' on / in .tmp.dts to be assigned with 'string = < &foo &bar ... >;', not 'string = \"foo\\tbar baz\";'")
 
     # Test Property.to_path()
 
     def verify_to_path(prop, path):
-        actual = dt.root.props[prop].to_path().path
-        assert actual == path, f"'{prop} gives the wrong path"
+        try:
+            actual = dt.root.props[prop].to_path().path
+        except dtlib.DTError as e:
+            fail("failed to convert '{}' to path: {}".format(prop, e))
 
-    def verify_to_path_error_matches(prop, expected_re):
-        with pytest.raises(dtlib.DTError) as e:
+        if actual != path:
+            fail("expected {} to contain the path {}, contained {}"
+                 .format(prop, path, actual))
+
+    def verify_to_path_error(prop, msg):
+        prefix = "expected converting '{}' to a path to generate the error " \
+                 "'{}', generated".format(prop, msg)
+        try:
             dt.root.props[prop].to_path()
-        assert re.fullmatch(expected_re, str(e.value)), \
-            f"'{prop} gives the wrong error"
+            fail(prefix + " no error")
+        except dtlib.DTError as e:
+            if str(e) != msg:
+                fail("{} the error '{}'".format(prefix, e))
+        except Exception as e:
+            fail("{} the non-DTError '{}'".format(prefix, e))
 
     verify_to_path("path", "/target")
     verify_to_path("manualpath", "/target")
 
-    verify_to_path_error_matches(
-        "u",
-        "expected property 'u' on / in .* to be assigned with either " +
-        re.escape("'u = &foo' or 'u = \"/path/to/node\"', not 'u = < 0x1 >;'"))
-    verify_to_path_error_matches(
-        "missingpath",
-        "property 'missingpath' on / in .* points to the non-existent node "
-        '"/missing"')
+    verify_to_path_error("u", "expected property 'u' on / in .tmp.dts to be assigned with either 'u = &foo' or 'u = \"/path/to/node\"', not 'u = < 0x1 >;'")
+    verify_to_path_error("missingpath", "property 'missingpath' on / in .tmp.dts points to the non-existent node \"/missing\"")
 
     # Test top-level to_num() and to_nums()
 
     def verify_raw_to_num(fn, prop, length, signed, expected):
-        actual = fn(dt.root.props[prop].value, length, signed)
-        assert actual == expected, \
-            f"{fn.__name__}(<{prop}>, {length}, {signed}) gives wrong value"
+        try:
+            actual = fn(dt.root.props[prop].value, length, signed)
+        except dtlib.DTError as e:
+            fail("failed to convert '{}' to {} number(s) with {}: {}"
+                 .format(prop, "signed" if signed else "unsigned",
+                         fn.__name__, e))
+
+        if actual != expected:
+            fail("expected {}(<{}>, {}, {}) to be {}, was {}"
+                 .format(fn.__name__, prop, length, signed, expected, actual))
 
     def verify_raw_to_num_error(fn, data, length, msg):
-        with pytest.raises(dtlib.DTError) as e:
+        prefix = "expected {}() called with data='{}', length='{}' to " \
+                 "generate the error '{}', generated" \
+                 .format(fn.__name__, data, length, msg)
+        try:
             fn(data, length)
-        assert str(e.value) == msg, \
-            (f"{fn.__name__}() called with data='{data}', length='{length}' "
-             "gives the wrong error")
+            fail(prefix + " no error")
+        except dtlib.DTError as e:
+            if str(e) != msg:
+                fail("{} the error '{}'".format(prefix, e))
+        except Exception as e:
+            fail("{} the non-DTError '{}'".format(prefix, e))
 
     verify_raw_to_num(dtlib.to_num, "u", None, False, 1)
     verify_raw_to_num(dtlib.to_num, "u", 4, False, 1)
@@ -1863,11 +1848,9 @@ def test_prop_type_casting():
     verify_raw_to_num_error(dtlib.to_nums, b"", 0, "'length' must be greater than zero, was 0")
     verify_raw_to_num_error(dtlib.to_nums, b"foooo", 2, "b'foooo' is 5 bytes long, expected a length that's a a multiple of 2")
 
-def test_duplicate_labels():
-    '''
-    It is an error to duplicate labels in most conditions, but there
-    are some exceptions where it's OK.
-    '''
+    #
+    # Test duplicate label error
+    #
 
     verify_error("""
 /dts-v1/;
@@ -2064,18 +2047,26 @@ l1: l2: /memreserve/ 0x0000000000000002 0x0000000000000004;
 """)
 
     expected = [(["l1", "l2"], 2, 4), ([], 0x100, 0x200)]
-    assert dt.memreserves == expected
+    if dt.memreserves != expected:
+        fail("expected {} for dt.memreserve, got {}"
+             .format(expected, dt.memreserves))
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 foo: / {
 };
 """,
-":3 (column 6): parse error: expected /memreserve/ after labels at beginning of file")
+".tmp.dts:3 (column 6): parse error: expected /memreserve/ after labels at beginning of file")
 
-def test_reprs():
-    '''Test the __repr__() functions.'''
+    #
+    # Test __repr__() functions
+    #
+
+    def verify_repr(obj, expected):
+        if repr(obj) != expected:
+            fail("expected repr() to be '{}', was '{}'"
+                 .format(expected, repr(obj)))
 
     dt = parse("""
 /dts-v1/;
@@ -2089,15 +2080,13 @@ def test_reprs():
 """,
     include_path=("foo", "bar"))
 
-    assert re.fullmatch(r"DT\(filename='.*', include_path=\('foo', 'bar'\)\)",
-                        repr(dt))
-    assert re.fullmatch("<Property 'x' at '/' in '.*'>",
-                        repr(dt.root.props["x"]))
-    assert re.fullmatch("<Node /sub in '.*'>",
-                        repr(dt.root.nodes["sub"]))
+    verify_repr(dt, "DT(filename='.tmp.dts', include_path=('foo', 'bar'))")
+    verify_repr(dt.root.props["x"], "<Property 'x' at '/' in '.tmp.dts'>")
+    verify_repr(dt.root.nodes["sub"], "<Node /sub in '.tmp.dts'>")
 
-def test_names():
-    '''Tests for node/property names.'''
+    #
+    # Test names
+    #
 
     # The C tools disallow '@' in property names, but otherwise accept the same
     # characters in node and property names. Emulate that instead of the DT spec
@@ -2143,25 +2132,25 @@ def test_names():
 };
 """)
 
-    verify_error_endswith(r"""
+    verify_error(r"""
 /dts-v1/;
 
 / {
 	foo@3;
 };
 """,
-":4 (column 7): parse error: '@' is only allowed in node names")
+".tmp.dts:4 (column 7): parse error: '@' is only allowed in node names")
 
-    verify_error_endswith(r"""
+    verify_error(r"""
 /dts-v1/;
 
 / {
 	foo@3 = < 0 >;
 };
 """,
-":4 (column 8): parse error: '@' is only allowed in node names")
+".tmp.dts:4 (column 8): parse error: '@' is only allowed in node names")
 
-    verify_error_endswith(r"""
+    verify_error(r"""
 /dts-v1/;
 
 / {
@@ -2169,13 +2158,11 @@ def test_names():
 	};
 };
 """,
-":4 (column 10): parse error: multiple '@' in node name")
+".tmp.dts:4 (column 10): parse error: multiple '@' in node name")
 
-def test_dense_input():
-    '''
-    Test that a densely written DTS input round-trips to something
-    readable.
-    '''
+    #
+    # Test bad formatting
+    #
 
     verify_parse("""
 /dts-v1/;/{l1:l2:foo{l3:l4:bar{l5:x=l6:/bits/8<l7:1 l8:2>l9:,[03],"a";};};};
@@ -2192,22 +2179,23 @@ def test_dense_input():
 };
 """)
 
-def test_misc():
-    '''Test miscellaneous errors and non-errors.'''
+    #
+    # Test misc. errors and non-errors
+    #
 
-    verify_error_endswith("", ":1 (column 1): parse error: expected '/dts-v1/;' at start of file")
+    verify_error("", ".tmp.dts:1 (column 1): parse error: expected '/dts-v1/;' at start of file")
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 """,
-":2 (column 1): parse error: no root node defined")
+".tmp.dts:2 (column 1): parse error: no root node defined")
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/; /plugin/;
 """,
-":1 (column 11): parse error: /plugin/ is not supported")
+".tmp.dts:1 (column 11): parse error: /plugin/ is not supported")
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
@@ -2219,16 +2207,16 @@ def test_misc():
 l1: l2: &foo {
 };
 """,
-":9 (column 5): parse error: expected label reference (&foo)")
+".tmp.dts:9 (column 5): parse error: expected label reference (&foo)")
 
-    verify_error_endswith("""
+    verify_error("""
 /dts-v1/;
 
 / {
         foo: {};
 };
 """,
-":4 (column 14): parse error: expected node or property name")
+".tmp.dts:4 (column 14): parse error: expected node or property name")
 
     # Multiple /dts-v1/ at the start of a file is fine
     verify_parse("""
@@ -2244,3 +2232,17 @@ l1: l2: &foo {
 / {
 };
 """)
+
+    print("all tests passed")
+
+    # Only remove these if tests succeed. They're handy to have around otherwise.
+    shutil.rmtree(".tmp")
+    shutil.rmtree(".tmp2")
+    os.remove(".tmp.dts")
+    os.remove(".tmp2.dts")
+    os.remove(".tmp3.dts")
+    os.remove(".tmp.bin")
+
+
+if __name__ == "__main__":
+    run()

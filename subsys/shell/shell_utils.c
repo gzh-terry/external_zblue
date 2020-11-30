@@ -194,6 +194,8 @@ char shell_make_argv(size_t *argc, const char **argv, char *cmd, uint8_t max_arg
 		quote = make_argv(&cmd, c);
 	} while (true);
 
+	argv[*argc] = 0;
+
 	return quote;
 }
 
@@ -248,14 +250,13 @@ const struct shell_static_entry *shell_cmd_get(
 					size_t idx,
 					struct shell_static_entry *dloc)
 {
+	__ASSERT_NO_MSG(dloc != NULL);
 	const struct shell_static_entry *res = NULL;
 
 	if (parent == NULL) {
 		return  (idx < shell_root_cmd_count()) ?
 				shell_root_cmd_get(idx)->u.entry : NULL;
 	}
-
-	__ASSERT_NO_MSG(dloc != NULL);
 
 	if (parent->subcmd) {
 		if (parent->subcmd->is_dynamic) {
