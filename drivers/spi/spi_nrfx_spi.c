@@ -142,7 +142,7 @@ static void transfer_next_chunk(const struct device *dev)
 	struct spi_context *ctx = &dev_data->ctx;
 	int error = 0;
 
-	size_t chunk_len = spi_context_longest_current_buf(ctx);
+	size_t chunk_len = spi_context_max_continuous_chunk(ctx);
 
 	if (chunk_len > 0) {
 		nrfx_spi_xfer_desc_t xfer;
@@ -180,7 +180,7 @@ static int transceive(const struct device *dev,
 	struct spi_nrfx_data *dev_data = get_dev_data(dev);
 	int error;
 
-	spi_context_lock(&dev_data->ctx, asynchronous, signal);
+	spi_context_lock(&dev_data->ctx, asynchronous, signal, spi_cfg);
 
 	error = configure(dev, spi_cfg);
 	if (error == 0) {
@@ -279,7 +279,6 @@ static int init_spi(const struct device *dev)
 #ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 	dev_data->pm_state = DEVICE_PM_ACTIVE_STATE;
 #endif
-	spi_context_unlock_unconditionally(&dev_data->ctx);
 
 	return 0;
 }
@@ -361,7 +360,9 @@ static int spi_nrfx_pm_control(const struct device *dev,
 	{								       \
 		IRQ_CONNECT(DT_IRQN(SPI(idx)), DT_IRQ(SPI(idx), priority),     \
 			    nrfx_isr, nrfx_spi_##idx##_irq_handler, 0);	       \
-		return init_spi(dev);					       \
+		int err = init_spi(dev);				       \
+		spi_context_unlock_unconditionally(&get_dev_data(dev)->ctx);   \
+		return err;					       	       \
 	}								       \
 	static struct spi_nrfx_data spi_##idx##_data = {		       \
 		SPI_CONTEXT_INIT_LOCK(spi_##idx##_data, ctx),		       \
@@ -382,7 +383,7 @@ static int spi_nrfx_pm_control(const struct device *dev,
 			.miso_pull = SPI_NRFX_MISO_PULL(idx),		       \
 		}							       \
 	};								       \
-	DEVICE_DEFINE(spi_##idx, DT_LABEL(SPI(idx)),			       \
+	DEVICE_DT_DEFINE(SPI(idx),					       \
 		      spi_##idx##_init,					       \
 		      spi_nrfx_pm_control,				       \
 		      &spi_##idx##_data,				       \
