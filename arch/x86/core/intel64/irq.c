@@ -11,8 +11,9 @@
 #include <drivers/interrupt_controller/loapic.h>
 #include <irq.h>
 #include <logging/log.h>
+#include <x86_mmu.h>
 
-LOG_MODULE_DECLARE(os);
+LOG_MODULE_DECLARE(os, CONFIG_KERNEL_LOG_LEVEL);
 
 unsigned char _irq_to_interrupt_vector[CONFIG_MAX_IRQ_LINES];
 
@@ -130,6 +131,9 @@ void z_x86_ipi_setup(void)
 
 	x86_irq_funcs[CONFIG_SCHED_IPI_VECTOR - IV_IRQS] =
 		(void *) z_sched_ipi;
+
+	/* TLB shootdown handling */
+	x86_irq_funcs[CONFIG_TLB_IPI_VECTOR - IV_IRQS] = z_x86_tlb_ipi;
 }
 
 /*

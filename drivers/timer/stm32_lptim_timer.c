@@ -6,6 +6,10 @@
  */
 
 #include <soc.h>
+#include <stm32_ll_lptim.h>
+#include <stm32_ll_bus.h>
+#include <stm32_ll_rcc.h>
+#include <stm32_ll_pwr.h>
 #include <drivers/clock_control.h>
 #include <drivers/clock_control/stm32_clock_control.h>
 #include <drivers/timer/system_timer.h>
@@ -210,7 +214,7 @@ void z_clock_set_timeout(int32_t ticks, bool idle)
 	 * treated identically: it simply indicates the kernel would like the
 	 * next tick announcement as soon as possible.
 	 */
-	ticks = MAX(MIN(ticks - 1, (int32_t)LPTIM_TIMEBASE), 1);
+	ticks = CLAMP(ticks - 1, 1, (int32_t)LPTIM_TIMEBASE);
 
 	k_spinlock_key_t key = k_spin_lock(&lock);
 

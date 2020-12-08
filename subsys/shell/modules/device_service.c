@@ -10,15 +10,15 @@
 #include <string.h>
 #include <device.h>
 
-extern struct device __device_start[];
-extern struct device __device_PRE_KERNEL_1_start[];
-extern struct device __device_PRE_KERNEL_2_start[];
-extern struct device __device_POST_KERNEL_start[];
-extern struct device __device_APPLICATION_start[];
-extern struct device __device_end[];
+extern const struct device __device_start[];
+extern const struct device __device_PRE_KERNEL_1_start[];
+extern const struct device __device_PRE_KERNEL_2_start[];
+extern const struct device __device_POST_KERNEL_start[];
+extern const struct device __device_APPLICATION_start[];
+extern const struct device __device_end[];
 
 #ifdef CONFIG_SMP
-extern struct device __device_SMP_start[];
+extern const struct device __device_SMP_start[];
 #endif
 
 static const struct device *levels[] = {
@@ -39,7 +39,7 @@ static bool device_get_config_level(const struct shell *shell, int level)
 	bool devices = false;
 
 	for (dev = levels[level]; dev < levels[level+1]; dev++) {
-		if (z_device_ready(dev)) {
+		if (device_is_ready(dev)) {
 			devices = true;
 
 			shell_fprintf(shell, SHELL_NORMAL, "- %s\n", dev->name);
@@ -92,7 +92,7 @@ static int cmd_device_list(const struct shell *shell,
 	shell_fprintf(shell, SHELL_NORMAL, "devices:\n");
 
 	for (dev = __device_start; dev != __device_end; dev++) {
-		if (!z_device_ready(dev)) {
+		if (!device_is_ready(dev)) {
 			continue;
 		}
 

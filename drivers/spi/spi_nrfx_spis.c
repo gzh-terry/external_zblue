@@ -112,7 +112,7 @@ static void prepare_for_transfer(const struct device *dev)
 	struct spi_context *ctx = &dev_data->ctx;
 	int status;
 
-	size_t buf_len = spi_context_longest_current_buf(ctx);
+	size_t buf_len = spi_context_max_continuous_chunk(ctx);
 
 	if (buf_len > 0) {
 		nrfx_err_t result;
@@ -151,7 +151,7 @@ static int transceive(const struct device *dev,
 	struct spi_nrfx_data *dev_data = get_dev_data(dev);
 	int error;
 
-	spi_context_lock(&dev_data->ctx, asynchronous, signal);
+	spi_context_lock(&dev_data->ctx, asynchronous, signal, spi_cfg);
 
 	error = configure(dev, spi_cfg);
 	if (error != 0) {
