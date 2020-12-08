@@ -16,10 +16,6 @@
  * FUTEX_LOCK_PI and FUTEX_UNLOCK_PI
  */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #ifdef CONFIG_USERSPACE
 #include <sys/atomic.h>
 #include <zephyr/types.h>
@@ -152,9 +148,4 @@ static inline int sys_mutex_unlock(struct sys_mutex *mutex)
 }
 
 #endif /* CONFIG_USERSPACE */
-
-#ifdef __cplusplus
-}
-#endif
-
 #endif /* ZEPHYR_INCLUDE_SYS_MUTEX_H_ */

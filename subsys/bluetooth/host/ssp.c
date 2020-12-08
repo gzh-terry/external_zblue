@@ -9,7 +9,6 @@
 
 #include <sys/byteorder.h>
 
-#include <bluetooth/buf.h>
 #include <bluetooth/hci.h>
 #include <bluetooth/addr.h>
 

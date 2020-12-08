@@ -1,11 +1,6 @@
 common:
   depends_on: netif
-  min_ram: 32
-  tags: net socket userspace
 tests:
   net.socket.tcp:
-    extra_configs:
-      - CONFIG_NET_TC_THREAD_COOPERATIVE=y
-  net.socket.tcp.preempt:
-    extra_configs:
-      - CONFIG_NET_TC_THREAD_PREEMPTIVE=y
+    min_ram: 32
+    tags: net socket userspace

@@ -7,12 +7,11 @@
 
 /dts-v1/;
 #include <st/g0/stm32g071Xb.dtsi>
-#include <st/g0/stm32g071r(6-8-b)tx-pinctrl.dtsi>
 #include "arduino_r3_connector.dtsi"
 
 / {
 	model = "STMicroelectronics STM32G071RB-NUCLEO board";
-	compatible = "st,stm32g071rb-nucleo";
+	compatible = "st,stm32g071rb-nucleo", "st,stm32g071";
 
 	chosen {
 		zephyr,console = &usart2;
@@ -44,7 +43,6 @@
 };
 
 &usart2 {
-	pinctrl-0 = <&usart2_tx_pa2 &usart2_rx_pa3>;
 	current-speed = <115200>;
 	status = "okay";
 };
@@ -57,6 +55,5 @@
 	status = "okay";
 	pwm3: pwm {
 		status = "okay";
-		pinctrl-0 = <&tim3_ch1_pa6>;
 	};
 };

@@ -9,6 +9,7 @@
  * @brief A driver for sending and receiving mcumgr packets over UART.
  */
 
+#include <assert.h>
 #include <string.h>
 #include <kernel.h>
 #include <drivers/uart.h>

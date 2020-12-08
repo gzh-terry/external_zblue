@@ -17,7 +17,7 @@
 #include <inttypes.h>
 #include <exc_handle.h>
 #include <logging/log.h>
-LOG_MODULE_DECLARE(os, CONFIG_KERNEL_LOG_LEVEL);
+LOG_MODULE_DECLARE(os);
 
 #if defined(CONFIG_PRINTK) || defined(CONFIG_LOG)
 #define PR_EXC(...) LOG_ERR(__VA_ARGS__)
@@ -175,8 +175,8 @@ static bool memory_fault_recoverable(z_arch_esf_t *esf)
 #ifdef CONFIG_USERSPACE
 	for (int i = 0; i < ARRAY_SIZE(exceptions); i++) {
 		/* Mask out instruction mode */
-		uint32_t start = (uint32_t)exceptions[i].start & ~0x1U;
-		uint32_t end = (uint32_t)exceptions[i].end & ~0x1U;
+		uint32_t start = (uint32_t)exceptions[i].start & ~0x1;
+		uint32_t end = (uint32_t)exceptions[i].end & ~0x1;
 
 		if (esf->basic.pc >= start && esf->basic.pc < end) {
 			esf->basic.pc = (uint32_t)(exceptions[i].fixup);

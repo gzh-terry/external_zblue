@@ -1231,6 +1231,7 @@ struct read_data {
 	struct bt_att_chan *chan;
 	uint16_t offset;
 	struct net_buf *buf;
+	struct bt_att_read_rsp *rsp;
 	uint8_t err;
 };
 
@@ -1243,6 +1244,8 @@ static uint8_t read_cb(const struct bt_gatt_attr *attr, uint16_t handle,
 	int ret;
 
 	BT_DBG("handle 0x%04x", handle);
+
+	data->rsp = net_buf_add(data->buf, sizeof(*data->rsp));
 
 	/*
 	 * If any attribute is founded in handle range it means that error
@@ -1397,6 +1400,8 @@ static uint8_t read_vl_cb(const struct bt_gatt_attr *attr, uint16_t handle,
 	int read;
 
 	BT_DBG("handle 0x%04x", handle);
+
+	data->rsp = net_buf_add(data->buf, sizeof(*data->rsp));
 
 	/*
 	 * If any attribute is founded in handle range it means that error
@@ -2311,7 +2316,7 @@ static const struct att_handler {
 		ATT_RESPONSE,
 		att_handle_find_info_rsp },
 	{ BT_ATT_OP_FIND_TYPE_RSP,
-		sizeof(struct bt_att_handle_group),
+		sizeof(struct bt_att_find_type_rsp),
 		ATT_RESPONSE,
 		att_handle_find_type_rsp },
 	{ BT_ATT_OP_READ_TYPE_RSP,
@@ -2319,16 +2324,16 @@ static const struct att_handler {
 		ATT_RESPONSE,
 		att_handle_read_type_rsp },
 	{ BT_ATT_OP_READ_RSP,
-		0,
+		sizeof(struct bt_att_read_rsp),
 		ATT_RESPONSE,
 		att_handle_read_rsp },
 	{ BT_ATT_OP_READ_BLOB_RSP,
-		0,
+		sizeof(struct bt_att_read_blob_rsp),
 		ATT_RESPONSE,
 		att_handle_read_blob_rsp },
 #if defined(CONFIG_BT_GATT_READ_MULTIPLE)
 	{ BT_ATT_OP_READ_MULT_RSP,
-		0,
+		sizeof(struct bt_att_read_mult_rsp),
 		ATT_RESPONSE,
 		att_handle_read_mult_rsp },
 #if defined(CONFIG_BT_EATT)
@@ -2694,7 +2699,7 @@ static void bt_att_encrypt_change(struct bt_l2cap_chan *chan,
 	 * outstanding request about security failure.
 	 */
 	if (hci_status) {
-		if (att_chan->req && att_chan->req->retrying) {
+		if (att_chan->req) {
 			att_handle_rsp(att_chan, NULL, 0,
 				       BT_ATT_ERR_AUTHENTICATION);
 		}
@@ -2708,7 +2713,7 @@ static void bt_att_encrypt_change(struct bt_l2cap_chan *chan,
 		return;
 	}
 
-	if (!(att_chan->req && att_chan->req->retrying)) {
+	if (!att_chan->req || !att_chan->req->retrying) {
 		return;
 	}
 

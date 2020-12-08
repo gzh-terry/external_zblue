@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/*
- * ARM64 Cortex-A power management
+/**
+ * @file
+ * @brief ARM64 Cortex-A power management
  */
 
 #include <toolchain.h>
