@@ -818,7 +818,7 @@ struct net_buf_pool {
 
 #if defined(CONFIG_NET_BUF_POOL_USAGE)
 	/** Amount of available buffers in the pool. */
-	atomic_t avail_count;
+	int16_t avail_count;
 
 	/** Total size of the pool. */
 	const uint16_t pool_size;
@@ -844,7 +844,7 @@ struct net_buf_pool {
 		.free = Z_LIFO_INITIALIZER(_pool.free),                      \
 		.buf_count = _count,                                         \
 		.uninit_count = _count,                                      \
-		.avail_count = ATOMIC_INIT(_count),                          \
+		.avail_count = _count,                                       \
 		.name = STRINGIFY(_pool),                                    \
 		.destroy = _destroy,                                         \
 		.alloc = _alloc,                                             \
@@ -979,7 +979,7 @@ extern const struct net_buf_data_cb net_buf_var_cb;
  */
 #define NET_BUF_POOL_VAR_DEFINE(_name, _count, _data_size, _destroy)          \
 	static struct net_buf _net_buf_##_name[_count] __noinit;              \
-	K_HEAP_DEFINE(net_buf_mem_pool_##_name, _data_size); \
+	K_MEM_POOL_DEFINE(net_buf_mem_pool_##_name, 16, _data_size, 1, 4);    \
 	static const struct net_buf_data_alloc net_buf_data_alloc_##_name = { \
 		.cb = &net_buf_var_cb,                                        \
 		.alloc_data = &net_buf_mem_pool_##_name,                      \

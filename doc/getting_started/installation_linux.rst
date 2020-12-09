@@ -226,11 +226,9 @@ following target architectures:
 
 * :abbr:`Nios II`
 
-* :abbr:`RISC-V`
-
-* :abbr:`SPARC`
-
 * :abbr:`Xtensa`
+
+* :abbr:`RISC-V`
 
 Follow these steps to install the Zephyr SDK:
 

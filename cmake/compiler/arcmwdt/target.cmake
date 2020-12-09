@@ -36,6 +36,5 @@ foreach(isystem_include_dir ${NOSTDINC})
   list(APPEND isystem_include_flags -isystem "\"${isystem_include_dir}\"")
 endforeach()
 
-# common compile options, no copyright msg, little-endian, no small data,
-# no MWDT stack checking
-list(APPEND TOOLCHAIN_C_FLAGS -Hnocopyr -HL -Hnosdata -Hoff=Stackcheck_alloca)
+# common compile options, no copyright msg, little-endian, no small data
+list(APPEND TOOLCHAIN_C_FLAGS -Hnocopyr -HL -Hnosdata)

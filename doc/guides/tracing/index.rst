@@ -111,11 +111,7 @@ supported in Zephyr).
 To enable tracing support with `SEGGER SystemView`_ add the configuration option
 :option:`CONFIG_SEGGER_SYSTEMVIEW` to your project configuration file and set
 it to *y*. For example, this can be added to the
-:ref:`synchronization_sample` to visualize fast switching between threads.
-SystemView can also be used for post-mortem tracing, which can be enabled with
-`CONFIG_SEGGER_SYSVIEW_POST_MORTEM_MODE`. In this mode, a debugger can
-be attached after the system has crashed using ``west attach`` after which the
-latest data from the internal RAM buffer can be loaded into SystemView::
+:ref:`synchronization_sample` to visualize fast switching between threads::
 
     CONFIG_STDOUT_CONSOLE=y
     # enable to use thread names
@@ -123,8 +119,6 @@ latest data from the internal RAM buffer can be loaded into SystemView::
     CONFIG_SEGGER_SYSTEMVIEW=y
     CONFIG_USE_SEGGER_RTT=y
     CONFIG_TRACING=y
-    # enable for post-mortem tracing
-    CONFIG_SEGGER_SYSVIEW_POST_MORTEM_MODE=n
 
 
 .. figure:: segger_systemview.png

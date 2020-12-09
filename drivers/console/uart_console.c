@@ -32,7 +32,7 @@
 #include <sys/atomic.h>
 #include <sys/printk.h>
 #ifdef CONFIG_UART_CONSOLE_MCUMGR
-#include "mgmt/mcumgr/serial.h"
+#include "mgmt/serial.h"
 #endif
 
 static const struct device *uart_console_dev;

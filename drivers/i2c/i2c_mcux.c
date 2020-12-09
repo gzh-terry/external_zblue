@@ -34,7 +34,6 @@ struct i2c_mcux_config {
 
 struct i2c_mcux_data {
 	i2c_master_handle_t handle;
-	struct k_sem lock;
 	struct k_sem device_sync_sem;
 	status_t callback_status;
 };
@@ -43,7 +42,6 @@ static int i2c_mcux_configure(const struct device *dev,
 			      uint32_t dev_config_raw)
 {
 	I2C_Type *base = DEV_BASE(dev);
-	struct i2c_mcux_data *data = DEV_DATA(dev);
 	const struct i2c_mcux_config *config = DEV_CFG(dev);
 	uint32_t clock_freq;
 	uint32_t baudrate;
@@ -71,9 +69,7 @@ static int i2c_mcux_configure(const struct device *dev,
 	}
 
 	clock_freq = CLOCK_GetFreq(config->clock_source);
-	k_sem_take(&data->lock, K_FOREVER);
 	I2C_MasterSetBaudRate(base, baudrate, clock_freq);
-	k_sem_give(&data->lock);
 
 	return 0;
 }
@@ -113,15 +109,11 @@ static int i2c_mcux_transfer(const struct device *dev, struct i2c_msg *msgs,
 	struct i2c_mcux_data *data = DEV_DATA(dev);
 	i2c_master_transfer_t transfer;
 	status_t status;
-	int ret = 0;
-
-	k_sem_take(&data->lock, K_FOREVER);
 
 	/* Iterate over all the messages */
 	for (int i = 0; i < num_msgs; i++) {
 		if (I2C_MSG_ADDR_10_BITS & msgs->flags) {
-			ret = -ENOTSUP;
-			break;
+			return -ENOTSUP;
 		}
 
 		/* Initialize the transfer descriptor */
@@ -150,8 +142,7 @@ static int i2c_mcux_transfer(const struct device *dev, struct i2c_msg *msgs,
 		 */
 		if (status != kStatus_Success) {
 			I2C_MasterTransferAbort(base, &data->handle);
-			ret = -EIO;
-			break;
+			return -EIO;
 		}
 
 		/* Wait for the transfer to complete */
@@ -162,17 +153,14 @@ static int i2c_mcux_transfer(const struct device *dev, struct i2c_msg *msgs,
 		 */
 		if (data->callback_status != kStatus_Success) {
 			I2C_MasterTransferAbort(base, &data->handle);
-			ret = -EIO;
-			break;
+			return -EIO;
 		}
 
 		/* Move to the next message */
 		msgs++;
 	}
 
-	k_sem_give(&data->lock);
-
-	return ret;
+	return 0;
 }
 
 static void i2c_mcux_isr(const struct device *dev)
@@ -192,7 +180,6 @@ static int i2c_mcux_init(const struct device *dev)
 	i2c_master_config_t master_config;
 	int error;
 
-	k_sem_init(&data->lock, 1, 1);
 	k_sem_init(&data->device_sync_sem, 0, UINT_MAX);
 
 	clock_freq = CLOCK_GetFreq(config->clock_source);

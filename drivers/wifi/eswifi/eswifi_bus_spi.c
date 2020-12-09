@@ -272,12 +272,7 @@ int eswifi_spi_init(struct eswifi_dev *eswifi)
 	return 0;
 }
 
-static struct eswifi_bus_ops eswifi_bus_ops_spi = {
+struct eswifi_bus_ops eswifi_bus_ops_spi = {
 	.init = eswifi_spi_init,
 	.request = eswifi_spi_request,
 };
-
-struct eswifi_bus_ops *eswifi_get_bus(void)
-{
-	return &eswifi_bus_ops_spi;
-}

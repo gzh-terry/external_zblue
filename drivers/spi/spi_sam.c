@@ -94,7 +94,7 @@ static int spi_sam_configure(const struct device *dev,
 
 	/* Use the requested or next highest possible frequency */
 	div = SOC_ATMEL_SAM_MCK_FREQ_HZ / config->frequency;
-	div = CLAMP(div, 1, UINT8_MAX);
+	div = MAX(1, MIN(UINT8_MAX, div));
 	spi_csr |= SPI_CSR_SCBR(div);
 
 	regs->SPI_CR = SPI_CR_SPIDIS; /* Disable SPI */
@@ -366,7 +366,7 @@ static int spi_sam_transceive(const struct device *dev,
 	Spi *regs = cfg->regs;
 	int err;
 
-	spi_context_lock(&data->ctx, false, NULL, config);
+	spi_context_lock(&data->ctx, false, NULL);
 
 	err = spi_sam_configure(dev, config);
 	if (err != 0) {

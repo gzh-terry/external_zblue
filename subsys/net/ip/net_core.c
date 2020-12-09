@@ -382,7 +382,7 @@ int net_recv_data(struct net_if *iface, struct net_pkt *pkt)
 		return -EINVAL;
 	}
 
-	if (net_pkt_is_empty(pkt)) {
+	if (!pkt->frags) {
 		return -ENODATA;
 	}
 

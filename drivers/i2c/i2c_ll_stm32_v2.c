@@ -13,7 +13,6 @@
 #include <sys/util.h>
 #include <kernel.h>
 #include <soc.h>
-#include <stm32_ll_i2c.h>
 #include <errno.h>
 #include <drivers/i2c.h>
 #include "i2c_ll_stm32.h"

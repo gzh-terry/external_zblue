@@ -92,6 +92,7 @@ These pages cover memory allocation and management services.
 
    memory/heap.rst
    memory/slabs.rst
+   memory/pools.rst
 
 Timing
 ******

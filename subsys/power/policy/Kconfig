@@ -3,7 +3,7 @@
 choice
 	prompt "Idle State Power Management Policy"
 	help
-	  Select the idle state power management policy.
+	  Storage back-end to be used by the settings subsystem.
 
 config SYS_PM_POLICY_RESIDENCY
 	bool "PM Policy based on CPU residency"
