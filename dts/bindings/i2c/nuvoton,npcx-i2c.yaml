@@ -14,7 +14,7 @@ properties:
         required: true
     label:
         required: true
-    pinctrl-0:
+    pinctrl:
         type: phandles
         required: true
         description: configurations of pinmux controllers

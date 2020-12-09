@@ -106,43 +106,6 @@ contents of the SAM4E flash memory:
 Flashing
 ========
 
-For flash the board Zephyr provides two paths.  One uses the default OpenOCD
-tool and the second one uses :ref:`atmel_sam_ba_bootloader`.
-
-Using OpenOCD
--------------
-
-#. Connect the SAM4E Xplained Pro board to your host computer using the USB
-   debug port. Then build and flash the :ref:`hello_world` application.
-
-   .. zephyr-app-commands::
-      :zephyr-app: samples/hello_world
-      :board: sam4e_xpro
-      :goals: build flash
-
-Using SAM-BA bootloader
------------------------
-
-#. Close the ``ERASE`` jumper on the SAM4E Xplained Pro board.  Power on the
-   board for 10s.
-
-#. Open the ``ERASE`` jumper.
-
-#. Connect the SAM4E Xplained Pro board to your host computer using the SoC
-   USB port. Then build and flash the :ref:`hello_world` application.
-
-   .. zephyr-app-commands::
-      :zephyr-app: samples/hello_world
-      :board: sam4e_xpro
-      :goals: build
-
-   .. code-block:: console
-
-      $ west flash -r bossac
-
-Visualizing the message
------------------------
-
 #. Run your favorite terminal program to listen for output. Under Linux the
    terminal should be :code:`/dev/ttyACM0`. For example:
 
@@ -150,15 +113,22 @@ Visualizing the message
 
       $ minicom -D /dev/ttyACM0 -o
 
-   The -o option tells minicom not to send the modem initialization string.
-   Connection should be configured as follows:
+   The -o option tells minicom not to send the modem initialization
+   string. Connection should be configured as follows:
 
    - Speed: 115200
    - Data: 8 bits
    - Parity: None
    - Stop bits: 1
 
-#. Press reset button
+#. Connect the SAM4E Xplained Pro board to your host computer using the
+   USB debug port. Then build and flash the :ref:`hello_world`
+   application.
+
+   .. zephyr-app-commands::
+      :zephyr-app: samples/hello_world
+      :board: sam4e_xpro
+      :goals: build flash
 
    You should see "Hello World! arm" in your terminal.
 

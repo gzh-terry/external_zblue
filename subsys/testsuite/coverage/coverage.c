@@ -20,7 +20,9 @@
 #endif
 
 
-K_HEAP_DEFINE(gcov_heap, MALLOC_MAX_HEAP_SIZE);
+K_MEM_POOL_DEFINE(gcov_heap_mem_pool,
+		  MALLOC_MIN_BLOCK_SIZE,
+		  MALLOC_MAX_HEAP_SIZE, 1, 4);
 
 
 static struct gcov_info *gcov_info_head;
@@ -231,7 +233,7 @@ void gcov_coverage_dump(void)
 
 		size = calculate_buff_size(gcov_list);
 
-		buffer = k_heap_alloc(&gcov_heap, size, K_NO_WAIT);
+		buffer = (uint8_t *) k_mem_pool_malloc(&gcov_heap_mem_pool, size);
 		if (!buffer) {
 			printk("No Mem available to continue dump\n");
 			goto coverage_dump_end;
@@ -245,7 +247,7 @@ void gcov_coverage_dump(void)
 
 		dump_on_console(gcov_list->filename, buffer, size);
 
-		k_heap_free(&gcov_heap, buffer);
+		k_free(buffer);
 		gcov_list = gcov_list->next;
 	}
 coverage_dump_end:

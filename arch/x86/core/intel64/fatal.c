@@ -8,7 +8,7 @@
 #include <kernel_structs.h>
 #include <kernel_internal.h>
 #include <logging/log.h>
-LOG_MODULE_DECLARE(os, CONFIG_KERNEL_LOG_LEVEL);
+LOG_MODULE_DECLARE(os);
 
 void z_x86_exception(z_arch_esf_t *esf)
 {

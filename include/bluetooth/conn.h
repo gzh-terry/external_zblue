@@ -197,12 +197,9 @@ struct bt_conn_le_data_len_param {
  *
  *  Increment the reference count of a connection object.
  *
- *  @note Will return NULL if the reference count is zero.
- *
  *  @param conn Connection object.
  *
- *  @return Connection object with incremented reference count, or NULL if the
- *          reference count is zero.
+ *  @return Connection object with incremented reference count.
  */
 struct bt_conn *bt_conn_ref(struct bt_conn *conn);
 
@@ -346,7 +343,7 @@ struct bt_conn_br_remote_info {
 /** @brief Connection Remote Info Structure
  *
  *  @note The version, manufacturer and subversion fields will only contain
- *        valid data if @option{CONFIG_BT_REMOTE_VERSION} is enabled.
+ *        valid data if :option:`CONFIG_BT_REMOTE_VERSION` is enabled.
  */
 struct bt_conn_remote_info {
 	/** Connection Type */
@@ -385,7 +382,7 @@ int bt_conn_get_info(const struct bt_conn *conn, struct bt_conn_info *info);
  *  @param remote_info Connection remote info object.
  *
  *  @note In order to retrieve the remote version (version, manufacturer
- *  and subversion) @option{CONFIG_BT_REMOTE_VERSION} must be enabled
+ *  and subversion) :option:`CONFIG_BT_REMOTE_VERSION` must be enabled
  *
  *  @note The remote information is exchanged directly after the connection has
  *  been established. The application can be notified about when the remote
@@ -398,10 +395,6 @@ int bt_conn_get_remote_info(struct bt_conn *conn,
 			    struct bt_conn_remote_info *remote_info);
 
 /** @brief Update the connection parameters.
- *
- *  If the local device is in the peripheral role then updating the connection
- *  parameters will be delayed. This delay can be configured by through the
- *  @option{CONFIG_BT_CONN_PARAM_UPDATE_TIMEOUT} option.
  *
  *  @param conn Connection object.
  *  @param param Updated connection parameters.
@@ -490,7 +483,7 @@ struct bt_conn_le_create_param {
 
 	/** @brief Connection initiation timeout (N * 10 MS)
 	 *
-	 *  Set zero to use the default @option{CONFIG_BT_CREATE_CONN_TIMEOUT}
+	 *  Set zero to use the default :option:`CONFIG_BT_CREATE_CONN_TIMEOUT`
 	 *  timeout.
 	 *
 	 *  @note Unused in @ref bt_conn_create_auto_le
@@ -699,15 +692,14 @@ typedef enum __packed {
 
 /** @brief Set security level for a connection.
  *
- *  This function enable security (encryption) for a connection. If the device
- *  has bond information for the peer with sufficiently strong key encryption
- *  will be enabled. If the connection is already encrypted with sufficiently
- *  strong key this function does nothing.
+ *  This function enable security (encryption) for a connection. If device is
+ *  already paired with sufficiently strong key encryption will be enabled. If
+ *  link is already encrypted with sufficiently strong key this function does
+ *  nothing.
  *
- *  If the device has no bond information for the peer and is not already paired
- *  then the pairing procedure will be initiated. If the device has bond
- *  information or is already paired and the keys are too weak then the pairing
- *  procedure will be initiated.
+ *  If device is not paired pairing will be initiated. If device is paired and
+ *  keys are too weak but input output capabilities allow for strong enough keys
+ *  pairing will be initiated.
  *
  *  This function may return error if required level of security is not possible
  *  to achieve due to local or remote device limitation (e.g., input output
@@ -716,10 +708,10 @@ typedef enum __packed {
  *  This function may return error if the pairing procedure has already been
  *  initiated by the local device or the peer device.
  *
- *  @note When @option{CONFIG_BT_SMP_SC_ONLY} is enabled then the security
+ *  @note When :option:`CONFIG_BT_SMP_SC_ONLY` is enabled then the security
  *        level will always be level 4.
  *
- *  @note When @option{CONFIG_BT_SMP_OOB_LEGACY_PAIR_ONLY} is enabled then the
+ *  @note When :option:`CONFIG_BT_SMP_OOB_LEGACY_PAIR_ONLY` is enabled then the
  *        security level will always be level 3.
  *
  *  @param conn Connection object.
@@ -806,7 +798,7 @@ struct bt_conn_cb {
 	 *    @ref bt_conn_create_le was canceled either by the user through
 	 *    @ref bt_conn_disconnect or by the timeout in the host through
 	 *    @ref bt_conn_le_create_param timeout parameter, which defaults to
-	 *    @option{CONFIG_BT_CREATE_CONN_TIMEOUT} seconds.
+	 *    :option:`CONFIG_BT_CREATE_CONN_TIMEOUT` seconds.
 	 *  - @p BT_HCI_ERR_ADV_TIMEOUT High duty cycle directed connectable
 	 *    advertiser started by @ref bt_le_adv_start failed to be connected
 	 *    within the timeout.
@@ -825,7 +817,7 @@ struct bt_conn_cb {
 	 *  available.
 	 *  To avoid this issue it is recommended to either start connectable
 	 *  advertise or create a new connection using @ref k_work_submit or
-	 *  increase @option{CONFIG_BT_MAX_CONN}.
+	 *  increase :option:`CONFIG_BT_MAX_CONN`.
 	 *
 	 *  @param conn Connection object.
 	 *  @param reason HCI reason for the disconnection.
@@ -885,15 +877,8 @@ struct bt_conn_cb {
 #if defined(CONFIG_BT_SMP) || defined(CONFIG_BT_BREDR)
 	/** @brief The security level of a connection has changed.
 	 *
-	 *  This callback notifies the application that the security of a
-	 *  connection has changed.
-	 *
-	 *  The security level of the connection can either have been increased
-	 *  or remain unchanged. An increased security level means that the
-	 *  pairing procedure has been performed or the bond information from
-	 *  a previous connection has been applied. If the security level
-	 *  remains unchanged this means that the encryption key has been
-	 *  refreshed for the connection.
+	 *  This callback notifies the application that the security level
+	 *  of a connection has changed.
 	 *
 	 *  @param conn Connection object.
 	 *  @param level New security level of the connection.
@@ -949,7 +934,7 @@ struct bt_conn_cb {
  *
  *  Register callbacks to monitor the state of connections.
  *
- *  @param cb Callback struct. Must point to memory that remains valid.
+ *  @param cb Callback struct.
  */
 void bt_conn_cb_register(struct bt_conn_cb *cb);
 
@@ -1287,14 +1272,13 @@ struct bt_conn_auth_cb {
 	void (*pincode_entry)(struct bt_conn *conn, bool highsec);
 #endif
 
-	/** @brief notify that pairing procedure was complete.
+	/** @brief notify that pairing process was complete.
 	 *
-	 *  This callback notifies the application that the pairing procedure
+	 *  This callback notifies the application that the pairing process
 	 *  has been completed.
 	 *
 	 *  @param conn Connection object.
-	 *  @param bonded Bond information has been distributed during the
-	 *                pairing procedure.
+	 *  @param bonded pairing is bonded or not.
 	 */
 	void (*pairing_complete)(struct bt_conn *conn, bool bonded);
 

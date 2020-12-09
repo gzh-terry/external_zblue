@@ -19,7 +19,6 @@
  */
 #include <device.h>
 #include <soc.h>
-#include <stm32_ll_exti.h>
 #include <sys/__assert.h>
 #include <drivers/interrupt_controller/exti_stm32.h>
 
@@ -403,10 +402,9 @@ static int stm32_exti_init(const struct device *dev)
 }
 
 static struct stm32_exti_data exti_data;
-DEVICE_DEFINE(exti_stm32, STM32_EXTI_NAME, stm32_exti_init,
-	      NULL, &exti_data, NULL,
-	      PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
-	      NULL);
+DEVICE_INIT(exti_stm32, STM32_EXTI_NAME, stm32_exti_init,
+	    &exti_data, NULL,
+	    PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE);
 
 /**
  * @brief set & unset for the interrupt callbacks

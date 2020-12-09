@@ -16,8 +16,6 @@ LOG_MODULE_REGISTER(net_gptp_sample, LOG_LEVEL_DBG);
 #include <net/ethernet.h>
 #include <net/gptp.h>
 
-extern void init_testing(void);
-
 static struct gptp_phase_dis_cb phase_dis;
 
 #if defined(CONFIG_NET_GPTP_VLAN)
@@ -160,6 +158,4 @@ static int init_app(void)
 void main(void)
 {
 	init_app();
-
-	init_testing();
 }

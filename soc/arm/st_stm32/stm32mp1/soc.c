@@ -13,7 +13,6 @@
 #include <device.h>
 #include <init.h>
 #include <soc.h>
-#include <stm32_ll_bus.h>
 #include <arch/cpu.h>
 #include <arch/arm/aarch32/cortex_m/cmsis.h>
 

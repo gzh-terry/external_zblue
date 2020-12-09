@@ -17,9 +17,11 @@
 
 LOG_MODULE_REGISTER(display_mcux_elcdif, CONFIG_DISPLAY_LOG_LEVEL);
 
-K_HEAP_DEFINE(mcux_elcdif_pool,
-	      CONFIG_MCUX_ELCDIF_POOL_BLOCK_MAX *
-	      CONFIG_MCUX_ELCDIF_POOL_BLOCK_NUM);
+K_MEM_POOL_DEFINE(mcux_elcdif_pool,
+		  CONFIG_MCUX_ELCDIF_POOL_BLOCK_MIN,
+		  CONFIG_MCUX_ELCDIF_POOL_BLOCK_MAX,
+		  CONFIG_MCUX_ELCDIF_POOL_BLOCK_NUM,
+		  CONFIG_MCUX_ELCDIF_POOL_BLOCK_ALIGN);
 
 struct mcux_elcdif_config {
 	LCDIF_Type *base;
@@ -29,12 +31,8 @@ struct mcux_elcdif_config {
 	uint8_t bits_per_pixel;
 };
 
-struct mcux_mem_block {
-	void *data;
-};
-
 struct mcux_elcdif_data {
-	struct mcux_mem_block fb[2];
+	struct k_mem_block fb[2];
 	struct k_sem sem;
 	size_t pixel_bytes;
 	size_t fb_bytes;
@@ -192,10 +190,8 @@ static int mcux_elcdif_init(const struct device *dev)
 	data->write_idx = 1U;
 
 	for (i = 0; i < ARRAY_SIZE(data->fb); i++) {
-		data->fb[i].data = k_heap_alloc(&mcux_elcdif_pool,
-						&data->fb[i],
-						data->fb_bytes, K_NO_WAIT);
-		if (data->fb[i] == NULL) {
+		if (k_mem_pool_alloc(&mcux_elcdif_pool, &data->fb[i],
+				     data->fb_bytes, K_NO_WAIT) != 0) {
 			LOG_ERR("Could not allocate frame buffer %d", i);
 			return -ENOMEM;
 		}

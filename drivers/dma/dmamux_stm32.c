@@ -12,7 +12,6 @@
  */
 
 #include <soc.h>
-#include <stm32_ll_dmamux.h>
 #include <init.h>
 #include <drivers/dma.h>
 #include <drivers/clock_control.h>

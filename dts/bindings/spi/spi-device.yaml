@@ -3,7 +3,7 @@
 
 # Common fields for SPI devices
 
-include: [base.yaml, power.yaml]
+include: base.yaml
 
 on-bus: spi
 
