@@ -18,6 +18,10 @@
 #include <sys/util.h>
 #include <errno.h>
 #include <soc.h>
+#include <stm32_ll_bus.h>
+#include <stm32_ll_rcc.h>
+#include <stm32_ll_rng.h>
+#include <stm32_ll_system.h>
 #include <sys/printk.h>
 #include <drivers/clock_control.h>
 #include <drivers/clock_control/stm32_clock_control.h>
@@ -120,8 +124,10 @@ static int random_byte_get(void)
 	if ((LL_RNG_IsActiveFlag_DRDY(entropy_stm32_rng_data.rng) == 1)) {
 		if (entropy_stm32_got_error(entropy_stm32_rng_data.rng)) {
 			retval = -EIO;
+		} else {
+			retval = LL_RNG_ReadRandData32(
+						    entropy_stm32_rng_data.rng);
 		}
-		retval = LL_RNG_ReadRandData32(entropy_stm32_rng_data.rng);
 	}
 
 	irq_unlock(key);

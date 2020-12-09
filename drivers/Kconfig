@@ -99,4 +99,8 @@ source "drivers/eeprom/Kconfig"
 
 source "drivers/peci/Kconfig"
 
+source "drivers/regulator/Kconfig"
+
+source "drivers/memc/Kconfig"
+
 endmenu
