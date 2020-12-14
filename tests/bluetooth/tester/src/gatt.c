@@ -9,7 +9,6 @@
 #include <zephyr/types.h>
 #include <string.h>
 #include <errno.h>
-#include <assert.h>
 
 #include <toolchain.h>
 #include <bluetooth/bluetooth.h>
@@ -18,6 +17,7 @@
 #include <bluetooth/uuid.h>
 #include <sys/byteorder.h>
 #include <sys/printk.h>
+#include <sys/__assert.h>
 #include <net/buf.h>
 
 #include <logging/log.h>
@@ -357,7 +357,7 @@ static ssize_t write_value(struct bt_conn *conn,
 	memcpy(value->data + offset, buf, len);
 
 	/* Maximum attribute value size is 512 bytes */
-	assert(value->len < 512);
+	__ASSERT_NO_MSG(value->len < 512);
 
 	attr_value_changed_ev(attr->handle, value->data, value->len);
 
@@ -734,8 +734,8 @@ struct set_value {
 
 struct bt_gatt_indicate_params indicate_params;
 
-static void indicate_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr,
-			uint8_t err)
+static void indicate_cb(struct bt_conn *conn,
+			struct bt_gatt_indicate_params *params, uint8_t err)
 {
 	if (err != 0U) {
 		LOG_ERR("Indication fail");
@@ -781,6 +781,7 @@ static uint8_t alloc_value(struct bt_gatt_attr *attr, struct set_value *data)
 			indicate_params.data = value->data;
 			indicate_params.len = value->len;
 			indicate_params.func = indicate_cb;
+			indicate_params.destroy = NULL;
 
 			bt_gatt_indicate(NULL, &indicate_params);
 		}
@@ -1384,7 +1385,7 @@ static uint8_t read_cb(struct bt_conn *conn, uint8_t err,
 	return BT_GATT_ITER_CONTINUE;
 }
 
-static void read_data(uint8_t *data, uint16_t len)
+static void read(uint8_t *data, uint16_t len)
 {
 	const struct gatt_read_cmd *cmd = (void *) data;
 	struct bt_conn *conn;
@@ -1582,7 +1583,7 @@ static void write_rsp(struct bt_conn *conn, uint8_t err,
 
 static struct bt_gatt_write_params write_params;
 
-static void write_data(uint8_t *data, uint16_t len)
+static void write(uint8_t *data, uint16_t len)
 {
 	const struct gatt_write_cmd *cmd = (void *) data;
 	struct bt_conn *conn;
@@ -2006,7 +2007,7 @@ void tester_handle_gatt(uint8_t opcode, uint8_t index, uint8_t *data,
 		disc_all_desc(data, len);
 		return;
 	case GATT_READ:
-		read_data(data, len);
+		read(data, len);
 		return;
 	case GATT_READ_UUID:
 		read_uuid(data, len);
@@ -2024,7 +2025,7 @@ void tester_handle_gatt(uint8_t opcode, uint8_t index, uint8_t *data,
 		write_without_rsp(data, len, opcode, true);
 		return;
 	case GATT_WRITE:
-		write_data(data, len);
+		write(data, len);
 		return;
 	case GATT_WRITE_LONG:
 		write_long(data, len);
