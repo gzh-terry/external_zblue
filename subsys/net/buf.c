@@ -96,17 +96,21 @@ static uint8_t *mem_pool_data_alloc(struct net_buf *buf, size_t *size,
 				 k_timeout_t timeout)
 {
 	struct net_buf_pool *buf_pool = net_buf_pool_get(buf->pool_id);
-	struct k_heap *pool = buf_pool->alloc->alloc_data;
+	struct k_mem_pool *pool = buf_pool->alloc->alloc_data;
+	struct k_mem_block block;
 	uint8_t *ref_count;
 
-	/* Reserve extra space for a ref-count (uint8_t) */
-	void *b = k_heap_alloc(pool, 1 + *size, timeout);
-
-	if (b == NULL) {
+	/* Reserve extra space for k_mem_block_id and ref-count (uint8_t) */
+	if (k_mem_pool_alloc(pool, &block,
+			     sizeof(struct k_mem_block_id) + 1 + *size,
+			     timeout)) {
 		return NULL;
 	}
 
-	ref_count = (uint8_t *)b;
+	/* save the block descriptor info at the start of the actual block */
+	memcpy(block.data, &block.id, sizeof(block.id));
+
+	ref_count = (uint8_t *)block.data + sizeof(block.id);
 	*ref_count = 1U;
 
 	/* Return pointer to the byte following the ref count */
@@ -115,8 +119,7 @@ static uint8_t *mem_pool_data_alloc(struct net_buf *buf, size_t *size,
 
 static void mem_pool_data_unref(struct net_buf *buf, uint8_t *data)
 {
-	struct net_buf_pool *buf_pool = net_buf_pool_get(buf->pool_id);
-	struct k_heap *pool = buf_pool->alloc->alloc_data;
+	struct k_mem_block_id id;
 	uint8_t *ref_count;
 
 	ref_count = data - 1;
@@ -125,7 +128,8 @@ static void mem_pool_data_unref(struct net_buf *buf, uint8_t *data)
 	}
 
 	/* Need to copy to local variable due to alignment */
-	k_heap_free(pool, ref_count);
+	memcpy(&id, ref_count - sizeof(id), sizeof(id));
+	k_mem_pool_free_id(&id);
 }
 
 const struct net_buf_data_cb net_buf_var_cb = {
@@ -342,8 +346,8 @@ success:
 	net_buf_reset(buf);
 
 #if defined(CONFIG_NET_BUF_POOL_USAGE)
-	atomic_dec(&pool->avail_count);
-	__ASSERT_NO_MSG(atomic_get(&pool->avail_count) >= 0);
+	pool->avail_count--;
+	__ASSERT_NO_MSG(pool->avail_count >= 0);
 #endif
 	return buf;
 }
@@ -548,8 +552,8 @@ void net_buf_unref(struct net_buf *buf)
 		pool = net_buf_pool_get(buf->pool_id);
 
 #if defined(CONFIG_NET_BUF_POOL_USAGE)
-		atomic_inc(&pool->avail_count);
-		__ASSERT_NO_MSG(atomic_get(&pool->avail_count) <= pool->buf_count);
+		pool->avail_count++;
+		__ASSERT_NO_MSG(pool->avail_count <= pool->buf_count);
 #endif
 
 		if (pool->destroy) {

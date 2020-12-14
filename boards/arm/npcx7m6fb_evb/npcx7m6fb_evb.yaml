@@ -13,5 +13,3 @@ toolchain:
   - gnuarmemb
 ram: 64
 flash: 192
-supported:
-  - adc

@@ -8,12 +8,10 @@ on:
     paths:
     - 'scripts/west-commands.yml'
     - 'scripts/west_commands/**'
-    - '.github/workflows/west_cmds.yml'
   pull_request:
     paths:
     - 'scripts/west-commands.yml'
     - 'scripts/west_commands/**'
-    - '.github/workflows/west_cmds.yml'
 
 jobs:
   build:
@@ -57,7 +55,7 @@ jobs:
     - name: install pytest
       run: |
         pip3 install wheel
-        pip3 install pytest west pyelftools canopen progress mypy intelhex psutil
+        pip3 install pytest west pyelftools canopen progress mypy
     - name: run pytest-win
       if: runner.os == 'Windows'
       run: |

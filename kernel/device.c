@@ -25,7 +25,7 @@ extern const struct device __device_end[];
 
 extern uint32_t __device_init_status_start[];
 
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 extern uint32_t __device_busy_start[];
 extern uint32_t __device_busy_end[];
 #define DEVICE_BUSY_SIZE (__device_busy_end - __device_busy_start)
@@ -64,9 +64,9 @@ void z_sys_init_run_level(int32_t level)
 			z_object_init(dev);
 		}
 
-		if ((entry->init(dev) != 0) && (dev != NULL)) {
-			/* Initialization failed.
-			 * Set the init status bit so device is not declared ready.
+		if ((entry->init(dev) == 0) && (dev != NULL)) {
+			/* Initialization was successful.
+			 * Set the init status bit so device is declared ready.
 			 */
 			sys_bitfield_set_bit(
 				(mem_addr_t) __device_init_status_start,
@@ -122,12 +122,11 @@ size_t z_device_get_all_static(struct device const **devices)
 
 bool z_device_ready(const struct device *dev)
 {
-	/* Set bit indicates device failed initialization */
-	return !(sys_bitfield_test_bit((mem_addr_t)__device_init_status_start,
+	return !!(sys_bitfield_test_bit((mem_addr_t)__device_init_status_start,
 					(dev - __device_start)));
 }
 
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 int device_pm_control_nop(const struct device *unused_device,
 			  uint32_t unused_ctrl_command,
 			  void *unused_context,
@@ -162,7 +161,7 @@ int device_busy_check(const struct device *chk_dev)
 
 void device_busy_set(const struct device *busy_dev)
 {
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 	atomic_set_bit((atomic_t *) __device_busy_start,
 		       (busy_dev - __device_start));
 #else
@@ -172,7 +171,7 @@ void device_busy_set(const struct device *busy_dev)
 
 void device_busy_clear(const struct device *busy_dev)
 {
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 	atomic_clear_bit((atomic_t *) __device_busy_start,
 			 (busy_dev - __device_start));
 #else

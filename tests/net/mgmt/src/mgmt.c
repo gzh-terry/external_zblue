@@ -18,7 +18,6 @@ LOG_MODULE_REGISTER(net_test, CONFIG_NET_MGMT_EVENT_LOG_LEVEL);
 #include <net/net_pkt.h>
 #include <ztest.h>
 
-#define THREAD_SLEEP 50 /* ms */
 #define TEST_INFO_STRING "mgmt event info"
 
 #define TEST_MGMT_REQUEST		0x17AB1234
@@ -167,8 +166,7 @@ static int sending_event(uint32_t times, bool receiver, bool info)
 
 	k_sem_give(&thrower_lock);
 
-	/* Let the network stack to proceed */
-	k_msleep(THREAD_SLEEP);
+	k_yield();
 
 	if (receiver) {
 		TC_PRINT("\tReceived 0x%08X %u times\n",
@@ -266,12 +264,7 @@ static int test_core_event(uint32_t event, bool (*func)(void))
 
 	zassert_true(func(), "func() check failed");
 
-	if (IS_ENABLED(CONFIG_NET_TC_THREAD_PREEMPTIVE)) {
-		/* Let the network stack to proceed */
-		k_msleep(THREAD_SLEEP);
-	} else {
-		k_yield();
-	}
+	k_yield();
 
 	zassert_true(rx_calls > 0 && rx_calls != -1, "rx_calls empty");
 	zassert_equal(rx_event, event, "rx_event check failed, "

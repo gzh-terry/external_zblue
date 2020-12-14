@@ -31,16 +31,10 @@ extern "C" {
 #endif /* filesystem selection */
 #endif /* CONFIG_FILE_SYSTEM_MAX_FILE_NAME */
 
-
 /* Type for fs_open flags */
 typedef uint8_t fs_mode_t;
 
 struct fs_mount_t;
-
-/**
- * @addtogroup file_system_api
- * @{
- */
 
 /**
  * @brief File object representing an open file
@@ -64,10 +58,6 @@ struct fs_dir_t {
 	void *dirp;
 	const struct fs_mount_t *mp;
 };
-
-/**
- * @}
- */
 
 #ifdef __cplusplus
 }

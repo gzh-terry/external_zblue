@@ -6,13 +6,13 @@ set -eE
 
 function cleanup()
 {
-	# Rename twister junit xml for use with junit-annotate-buildkite-plugin
-	# create dummy file if twister did nothing
-	if [ ! -f twister-out/twister.xml ]; then
-	   touch twister-out/twister.xml
+	# Rename sanitycheck junit xml for use with junit-annotate-buildkite-plugin
+	# create dummy file if sanitycheck did nothing
+	if [ ! -f sanity-out/sanitycheck.xml ]; then
+	   touch sanity-out/sanitycheck.xml
 	fi
-	mv twister-out/twister.xml twister-${BUILDKITE_JOB_ID}.xml
-	buildkite-agent artifact upload twister-${BUILDKITE_JOB_ID}.xml
+	mv sanity-out/sanitycheck.xml sanitycheck-${BUILDKITE_JOB_ID}.xml
+	buildkite-agent artifact upload sanitycheck-${BUILDKITE_JOB_ID}.xml
 
 
 	# Upload test_file to get list of tests that are build/run
@@ -49,6 +49,9 @@ echo ""
 echo "--- ccache stats at start"
 ccache -s
 
+# Temporary fix: Install lpc_checksum, needed to build images for
+# lpcxpresso11u68 boards
+pip3 install lpc_checksum
 
 if [ -n "${DAILY_BUILD}" ]; then
    SANITYCHECK_OPTIONS=" --inline-logs -N --build-only --all --retry-failed 3 -v "
@@ -57,7 +60,7 @@ if [ -n "${DAILY_BUILD}" ]; then
    west update 1> west.update.log || west update 1> west.update-2.log
    west forall -c 'git reset --hard HEAD'
    source zephyr-env.sh
-   ./scripts/twister --subset ${JOB_NUM}/${BUILDKITE_PARALLEL_JOB_COUNT} ${SANITYCHECK_OPTIONS}
+   ./scripts/sanitycheck --subset ${JOB_NUM}/${BUILDKITE_PARALLEL_JOB_COUNT} ${SANITYCHECK_OPTIONS}
 else
    if [ -n "${BUILDKITE_PULL_REQUEST_BASE_BRANCH}" ]; then
       ./scripts/ci/run_ci.sh  -c -b ${BUILDKITE_PULL_REQUEST_BASE_BRANCH} -r origin \

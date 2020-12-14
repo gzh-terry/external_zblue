@@ -279,21 +279,6 @@ static bool sc_supported;
 static const uint8_t *sc_public_key;
 static K_SEM_DEFINE(sc_local_pkey_ready, 0, 1);
 
-static bool le_sc_supported(void)
-{
-	/*
-	 * If controller based ECC is to be used it must support
-	 * "LE Read Local P-256 Public Key" and "LE Generate DH Key" commands.
-	 * Otherwise LE SC are not supported.
-	 */
-	if (IS_ENABLED(CONFIG_BT_SMP_OOB_LEGACY_PAIR_ONLY)) {
-		return false;
-	}
-
-	return BT_CMD_TEST(bt_dev.supported_commands, 34, 1) &&
-	       BT_CMD_TEST(bt_dev.supported_commands, 34, 2);
-}
-
 static uint8_t get_io_capa(void)
 {
 	if (!bt_auth) {
@@ -2611,7 +2596,6 @@ static uint8_t legacy_pairing_rsp(struct bt_smp *smp)
 
 	if (!atomic_test_bit(smp->flags, SMP_FLAG_USER)) {
 		atomic_set_bit(&smp->allowed_cmds, BT_SMP_CMD_PAIRING_CONFIRM);
-		atomic_set_bit(&smp->allowed_cmds, BT_SMP_KEYPRESS_NOTIFICATION);
 		return legacy_send_pairing_confirm(smp);
 	}
 
@@ -4076,9 +4060,6 @@ static uint8_t smp_public_key(struct bt_smp *smp, struct net_buf *buf)
 			atomic_set_bit(&smp->allowed_cmds,
 				       BT_SMP_CMD_PAIRING_CONFIRM);
 
-			atomic_set_bit(&smp->allowed_cmds,
-				       BT_SMP_KEYPRESS_NOTIFICATION);
-
 			err = smp_send_pairing_confirm(smp);
 			if (err) {
 				return err;
@@ -4087,10 +4068,6 @@ static uint8_t smp_public_key(struct bt_smp *smp, struct net_buf *buf)
 		case PASSKEY_INPUT:
 			atomic_set_bit(smp->flags, SMP_FLAG_USER);
 			bt_auth->passkey_entry(smp->chan.chan.conn);
-
-			atomic_set_bit(&smp->allowed_cmds,
-				       BT_SMP_KEYPRESS_NOTIFICATION);
-
 			break;
 		case LE_SC_OOB:
 			/* Step 6: Select random N */
@@ -4229,18 +4206,6 @@ static uint8_t smp_dhkey_check(struct bt_smp *smp, struct net_buf *buf)
 	return 0;
 }
 
-static uint8_t smp_keypress_notif(struct bt_smp *smp, struct net_buf *buf)
-{
-	ARG_UNUSED(smp);
-	ARG_UNUSED(buf);
-
-	BT_DBG("");
-
-	/* Ignore packets until keypress notifications are fully supported. */
-	atomic_set_bit(&smp->allowed_cmds, BT_SMP_KEYPRESS_NOTIFICATION);
-	return 0;
-}
-
 static const struct {
 	uint8_t  (*func)(struct bt_smp *smp, struct net_buf *buf);
 	uint8_t  expect_len;
@@ -4259,7 +4224,6 @@ static const struct {
 	{ smp_security_request,    sizeof(struct bt_smp_security_request) },
 	{ smp_public_key,          sizeof(struct bt_smp_public_key) },
 	{ smp_dhkey_check,         sizeof(struct bt_smp_dhkey_check) },
-	{ smp_keypress_notif,      sizeof(struct bt_smp_keypress_notif) },
 };
 
 static int bt_smp_recv(struct bt_l2cap_chan *chan, struct net_buf *buf)
@@ -4287,17 +4251,7 @@ static int bt_smp_recv(struct bt_l2cap_chan *chan, struct net_buf *buf)
 		return 0;
 	}
 
-	/*
-	 * Bluetooth Core Specification Version 5.2, Vol 3, Part H, page 1667:
-	 * If a packet is received with a Code that is reserved for future use
-	 * it shall be ignored.
-	 */
-	if (hdr->code >= ARRAY_SIZE(handlers)) {
-		BT_WARN("Received reserved SMP code 0x%02x", hdr->code);
-		return 0;
-	}
-
-	if (!handlers[hdr->code].func) {
+	if (hdr->code >= ARRAY_SIZE(handlers) || !handlers[hdr->code].func) {
 		BT_WARN("Unhandled SMP code 0x%02x", hdr->code);
 		smp_error(smp, BT_SMP_ERR_CMD_NOTSUPP);
 		return 0;
@@ -5161,13 +5115,10 @@ int bt_smp_le_oob_set_tk(struct bt_conn *conn, const uint8_t *tk)
 }
 #endif /* !defined(CONFIG_BT_SMP_SC_PAIR_ONLY) */
 
+#if !defined(CONFIG_BT_SMP_OOB_LEGACY_PAIR_ONLY)
 int bt_smp_le_oob_generate_sc_data(struct bt_le_oob_sc_data *le_sc_oob)
 {
 	int err;
-
-	if (!le_sc_supported()) {
-		return -ENOTSUP;
-	}
 
 	if (!sc_public_key) {
 		err = k_sem_take(&sc_local_pkey_ready, K_FOREVER);
@@ -5198,6 +5149,7 @@ int bt_smp_le_oob_generate_sc_data(struct bt_le_oob_sc_data *le_sc_oob)
 
 	return 0;
 }
+#endif /* !defined(CONFIG_BT_SMP_OOB_LEGACY_PAIR_ONLY) */
 
 #if !defined(CONFIG_BT_SMP_OOB_LEGACY_PAIR_ONLY)
 static bool le_sc_oob_data_check(struct bt_smp *smp, bool oobd_local_present,
@@ -5564,6 +5516,21 @@ static int bt_smp_accept(struct bt_conn *conn, struct bt_l2cap_chan **chan)
 	BT_ERR("No available SMP context for conn %p", conn);
 
 	return -ENOMEM;
+}
+
+static bool le_sc_supported(void)
+{
+	/*
+	 * If controller based ECC is to be used it must support
+	 * "LE Read Local P-256 Public Key" and "LE Generate DH Key" commands.
+	 * Otherwise LE SC are not supported.
+	 */
+	if (IS_ENABLED(CONFIG_BT_SMP_OOB_LEGACY_PAIR_ONLY)) {
+		return false;
+	}
+
+	return BT_CMD_TEST(bt_dev.supported_commands, 34, 1) &&
+	       BT_CMD_TEST(bt_dev.supported_commands, 34, 2);
 }
 
 BT_L2CAP_CHANNEL_DEFINE(smp_fixed_chan, BT_L2CAP_CID_SMP, bt_smp_accept, NULL);

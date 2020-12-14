@@ -58,7 +58,7 @@
 		};
 
 		pinctrl: pin-controller@48000000 {
-			compatible = "st,stm32-pinctrl";
+			compatible = "st,stm32-pinmux";
 			#address-cells = <1>;
 			#size-cells = <1>;
 			reg = <0x48000000 0x2000>;
@@ -311,7 +311,6 @@
 			clocks = <&rcc STM32_CLOCK_BUS_AHB1 0x1>;
 			st,mem2mem;
 			dma-requests = <7>;
-			dma-offset = <0>;
 			status = "disabled";
 			label = "DMA_1";
 		};
@@ -324,7 +323,6 @@
 			clocks = <&rcc STM32_CLOCK_BUS_AHB1 0x2>;
 			st,mem2mem;
 			dma-requests = <7>;
-			dma-offset = <7>;
 			status = "disabled";
 			label = "DMA_2";
 		};
@@ -365,8 +363,4 @@
 
 &nvic {
 	arm,num-irq-priority-bits = <4>;
-};
-
-&systick {
-	status = "disabled";
 };
