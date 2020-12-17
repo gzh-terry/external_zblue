@@ -217,18 +217,20 @@ int e1000_probe(const struct device *device)
 	const pcie_bdf_t bdf = PCIE_BDF(0, 3, 0);
 	struct e1000_dev *dev = device->data;
 	uint32_t ral, rah;
-	struct pcie_mbar mbar;
+	uintptr_t phys_addr;
+	size_t size;
 
 	if (!pcie_probe(bdf, PCIE_ID(PCI_VENDOR_ID_INTEL,
 				     PCI_DEVICE_ID_I82540EM))) {
 		return -ENODEV;
 	}
 
-	pcie_get_mbar(bdf, 0, &mbar);
+	phys_addr = pcie_get_mbar(bdf, 0);
 	pcie_set_cmd(bdf, PCIE_CONF_CMDSTAT_MEM |
 		     PCIE_CONF_CMDSTAT_MASTER, true);
+	size = KB(128); /* TODO: get from PCIe */
 
-	device_map(&dev->address, mbar.phys_addr, mbar.size,
+	device_map(&dev->address, phys_addr, size,
 		   K_MEM_CACHE_NONE);
 
 	/* Setup TX descriptor */

@@ -648,9 +648,8 @@ static struct uart_stellaris_dev_data_t uart_stellaris_dev_data_0 = {
 	.baud_rate = DT_INST_PROP(0, current_speed),
 };
 
-DEVICE_DT_INST_DEFINE(0,
+DEVICE_AND_API_INIT(uart_stellaris0, DT_INST_LABEL(0),
 		    &uart_stellaris_init,
-		    device_pm_control_nop,
 		    &uart_stellaris_dev_data_0, &uart_stellaris_dev_cfg_0,
 		    PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    &uart_stellaris_driver_api);
@@ -660,7 +659,7 @@ static void irq_config_func_0(const struct device *dev)
 {
 	IRQ_CONNECT(DT_INST_IRQN(0),
 		    DT_INST_IRQ(0, priority),
-		    uart_stellaris_isr, DEVICE_DT_INST_GET(0),
+		    uart_stellaris_isr, DEVICE_GET(uart_stellaris0),
 		    0);
 	irq_enable(DT_INST_IRQN(0));
 }
@@ -687,9 +686,8 @@ static struct uart_stellaris_dev_data_t uart_stellaris_dev_data_1 = {
 	.baud_rate = DT_INST_PROP(1, current_speed),
 };
 
-DEVICE_DT_INST_DEFINE(1,
+DEVICE_AND_API_INIT(uart_stellaris1, DT_INST_LABEL(1),
 		    &uart_stellaris_init,
-		    device_pm_control_nop,
 		    &uart_stellaris_dev_data_1, &uart_stellaris_dev_cfg_1,
 		    PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    &uart_stellaris_driver_api);
@@ -699,7 +697,7 @@ static void irq_config_func_1(const struct device *dev)
 {
 	IRQ_CONNECT(DT_INST_IRQN(1),
 		    DT_INST_IRQ(1, priority),
-		    uart_stellaris_isr, DEVICE_DT_INST_GET(1),
+		    uart_stellaris_isr, DEVICE_GET(uart_stellaris1),
 		    0);
 	irq_enable(DT_INST_IRQN(1));
 }
@@ -726,9 +724,8 @@ static struct uart_stellaris_dev_data_t uart_stellaris_dev_data_2 = {
 	.baud_rate = DT_INST_PROP(2, current_speed),
 };
 
-DEVICE_DT_INST_DEFINE(2,
+DEVICE_AND_API_INIT(uart_stellaris2, DT_INST_LABEL(2),
 		    &uart_stellaris_init,
-		    device_pm_control_nop,
 		    &uart_stellaris_dev_data_2, &uart_stellaris_dev_cfg_2,
 		    PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    &uart_stellaris_driver_api);
@@ -738,7 +735,7 @@ static void irq_config_func_2(const struct device *dev)
 {
 	IRQ_CONNECT(DT_INST_IRQN(2),
 		    DT_INST_IRQ(2, priority),
-		    uart_stellaris_isr, DEVICE_DT_INST_GET(2),
+		    uart_stellaris_isr, DEVICE_GET(uart_stellaris2),
 		    0);
 	irq_enable(DT_INST_IRQN(2));
 }

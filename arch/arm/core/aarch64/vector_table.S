@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/*
- * Populated vector table
+/**
+ * @file
+ * @brief Populated vector table
  */
 
 #include <toolchain.h>
 #include <linker/sections.h>
 #include <arch/cpu.h>
-#include <offsets_short.h>
 #include "vector_table.h"
 #include "macro_priv.inc"
 
@@ -44,12 +44,12 @@ _ASM_FILE_PROLOGUE
  * |          + 0x300 | FIQ / vFIQ       |                         |
  * |          + 0x380 | SError / vSError |                         |
  * +------------------+------------------+-------------------------+
- * |          + 0x400 | Synchronous      | Lower EL using AArch64  |
+ * |          + 0x400 | Synchronous      | Lower EL using  AArch64 |
  * |          + 0x480 | IRQ / vIRQ       |                         |
  * |          + 0x500 | FIQ / vFIQ       |                         |
  * |          + 0x580 | SError / vSError |                         |
  * +------------------+------------------+-------------------------+
- * |          + 0x600 | Synchronous      | Lower EL using AArch32  |
+ * |          + 0x600 | Synchronous      | Lower EL using AArch64  |
  * |          + 0x680 | IRQ / vIRQ       |                         |
  * |          + 0x700 | FIQ / vFIQ       |                         |
  * |          + 0x780 | SError / vSError |                         |
@@ -57,21 +57,16 @@ _ASM_FILE_PROLOGUE
  */
 
 	/* The whole table must be 2K aligned */
-SECTION_SUBSEC_FUNC(exc_vector_table,_vector_table_section,_vector_table)
 	.align 11
+SECTION_SUBSEC_FUNC(exc_vector_table,_vector_table_section,_vector_table)
 
 	/* Current EL with SP0 / Synchronous */
 	.align 7
-	b	z_arm64_sync_exc
+	b	.
 
 	/* Current EL with SP0 / IRQ */
 	.align 7
-
-#ifdef CONFIG_GEN_SW_ISR_TABLE
-	b 	_isr_wrapper
-#else
-	b	z_irq_spurious
-#endif
+	b	.
 
 	/* Current EL with SP0 / FIQ */
 	.align 7
@@ -79,20 +74,15 @@ SECTION_SUBSEC_FUNC(exc_vector_table,_vector_table_section,_vector_table)
 
 	/* Current EL with SP0 / SError */
 	.align 7
-	b	z_arm64_serror
+	b	.
 
 	/* Current EL with SPx / Synchronous */
 	.align 7
-	b	z_arm64_sync_exc
+	b	z_arm64_svc
 
 	/* Current EL with SPx / IRQ */
 	.align 7
-
-#ifdef CONFIG_GEN_SW_ISR_TABLE
-	b 	_isr_wrapper
-#else
-	b	z_irq_spurious
-#endif
+	b	_isr_wrapper
 
 	/* Current EL with SPx / FIQ */
 	.align 7
@@ -100,48 +90,10 @@ SECTION_SUBSEC_FUNC(exc_vector_table,_vector_table_section,_vector_table)
 
 	/* Current EL with SPx / SError */
 	.align 7
-	b	z_arm64_serror
-
-	/* Lower EL using AArch64 / Synchronous */
-	.align 7
-	b	.
-
-	/* Lower EL using AArch64 / IRQ */
-	.align 7
-	b	.
-
-	/* Lower EL using AArch64 / FIQ */
-	.align 7
-	b	.
-
-	/* Lower EL using AArch64 / SError */
-	.align 7
-	b	.
-
-	/* Lower EL using AArch32 / Synchronous */
-	.align 7
-	b	.
-
-	/* Lower EL using AArch32 / IRQ */
-	.align 7
-	b	.
-
-	/* Lower EL using AArch32 / FIQ */
-	.align 7
-	b	.
-
-	/* Lower EL using AArch32 / SError */
-	.align 7
-	b	.
-
-GTEXT(z_arm64_serror)
-SECTION_FUNC(TEXT, z_arm64_serror)
-	z_arm64_enter_exc x0, x1
+	z_arm64_enter_exc x0, x1, x2
 
 	mov	x1, sp
 	mov	x0, #0 /* K_ERR_CPU_EXCEPTION */
 
-	bl	z_arm64_fatal_error
+	b	z_arm64_fatal_error
 
-	/* Return here only in case of recoverable error */
-	z_arm64_exit_exc x0, x1

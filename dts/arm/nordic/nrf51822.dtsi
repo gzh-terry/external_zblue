@@ -156,7 +156,6 @@
 		rtc0: rtc@4000b000 {
 			compatible = "nordic,nrf-rtc";
 			reg = <0x4000b000 0x1000>;
-			cc-num = <3>;
 			interrupts = <11 1>;
 			status = "okay";
 			clock-frequency = <32768>;
@@ -167,7 +166,6 @@
 		rtc1: rtc@40011000 {
 			compatible = "nordic,nrf-rtc";
 			reg = <0x40011000 0x1000>;
-			cc-num = <4>;
 			interrupts = <17 1>;
 			status = "okay";
 			clock-frequency = <32768>;
@@ -179,7 +177,6 @@
 			compatible = "nordic,nrf-timer";
 			status = "okay";
 			reg = <0x40008000 0x1000>;
-			cc-num = <4>;
 			interrupts = <8 1>;
 			prescaler = <0>;
 			label = "TIMER_0";
@@ -189,7 +186,6 @@
 			compatible = "nordic,nrf-timer";
 			status = "okay";
 			reg = <0x40009000 0x1000>;
-			cc-num = <4>;
 			interrupts = <9 1>;
 			prescaler = <0>;
 			label = "TIMER_1";
@@ -199,7 +195,6 @@
 			compatible = "nordic,nrf-timer";
 			status = "okay";
 			reg = <0x4000a000 0x1000>;
-			cc-num = <4>;
 			interrupts = <10 1>;
 			prescaler = <0>;
 			label = "TIMER_2";
@@ -231,7 +226,7 @@
 
 
 &sw_pwm {
-	generator = <&timer1>;
+	timer-instance = <1>;
 	channel-count = <3>;
 	clock-prescaler = <0>;
 	ppi-base = <7>;

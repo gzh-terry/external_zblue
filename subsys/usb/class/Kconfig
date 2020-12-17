@@ -146,13 +146,11 @@ config USB_DFU_CLASS
 	  USB DFU class driver
 
 config USB_DFU_WAIT_DELAY_MS
-	int "wait_for_usb_dfu() timeout"
+	int
 	depends on USB_DFU_CLASS
 	default 12000
-	range 1000 120000
 	help
-	  A thread can use wait_for_usb_dfu() call for wait a prescribed
-	  time (in ms) for DFU to begin
+	  A thread can wait for a prescribed time (in ms) for DFU to begin
 
 config USB_DFU_DETACH_TIMEOUT
 	int

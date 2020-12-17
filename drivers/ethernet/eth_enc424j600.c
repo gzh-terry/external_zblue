@@ -600,7 +600,7 @@ static int enc424j600_init(const struct device *dev)
 	uint8_t retries = ENC424J600_DEFAULT_NUMOF_RETRIES;
 	uint16_t tmp;
 
-	context->dev = dev;
+	context->dev;
 
 	/* SPI config */
 	context->spi_cfg.operation = SPI_WORD_SET(8);

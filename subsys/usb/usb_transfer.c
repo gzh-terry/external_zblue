@@ -10,7 +10,6 @@
 #include <logging/log.h>
 
 #include "usb_transfer.h"
-#include "usb_work_q.h"
 
 LOG_MODULE_REGISTER(usb_transfer, CONFIG_USB_DEVICE_LOG_LEVEL);
 
@@ -138,7 +137,7 @@ done:
 
 		if (k_is_in_isr()) {
 			/* reschedule completion in thread context */
-			k_work_submit_to_queue(&USB_WORK_Q, &trans->work);
+			k_work_submit(&trans->work);
 			return;
 		}
 
@@ -188,7 +187,7 @@ void usb_transfer_ep_callback(uint8_t ep, enum usb_dc_ep_cb_status_code status)
 		/* Read (out) needs to be done from ep_callback */
 		usb_transfer_work(&trans->work);
 	} else {
-		k_work_submit_to_queue(&USB_WORK_Q, &trans->work);
+		k_work_submit(&trans->work);
 	}
 }
 
@@ -241,7 +240,7 @@ int usb_transfer(uint8_t ep, uint8_t *data, size_t dlen, unsigned int flags,
 
 	if (flags & USB_TRANS_WRITE) {
 		/* start writing first chunk */
-		k_work_submit_to_queue(&USB_WORK_Q, &trans->work);
+		k_work_submit(&trans->work);
 	} else {
 		/* ready to read, clear NAK */
 		ret = usb_dc_ep_read_continue(ep);
@@ -269,7 +268,7 @@ void usb_cancel_transfer(uint8_t ep)
 	}
 
 	trans->status = -ECANCELED;
-	k_work_submit_to_queue(&USB_WORK_Q, &trans->work);
+	k_work_submit(&trans->work);
 
 done:
 	irq_unlock(key);
@@ -285,7 +284,7 @@ void usb_cancel_transfers(void)
 
 		if (trans->status == -EBUSY) {
 			trans->status = -ECANCELED;
-			k_work_submit_to_queue(&USB_WORK_Q, &trans->work);
+			k_work_submit(&trans->work);
 			LOG_DBG("Cancel transfer for ep: 0x%02x", trans->ep);
 		}
 
