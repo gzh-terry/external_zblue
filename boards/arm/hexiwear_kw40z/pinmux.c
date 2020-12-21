@@ -12,13 +12,14 @@ static int hexiwear_kw40z_pinmux_init(const struct device *dev)
 {
 	ARG_UNUSED(dev);
 
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(portb), okay)
-	__unused const struct device *portb =
-		device_get_binding(DT_LABEL(DT_NODELABEL(portb)));
+#ifdef CONFIG_PINMUX_MCUX_PORTB
+	const struct device *portb =
+		device_get_binding(CONFIG_PINMUX_MCUX_PORTB_NAME);
 #endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(portc), okay)
-	__unused const struct device *portc =
-		device_get_binding(DT_LABEL(DT_NODELABEL(portc)));
+
+#ifdef CONFIG_PINMUX_MCUX_PORTC
+	const struct device *portc =
+		device_get_binding(CONFIG_PINMUX_MCUX_PORTC_NAME);
 #endif
 
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(lpuart0), okay) && CONFIG_SERIAL

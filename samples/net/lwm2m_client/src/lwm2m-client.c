@@ -144,8 +144,7 @@ static int init_led_device(void)
 	return 0;
 }
 
-static int device_reboot_cb(uint16_t obj_inst_id,
-			    uint8_t *args, uint16_t args_len)
+static int device_reboot_cb(uint16_t obj_inst_id)
 {
 	LOG_INF("DEVICE: REBOOT");
 	/* Add an error for testing */
@@ -156,8 +155,7 @@ static int device_reboot_cb(uint16_t obj_inst_id,
 	return 0;
 }
 
-static int device_factory_default_cb(uint16_t obj_inst_id,
-				     uint8_t *args, uint16_t args_len)
+static int device_factory_default_cb(uint16_t obj_inst_id)
 {
 	LOG_INF("DEVICE: FACTORY DEFAULT");
 	/* Add an error for testing */
@@ -169,8 +167,7 @@ static int device_factory_default_cb(uint16_t obj_inst_id,
 }
 
 #if defined(CONFIG_LWM2M_FIRMWARE_UPDATE_PULL_SUPPORT)
-static int firmware_update_cb(uint16_t obj_inst_id,
-			      uint8_t *args, uint16_t args_len)
+static int firmware_update_cb(uint16_t obj_inst_id)
 {
 	LOG_DBG("UPDATE");
 
@@ -421,18 +418,11 @@ static void rd_client_event(struct lwm2m_ctx *client,
 	case LWM2M_RD_CLIENT_EVENT_QUEUE_MODE_RX_OFF:
 		LOG_DBG("Queue mode RX window closed");
 		break;
-
-	case LWM2M_RD_CLIENT_EVENT_NETWORK_ERROR:
-		LOG_ERR("LwM2M engine reported a network erorr.");
-		lwm2m_rd_client_stop(client, rd_client_event);
-		break;
 	}
 }
 
 void main(void)
 {
-	uint32_t flags = IS_ENABLED(CONFIG_LWM2M_RD_CLIENT_SUPPORT_BOOTSTRAP) ?
-				LWM2M_RD_CLIENT_FLAG_BOOTSTRAP : 0;
 	int ret;
 
 	LOG_INF(APP_BANNER);
@@ -471,10 +461,10 @@ void main(void)
 		sprintf(&dev_str[i*2], "%02x", dev_id[i]);
 	}
 
-	lwm2m_rd_client_start(&client, dev_str, flags, rd_client_event);
+	lwm2m_rd_client_start(&client, dev_str, rd_client_event);
 #else
 	/* client.sec_obj_inst is 0 as a starting point */
-	lwm2m_rd_client_start(&client, CONFIG_BOARD, flags, rd_client_event);
+	lwm2m_rd_client_start(&client, CONFIG_BOARD, rd_client_event);
 #endif
 
 	k_sem_take(&quit_lock, K_FOREVER);

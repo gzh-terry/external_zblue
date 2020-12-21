@@ -228,7 +228,7 @@ Merge Criteria
   * License
   * Checkpatch (Coding Style)
   * Pylint
-  * Integration Tests (Via twister) on emulation/simulation platforms
+  * Sanitycheck + Other Unit tests
   * Simulated Bluetooth Tests
 
 * Planned

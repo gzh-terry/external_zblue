@@ -53,9 +53,8 @@ static struct uart_ns16550_dev_data_t uart_ns16550_dev_data_@NUM@ = {
 #endif
 };
 
-DEVICE_DT_INST_DEFINE(@NUM@,
+DEVICE_AND_API_INIT(uart_ns16550_@NUM@, DT_INST_LABEL(@NUM@),
 		    &uart_ns16550_init,
-		    device_pm_control_nop,
 		    &uart_ns16550_dev_data_@NUM@, &uart_ns16550_dev_cfg_@NUM@,
 		    PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    &uart_ns16550_driver_api);
@@ -81,7 +80,7 @@ static void irq_config_func_@NUM@(const struct device *dev)
 
 	unsigned int irq;
 
-	irq = pcie_alloc_irq(DT_INST_REG_ADDR(@NUM@));
+	irq = pcie_wired_irq(DT_INST_REG_ADDR(@NUM@));
 
 	if (irq == PCIE_CONF_INTR_IRQ_NONE) {
 		return;
@@ -90,7 +89,7 @@ static void irq_config_func_@NUM@(const struct device *dev)
 	irq_connect_dynamic(irq,
 			    DT_INST_IRQ(@NUM@, priority),
 			    (void (*)(const void *))uart_ns16550_isr,
-			    DEVICE_DT_INST_GET(@NUM@),
+			    DEVICE_GET(uart_ns16550_@NUM@),
 			    INST_@NUM@_IRQ_FLAGS);
 
 	pcie_irq_enable(DT_INST_REG_ADDR(@NUM@), irq);
@@ -102,7 +101,7 @@ static void irq_config_func_@NUM@(const struct device *dev)
 	IRQ_CONNECT(DT_INST_IRQN(@NUM@),
 		    DT_INST_IRQ(@NUM@, priority),
 		    uart_ns16550_isr,
-		    DEVICE_DT_INST_GET(@NUM@),
+		    DEVICE_GET(uart_ns16550_@NUM@),
 		    INST_@NUM@_IRQ_FLAGS);
 
 	pcie_irq_enable(DT_INST_REG_ADDR(@NUM@),
@@ -116,7 +115,7 @@ static void irq_config_func_@NUM@(const struct device *dev)
 	IRQ_CONNECT(DT_INST_IRQN(@NUM@),
 		    DT_INST_IRQ(@NUM@, priority),
 		    uart_ns16550_isr,
-		    DEVICE_DT_INST_GET(@NUM@),
+		    DEVICE_GET(uart_ns16550_@NUM@),
 		    INST_@NUM@_IRQ_FLAGS);
 
 	irq_enable(DT_INST_IRQN(@NUM@));

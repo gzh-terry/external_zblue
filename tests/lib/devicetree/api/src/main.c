@@ -9,7 +9,6 @@
 #include <device.h>
 #include <drivers/gpio.h>
 
-#define TEST_CHILDREN	DT_PATH(test, test_children)
 #define TEST_DEADBEEF	DT_PATH(test, gpio_deadbeef)
 #define TEST_ABCD1234	DT_PATH(test, gpio_abcd1234)
 #define TEST_ALIAS	DT_ALIAS(test_alias)
@@ -20,7 +19,6 @@
 #define TEST_IRQ	DT_NODELABEL(test_irq)
 #define TEST_TEMP	DT_NODELABEL(test_temp_sensor)
 #define TEST_REG	DT_NODELABEL(test_reg)
-#define TEST_ENUM_0	DT_NODELABEL(test_enum_0)
 
 #define TEST_I2C_DEV DT_PATH(test, i2c_11112222, test_i2c_dev_10)
 #define TEST_I2C_BUS DT_BUS(TEST_I2C_DEV)
@@ -679,14 +677,6 @@ static void test_phandles(void)
 			     "TEST_GPIO_2"),
 		     "gpios[1].label");
 
-	/* DT_PROP_BY_PHANDLE_IDX_OR */
-	zassert_true(!strcmp(DT_PROP_BY_PHANDLE_IDX_OR(TEST_PH, phs_or, 0,
-						val, "zero"), "one"),
-		     "phs-or 0");
-	zassert_true(!strcmp(DT_PROP_BY_PHANDLE_IDX_OR(TEST_PH, phs_or, 1,
-						val, "zero"), "zero"),
-		     "phs-or 1");
-
 	/* phandle-array */
 	zassert_true(DT_NODE_HAS_PROP(TEST_PH, gpios), "gpios");
 	zassert_equal(ARRAY_SIZE(gps), 2, "gpios size");
@@ -865,18 +855,6 @@ static void test_phandles(void)
 #define DT_DRV_COMPAT vnd_phandle_holder
 static void test_gpio(void)
 {
-	/* DT_GPIO_CTLR_BY_IDX */
-	zassert_true(!strcmp(TO_STRING(DT_GPIO_CTLR_BY_IDX(TEST_PH, gpios, 0)),
-			     TO_STRING(DT_NODELABEL(test_gpio_1))),
-		     "gpio 0 ctlr idx");
-	zassert_true(!strcmp(TO_STRING(DT_GPIO_CTLR_BY_IDX(TEST_PH, gpios, 1)),
-			     TO_STRING(DT_NODELABEL(test_gpio_2))),
-		     "gpio 1 ctlr idx");
-
-	/* DT_GPIO_CTLR */
-	zassert_true(!strcmp(TO_STRING(DT_GPIO_CTLR(TEST_PH, gpios)),
-			     TO_STRING(DT_NODELABEL(test_gpio_1))),
-		     "gpio 0 ctlr");
 
 	/* DT_GPIO_LABEL_BY_IDX */
 	zassert_true(!strcmp(DT_GPIO_LABEL_BY_IDX(TEST_PH, gpios, 0),
@@ -1227,8 +1205,6 @@ static char *c[] = DT_PROP(TEST_ARRAYS, c);
 
 static void test_arrays(void)
 {
-	int ok;
-
 	zassert_equal(ARRAY_SIZE(a), 3, "a size");
 	zassert_equal(ARRAY_SIZE(b), 4, "b size");
 	zassert_equal(ARRAY_SIZE(c), 2, "c size");
@@ -1241,18 +1217,6 @@ static void test_arrays(void)
 	zassert_true(DT_PROP_HAS_IDX(TEST_ARRAYS, a, 1), "a idx 1");
 	zassert_true(DT_PROP_HAS_IDX(TEST_ARRAYS, a, 2), "a idx 2");
 	zassert_false(DT_PROP_HAS_IDX(TEST_ARRAYS, a, 3), "!a idx 3");
-
-	/*
-	 * Verify that DT_PROP_HAS_IDX can be used with COND_CODE_1()
-	 * and COND_CODE_0(), i.e. its expansion is a literal 1 or 0,
-	 * not an equivalent expression that evaluates to 1 or 0.
-	 */
-	ok = 0;
-	COND_CODE_1(DT_PROP_HAS_IDX(TEST_ARRAYS, a, 0), (ok = 1;), ());
-	zassert_equal(ok, 1, "a idx 0 as a literal 1");
-	ok = 0;
-	COND_CODE_0(DT_PROP_HAS_IDX(TEST_ARRAYS, a, 3), (ok = 1;), ());
-	zassert_equal(ok, 1, "a idx 3 as a literal 0");
 
 	zassert_equal(DT_PROP_BY_IDX(TEST_ARRAYS, a, 0), a[0], "a 0");
 	zassert_equal(DT_PROP_BY_IDX(TEST_ARRAYS, a, 1), a[1], "a 1");
@@ -1324,9 +1288,9 @@ static const struct gpio_driver_api test_api;
 		.reg_addr = DT_REG_ADDR(INST(num)),		\
 		.reg_len = DT_REG_SIZE(INST(num)),		\
 	};							\
-	DEVICE_DT_DEFINE(INST(num),				\
+	DEVICE_AND_API_INIT(test_gpio_dev_##num,		\
+			    DT_LABEL(INST(num)),		\
 			    test_gpio_init,			\
-			    device_pm_control_nop,		\
 			    &gpio_data_##num,			\
 			    &gpio_info_##num,			\
 			    POST_KERNEL,			\
@@ -1427,38 +1391,9 @@ static void test_chosen(void)
 		     "chosen");
 }
 
-#define TO_MY_ENUM(token) TO_MY_ENUM_2(token) /* force another expansion */
-#define TO_MY_ENUM_2(token) MY_ENUM_ ## token
 static void test_enums(void)
 {
-	enum {
-		MY_ENUM_zero = 0xff,
-		MY_ENUM_ZERO = 0xaa,
-	};
-
-	zassert_equal(DT_ENUM_IDX(TEST_ENUM_0, val), 0, "0");
-	zassert_equal(TO_MY_ENUM(DT_ENUM_TOKEN(TEST_ENUM_0, val)),
-		      0xff, "zero as token");
-	zassert_equal(TO_MY_ENUM(DT_ENUM_UPPER_TOKEN(TEST_ENUM_0, val)),
-		      0xaa, "zero as uppercase token");
-}
-#undef TO_MY_ENUM
-#undef TO_MY_ENUM_2
-
-static void test_enums_required_false(void)
-{
-	/* DT_ENUM_IDX_OR on string value */
-	zassert_equal(DT_ENUM_IDX_OR(DT_NODELABEL(test_enum_default_0), val, 2),
-		      1, "1");
-	zassert_equal(DT_ENUM_IDX_OR(DT_NODELABEL(test_enum_default_1), val, 2),
-		      2, "2");
-	/* DT_ENUM_IDX_OR on int value */
-	zassert_equal(DT_ENUM_IDX_OR(DT_NODELABEL(test_enum_int_default_0),
-				     val, 4),
-		      0, "0");
-	zassert_equal(DT_ENUM_IDX_OR(DT_NODELABEL(test_enum_int_default_1),
-				     val, 4),
-		      4, "4");
+	zassert_equal(DT_ENUM_IDX(DT_NODELABEL(test_enum_0), val), 0, "0");
 }
 
 #undef DT_DRV_COMPAT
@@ -1598,172 +1533,6 @@ static void test_great_grandchild(void)
 		      42, "great-grandchild bindings returned wrong value");
 }
 
-static bool ord_in_array(unsigned int ord, unsigned int *array,
-			 size_t array_size)
-{
-	size_t i;
-
-	for (i = 0; i < array_size; i++) {
-		if (array[i] == ord) {
-			return true;
-		}
-	}
-
-	return false;
-}
-
-/* Magic numbers used by COMBINED_ORD_ARRAY. Must be invalid dependency
- * ordinals.
- */
-#define ORD_LIST_SEP		0xFFFF0000
-#define ORD_LIST_END		0xFFFF0001
-#define INJECTED_DEP_0		0xFFFF0002
-#define INJECTED_DEP_1		0xFFFF0003
-
-#define DEP_ORD_AND_COMMA(node_id) DT_DEP_ORD(node_id),
-#define CHILD_ORDINALS(node_id) DT_FOREACH_CHILD(node_id, DEP_ORD_AND_COMMA)
-
-#define COMBINED_ORD_ARRAY(node_id)		\
-	{					\
-		DT_DEP_ORD(node_id),		\
-		DT_DEP_ORD(DT_PARENT(node_id)),	\
-		CHILD_ORDINALS(node_id)		\
-		ORD_LIST_SEP,			\
-		DT_REQUIRES_DEP_ORDS(node_id)	\
-		INJECTED_DEP_0,			\
-		INJECTED_DEP_1,			\
-		ORD_LIST_SEP,			\
-		DT_SUPPORTS_DEP_ORDS(node_id)	\
-		ORD_LIST_END			\
-	}
-
-static void test_dep_ord(void)
-{
-#define ORD_IN_ARRAY(ord, array) ord_in_array(ord, array, ARRAY_SIZE(array))
-
-	unsigned int root_ord = DT_DEP_ORD(DT_ROOT),
-		test_ord = DT_DEP_ORD(DT_PATH(test)),
-		root_requires[] = { DT_REQUIRES_DEP_ORDS(DT_ROOT) },
-		test_requires[] = { DT_REQUIRES_DEP_ORDS(DT_PATH(test)) },
-		root_supports[] = { DT_SUPPORTS_DEP_ORDS(DT_ROOT) },
-		test_supports[] = { DT_SUPPORTS_DEP_ORDS(DT_PATH(test)) },
-		children_ords[] = {
-			DT_FOREACH_CHILD(TEST_CHILDREN, DEP_ORD_AND_COMMA)
-		},
-		children_combined_ords[] = COMBINED_ORD_ARRAY(TEST_CHILDREN),
-		child_a_combined_ords[] =
-			COMBINED_ORD_ARRAY(DT_NODELABEL(test_child_a));
-	size_t i;
-
-	/* DT_DEP_ORD */
-	zassert_equal(root_ord, 0,
-		      "the root node has dependency ordinal 0");
-	zassert_true(DT_DEP_ORD(DT_NODELABEL(test_child_a)) >
-		     DT_DEP_ORD(DT_NODELABEL(test_children)),
-		     "children depend on parents");
-	zassert_true(DT_DEP_ORD(DT_NODELABEL(test_irq)) >
-		     DT_DEP_ORD(DT_NODELABEL(test_intc)),
-		     "nodes depend on their interrupt controllers");
-	zassert_true(DT_DEP_ORD(DT_NODELABEL(test_phandles)) >
-		     DT_DEP_ORD(DT_NODELABEL(test_gpio_1)),
-		     "nodes depend on anything their properties "
-		     "refer to by phandle");
-
-	/* DT_REQUIRES_DEP_ORDS */
-	zassert_equal(ARRAY_SIZE(root_requires), 0,
-		      "the root node doesn't depend on anything");
-	zassert_true(ORD_IN_ARRAY(root_ord, test_requires),
-		     "/test depends on the root node");
-
-	/* DT_SUPPORTS_DEP_ORDS */
-	zassert_true(ORD_IN_ARRAY(test_ord, root_supports),
-		     "the root node supports /test");
-	zassert_false(ORD_IN_ARRAY(root_ord, test_supports),
-		      "the /test node doesn't support the root");
-
-	unsigned int children_combined_ords_expected[] = {
-		/*
-		 * Combined ordinals for /test/test-children are from
-		 * these nodes in this order:
-		 */
-		DT_DEP_ORD(TEST_CHILDREN),		/* node */
-		DT_DEP_ORD(DT_PATH(test)),		/* parent */
-		DT_DEP_ORD(DT_NODELABEL(test_child_a)),	/* children */
-		DT_DEP_ORD(DT_NODELABEL(test_child_b)),
-		DT_DEP_ORD(DT_NODELABEL(test_child_c)),
-		ORD_LIST_SEP,				/* separator */
-		DT_DEP_ORD(DT_PATH(test)),		/* requires */
-		INJECTED_DEP_0,				/* injected
-							 * dependencies
-							 */
-		INJECTED_DEP_1,
-		ORD_LIST_SEP,				/* separator */
-		DT_DEP_ORD(DT_NODELABEL(test_child_a)),	/* supports */
-		DT_DEP_ORD(DT_NODELABEL(test_child_b)),
-		DT_DEP_ORD(DT_NODELABEL(test_child_c)),
-		ORD_LIST_END,				/* terminator */
-	};
-	zassert_equal(ARRAY_SIZE(children_combined_ords),
-		      ARRAY_SIZE(children_combined_ords_expected),
-		      "%u", ARRAY_SIZE(children_combined_ords));
-	for (i = 0; i < ARRAY_SIZE(children_combined_ords); i++) {
-		zassert_equal(children_combined_ords[i],
-			      children_combined_ords_expected[i],
-			      "test-children at %zu", i);
-	}
-
-	unsigned int child_a_combined_ords_expected[] = {
-		/*
-		 * Combined ordinals for /test/test-children/child-a
-		 * are from these nodes in this order:
-		 */
-		DT_DEP_ORD(DT_NODELABEL(test_child_a)), /* node */
-		DT_DEP_ORD(TEST_CHILDREN),		/* parent */
-		/* children (none) */
-		ORD_LIST_SEP,				/* separator */
-		DT_DEP_ORD(TEST_CHILDREN),		/* requires */
-		INJECTED_DEP_0,				/* injected
-							 * dependencies
-							 */
-		INJECTED_DEP_1,
-		ORD_LIST_SEP,				/* separator */
-		/* supports (none) */
-		ORD_LIST_END,				/* terminator */
-	};
-	zassert_equal(ARRAY_SIZE(child_a_combined_ords),
-		      ARRAY_SIZE(child_a_combined_ords_expected),
-		      "%u", ARRAY_SIZE(child_a_combined_ords));
-	for (i = 0; i < ARRAY_SIZE(child_a_combined_ords); i++) {
-		zassert_equal(child_a_combined_ords[i],
-			      child_a_combined_ords_expected[i],
-			      "child-a at %zu", i);
-	}
-
-#undef DT_DRV_COMPAT
-#define DT_DRV_COMPAT vnd_child_bindings
-
-	/* DT_INST_DEP_ORD */
-	zassert_equal(DT_INST_DEP_ORD(0),
-		      DT_DEP_ORD(DT_NODELABEL(test_children)), "");
-
-	/* DT_INST_REQUIRES_DEP_ORDS */
-	unsigned int inst_requires[] = { DT_INST_REQUIRES_DEP_ORDS(0) };
-
-	zassert_equal(ARRAY_SIZE(inst_requires), 1,
-		      "/test/test-children depends only on /test");
-	zassert_equal(inst_requires[0], test_ord, "");
-
-	/* DT_INST_SUPPORTS_DEP_ORDS */
-	unsigned int inst_supports[] = { DT_INST_SUPPORTS_DEP_ORDS(0) };
-
-	zassert_equal(ARRAY_SIZE(inst_supports), 3,
-		      "/test/test-children only supports its children");
-	for (i = 0; i < ARRAY_SIZE(inst_supports); i++) {
-		zassert_true(ORD_IN_ARRAY(inst_supports[i], children_ords),
-			     "");
-	}
-}
-
 void test_main(void)
 {
 	ztest_test_suite(devicetree_api,
@@ -1792,12 +1561,10 @@ void test_main(void)
 			 ztest_unit_test(test_cs_gpios),
 			 ztest_unit_test(test_chosen),
 			 ztest_unit_test(test_enums),
-			 ztest_unit_test(test_enums_required_false),
 			 ztest_unit_test(test_clocks),
 			 ztest_unit_test(test_parent),
 			 ztest_unit_test(test_child_nodes_list),
-			 ztest_unit_test(test_great_grandchild),
-			 ztest_unit_test(test_dep_ord)
+			 ztest_unit_test(test_great_grandchild)
 		);
 	ztest_run_test_suite(devicetree_api);
 }

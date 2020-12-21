@@ -128,8 +128,7 @@ static struct lwm2m_engine_res_inst *error_code_ri;
 
 /* callbacks */
 
-static int reset_error_list_cb(uint16_t obj_inst_id,
-			       uint8_t *args, uint16_t args_len)
+static int reset_error_list_cb(uint16_t obj_inst_id)
 {
 	int i;
 

@@ -5,7 +5,6 @@
  */
 #include <sys/sys_heap.h>
 #include <kernel.h>
-#include <string.h>
 #include "heap.h"
 
 static void *chunk_mem(struct z_heap *h, chunkid_t c)
@@ -52,7 +51,7 @@ static void free_list_add_bidx(struct z_heap *h, chunkid_t c, int bidx)
 {
 	struct z_heap_bucket *b = &h->buckets[bidx];
 
-	if (b->next == 0U) {
+	if (b->next == 0) {
 		CHECK((h->avail_buckets & (1 << bidx)) == 0);
 
 		/* Empty list, first item */
@@ -209,7 +208,7 @@ static chunkid_t alloc_chunk(struct z_heap *h, size_t sz)
 	 */
 	size_t bmask = h->avail_buckets & ~((1 << (bi + 1)) - 1);
 
-	if ((bmask & h->avail_buckets) != 0U) {
+	if ((bmask & h->avail_buckets) != 0) {
 		int minbucket = __builtin_ctz(bmask & h->avail_buckets);
 		chunkid_t c = h->buckets[minbucket].next;
 
@@ -223,14 +222,14 @@ static chunkid_t alloc_chunk(struct z_heap *h, size_t sz)
 
 void *sys_heap_alloc(struct sys_heap *heap, size_t bytes)
 {
-	if (bytes == 0U) {
+	if (bytes == 0) {
 		return NULL;
 	}
 
 	struct z_heap *h = heap->heap;
 	size_t chunk_sz = bytes_to_chunksz(h, bytes);
 	chunkid_t c = alloc_chunk(h, chunk_sz);
-	if (c == 0U) {
+	if (c == 0) {
 		return NULL;
 	}
 
@@ -262,8 +261,8 @@ void *sys_heap_aligned_alloc(struct sys_heap *heap, size_t align, size_t bytes)
 	 * We over-allocate to account for alignment and then free
 	 * the extra allocations afterwards.
 	 */
-	size_t padded_sz =
-		bytes_to_chunksz(h, bytes + align - chunk_header_bytes(h));
+	size_t alloc_sz = bytes_to_chunksz(h, bytes);
+	size_t padded_sz = bytes_to_chunksz(h, bytes + align - 1);
 	chunkid_t c0 = alloc_chunk(h, padded_sz);
 
 	if (c0 == 0) {
@@ -271,13 +270,12 @@ void *sys_heap_aligned_alloc(struct sys_heap *heap, size_t align, size_t bytes)
 	}
 
 	/* Align allocated memory */
-	uint8_t *mem = (uint8_t *) ROUND_UP(chunk_mem(h, c0), align);
-	chunk_unit_t *end = (chunk_unit_t *) ROUND_UP(mem + bytes, CHUNK_UNIT);
+	void *mem = chunk_mem(h, c0);
+	mem = (void *) ROUND_UP(mem, align);
 
-	/* Get corresponding chunks */
+	/* Get corresponding chunk */
 	chunkid_t c = mem_to_chunkid(h, mem);
-	chunkid_t c_end = end - chunk_buf(h);
-	CHECK(c >= c0 && c  < c_end && c_end <= c0 + padded_sz);
+	CHECK(c >= c0 && c  < c0 + padded_sz);
 
 	/* Split and free unused prefix */
 	if (c > c0) {
@@ -286,70 +284,13 @@ void *sys_heap_aligned_alloc(struct sys_heap *heap, size_t align, size_t bytes)
 	}
 
 	/* Split and free unused suffix */
-	if (right_chunk(h, c) > c_end) {
-		split_chunks(h, c, c_end);
-		free_list_add(h, c_end);
+	if (chunk_size(h, c) > alloc_sz) {
+		split_chunks(h, c, c + alloc_sz);
+		free_list_add(h, c + alloc_sz);
 	}
 
 	set_chunk_used(h, c, true);
 	return mem;
-}
-
-void *sys_heap_realloc(struct sys_heap *heap, void *ptr, size_t bytes)
-{
-	/* special realloc semantics */
-	if (ptr == NULL) {
-		return sys_heap_alloc(heap, bytes);
-	}
-	if (bytes == 0) {
-		sys_heap_free(heap, ptr);
-		return NULL;
-	}
-
-	struct z_heap *h = heap->heap;
-	chunkid_t c = mem_to_chunkid(h, ptr);
-	chunkid_t rc = right_chunk(h, c);
-	size_t chunks_need = bytes_to_chunksz(h, bytes);
-
-	if (chunk_size(h, c) > chunks_need) {
-		/* Shrink in place, split off and free unused suffix */
-		split_chunks(h, c, c + chunks_need);
-		set_chunk_used(h, c, true);
-		free_chunk(h, c + chunks_need);
-		return ptr;
-	} else if (!chunk_used(h, rc) &&
-		   (chunk_size(h, c) + chunk_size(h, rc) >= chunks_need)) {
-		/* Expand: split the right chunk and append */
-		chunkid_t split_size = chunks_need - chunk_size(h, c);
-
-		free_list_remove(h, rc);
-		if (split_size < chunk_size(h, rc)) {
-			split_chunks(h, rc, rc + split_size);
-			free_list_add(h, rc + split_size);
-		}
-
-		chunkid_t newsz = chunk_size(h, c) + split_size;
-
-		set_chunk_size(h, c, newsz);
-		set_chunk_used(h, c, true);
-		set_left_chunk_size(h, c + newsz, newsz);
-
-		CHECK(chunk_used(h, c));
-
-		return chunk_mem(h, c);
-	} else {
-		/* Reallocate and copy */
-		void *ptr2 = sys_heap_alloc(heap, bytes);
-
-		if (ptr2 == NULL) {
-			return NULL;
-		}
-
-		memcpy(ptr2, ptr,
-		       chunk_size(h, c) * CHUNK_UNIT - chunk_header_bytes(h));
-		sys_heap_free(heap, ptr);
-		return ptr2;
-	}
 }
 
 void sys_heap_init(struct sys_heap *heap, void *mem, size_t bytes)

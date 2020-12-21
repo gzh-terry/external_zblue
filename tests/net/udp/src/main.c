@@ -421,12 +421,7 @@ static void set_port(sa_family_t family, struct sockaddr *raddr,
 
 void test_udp(void)
 {
-	if (IS_ENABLED(CONFIG_NET_TC_THREAD_COOPERATIVE)) {
-		k_thread_priority_set(k_current_get(),
-				K_PRIO_COOP(CONFIG_NUM_COOP_PRIORITIES - 1));
-	} else {
-		k_thread_priority_set(k_current_get(), K_PRIO_PREEMPT(9));
-	}
+	k_thread_priority_set(k_current_get(), K_PRIO_COOP(7));
 
 	test_failed = false;
 

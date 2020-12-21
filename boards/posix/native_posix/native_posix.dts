@@ -25,7 +25,6 @@
 	aliases {
 		eeprom-0 = &eeprom0;
 		i2c-0 = &i2c0;
-		spi-0 = &spi0;
 	};
 
 	flashcontroller0: flash-controller@0 {
@@ -90,16 +89,6 @@
 		#size-cells = <0>;
 		reg = <0x100 4>;
 		label = "I2C_0";
-	};
-
-	spi0: spi@200 {
-		status = "okay";
-		compatible = "zephyr,spi-emul-controller";
-		clock-frequency = <50000000>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-		reg = <0x200 4>;
-		label = "SPI_0";
 	};
 
 	uart0: uart {

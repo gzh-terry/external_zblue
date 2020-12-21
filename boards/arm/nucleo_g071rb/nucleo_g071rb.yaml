@@ -10,9 +10,7 @@ ram: 36
 flash: 128
 supported:
   - arduino_gpio
-  - arduino_i2c
   - uart
   - gpio
-  - i2c
   - watchdog
   - pwm

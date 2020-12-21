@@ -20,7 +20,6 @@
 	chosen {
 		zephyr,sram = &sram1;
 		zephyr,flash = &flash0;
-		zephyr,entropy = &rng;
 	};
 };
 
