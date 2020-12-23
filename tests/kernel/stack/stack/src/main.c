@@ -66,7 +66,7 @@ static struct k_sem end_sema;
 
 
 
-K_HEAP_DEFINE(test_pool, 128 * 3);
+K_MEM_POOL_DEFINE(test_pool, 128, 128, 2, 4);
 
 extern struct k_stack kstack;
 extern struct k_stack stack;
@@ -125,7 +125,7 @@ static void thread_entry_fn_single(void *p1, void *p2, void *p3)
 	for (i = STACK_LEN; i; i--) {
 		k_stack_pop((struct k_stack *)p1, &tmp[i - 1], K_NO_WAIT);
 	}
-	zassert_false(memcmp(tmp, data1, sizeof(tmp)),
+	zassert_false(memcmp(tmp, data1, STACK_LEN),
 		      "Push & Pop items does not match");
 
 	/* Push items from stack */
@@ -150,7 +150,7 @@ static void thread_entry_fn_dual(void *p1, void *p2, void *p3)
 		k_stack_push(p1, data1[i]);
 
 	}
-	zassert_false(memcmp(tmp, data2, sizeof(tmp)),
+	zassert_false(memcmp(tmp, data2, STACK_LEN),
 		      "Push & Pop items does not match");
 }
 
@@ -158,7 +158,7 @@ static void thread_entry_fn_isr(void *p1, void *p2, void *p3)
 {
 	/* Pop items from stack2 */
 	irq_offload(tIsr_entry_pop, (const void *)p2);
-	zassert_false(memcmp(data_isr, data2, sizeof(data_isr)),
+	zassert_false(memcmp(data_isr, data2, STACK_LEN),
 		      "Push & Pop items does not match");
 
 	/* Push items to stack1 */
@@ -203,7 +203,7 @@ static void test_single_stack_play(void)
 		k_stack_pop(&stack1, &tmp[i - 1], K_NO_WAIT);
 	}
 
-	zassert_false(memcmp(tmp, data2, sizeof(tmp)),
+	zassert_false(memcmp(tmp, data2, STACK_LEN),
 		      "Push & Pop items does not match");
 
 	/* Clear the spawn thread to avoid side effect */
@@ -232,7 +232,7 @@ static void test_dual_stack_play(void)
 		k_stack_pop(&stack1, &tmp[i], K_FOREVER);
 	}
 
-	zassert_false(memcmp(tmp, data1, sizeof(tmp)),
+	zassert_false(memcmp(tmp, data1, STACK_LEN),
 		      "Push & Pop items does not match");
 
 	/* Clear the spawn thread to avoid side effect */
@@ -263,7 +263,7 @@ static void test_isr_stack_play(void)
 	/* Pop items from stack1 */
 	irq_offload(tIsr_entry_pop, (const void *)&stack1);
 
-	zassert_false(memcmp(data_isr, data1, sizeof(data_isr)),
+	zassert_false(memcmp(data_isr, data1, STACK_LEN),
 		      "Push & Pop items does not match");
 
 	/* Clear the spawn thread to avoid side effect */
@@ -335,7 +335,7 @@ void test_main(void)
 			      &end_sema, &threadstack, &kstack, &stack, &thread_data1,
 			      &end_sema1, &threadstack1);
 
-	k_thread_heap_assign(k_current_get(), &test_pool);
+	k_thread_resource_pool_assign(k_current_get(), &test_pool);
 
 	ztest_test_suite(test_stack_usage,
 			 ztest_unit_test(test_stack_thread2thread),

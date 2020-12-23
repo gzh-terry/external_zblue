@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
-#include <mem.h>
 #include <arm/armv7-m.dtsi>
 #include <dt-bindings/clock/kinetis_sim.h>
 #include <dt-bindings/clock/kinetis_mcg.h>
@@ -9,6 +8,20 @@
 
 / {
 	aliases {
+		adc-0 = &adc0;
+		i2c-0 = &i2c0;
+		i2c-1 = &i2c1;
+		pinmux-a = &pinmux_a;
+		pinmux-b = &pinmux_b;
+		pinmux-c = &pinmux_c;
+		pinmux-d = &pinmux_d;
+		pinmux-e = &pinmux_e;
+		spi-0 = &spi0;
+		spi-1 = &spi1;
+		uart-0 = &uart0;
+		uart-1 = &uart1;
+		uart-2 = &uart2;
+		usbd-0 = &usbd;
 		watchdog0 = &wdog;
 	};
 
@@ -30,7 +43,7 @@
 
 	sram0: memory@20000000 {
 		compatible = "mmio-sram";
-		reg = <0x20000000 DT_SIZE_K(32)>;
+		reg = <0x20000000 0x8000>;
 	};
 
 	soc {
@@ -76,7 +89,7 @@
 			flash0: flash@0 {
 				compatible = "soc-nv-flash";
 				label = "MCUX_FLASH";
-				reg = <0 DT_SIZE_K(512)>;
+				reg = <0 0x80000>;
 				erase-block-size = <2048>;
 				write-block-size = <4>;
 			};
@@ -139,39 +152,34 @@
 			status = "disabled";
 		};
 
-		porta: pinmux@40049000 {
+		pinmux_a: pinmux@40049000 {
 			compatible = "nxp,kinetis-pinmux";
 			reg = <0x40049000 0xd0>;
 			clocks = <&sim KINETIS_SIM_BUS_CLK 0x1038 9>;
-			label = "porta";
 		};
 
-		portb: pinmux@4004a000 {
+		pinmux_b: pinmux@4004a000 {
 			compatible = "nxp,kinetis-pinmux";
 			reg = <0x4004a000 0xd0>;
 			clocks = <&sim KINETIS_SIM_BUS_CLK 0x1038 10>;
-			label = "portb";
 		};
 
-		portc: pinmux@4004b000 {
+		pinmux_c: pinmux@4004b000 {
 			compatible = "nxp,kinetis-pinmux";
 			reg = <0x4004b000 0xd0>;
 			clocks = <&sim KINETIS_SIM_BUS_CLK 0x1038 11>;
-			label = "portc";
 		};
 
-		portd: pinmux@4004c000 {
+		pinmux_d: pinmux@4004c000 {
 			compatible = "nxp,kinetis-pinmux";
 			reg = <0x4004c000 0xd0>;
 			clocks = <&sim KINETIS_SIM_BUS_CLK 0x1038 12>;
-			label = "portd";
 		};
 
-		porte: pinmux@4004d000 {
+		pinmux_e: pinmux@4004d000 {
 			compatible = "nxp,kinetis-pinmux";
 			reg = <0x4004d000 0xd0>;
 			clocks = <&sim KINETIS_SIM_BUS_CLK 0x1038 13>;
-			label = "porte";
 		};
 
 		gpioa: gpio@400ff000 {
@@ -182,7 +190,7 @@
 			label = "GPIO_0";
 			gpio-controller;
 			#gpio-cells = <2>;
-			nxp,kinetis-port = <&porta>;
+			nxp,kinetis-port = <&pinmux_a>;
 		};
 
 		gpiob: gpio@400ff040 {
@@ -193,7 +201,7 @@
 			label = "GPIO_1";
 			gpio-controller;
 			#gpio-cells = <2>;
-			nxp,kinetis-port = <&portb>;
+			nxp,kinetis-port = <&pinmux_b>;
 		};
 
 		gpioc: gpio@400ff080 {
@@ -204,7 +212,7 @@
 			label = "GPIO_2";
 			gpio-controller;
 			#gpio-cells = <2>;
-			nxp,kinetis-port = <&portc>;
+			nxp,kinetis-port = <&pinmux_c>;
 		};
 
 		gpiod: gpio@400ff0c0 {
@@ -215,7 +223,7 @@
 			label = "GPIO_3";
 			gpio-controller;
 			#gpio-cells = <2>;
-			nxp,kinetis-port = <&portd>;
+			nxp,kinetis-port = <&pinmux_d>;
 		};
 
 		gpioe: gpio@400ff100 {
@@ -226,7 +234,7 @@
 			label = "GPIO_4";
 			gpio-controller;
 			#gpio-cells = <2>;
-			nxp,kinetis-port = <&porte>;
+			nxp,kinetis-port = <&pinmux_e>;
 		};
 
 		spi0: spi@4002c000 {

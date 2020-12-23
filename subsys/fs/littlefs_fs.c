@@ -11,7 +11,6 @@
 #include <errno.h>
 #include <init.h>
 #include <fs/fs.h>
-#include <fs/fs_sys.h>
 
 #define LFS_LOG_REGISTER
 #include <lfs_util.h>
@@ -26,7 +25,7 @@
 struct lfs_file_data {
 	struct lfs_file file;
 	struct lfs_file_config config;
-	void *cache_block;
+	struct k_mem_block cache_block;
 };
 
 #define LFS_FILEP(fp) (&((struct lfs_file_data *)(fp->filep))->file)
@@ -47,9 +46,10 @@ BUILD_ASSERT(CONFIG_FS_LITTLEFS_CACHE_SIZE >= 4);
 #define CONFIG_FS_LITTLEFS_FC_MEM_POOL_NUM_BLOCKS CONFIG_FS_LITTLEFS_NUM_FILES
 #endif
 
-K_HEAP_DEFINE(file_cache_pool,
-	      CONFIG_FS_LITTLEFS_FC_MEM_POOL_MAX_SIZE *
-	      CONFIG_FS_LITTLEFS_FC_MEM_POOL_NUM_BLOCKS);
+K_MEM_POOL_DEFINE(file_cache_pool,
+		  CONFIG_FS_LITTLEFS_FC_MEM_POOL_MIN_SIZE,
+		  CONFIG_FS_LITTLEFS_FC_MEM_POOL_MAX_SIZE,
+		  CONFIG_FS_LITTLEFS_FC_MEM_POOL_NUM_BLOCKS, 4);
 
 static inline void fs_lock(struct fs_littlefs *fs)
 {
@@ -174,7 +174,7 @@ static void release_file_data(struct fs_file_t *fp)
 	struct lfs_file_data *fdp = fp->filep;
 
 	if (fdp->config.buffer) {
-		k_heap_free(&file_cache_pool, fdp->cache_block);
+		k_mem_pool_free(&fdp->cache_block);
 	}
 
 	k_mem_slab_free(&file_data_pool, &fp->filep);
@@ -212,14 +212,14 @@ static int littlefs_open(struct fs_file_t *fp, const char *path,
 
 	memset(fdp, 0, sizeof(*fdp));
 
-	fdp->cache_block = k_heap_alloc(&file_cache_pool,
-					lfs->cfg->cache_size, K_NO_WAIT);
-	if (fdp->cache_block == NULL) {
-		ret = -ENOMEM;
+	ret = k_mem_pool_alloc(&file_cache_pool, &fdp->cache_block,
+			       lfs->cfg->cache_size, K_NO_WAIT);
+	LOG_DBG("alloc %u file cache: %d", lfs->cfg->cache_size, ret);
+	if (ret != 0) {
 		goto out;
 	}
 
-	fdp->config.buffer = fdp->cache_block;
+	fdp->config.buffer = fdp->cache_block.data;
 	path = fs_impl_strip_prefix(path, fp->mp);
 
 	fs_lock(fs);
@@ -676,22 +676,14 @@ static int littlefs_mount(struct fs_mount_t *mountp)
 
 	/* Mount it, formatting if needed. */
 	ret = lfs_mount(&fs->lfs, &fs->cfg);
-	if (ret < 0 &&
-	    (mountp->flags & FS_MOUNT_FLAG_NO_FORMAT) == 0) {
+	if (ret < 0) {
 		LOG_WRN("can't mount (LFS %d); formatting", ret);
-		if ((mountp->flags & FS_MOUNT_FLAG_READ_ONLY) == 0) {
-			ret = lfs_format(&fs->lfs, &fs->cfg);
-			if (ret < 0) {
-				LOG_ERR("format failed (LFS %d)", ret);
-				ret = lfs_to_errno(ret);
-				goto out;
-			}
-		} else {
-			LOG_ERR("can not format read-only system");
-			ret = -EROFS;
+		ret = lfs_format(&fs->lfs, &fs->cfg);
+		if (ret < 0) {
+			LOG_ERR("format failed (LFS %d)", ret);
+			ret = lfs_to_errno(ret);
 			goto out;
 		}
-
 		ret = lfs_mount(&fs->lfs, &fs->cfg);
 		if (ret < 0) {
 			LOG_ERR("remount after format failed (LFS %d)", ret);

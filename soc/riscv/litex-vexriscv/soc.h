@@ -10,9 +10,6 @@
 #include "../riscv-privilege/common/soc_common.h"
 #include <devicetree.h>
 
-#define LITEX_SUBREG_SIZE          0x1
-#define LITEX_SUBREG_SIZE_BIT      (LITEX_SUBREG_SIZE * 8)
-
 /* lib-c hooks required RAM defined variables */
 #define RISCV_RAM_BASE              DT_REG_ADDR(DT_INST(0, mmio_sram))
 #define RISCV_RAM_SIZE              DT_REG_SIZE(DT_INST(0, mmio_sram))
@@ -70,27 +67,32 @@ static inline void litex_write32(unsigned int value, unsigned long addr)
 	sys_write8(value, addr + 0xC);
 }
 
+/* `reg_size` is assumed to be a multiple of 4 */
 static inline void litex_write(volatile uint32_t *reg, uint32_t reg_size, uint32_t val)
 {
-	uint32_t shifted_data, i;
+	uint32_t shifted_data;
 	volatile uint32_t *reg_addr;
+	uint32_t subregs = reg_size / 4;
 
-	for (i = 0; i < reg_size; ++i) {
-		shifted_data = val >> ((reg_size - i - 1) *
-					LITEX_SUBREG_SIZE_BIT);
+	for (int i = 0; i < subregs; ++i) {
+		shifted_data = val >> ((subregs - i - 1) * 8);
 		reg_addr = ((volatile uint32_t *) reg) + i;
 		*(reg_addr) = shifted_data;
 	}
 }
 
+/* `reg_size` is assumed to be a multiple of 4 */
 static inline uint32_t litex_read(volatile uint32_t *reg, uint32_t reg_size)
 {
-	uint32_t shifted_data, i, result = 0;
+	uint32_t shifted_data;
+	volatile uint32_t *reg_addr;
+	uint32_t result = 0;
+	uint32_t subregs = reg_size / 4;
 
-	for (i = 0; i < reg_size; ++i) {
-		shifted_data = *(reg + i) << ((reg_size - i - 1) *
-						LITEX_SUBREG_SIZE_BIT);
-		result |= shifted_data;
+	for (int i = 0; i < subregs; ++i) {
+		reg_addr = ((volatile uint32_t *) reg) + i;
+		shifted_data = *(reg_addr);
+		result |= (shifted_data << ((subregs - i - 1) * 8));
 	}
 
 	return result;

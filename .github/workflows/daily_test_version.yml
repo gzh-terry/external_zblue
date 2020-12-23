@@ -13,7 +13,6 @@ on:
 jobs:
   get_version:
     runs-on: ubuntu-latest
-    if: github.repository == 'zephyrproject-rtos/zephyr'
 
     steps:
     - name: Configure AWS Credentials

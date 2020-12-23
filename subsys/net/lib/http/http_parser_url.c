@@ -21,7 +21,7 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
-#include <sys/__assert.h>
+#include <assert.h>
 #include <stddef.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -385,7 +385,7 @@ int http_parse_host(const char *buf, struct http_parser_url *u,
 	const char *p;
 
 	buflen = u->field_data[UF_HOST].off + u->field_data[UF_HOST].len;
-	__ASSERT_NO_MSG(u->field_set & (1 << UF_HOST));
+	assert(u->field_set & (1 << UF_HOST));
 
 	u->field_data[UF_HOST].len = 0U;
 
@@ -521,7 +521,7 @@ http_parser_parse_url(const char *buf, size_t buflen, int is_connect,
 			break;
 
 		default:
-			__ASSERT_NO_MSG(!"Unexpected state");
+			assert(!"Unexpected state");
 			return 1;
 		}
 

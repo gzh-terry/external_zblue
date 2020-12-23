@@ -575,21 +575,15 @@ static inline int z_vrfy_zsock_accept(int sock, struct sockaddr *addr,
 #include <syscalls/zsock_accept_mrsh.c>
 #endif /* CONFIG_USERSPACE */
 
-#define WAIT_BUFS K_MSEC(100)
-#define MAX_WAIT_BUFS K_SECONDS(10)
-
 ssize_t zsock_sendto_ctx(struct net_context *ctx, const void *buf, size_t len,
 			 int flags,
 			 const struct sockaddr *dest_addr, socklen_t addrlen)
 {
 	k_timeout_t timeout = K_FOREVER;
-	uint64_t buf_timeout = 0;
 	int status;
 
 	if ((flags & ZSOCK_MSG_DONTWAIT) || sock_is_nonblock(ctx)) {
 		timeout = K_NO_WAIT;
-	} else {
-		buf_timeout = z_timeout_end_calc(MAX_WAIT_BUFS);
 	}
 
 	/* Register the callback before sending in order to receive the response
@@ -602,47 +596,18 @@ ssize_t zsock_sendto_ctx(struct net_context *ctx, const void *buf, size_t len,
 		return -1;
 	}
 
-	while (1) {
-		if (dest_addr) {
-			status = net_context_sendto(ctx, buf, len, dest_addr,
-						    addrlen, NULL, timeout,
-						    ctx->user_data);
-		} else {
-			status = net_context_send(ctx, buf, len, NULL, timeout,
-						  ctx->user_data);
-		}
+	if (dest_addr) {
+		status = net_context_sendto(ctx, buf, len, dest_addr,
+					    addrlen, NULL, timeout,
+					    ctx->user_data);
+	} else {
+		status = net_context_send(ctx, buf, len, NULL, timeout,
+					  ctx->user_data);
+	}
 
-		if (status < 0) {
-			if (((status == -ENOBUFS) || (status == -EAGAIN)) &&
-			    K_TIMEOUT_EQ(timeout, K_FOREVER)) {
-				/* If we cannot get any buffers in reasonable
-				 * amount of time, then do not wait forever as
-				 * there might be some bigger issue.
-				 * If we get -EAGAIN and cannot recover, then
-				 * it means that the sending window is blocked
-				 * and we just cannot send anything.
-				 */
-				int64_t remaining = buf_timeout - z_tick_get();
-
-				if (remaining <= 0) {
-					if (status == -ENOBUFS) {
-						errno = ENOMEM;
-					} else {
-						errno = ENOBUFS;
-					}
-
-					return -1;
-				}
-
-				k_sleep(WAIT_BUFS);
-				continue;
-			} else {
-				errno = -status;
-				return -1;
-			}
-		}
-
-		break;
+	if (status < 0) {
+		errno = -status;
+		return -1;
 	}
 
 	return status;
@@ -1024,11 +989,6 @@ static inline ssize_t zsock_recv_stream(struct net_context *ctx,
 
 	if (!net_context_is_used(ctx)) {
 		errno = EBADF;
-		return -1;
-	}
-
-	if (net_context_get_state(ctx) != NET_CONTEXT_CONNECTED) {
-		errno = ENOTCONN;
 		return -1;
 	}
 

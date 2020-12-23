@@ -143,10 +143,9 @@ static int multiboot_framebuf_init(const struct device *dev)
 	}
 }
 
-DEVICE_DEFINE(multiboot_framebuf,
+DEVICE_AND_API_INIT(multiboot_framebuf,
 		    "FRAMEBUF",
 		    multiboot_framebuf_init,
-		    device_pm_control_nop,
 		    &multiboot_framebuf_data,
 		    NULL,
 		    PRE_KERNEL_1,

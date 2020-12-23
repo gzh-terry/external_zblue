@@ -6,11 +6,13 @@
  * Routines for managing virtual address spaces
  */
 
-#include <stdint.h>
-#include <kernel_arch_interface.h>
-#include <spinlock.h>
+ #include <stdint.h>
+ #include <kernel_arch_interface.h>
+ #include <spinlock.h>
+
+#define LOG_LEVEL CONFIG_KERNEL_LOG_LEVEL
 #include <logging/log.h>
-LOG_MODULE_DECLARE(os, CONFIG_KERNEL_LOG_LEVEL);
+LOG_MODULE_DECLARE(os);
 
 /* Spinlock to protect any globals in this file and serialize page table
  * updates in arch code
@@ -18,17 +20,14 @@ LOG_MODULE_DECLARE(os, CONFIG_KERNEL_LOG_LEVEL);
 static struct k_spinlock mm_lock;
 
 /*
- * Overall virtual memory map. When the kernel starts, it is expected that all
- * memory regions are mapped into one large virtual region at the beginning of
- * CONFIG_KERNEL_VM_BASE. Unused virtual memory up to the limit noted by
- * CONFIG_KERNEL_VM_SIZE may be used for runtime memory mappings.
+ * Overall virtual memory map. System RAM is identity-mapped:
  *
- * +--------------+ <- CONFIG_KERNEL_VM_BASE
+ * +--------------+ <- CONFIG_SRAM_BASE_ADDRESS
  * | Mapping for  |
  * | all RAM      |
  * |              |
  * |              |
- * +--------------+ <- CONFIG_KERNEL_VM_BASE + CONFIG_KERNEL_RAM_SIZE
+ * +--------------+ <- CONFIG_SRAM_BASE_ADDRESS + CONFIG_SRAM_SIZE
  * | Available    |    also the mapping limit as mappings grown downward
  * | virtual mem  |
  * |              |
@@ -40,7 +39,7 @@ static struct k_spinlock mm_lock;
  * | ...          |
  * +--------------+
  * | Mapping      |
- * +--------------+ <- CONFIG_KERNEL_VM_BASE + CONFIG_KERNEL_VM_SIZE
+ * +--------------+ <- CONFIG_SRAM_BASE_ADDRESS + CONFIG_KERNEL_VM_SIZE
  *
  * At the moment we just have one area for mappings and they are permanent.
  * This is under heavy development and may change.
@@ -48,21 +47,24 @@ static struct k_spinlock mm_lock;
 
  /* Current position for memory mappings in kernel memory.
   * At the moment, all kernel memory mappings are permanent.
-  * Memory mappings start at the end of the address space, and grow
+  * z_mem_map() mappings start at the end of the address space, and grow
   * downward.
   *
-  * All of this is under heavy development and is subject to change.
+  * TODO: If we ever encounter a board with RAM in high enough memory
+  * such that there isn't room in the address space, define mapping_pos
+  * and mapping_limit such that we have mappings grow downward from the
+  * beginning of system RAM.
   */
 static uint8_t *mapping_pos =
-		(uint8_t *)((uintptr_t)CONFIG_KERNEL_VM_BASE +
-			    (uintptr_t)CONFIG_KERNEL_VM_SIZE);
+		(uint8_t *)((uintptr_t)(CONFIG_SRAM_BASE_ADDRESS +
+					CONFIG_KERNEL_VM_SIZE));
 
 /* Lower-limit of virtual address mapping. Immediately below this is the
  * permanent identity mapping for all SRAM.
  */
 static uint8_t *mapping_limit =
-	(uint8_t *)((uintptr_t)CONFIG_KERNEL_VM_BASE +
-		    (size_t)CONFIG_KERNEL_RAM_SIZE);
+	(uint8_t *)((uintptr_t)CONFIG_SRAM_BASE_ADDRESS +
+		    KB((size_t)CONFIG_SRAM_SIZE));
 
 size_t k_mem_region_align(uintptr_t *aligned_addr, size_t *aligned_size,
 			  uintptr_t phys_addr, size_t size, size_t align)
@@ -79,7 +81,8 @@ size_t k_mem_region_align(uintptr_t *aligned_addr, size_t *aligned_size,
 	return addr_offset;
 }
 
-void z_phys_map(uint8_t **virt_ptr, uintptr_t phys, size_t size, uint32_t flags)
+void z_mem_map(uint8_t **virt_addr, uintptr_t phys_addr, size_t size,
+	       uint32_t flags)
 {
 	uintptr_t aligned_addr, addr_offset;
 	size_t aligned_size;
@@ -88,7 +91,7 @@ void z_phys_map(uint8_t **virt_ptr, uintptr_t phys, size_t size, uint32_t flags)
 	uint8_t *dest_virt;
 
 	addr_offset = k_mem_region_align(&aligned_addr, &aligned_size,
-					 phys, size,
+					 phys_addr, size,
 					 CONFIG_MMU_PAGE_SIZE);
 
 	key = k_spin_lock(&mm_lock);
@@ -119,7 +122,7 @@ void z_phys_map(uint8_t **virt_ptr, uintptr_t phys, size_t size, uint32_t flags)
 	k_spin_unlock(&mm_lock, key);
 
 	if (ret == 0) {
-		*virt_ptr = dest_virt + addr_offset;
+		*virt_addr = dest_virt + addr_offset;
 	} else {
 		/* This happens if there is an insurmountable problem
 		 * with the selected cache modes or access flags
@@ -132,6 +135,6 @@ void z_phys_map(uint8_t **virt_ptr, uintptr_t phys, size_t size, uint32_t flags)
 	return;
 fail:
 	LOG_ERR("memory mapping 0x%lx (size %zu, flags 0x%x) failed",
-		phys, size, flags);
+		phys_addr, size, flags);
 	k_panic();
 }

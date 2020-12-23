@@ -352,17 +352,17 @@ static int uart_ns16550_configure(const struct device *dev,
 #ifndef UART_NS16550_ACCESS_IOPORT
 #ifdef UART_NS16550_PCIE_ENABLED
 	if (dev_cfg->pcie) {
-		struct pcie_mbar mbar;
+		uintptr_t phys;
 
 		if (!pcie_probe(dev_cfg->pcie_bdf, dev_cfg->pcie_id)) {
 			ret = -EINVAL;
 			goto out;
 		}
 
-		pcie_get_mbar(dev_cfg->pcie_bdf, 0, &mbar);
+		phys = pcie_get_mbar(dev_cfg->pcie_bdf, 0);
 		pcie_set_cmd(dev_cfg->pcie_bdf, PCIE_CONF_CMDSTAT_MEM, true);
 
-		device_map(DEVICE_MMIO_RAM_PTR(dev), mbar.phys_addr, mbar.size,
+		device_map(DEVICE_MMIO_RAM_PTR(dev), phys, 0x1000,
 			   K_MEM_CACHE_NONE);
 	} else
 #endif /* UART_NS16550_PCIE_ENABLED */
