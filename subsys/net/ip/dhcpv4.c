@@ -215,7 +215,7 @@ static struct net_pkt *dhcpv4_create_message(struct net_if *iface, uint8_t type,
 
 	msg->op    = DHCPV4_MSG_BOOT_REQUEST;
 	msg->htype = HARDWARE_ETHERNET_TYPE;
-	msg->hlen  = HARDWARE_ETHERNET_LEN;
+	msg->hlen  = net_if_get_link_addr(iface)->len;
 	msg->xid   = htonl(iface->config.dhcpv4.xid);
 	msg->flags = htons(DHCPV4_MSG_BROADCAST);
 
@@ -276,7 +276,32 @@ fail:
 	return NULL;
 }
 
-/* Prepare DHCPv4 Message request and send it to peer */
+static uint32_t dhcpv4_update_message_timeout(struct net_if_dhcpv4 *dhcpv4)
+{
+	uint32_t timeout;
+
+	timeout = DHCPV4_INITIAL_RETRY_TIMEOUT << dhcpv4->attempts;
+
+	/* Max 64 seconds, see RFC 2131 chapter 4.1 */
+	if (timeout < DHCPV4_INITIAL_RETRY_TIMEOUT || timeout > 64) {
+		timeout = 64;
+	}
+
+	/* +1/-1 second randomization */
+	timeout += (sys_rand32_get() % 3U) - 1;
+
+	dhcpv4->attempts++;
+	dhcpv4->timer_start = k_uptime_get();
+	dhcpv4->request_time = timeout;
+
+	return timeout;
+}
+
+/* Prepare DHCPv4 Message request and send it to peer.
+ *
+ * Returns the number of seconds until the next time-triggered event,
+ * or UINT32_MAX if the client is in an invalid state.
+ */
 static uint32_t dhcpv4_send_request(struct net_if *iface)
 {
 	const struct in_addr *server_addr = net_ipv4_broadcast_address();
@@ -285,7 +310,7 @@ static uint32_t dhcpv4_send_request(struct net_if *iface)
 	bool with_server_id = false;
 	bool with_requested_ip = false;
 	struct net_pkt *pkt = NULL;
-	uint32_t timeout;
+	uint32_t timeout = UINT32_MAX;
 
 	iface->config.dhcpv4.xid++;
 
@@ -325,6 +350,8 @@ static uint32_t dhcpv4_send_request(struct net_if *iface)
 		break;
 	}
 
+	timeout = dhcpv4_update_message_timeout(&iface->config.dhcpv4);
+
 	pkt = dhcpv4_create_message(iface, DHCPV4_MSG_TYPE_REQUEST,
 				    ciaddr, src_addr, server_addr,
 				    with_server_id, with_requested_ip);
@@ -336,10 +363,6 @@ static uint32_t dhcpv4_send_request(struct net_if *iface)
 		goto fail;
 	}
 
-	timeout = DHCPV4_INITIAL_RETRY_TIMEOUT << iface->config.dhcpv4.attempts;
-
-	iface->config.dhcpv4.attempts++;
-
 	NET_DBG("send request dst=%s xid=0x%x ciaddr=%s%s%s timeout=%us",
 		log_strdup(net_sprint_ipv4_addr(server_addr)),
 		iface->config.dhcpv4.xid,
@@ -349,9 +372,6 @@ static uint32_t dhcpv4_send_request(struct net_if *iface)
 		with_requested_ip ? " +requested-ip" : "",
 		timeout);
 
-	iface->config.dhcpv4.timer_start = k_uptime_get();
-	iface->config.dhcpv4.request_time = timeout;
-
 	return timeout;
 
 fail:
@@ -359,7 +379,7 @@ fail:
 		net_pkt_unref(pkt);
 	}
 
-	return UINT32_MAX;
+	return timeout;
 }
 
 /* Prepare DHCPv4 Discover message and broadcast it */
@@ -381,15 +401,10 @@ static uint32_t dhcpv4_send_discover(struct net_if *iface)
 		goto fail;
 	}
 
-	timeout = DHCPV4_INITIAL_RETRY_TIMEOUT << iface->config.dhcpv4.attempts;
-
-	iface->config.dhcpv4.attempts++;
+	timeout = dhcpv4_update_message_timeout(&iface->config.dhcpv4);
 
 	NET_DBG("send discover xid=0x%x timeout=%us",
 		iface->config.dhcpv4.xid, timeout);
-
-	iface->config.dhcpv4.timer_start = k_uptime_get();
-	iface->config.dhcpv4.request_time = timeout;
 
 	return timeout;
 
@@ -522,6 +537,10 @@ static void dhcpv4_enter_bound(struct net_if *iface)
 	iface->config.dhcpv4.request_time = MIN(renewal_time, rebinding_time);
 
 	dhcpv4_update_timeout_work(iface->config.dhcpv4.request_time);
+
+	net_mgmt_event_notify_with_info(NET_EVENT_IPV4_DHCP_BOUND, iface,
+					&iface->config.dhcpv4,
+					sizeof(iface->config.dhcpv4));
 }
 
 static uint32_t dhcpv4_manage_timers(struct net_if *iface, int64_t now)
@@ -812,9 +831,14 @@ static bool dhcpv4_parse_options(struct net_pkt *pkt,
 				return false;
 			}
 
-			if (net_pkt_read_u8(pkt, (uint8_t *)msg_type)) {
-				NET_DBG("options_msg_type, read err");
-				return false;
+			{
+				uint8_t val = 0U;
+
+				if (net_pkt_read_u8(pkt, &val)) {
+					NET_DBG("options_msg_type, read err");
+					return false;
+				}
+				*msg_type = val;
 			}
 
 			break;
@@ -996,6 +1020,11 @@ static enum net_verdict net_dhcpv4_input(struct net_conn *conn,
 		return NET_DROP;
 	}
 
+	if (msg->hlen != net_if_get_link_addr(iface)->len) {
+		NET_DBG("Unexpected hlen (%d)", msg->hlen);
+		return NET_DROP;
+	}
+
 	memcpy(iface->config.dhcpv4.requested_ip.s4_addr,
 	       msg->yiaddr, sizeof(msg->yiaddr));
 
@@ -1078,6 +1107,8 @@ void net_dhcpv4_start(struct net_if *iface)
 {
 	uint32_t timeout;
 	uint32_t entropy;
+
+	net_mgmt_event_notify(NET_EVENT_IPV4_DHCP_START, iface);
 
 	switch (iface->config.dhcpv4.state) {
 	case NET_DHCPV4_DISABLED:
@@ -1164,6 +1195,8 @@ void net_dhcpv4_stop(struct net_if *iface)
 
 		break;
 	}
+
+	net_mgmt_event_notify(NET_EVENT_IPV4_DHCP_STOP, iface);
 }
 
 int net_dhcpv4_init(void)

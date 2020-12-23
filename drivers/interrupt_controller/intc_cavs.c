@@ -13,7 +13,13 @@
 #if defined(CONFIG_SMP) && (CONFIG_MP_NUM_CPUS > 1)
 #if defined(CONFIG_SOC_INTEL_S1000)
 #define PER_CPU_OFFSET(x)	(0x40 * x)
-#elif defined(CONFIG_SOC_INTEL_APL_ADSP)
+#elif defined(CONFIG_SOC_SERIES_INTEL_CAVS_V15)
+#define PER_CPU_OFFSET(x)	(0x40 * x)
+#elif defined(CONFIG_SOC_SERIES_INTEL_CAVS_V18)
+#define PER_CPU_OFFSET(x)	(0x40 * x)
+#elif defined(CONFIG_SOC_SERIES_INTEL_CAVS_V20)
+#define PER_CPU_OFFSET(x)	(0x40 * x)
+#elif defined(CONFIG_SOC_SERIES_INTEL_CAVS_V25)
 #define PER_CPU_OFFSET(x)	(0x40 * x)
 #else
 #error "Must define PER_CPU_OFFSET(x) for SoC"
@@ -141,8 +147,9 @@ static const struct irq_next_level_api cavs_apis = {
 	static struct cavs_ictl_runtime cavs_##n##_runtime = {		\
 		.base_addr = DT_INST_REG_ADDR(n),			\
 	};								\
-	DEVICE_AND_API_INIT(cavs_ictl_##n, DT_INST_LABEL(n),		\
+	DEVICE_DT_INST_DEFINE(n,					\
 			    cavs_ictl_##n##_initialize,			\
+			    device_pm_control_nop,			\
 			    &cavs_##n##_runtime, &cavs_config_##n,	\
 			    PRE_KERNEL_1,				\
 			    CONFIG_CAVS_ICTL_INIT_PRIORITY, &cavs_apis);\
@@ -150,7 +157,7 @@ static const struct irq_next_level_api cavs_apis = {
 	static void cavs_config_##n##_irq(const struct device *port)	\
 	{								\
 		IRQ_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority),	\
-			    cavs_ictl_isr, DEVICE_GET(cavs_ictl_##n),	\
+			    cavs_ictl_isr, DEVICE_DT_INST_GET(n),	\
 			    DT_INST_IRQ(n, sense));			\
 	}
 
