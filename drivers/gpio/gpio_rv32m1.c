@@ -318,9 +318,8 @@ static const struct gpio_driver_api gpio_rv32m1_driver_api = {
 									\
 	static struct gpio_rv32m1_data gpio_rv32m1_##n##_data;		\
 									\
-	DEVICE_DT_INST_DEFINE(n,					\
+	DEVICE_AND_API_INIT(gpio_rv32m1_##n, DT_INST_LABEL(n),		\
 			    gpio_rv32m1_init,				\
-			    device_pm_control_nop,			\
 			    &gpio_rv32m1_##n##_data,			\
 			    &gpio_rv32m1_##n##_config,			\
 			    POST_KERNEL,				\
@@ -332,7 +331,7 @@ static const struct gpio_driver_api gpio_rv32m1_driver_api = {
 		IRQ_CONNECT(DT_INST_IRQN(n),				\
 			    0,						\
 			    gpio_rv32m1_port_isr,			\
-			    DEVICE_DT_INST_GET(n), 0);			\
+			    DEVICE_GET(gpio_rv32m1_##n), 0);		\
 									\
 		irq_enable(DT_INST_IRQN(0));				\
 									\

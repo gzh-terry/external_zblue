@@ -1,5 +1,3 @@
-common:
-  filter: TOOLCHAIN_HAS_NEWLIB == 1
 sample:
   description: MQTT sample app to Azure cloud
   name: mqtt-azure

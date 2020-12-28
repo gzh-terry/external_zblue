@@ -375,18 +375,24 @@ int net_config_init_by_iface(struct net_if *iface, const char *app_info,
 			}
 		}
 
+		/* If the above while() loop timeouted, reset the count so that
+		 * the while() loop below will not wait more.
+		 */
+		if (timeout > 0 && count < 0) {
+			count = 0;
+		}
+
 #if defined(CONFIG_NET_NATIVE)
 		net_mgmt_del_event_callback(&mgmt_iface_cb);
 #endif
+	}
 
+	if (count == 0) {
 		/* Network interface did not come up. We will not try
 		 * to setup things in that case.
 		 */
-		if (timeout > 0 && count < 0) {
-			NET_ERR("Timeout while waiting network %s",
-				"interface");
-			return -ENETDOWN;
-		}
+		NET_ERR("Timeout while waiting network %s", "interface");
+		return -ENETDOWN;
 	}
 
 	setup_ipv4(iface);
@@ -400,7 +406,7 @@ int net_config_init_by_iface(struct net_if *iface, const char *app_info,
 		k_sem_take(&waiter, K_MSEC(loop));
 	}
 
-	if (count == -1 && timeout > 0) {
+	if (!count && timeout) {
 		NET_ERR("Timeout while waiting network %s", "setup");
 		return -ETIMEDOUT;
 	}

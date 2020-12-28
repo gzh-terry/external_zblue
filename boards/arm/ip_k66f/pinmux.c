@@ -12,25 +12,19 @@ static int ip_k66f_pinmux_init(const struct device *dev)
 {
 	ARG_UNUSED(dev);
 
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(porta), okay)
-	__unused const struct device *porta =
-		device_get_binding(DT_LABEL(DT_NODELABEL(porta)));
+#ifdef CONFIG_PINMUX_MCUX_PORTA
+	const struct device *porta =
+		device_get_binding(CONFIG_PINMUX_MCUX_PORTA_NAME);
 #endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(portb), okay)
-	__unused const struct device *portb =
-		device_get_binding(DT_LABEL(DT_NODELABEL(portb)));
+
+#ifdef CONFIG_PINMUX_MCUX_PORTB
+	const struct device *portb =
+		device_get_binding(CONFIG_PINMUX_MCUX_PORTB_NAME);
 #endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(portc), okay)
-	__unused const struct device *portc =
-		device_get_binding(DT_LABEL(DT_NODELABEL(portc)));
-#endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(portd), okay)
-	__unused const struct device *portd =
-		device_get_binding(DT_LABEL(DT_NODELABEL(portd)));
-#endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(porte), okay)
-	__unused const struct device *porte =
-		device_get_binding(DT_LABEL(DT_NODELABEL(porte)));
+
+#ifdef CONFIG_PINMUX_MCUX_PORTE
+	const struct device *porte =
+		device_get_binding(CONFIG_PINMUX_MCUX_PORTE_NAME);
 #endif
 
 	/* Red0, Red2 LEDs */
@@ -47,7 +41,7 @@ static int ip_k66f_pinmux_init(const struct device *dev)
 	pinmux_pin_set(porta, 24, PORT_PCR_MUX(kPORT_MuxAsGpio));/* !ETH_RST */
 	pinmux_pin_set(porta, 25, PORT_PCR_MUX(kPORT_MuxAsGpio));/* !ETH_PME */
 	pinmux_pin_set(porta, 26, PORT_PCR_MUX(kPORT_MuxAsGpio));/* !ETH_INT */
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(porte), okay)
+#ifdef CONFIG_PINMUX_MCUX_PORTE
 	/* RMII_REF_CLK */
 	pinmux_pin_set(porte, 26, PORT_PCR_MUX(kPORT_MuxAlt2));
 #endif
