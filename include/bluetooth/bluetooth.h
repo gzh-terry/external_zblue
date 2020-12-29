@@ -1291,6 +1291,14 @@ int bt_le_scan_stop(void);
  */
 void bt_le_scan_cb_register(struct bt_le_scan_cb *cb);
 
+/** @brief Unregister scanner packet callbacks.
+ *
+ *  Remove the callback structure from the list of scanner callback.
+ *
+ *  @param cb Callback struct. Must point to static memory.
+ */
+void bt_le_scan_cb_unregister(struct bt_le_scan_cb *cb);
+
 /** @brief Add device (LE) to whitelist.
  *
  *  Add peer device LE address to the whitelist.
