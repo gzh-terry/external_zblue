@@ -39,8 +39,6 @@ static bool is_hci_event_discardable(const uint8_t *evt_data)
 		switch (subevt_type) {
 		case BT_HCI_EVT_LE_ADVERTISING_REPORT:
 			return true;
-		case BT_HCI_EVT_LE_EXT_ADVERTISING_REPORT:
-			return true;
 		default:
 			return false;
 		}
@@ -200,9 +198,6 @@ static const struct bt_hci_driver drv = {
 	.open		= bt_rpmsg_open,
 	.send		= bt_rpmsg_send,
 	.bus		= BT_HCI_DRIVER_BUS_IPM,
-#if defined(CONFIG_BT_DRIVER_QUIRK_NO_AUTO_DLE)
-	.quirks         = BT_QUIRK_NO_AUTO_DLE,
-#endif
 };
 
 static int bt_rpmsg_init(const struct device *unused)

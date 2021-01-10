@@ -12,7 +12,6 @@
  */
 
 #include <soc.h>
-#include <stm32_ll_dmamux.h>
 #include <init.h>
 #include <drivers/dma.h>
 #include <drivers/clock_control.h>
@@ -138,27 +137,6 @@ int dmamux_stm32_reload(const struct device *dev, uint32_t id,
 	return 0;
 }
 
-int dmamux_stm32_get_status(const struct device *dev, uint32_t id,
-				struct dma_status *stat)
-{
-	const struct dmamux_stm32_config *dev_config = dev->config;
-	struct dmamux_stm32_data *data = dev->data;
-
-	/* check if this channel is valid */
-	if (id >= dev_config->channel_nb) {
-		LOG_ERR("channel ID %d is too big.", id);
-		return -EINVAL;
-	}
-
-	if (dma_stm32_get_status(data->mux_channels[id].dev_dma,
-		data->mux_channels[id].dma_id, stat) != 0) {
-		LOG_ERR("cannot get the status of dmamux channel %d.", id);
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
 static int dmamux_stm32_init(const struct device *dev)
 {
 	struct dmamux_stm32_data *data = dev->data;
@@ -206,7 +184,6 @@ static const struct dma_driver_api dma_funcs = {
 	.config		 = dmamux_stm32_configure,
 	.start		 = dmamux_stm32_start,
 	.stop		 = dmamux_stm32_stop,
-	.get_status	 = dmamux_stm32_get_status,
 };
 
 #define DMAMUX_INIT(index) \
@@ -224,9 +201,8 @@ static struct dmamux_stm32_data dmamux_stm32_data_##index = {	\
 	.mux_channels = NULL,					\
 };								\
 								\
-DEVICE_DT_INST_DEFINE(index,					\
+DEVICE_AND_API_INIT(dmamux_##index, DT_INST_LABEL(index),	\
 		    &dmamux_stm32_init,				\
-		    device_pm_control_nop,			\
 		    &dmamux_stm32_data_##index, &dmamux_stm32_config_##index,\
 		    POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,\
 		    &dma_funcs);

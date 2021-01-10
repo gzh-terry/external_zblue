@@ -68,23 +68,21 @@ struct k_sem worker_sems[NUM_THREADS];
 int target;
 
 /* Command to worker: use a sched_lock()? */
-volatile int do_lock;
+int do_lock;
 
 /* Command to worker: use irq_offload() to indirect the wakeup? */
-volatile int do_irq;
+int do_irq;
 
 /* Command to worker: sleep after wakeup? */
-volatile int do_sleep;
+int do_sleep;
 
 /* Command to worker: yield after wakeup? */
-volatile int do_yield;
+int do_yield;
 
 K_SEM_DEFINE(main_sem, 0, 1);
 
 void wakeup_src_thread(int id)
 {
-	volatile k_tid_t src_thread = &worker_threads[id];
-
 	zassert_true(k_current_get() == &manager_thread, "");
 
 	/* irq_offload() on ARM appears not to do what we want.  It
@@ -112,7 +110,8 @@ void wakeup_src_thread(int id)
 	last_thread = NULL;
 	k_sem_give(&worker_sems[id]);
 
-	while (do_sleep && !(src_thread->base.thread_state & _THREAD_PENDING)) {
+	while (do_sleep
+	       && !(worker_threads[id].base.thread_state & _THREAD_PENDING)) {
 		/* spin, waiting on the sleep timeout */
 #if defined(CONFIG_ARCH_POSIX)
 		/**

@@ -9,7 +9,6 @@
 #include <drivers/dac.h>
 
 #if defined(CONFIG_BOARD_NUCLEO_F091RC) || \
-	defined(CONFIG_BOARD_NUCLEO_G071RB) || \
 	defined(CONFIG_BOARD_NUCLEO_G431RB) || \
 	defined(CONFIG_BOARD_NUCLEO_L073RZ) || \
 	defined(CONFIG_BOARD_NUCLEO_L152RE)

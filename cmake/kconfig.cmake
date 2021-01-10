@@ -21,20 +21,7 @@ foreach(root ${SOC_ROOT})
   set(OPERATION APPEND)
 endforeach()
 
-# Support multiple shields in BOARD_ROOT
-set(OPERATION WRITE)
-foreach(root ${BOARD_ROOT})
-  file(${OPERATION} ${KCONFIG_BINARY_DIR}/Kconfig.shield.defconfig
-       "osource \"${root}/boards/shields/*/Kconfig.defconfig\"\n"
-  )
-  file(${OPERATION} ${KCONFIG_BINARY_DIR}/Kconfig.shield
-       "osource \"${root}/boards/shields/*/Kconfig.shield\"\n"
-  )
-  set(OPERATION APPEND)
-endforeach()
-
 if(KCONFIG_ROOT)
-  zephyr_file(APPLICATION_ROOT KCONFIG_ROOT)
   # KCONFIG_ROOT has either been specified as a CMake variable or is
   # already in the CMakeCache.txt. This has precedence.
 elseif(EXISTS   ${APPLICATION_SOURCE_DIR}/Kconfig)
@@ -53,10 +40,6 @@ endif()
 
 if(OVERLAY_CONFIG)
   string(REPLACE " " ";" OVERLAY_CONFIG_AS_LIST "${OVERLAY_CONFIG}")
-endif()
-
-if((DEFINED BOARD_REVISION) AND EXISTS ${BOARD_DIR}/${BOARD}_${BOARD_REVISION_STRING}.conf)
-  list(INSERT CONF_FILE_AS_LIST 0 ${BOARD_DIR}/${BOARD}_${BOARD_REVISION_STRING}.conf)
 endif()
 
 # DTS_ROOT_BINDINGS is a semicolon separated list, this causes
@@ -275,7 +258,7 @@ foreach(kconfig_input
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${kconfig_input})
 endforeach()
 
-add_custom_target(config-twister DEPENDS ${DOTCONFIG})
+add_custom_target(config-sanitycheck DEPENDS ${DOTCONFIG})
 
 # Remove the CLI Kconfig symbols from the namespace and
 # CMakeCache.txt. If the symbols end up in DOTCONFIG they will be

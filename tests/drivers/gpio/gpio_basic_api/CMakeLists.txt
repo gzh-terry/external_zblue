@@ -4,6 +4,5 @@ cmake_minimum_required(VERSION 3.13.1)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(gpio_basic_api)
 
-FILE(GLOB app_sources src/main.c src/test*.c)
+FILE(GLOB app_sources src/*.c)
 target_sources(app PRIVATE ${app_sources})
-target_sources_ifdef(CONFIG_GPIO_EMUL app PRIVATE src/gpio_emul_callback.c)

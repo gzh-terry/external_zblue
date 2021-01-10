@@ -7,7 +7,8 @@
 /* .dtsi header for nRF5340 CPUAPP (Application MCU), Non-Secure domain */
 
 #include <arm/armv8-m.dtsi>
-#include "nrf_common.dtsi"
+#include <dt-bindings/i2c/i2c.h>
+#include <dt-bindings/gpio/gpio.h>
 
 / {
 	cpus {
@@ -34,10 +35,6 @@
 
 	soc {
 		sram0: memory@20000000 {
-			compatible = "mmio-sram";
-		};
-
-		sram1: memory@21000000 {
 			compatible = "mmio-sram";
 		};
 
