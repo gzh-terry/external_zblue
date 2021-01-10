@@ -3901,7 +3901,7 @@ static void hci_cmd_done(uint16_t opcode, uint8_t status, struct net_buf *buf)
 	BT_DBG("opcode 0x%04x status 0x%02x buf %p", opcode, status, buf);
 
 	if (net_buf_pool_get(buf->pool_id) != &hci_cmd_pool) {
-		BT_WARN("opcode 0x%04x pool id %u pool %p != &hci_cmd_pool %p",
+		BT_DBG("opcode 0x%04x pool id %u pool %p != &hci_cmd_pool %p",
 			opcode, buf->pool_id, net_buf_pool_get(buf->pool_id),
 			&hci_cmd_pool);
 		return;
