@@ -76,10 +76,6 @@ applications.
    Like :c:func:`DEVICE_DEFINE()` but without support for device power
    management.
 
-:c:func:`DEVICE_INIT()`
-   Like :c:func:`DEVICE_AND_API_INIT()` but without providing an API
-   pointer.
-
 :c:func:`DEVICE_NAME_GET()`
    Converts a device identifier to the global identifier for a device
    object.
@@ -588,10 +584,10 @@ may be used directly:
    void some_init_code(...)
    {
       ...
-      uintptr_t phys_addr = pcie_get_mbar(...);
-      size_t size = ...
+      struct pcie_mbar mbar;
+      bool bar_found = pcie_get_mbar(bdf, index, &mbar);
 
-      device_map(DEVICE_MMIO_RAM_PTR(dev), phys_addr, size, K_MEM_CACHE_NONE);
+      device_map(DEVICE_MMIO_RAM_PTR(dev), mbar.phys_addr, mbar.size, K_MEM_CACHE_NONE);
       ...
    }
 
