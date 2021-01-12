@@ -11,4 +11,3 @@ flash: 64
 supported:
   - flash
   - spi
-  - gpio

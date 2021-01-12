@@ -59,17 +59,11 @@ struct ll_conn {
 	union {
 		struct {
 			uint8_t fex_valid:1;
-#if defined(CONFIG_BT_CTLR_CONN_META)
-			uint8_t is_must_expire:1;
-#endif /* CONFIG_BT_CTLR_CONN_META */
 		} common;
 
 #if defined(CONFIG_BT_PERIPHERAL)
 		struct {
 			uint8_t  fex_valid:1;
-#if defined(CONFIG_BT_CTLR_CONN_META)
-			uint8_t  is_must_expire:1;
-#endif /* CONFIG_BT_CTLR_CONN_META */
 			uint8_t  latency_cancel:1;
 			uint8_t  sca:3;
 			uint32_t force;
@@ -80,9 +74,6 @@ struct ll_conn {
 #if defined(CONFIG_BT_CENTRAL)
 		struct {
 			uint8_t fex_valid:1;
-#if defined(CONFIG_BT_CTLR_CONN_META)
-			uint8_t is_must_expire:1;
-#endif /* CONFIG_BT_CTLR_CONN_META */
 			uint8_t terminate_ack:1;
 		} master;
 #endif /* CONFIG_BT_CENTRAL */
@@ -168,17 +159,9 @@ struct ll_conn {
 		uint8_t ack;
 		uint8_t reason_own;
 		uint8_t reason_peer;
-		/* node rx type with memory aligned storage for terminate
-		 * reason.
-		 * HCI will reference the value using the pdu member of
-		 * struct node_rx_pdu.
-		 */
 		struct {
 			struct node_rx_hdr hdr;
-			union {
-				uint8_t    pdu[0] __aligned(4);
-				uint8_t    reason;
-			};
+			uint8_t reason;
 		} node_rx;
 	} llcp_terminate;
 
@@ -274,6 +257,7 @@ struct ll_conn {
 	} llcp_phy;
 
 	uint8_t phy_pref_tx:3;
+	uint8_t phy_pref_flags:1;
 	uint8_t phy_pref_rx:3;
 #endif /* CONFIG_BT_CTLR_PHY */
 

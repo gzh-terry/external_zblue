@@ -11,10 +11,8 @@
 
 #include "cfb_font_dice.h"
 
-#if defined(CONFIG_SSD1306)
-#define DISPLAY_NAME DT_LABEL(DT_INST(0, solomon_ssd1306fb))
-#elif defined(CONFIG_SSD16XX)
-#define DISPLAY_NAME DT_LABEL(DT_INST(0, solomon_ssd16xxfb))
+#if defined(CONFIG_SSD16XX)
+#define DISPLAY_DRIVER "SSD16XX"
 #else
 #error Unsupported board
 #endif
@@ -25,7 +23,7 @@ void main(void)
 {
 	int err;
 
-	display = device_get_binding(DISPLAY_NAME);
+	display = device_get_binding(DISPLAY_DRIVER);
 	if (!display) {
 		printk("Could not get device binding for display device\n");
 	}

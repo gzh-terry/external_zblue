@@ -81,11 +81,6 @@
 	};
 };
 
-&sim {
-	pllfll-select = <KINETIS_SIM_PLLFLLSEL_MCGPLLCLK>;
-	er32k-select = <KINETIS_SIM_ER32KSEL_LPO1KHZ>;
-};
-
 &cpu0 {
 	clock-frequency = <48000000>;
 };

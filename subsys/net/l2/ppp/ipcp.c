@@ -349,10 +349,8 @@ static void ipcp_down(struct ppp_fsm *fsm)
 	struct ppp_context *ctx = CONTAINER_OF(fsm, struct ppp_context,
 					       ipcp.fsm);
 
-	/* Ensure address is always removed if it exists */
-	if (ctx->ipcp.my_options.address.s_addr) {
-		(void)net_if_ipv4_addr_rm(
-			ctx->iface, &ctx->ipcp.my_options.address);
+	if (ctx->is_ipcp_up) {
+		net_if_ipv4_addr_rm(ctx->iface, &ctx->ipcp.my_options.address);
 	}
 
 	memset(&ctx->ipcp.my_options.address, 0,

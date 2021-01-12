@@ -9,7 +9,6 @@ tests:
     depends_on: espi
     harness: console
     harness_config:
-        fixture: espi_device_connect
         type: multi_line
         ordered: true
         regex:
@@ -44,3 +43,4 @@ tests:
             - "espi: Postcode fe"
             - "espi: Postcode 7f"
             - "espi: eSPI sample completed"
+    depends_on: espi

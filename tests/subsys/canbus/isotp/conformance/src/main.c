@@ -221,7 +221,7 @@ static void send_frame_series(struct frame_desired *frames, size_t length,
 	struct zcan_frame frame = {
 		.id_type = CAN_STANDARD_IDENTIFIER,
 		.rtr = CAN_DATAFRAME,
-		.id = id
+		.std_id = id
 	};
 	struct frame_desired *desired = frames;
 
@@ -263,9 +263,9 @@ static int attach_msgq(uint32_t id)
 	struct zcan_filter filter = {
 		.id_type = CAN_STANDARD_IDENTIFIER,
 		.rtr = CAN_DATAFRAME,
-		.id = id,
+		.std_id = id,
 		.rtr_mask = 1,
-		.id_mask = CAN_STD_ID_MASK
+		.std_id_mask = CAN_STD_ID_MASK
 	};
 
 	filter_id = can_attach_msgq(can_dev, &frame_msgq, &filter);
@@ -634,7 +634,6 @@ static void test_send_timeouts(void)
 	ret = isotp_send(&send_ctx, can_dev, random_data, sizeof(random_data),
 			 &tx_addr, &rx_addr, send_complette_cb,
 			 (void *)ISOTP_N_TIMEOUT_BS);
-	zassert_equal(ret, ISOTP_N_OK, "Send returned %d", ret);
 
 	send_frame_series(&fc_cts_frame, 1, rx_addr.std_id);
 
@@ -651,7 +650,6 @@ static void test_send_timeouts(void)
 	ret = isotp_send(&send_ctx, can_dev, random_data, sizeof(random_data),
 			 &tx_addr, &rx_addr, send_complette_cb,
 			 (void *)ISOTP_N_TIMEOUT_BS);
-	zassert_equal(ret, ISOTP_N_OK, "Send returned %d", ret);
 
 	ret = k_sem_take(&send_compl_sem, K_MSEC(800));
 	zassert_equal(ret, -EAGAIN, "Timeout too early");
@@ -825,7 +823,6 @@ void test_sender_fc_errors(void)
 	ret = isotp_send(&send_ctx, can_dev, random_data, DATA_SEND_LENGTH,
 			 &tx_addr, &rx_addr, send_complette_cb,
 			 (void *)ISOTP_N_INVALID_FS);
-	zassert_equal(ret, ISOTP_N_OK, "Send returned %d", ret);
 
 	check_frame_series(&ff_frame, 1, &frame_msgq);
 	send_frame_series(&fc_frame, 1, rx_addr.std_id);
@@ -885,7 +882,7 @@ void test_main(void)
 	can_dev = device_get_binding(CAN_DEVICE_NAME);
 	zassert_not_null(can_dev, "CAN device not not found");
 
-	ret = can_set_mode(can_dev, CAN_LOOPBACK_MODE);
+	ret = can_configure(can_dev, CAN_LOOPBACK_MODE, 0);
 	zassert_equal(ret, 0, "Failed to set loopback mode [%d]", ret);
 
 	k_sem_init(&send_compl_sem, 0, 1);

@@ -20,5 +20,4 @@ under :zephyr_file:`doc/templates/board.tmpl`
    xtensa/index.rst
    posix/index.rst
    riscv/index.rst
-   sparc/index.rst
    shields/index.rst

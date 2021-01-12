@@ -611,17 +611,17 @@ static int i2c_dw_initialize(const struct device *dev)
 
 #ifdef I2C_DW_PCIE_ENABLED
 	if (rom->pcie) {
-		struct pcie_mbar mbar;
+		uintptr_t mmio_phys_addr;
 
 		if (!pcie_probe(rom->pcie_bdf, rom->pcie_id)) {
 			return -EINVAL;
 		}
 
-		pcie_get_mbar(rom->pcie_bdf, 0, &mbar);
+		mmio_phys_addr = pcie_get_mbar(rom->pcie_bdf, 0);
 		pcie_set_cmd(rom->pcie_bdf, PCIE_CONF_CMDSTAT_MEM, true);
 
-		device_map(DEVICE_MMIO_RAM_PTR(dev), mbar.phys_addr,
-			   mbar.size, K_MEM_CACHE_NONE);
+		device_map(DEVICE_MMIO_RAM_PTR(dev), mmio_phys_addr,
+			   0x1000, K_MEM_CACHE_NONE);
 	} else
 #endif
 	{
@@ -695,20 +695,4 @@ static int i2c_dw_initialize(const struct device *dev)
 
 #if DT_NODE_HAS_STATUS(DT_DRV_INST(7), okay)
 #include <i2c_dw_port_7.h>
-#endif
-
-#if DT_NODE_HAS_STATUS(DT_DRV_INST(8), okay)
-#include <i2c_dw_port_8.h>
-#endif
-
-#if DT_NODE_HAS_STATUS(DT_DRV_INST(9), okay)
-#include <i2c_dw_port_9.h>
-#endif
-
-#if DT_NODE_HAS_STATUS(DT_DRV_INST(10), okay)
-#include <i2c_dw_port_10.h>
-#endif
-
-#if DT_NODE_HAS_STATUS(DT_DRV_INST(11), okay)
-#include <i2c_dw_port_11.h>
 #endif

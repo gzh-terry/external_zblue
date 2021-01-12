@@ -219,8 +219,7 @@ struct bt_l2cap_chan_ops {
 	/** @brief Channel alloc_buf callback
 	 *
 	 *  If this callback is provided the channel will use it to allocate
-	 *  buffers to store incoming data. Channels that requires segmentation
-	 *  must set this callback.
+	 *  buffers to store incoming data.
 	 *
 	 *  @param chan The channel requesting a buffer.
 	 *

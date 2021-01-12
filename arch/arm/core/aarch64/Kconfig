@@ -26,6 +26,13 @@ config CPU_CORTEX_A72
 	help
 	  This option signifies the use of a Cortex-A72 CPU
 
+config SWITCH_TO_EL1
+	bool "Switch to EL1 at boot"
+	default y
+	help
+	  This option indicates that we want to switch to EL1 at boot. Only
+	  switching to EL1 from EL3 is supported.
+
 config NUM_IRQS
 	int
 
@@ -58,12 +65,6 @@ config IPM_CONSOLE_STACK_SIZE
 
 if CPU_CORTEX_A
 
-config ARMV8_A_NS
-	bool "ARMv8-A Normal World (Non-Secure world of Trustzone)"
-	help
-	  This option signifies that Zephyr is entered in TrustZone
-	  Non-Secure state
-
 config ARMV8_A
 	bool
 	select ATOMIC_OPERATIONS_BUILTIN
@@ -94,15 +95,6 @@ config ARM_MMU
 	default y
 	help
 	  Memory Management Unit support.
-
-config EXCEPTION_DEBUG
-	bool "Unhandled exception debugging information"
-	default y
-	depends on LOG
-	help
-	  Print human-readable information about exception vectors, cause codes,
-	  and parameters, at a cost of code/data size for the human-readable
-	  strings.
 
 if ARM_MMU
 

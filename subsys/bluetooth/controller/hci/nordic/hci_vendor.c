@@ -3,12 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <zephyr/types.h>
 #include <sys/byteorder.h>
 
 #include <bluetooth/addr.h>
 #include <bluetooth/hci_vs.h>
 
-#include <soc.h>
+#include <nrf.h>
 
 uint8_t hci_vendor_read_static_addr(struct bt_hci_vs_static_addr addrs[],
 				 uint8_t size)
