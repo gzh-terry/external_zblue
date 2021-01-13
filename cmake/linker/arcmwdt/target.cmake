@@ -26,7 +26,7 @@ macro(configure_linker_script linker_script_gen linker_pass_define)
     set(linker_script_dep "")
   endif()
 
-  zephyr_get_include_directories_for_lang(C current_includes "$<SEMICOLON>")
+  zephyr_get_include_directories_for_lang(C current_includes)
   get_filename_component(base_name ${CMAKE_CURRENT_BINARY_DIR} NAME)
   get_property(current_defines GLOBAL PROPERTY PROPERTY_LINKER_SCRIPT_DEFINES)
 
@@ -109,7 +109,6 @@ endfunction(toolchain_ld_link_elf)
 macro(toolchain_ld_baremetal)
   zephyr_ld_options(
     -Hlld
-    -Hnocopyr
     -Hnosdata
     -Hnocrt
     -Xtimer0 # to suppress the warning message

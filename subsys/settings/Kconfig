@@ -9,6 +9,12 @@ menuconfig SETTINGS
 	  It supports several back-ends to store and load serialized data from
 	  and it can do so atomically for all involved modules.
 
+if SETTINGS
+module = SETTINGS
+module-str = settings
+source "subsys/logging/Kconfig.template.log_config"
+endif
+
 config SETTINGS_RUNTIME
 	bool "runtime storage back-end"
 	depends on SETTINGS
@@ -26,15 +32,6 @@ config SETTINGS_DYNAMIC_HANDLERS
 config SETTINGS_ENCODE_LEN
 	depends on SETTINGS
 	bool
-
-config SETTINGS_USE_BASE64
-	bool "encoding value using base64 (deprecated)"
-	depends on SETTINGS
-	select BASE64
-	help
-	  This option has been deprecated and will not be supported
-	  in future releases.
-	  Enables values encoding using Base64.
 
 choice
 	prompt "Storage back-end"
