@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#define DT_DRV_COMPAT nuvoton_npcx_pinctrl
-
 #include <drivers/pinmux.h>
 #include <kernel.h>
 #include <soc.h>
@@ -16,38 +14,28 @@ LOG_MODULE_REGISTER(pimux_npcx, LOG_LEVEL_ERR);
 /* Driver config */
 struct npcx_pinctrl_config {
 	/* scfg device base address */
-	uintptr_t base_scfg;
-	uintptr_t base_glue;
+	uintptr_t base;
 };
 
-/*
- * Get io list which default functionality are not IOs. Then switch them to
- * GPIO in pin-mux init function.
- *
- * def_io_conf: def_io_conf_list {
- *               compatible = "nuvoton,npcx-pinctrl-def";
- *               pinctrl-0 = <&alt0_gpio_no_spip
- *                            &alt0_gpio_no_fpip
- *                            ...>;
- *               };
- */
-static const struct npcx_alt def_alts[] =
-			NPCX_DT_IO_ALT_ITEMS_LIST(nuvoton_npcx_pinctrl_def, 0);
+/* Default io list which default functionality are not IOs */
+#define DT_DRV_COMPAT nuvoton_npcx_pinctrl_def
+static const struct npcx_alt def_alts[] = DT_NPCX_ALT_ITEMS_LIST(0);
 
 static const struct npcx_pinctrl_config npcx_pinctrl_cfg = {
-	.base_scfg = DT_INST_REG_ADDR_BY_NAME(0, scfg),
-	.base_glue = DT_INST_REG_ADDR_BY_NAME(0, glue),
+	.base = DT_REG_ADDR(DT_NODELABEL(scfg)),
 };
 
 /* Driver convenience defines */
-#define HAL_SFCG_INST() (struct scfg_reg *)(npcx_pinctrl_cfg.base_scfg)
+#define DRV_CONFIG(dev) \
+	((const struct npcx_pinctrl_config *)(dev)->config)
 
-#define HAL_GLUE_INST() (struct glue_reg *)(npcx_pinctrl_cfg.base_glue)
+#define HAL_INSTANCE(dev) \
+	(struct scfg_reg *)(DRV_CONFIG(dev)->base)
 
 /* Pin-control local functions */
 static void npcx_pinctrl_alt_sel(const struct npcx_alt *alt, int alt_func)
 {
-	const uint32_t scfg_base = npcx_pinctrl_cfg.base_scfg;
+	uint32_t scfg_base = npcx_pinctrl_cfg.base;
 	uint8_t alt_mask = BIT(alt->bit);
 
 	/*
@@ -57,15 +45,14 @@ static void npcx_pinctrl_alt_sel(const struct npcx_alt *alt, int alt_func)
 	 * inverted == 1:
 	 *    Clear devalt bit to select Alternate Func.
 	 */
-	if (!!alt_func != !!alt->inverted) {
+	if (!!alt_func != !!alt->inverted)
 		NPCX_DEVALT(scfg_base, alt->group) |=  alt_mask;
-	} else {
+	else
 		NPCX_DEVALT(scfg_base, alt->group) &= ~alt_mask;
-	}
 }
 
-/* Platform specific pin-control functions */
-void npcx_pinctrl_mux_configure(const struct npcx_alt *alts_list,
+/* Soc specific pin-control functions */
+void soc_pinctrl_mux_configure(const struct npcx_alt *alts_list,
 		      uint8_t alts_size, int altfunc)
 {
 	int i;
@@ -75,39 +62,28 @@ void npcx_pinctrl_mux_configure(const struct npcx_alt *alts_list,
 	}
 }
 
-void npcx_pinctrl_i2c_port_sel(int controller, int port)
-{
-	struct glue_reg *const inst_glue = HAL_GLUE_INST();
-
-	if (port != 0) {
-		inst_glue->SMB_SEL |= BIT(controller);
-	} else {
-		inst_glue->SMB_SEL &= ~BIT(controller);
-	}
-}
-
 /* Pin-control driver registration */
 static int npcx_pinctrl_init(const struct device *dev)
 {
-	struct scfg_reg *inst_scfg = HAL_SFCG_INST();
+	struct scfg_reg *inst = HAL_INSTANCE(dev);
 
 #if defined(CONFIG_SOC_SERIES_NPCX7)
 	/*
 	 * Set bit 7 of DEVCNT again for npcx7 series. Please see Errata
 	 * for more information. It will be fixed in next chip.
 	 */
-	inst_scfg->DEVCNT |= BIT(7);
+	inst->DEVCNT |= BIT(7);
 #endif
 
 	/* Change all pads whose default functionality isn't IO to GPIO */
-	npcx_pinctrl_mux_configure(def_alts, ARRAY_SIZE(def_alts), 0);
+	soc_pinctrl_mux_configure(def_alts, ARRAY_SIZE(def_alts), 0);
 
 	return 0;
 }
 
-DEVICE_DT_DEFINE(DT_NODELABEL(scfg),
+DEVICE_AND_API_INIT(npcx_pinctrl,
+		    DT_LABEL(DT_NODELABEL(scfg)),
 		    &npcx_pinctrl_init,
-		    device_pm_control_nop,
 		    NULL, &npcx_pinctrl_cfg,
 		    PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,
 		    NULL);

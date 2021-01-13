@@ -258,7 +258,7 @@ static int pwm_led_esp32_timer_set(int speed_mode, int timer,
 	int tick_sel = PWM_LED_ESP32_APB_CLK_FREQ;
 	uint32_t precision = (0x1 << bit_num);
 
-	__ASSERT_NO_MSG(frequency > 0);
+	assert(frequency > 0);
 
 	/* This expression comes from ESP32 Espressif's Technical Reference
 	 * Manual chapter 13.2.2 Timers.
@@ -519,7 +519,7 @@ const static struct pwm_led_esp32_config pwm_led_esp32_config = {
 	},
 };
 
-DEVICE_DEFINE(pwm_led_esp32_0, CONFIG_PWM_LED_ESP32_DEV_NAME_0,
-		pwm_led_esp32_init, device_pm_control_nop, NULL,
-		&pwm_led_esp32_config, POST_KERNEL,
-		CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &pwm_led_esp32_api);
+DEVICE_AND_API_INIT(pwm_led_esp32_0, CONFIG_PWM_LED_ESP32_DEV_NAME_0,
+		    pwm_led_esp32_init, NULL, &pwm_led_esp32_config,
+		    POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
+		    &pwm_led_esp32_api);

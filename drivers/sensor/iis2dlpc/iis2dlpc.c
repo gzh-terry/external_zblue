@@ -31,12 +31,13 @@ LOG_MODULE_REGISTER(IIS2DLPC, CONFIG_SENSOR_LOG_LEVEL);
  * @dev: Pointer to instance of struct device (I2C or SPI)
  * @range: Full scale range (2, 4, 8 and 16 G)
  */
-static int iis2dlpc_set_range(const struct device *dev, uint8_t fs)
+static int iis2dlpc_set_range(const struct device *dev, uint16_t range)
 {
 	int err;
 	struct iis2dlpc_data *iis2dlpc = dev->data;
 	const struct iis2dlpc_device_config *cfg = dev->config;
 	uint8_t shift_gain = 0U;
+	uint8_t fs = IIS2DLPC_FS_TO_REG(range);
 
 	err = iis2dlpc_full_scale_set(iis2dlpc->ctx, fs);
 
@@ -47,7 +48,8 @@ static int iis2dlpc_set_range(const struct device *dev, uint8_t fs)
 	if (!err) {
 		/* save internally gain for optimization */
 		iis2dlpc->gain =
-			IIS2DLPC_FS_TO_GAIN(fs, shift_gain);
+			IIS2DLPC_FS_TO_GAIN(IIS2DLPC_FS_TO_REG(range),
+					    shift_gain);
 	}
 
 	return err;
@@ -144,8 +146,7 @@ static int iis2dlpc_config(const struct device *dev, enum sensor_channel chan,
 {
 	switch (attr) {
 	case SENSOR_ATTR_FULL_SCALE:
-		return iis2dlpc_set_range(dev,
-				IIS2DLPC_FS_TO_REG(sensor_ms2_to_g(val)));
+		return iis2dlpc_set_range(dev, sensor_ms2_to_g(val));
 	case SENSOR_ATTR_SAMPLING_FREQUENCY:
 		return iis2dlpc_set_odr(dev, val->val1);
 	default:
@@ -181,10 +182,10 @@ static int iis2dlpc_sample_fetch(const struct device *dev,
 	struct iis2dlpc_data *iis2dlpc = dev->data;
 	const struct iis2dlpc_device_config *cfg = dev->config;
 	uint8_t shift;
-	int16_t buf[3];
+	union axis3bit16_t buf;
 
 	/* fetch raw data sample */
-	if (iis2dlpc_acceleration_raw_get(iis2dlpc->ctx, buf) < 0) {
+	if (iis2dlpc_acceleration_raw_get(iis2dlpc->ctx, buf.u8bit) < 0) {
 		LOG_DBG("Failed to fetch raw data sample");
 		return -EIO;
 	}
@@ -196,9 +197,9 @@ static int iis2dlpc_sample_fetch(const struct device *dev,
 		shift = IIS2DLPC_SHIFT_PMOTHER;
 	}
 
-	iis2dlpc->acc[0] = sys_le16_to_cpu(buf[0]) >> shift;
-	iis2dlpc->acc[1] = sys_le16_to_cpu(buf[1]) >> shift;
-	iis2dlpc->acc[2] = sys_le16_to_cpu(buf[2]) >> shift;
+	iis2dlpc->acc[0] = sys_le16_to_cpu(buf.i16bit[0]) >> shift;
+	iis2dlpc->acc[1] = sys_le16_to_cpu(buf.i16bit[1]) >> shift;
+	iis2dlpc->acc[2] = sys_le16_to_cpu(buf.i16bit[2]) >> shift;
 
 	return 0;
 }
@@ -287,22 +288,23 @@ static int iis2dlpc_init(const struct device *dev)
 	}
 
 	/* set power mode */
-	LOG_INF("power-mode is %d", cfg->pm);
-	if (iis2dlpc_set_power_mode(iis2dlpc, cfg->pm)) {
+	if (iis2dlpc_set_power_mode(iis2dlpc, CONFIG_IIS2DLPC_POWER_MODE)) {
 		return -EIO;
 	}
 
-	/* set default odr to 12.5Hz acc */
-	if (iis2dlpc_set_odr(dev, 12) < 0) {
-		LOG_ERR("odr init error (12.5 Hz)");
+	/* set default odr and full scale for acc */
+	if (iis2dlpc_data_rate_set(iis2dlpc->ctx, IIS2DLPC_DEFAULT_ODR) < 0) {
 		return -EIO;
 	}
 
-	LOG_INF("range is %d", cfg->range);
-	if (iis2dlpc_set_range(dev, IIS2DLPC_FS_TO_REG(cfg->range)) < 0) {
-		LOG_ERR("range init error %d", cfg->range);
+	if (iis2dlpc_full_scale_set(iis2dlpc->ctx, IIS2DLPC_ACC_FS) < 0) {
 		return -EIO;
 	}
+
+	iis2dlpc->gain =
+		IIS2DLPC_FS_TO_GAIN(IIS2DLPC_ACC_FS,
+				    cfg->pm == IIS2DLPC_CONT_LOW_PWR_12bit ?
+				    IIS2DLPC_SHFT_GAIN_NOLP1 : 0);
 
 #ifdef CONFIG_IIS2DLPC_TRIGGER
 	if (iis2dlpc_init_interrupt(dev) < 0) {
@@ -374,8 +376,7 @@ static int iis2dlpc_init(const struct device *dev)
 
 const struct iis2dlpc_device_config iis2dlpc_cfg = {
 	.bus_name = DT_INST_BUS_LABEL(0),
-	.pm = DT_INST_PROP(0, power_mode),
-	.range = DT_INST_PROP(0, range),
+	.pm = CONFIG_IIS2DLPC_POWER_MODE,
 #ifdef CONFIG_IIS2DLPC_TRIGGER
 	.int_gpio_port = DT_INST_GPIO_LABEL(0, drdy_gpios),
 	.int_gpio_pin = DT_INST_GPIO_PIN(0, drdy_gpios),
@@ -404,6 +405,6 @@ const struct iis2dlpc_device_config iis2dlpc_cfg = {
 
 struct iis2dlpc_data iis2dlpc_data;
 
-DEVICE_DT_INST_DEFINE(0, iis2dlpc_init, device_pm_control_nop,
+DEVICE_AND_API_INIT(iis2dlpc, DT_INST_LABEL(0), iis2dlpc_init,
 	     &iis2dlpc_data, &iis2dlpc_cfg, POST_KERNEL,
 	     CONFIG_SENSOR_INIT_PRIORITY, &iis2dlpc_driver_api);

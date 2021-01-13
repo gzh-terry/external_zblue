@@ -99,8 +99,6 @@ Here is the description of the various moderation levels:
   - Bug Fixes: P1 and P2
   - Documentation + Test Coverage
 
-.. _release_quality_criteria:
-
 Release Quality Criteria
 ************************
 

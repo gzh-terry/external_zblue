@@ -39,6 +39,12 @@
   #define ROM_ADDR (CONFIG_FLASH_BASE_ADDRESS + CONFIG_FLASH_LOAD_OFFSET)
 #endif
 
+/*
+ * MMU currently supports 4 kB translation granule size,
+ * so all regions are required to be 4 kB aligned
+ */
+#define PAGE_SIZE	0x1000
+
 #if CONFIG_FLASH_LOAD_SIZE > 0
   #define ROM_SIZE CONFIG_FLASH_LOAD_SIZE
 #else
@@ -60,7 +66,7 @@
 #endif
 
 #if defined(CONFIG_ARM_MMU)
-  _region_min_align = CONFIG_MMU_PAGE_SIZE;
+  _region_min_align = PAGE_SIZE;
 #else
   /* If building without MMU support, use default 4-byte alignment. */
   _region_min_align = 4;
@@ -159,7 +165,6 @@ SECTIONS
         _image_rodata_start = .;
 
 #include <linker/common-rom.ld>
-#include <linker/thread-local-storage.ld>
 
     SECTION_PROLOGUE(_RODATA_SECTION_NAME,,)
     {
@@ -218,7 +223,7 @@ SECTIONS
 
 #if defined(CONFIG_USERSPACE)
 #define APP_SHARED_ALIGN . = ALIGN(_region_min_align);
-#define SMEM_PARTITION_ALIGN(size) MMU_ALIGN
+#define SMEM_PARTITION_ALIGN MMU_ALIGN
 
 #include <app_smem.ld>
 
@@ -306,6 +311,29 @@ SECTIONS
 
     /DISCARD/ : { *(.note.GNU-stack) }
 
+#if defined(CONFIG_ARM_FIRMWARE_HAS_SECURE_ENTRY_FUNCS)
+
+#if CONFIG_ARM_NSC_REGION_BASE_ADDRESS != 0
+    #define NSC_ALIGN . = ABSOLUTE(CONFIG_ARM_NSC_REGION_BASE_ADDRESS)
+#else
+    #define NSC_ALIGN . = ALIGN(4)
+#endif
+
+    #define NSC_ALIGN_END . = ALIGN(4)
+
+    SECTION_PROLOGUE(.gnu.sgstubs,,)
+    {
+        NSC_ALIGN;
+        __sg_start = .;
+        /* No input section necessary, since the Secure Entry Veneers are
+           automatically placed after the .gnu.sgstubs output section. */
+    } GROUP_LINK_IN(ROMABLE_REGION)
+    __sg_end = .;
+    __sg_size = __sg_end - __sg_start;
+    NSC_ALIGN_END;
+    __nsc_size = . - __sg_start;
+
+#endif /* CONFIG_ARM_FIRMWARE_HAS_SECURE_ENTRY_FUNCS */
 
     /* Must be last in romable region */
     SECTION_PROLOGUE(.last_section,(NOLOAD),)

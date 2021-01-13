@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#define LOG_LEVEL CONFIG_WIFI_LOG_LEVEL
 #include <logging/log.h>
-LOG_MODULE_REGISTER(wifi_esp_offload, CONFIG_WIFI_LOG_LEVEL);
+LOG_MODULE_REGISTER(wifi_esp_offload);
 
 #include <zephyr.h>
 #include <kernel.h>
@@ -23,11 +24,21 @@ LOG_MODULE_REGISTER(wifi_esp_offload, CONFIG_WIFI_LOG_LEVEL);
 static int esp_bind(struct net_context *context, const struct sockaddr *addr,
 		    socklen_t addrlen)
 {
+	struct esp_socket *sock;
+
+	sock = (struct esp_socket *)context->offload_context;
+
+	sock->src.sa_family = addr->sa_family;
+
 	if (IS_ENABLED(CONFIG_NET_IPV4) && addr->sa_family == AF_INET) {
-		return 0;
+		net_ipaddr_copy(&net_sin(&sock->src)->sin_addr,
+				&net_sin(addr)->sin_addr);
+		net_sin(&sock->src)->sin_port = net_sin(addr)->sin_port;
+	} else {
+		return -EAFNOSUPPORT;
 	}
 
-	return -EAFNOSUPPORT;
+	return 0;
 }
 
 static int esp_listen(struct net_context *context, int backlog)
@@ -37,12 +48,11 @@ static int esp_listen(struct net_context *context, int backlog)
 
 static int _sock_connect(struct esp_data *dev, struct esp_socket *sock)
 {
-	char connect_msg[sizeof("AT+CIPSTART=0,\"TCP\",\"\",65535,7200") +
-			 NET_IPV4_ADDR_LEN];
 	char addr_str[NET_IPV4_ADDR_LEN];
+	char connect_msg[100];
 	int ret;
 
-	if (!esp_flags_are_set(dev, EDF_STA_CONNECTED)) {
+	if (!esp_flag_is_set(dev, EDF_STA_CONNECTED)) {
 		return -ENETUNREACH;
 	}
 
@@ -68,13 +78,11 @@ static int _sock_connect(struct esp_data *dev, struct esp_socket *sock)
 		sock->ip_proto == IPPROTO_TCP ? "TCP" : "UDP",
 		log_strdup(addr_str));
 
-	ret = esp_cmd_send(dev, NULL, 0, connect_msg, ESP_CMD_TIMEOUT);
+	ret = modem_cmd_send(&dev->mctx.iface, &dev->mctx.cmd_handler,
+			     NULL, 0, connect_msg, &dev->sem_response,
+			     ESP_CMD_TIMEOUT);
 	if (ret == 0) {
 		sock->flags |= ESP_SOCK_CONNECTED;
-		if (sock->type == SOCK_STREAM) {
-			net_context_set_state(sock->context,
-					      NET_CONTEXT_CONNECTED);
-		}
 	} else if (ret == -ETIMEDOUT) {
 		/* FIXME:
 		 * What if the connection finishes after we return from
@@ -144,6 +152,10 @@ static int esp_connect(struct net_context *context,
 
 	ret = _sock_connect(dev, sock);
 
+	if (esp_socket_connected(sock) && sock->tx_pkt) {
+		k_work_submit_to_queue(&dev->workq, &sock->send_work);
+	}
+
 	if (ret != -ETIMEDOUT && cb) {
 		cb(context, ret, user_data);
 	}
@@ -191,19 +203,16 @@ MODEM_CMD_DEFINE(on_cmd_send_fail)
 
 static int _sock_send(struct esp_data *dev, struct esp_socket *sock)
 {
-	char cmd_buf[sizeof("AT+CIPSEND=0,,\"\",") +
-		     sizeof(STRINGIFY(ESP_MTU)) - 1 +
-		     NET_IPV4_ADDR_LEN + sizeof("65535") - 1];
-	char addr_str[NET_IPV4_ADDR_LEN];
+	char cmd_buf[64], addr_str[NET_IPV4_ADDR_LEN];
 	int ret, write_len, pkt_len;
 	struct net_buf *frag;
-	static const struct modem_cmd cmds[] = {
+	struct modem_cmd cmds[] = {
 		MODEM_CMD_DIRECT(">", on_cmd_tx_ready),
 		MODEM_CMD("SEND OK", on_cmd_send_ok, 0U, ""),
 		MODEM_CMD("SEND FAIL", on_cmd_send_fail, 0U, ""),
 	};
 
-	if (!esp_flags_are_set(dev, EDF_STA_CONNECTED)) {
+	if (!esp_flag_is_set(dev, EDF_STA_CONNECTED)) {
 		return -ENETUNREACH;
 	}
 
@@ -330,7 +339,7 @@ static int esp_sendto(struct net_pkt *pkt,
 
 	LOG_DBG("link %d, timeout %d", sock->link_id, timeout);
 
-	if (!esp_flags_are_set(dev, EDF_STA_CONNECTED)) {
+	if (!esp_flag_is_set(dev, EDF_STA_CONNECTED)) {
 		return -ENETUNREACH;
 	}
 
@@ -374,7 +383,19 @@ static int esp_sendto(struct net_pkt *pkt,
 		return 0;
 	}
 
+	/*
+	 * FIXME:
+	 * In _modem_cmd_send() in modem_cmd_handler.c it can happen that a
+	 * response, eg 'OK', is received before k_sem_reset(sem) is called.
+	 * If the sending thread can be preempted, the command handler could
+	 * run and call k_sem_give(). This will cause a timeout and the send
+	 * will fail. This can be avoided by locking the scheduler. Maybe this
+	 * should be done in _modem_cmd_send() instead.
+	 */
+	k_sched_lock();
 	ret = _sock_send(dev, sock);
+	k_sched_unlock();
+
 	if (ret == 0) {
 		net_pkt_unref(sock->tx_pkt);
 	} else {
@@ -401,75 +422,73 @@ static int esp_send(struct net_pkt *pkt,
 
 #define CIPRECVDATA_CMD_MIN_LEN (sizeof("+CIPRECVDATA,L:") - 1)
 #define CIPRECVDATA_CMD_MAX_LEN (sizeof("+CIPRECVDATA,LLLL:") - 1)
-
-static int cmd_ciprecvdata_parse(struct esp_socket *sock,
-				 struct net_buf *buf, uint16_t len,
-				 int *data_offset, int *data_len)
+MODEM_CMD_DIRECT_DEFINE(on_cmd_ciprecvdata)
 {
-	char cmd_buf[CIPRECVDATA_CMD_MAX_LEN + 1];
-	char *endptr;
-	size_t frags_len;
-	size_t match_len;
+	char *endptr, cmd_buf[CIPRECVDATA_CMD_MAX_LEN + 1];
+	int data_offset, data_len, ret;
+	size_t match_len, frags_len;
+	struct esp_socket *sock;
+	struct esp_data *dev;
+	struct net_pkt *pkt;
 
-	frags_len = net_buf_frags_len(buf);
+	dev = CONTAINER_OF(data, struct esp_data, cmd_handler_data);
+
+	sock = dev->rx_sock;
+
+	frags_len = net_buf_frags_len(data->rx_buf);
 	if (frags_len < CIPRECVDATA_CMD_MIN_LEN) {
-		return -EAGAIN;
+		ret = -EAGAIN;
+		goto out;
 	}
 
 	match_len = net_buf_linearize(cmd_buf, CIPRECVDATA_CMD_MAX_LEN,
-				      buf, 0, CIPRECVDATA_CMD_MAX_LEN);
+				      data->rx_buf, 0, CIPRECVDATA_CMD_MAX_LEN);
+
 	cmd_buf[match_len] = 0;
 
-	*data_len = strtol(&cmd_buf[len], &endptr, 10);
+	data_len = strtol(&cmd_buf[len], &endptr, 10);
 	if (endptr == &cmd_buf[len] ||
 	    (*endptr == 0 && match_len >= CIPRECVDATA_CMD_MAX_LEN) ||
-	    *data_len > sock->bytes_avail) {
+	    data_len > sock->bytes_avail) {
 		LOG_ERR("Invalid cmd: %s", log_strdup(cmd_buf));
-		return -EBADMSG;
+		ret = len;
+		goto out;
 	} else if (*endptr == 0) {
-		return -EAGAIN;
+		ret = -EAGAIN;
+		goto out;
 	} else if (*endptr != _CIPRECVDATA_END) {
 		LOG_ERR("Invalid end of cmd: 0x%02x != 0x%02x", *endptr,
 			_CIPRECVDATA_END);
-		return -EBADMSG;
-	}
-
-	/* data_offset is the offset to where the actual data starts */
-	*data_offset = (endptr - cmd_buf) + 1;
-
-	/* FIXME: Inefficient way of waiting for data */
-	if (*data_offset + *data_len > frags_len) {
-		return -EAGAIN;
+		ret = len;
+		goto out;
 	}
 
 	*endptr = 0;
 
-	return 0;
-}
+	/* data_offset is the offset to where the actual data starts */
+	data_offset = strlen(cmd_buf) + 1;
 
-MODEM_CMD_DIRECT_DEFINE(on_cmd_ciprecvdata)
-{
-	struct esp_data *dev = CONTAINER_OF(data, struct esp_data,
-					    cmd_handler_data);
-	struct esp_socket *sock = dev->rx_sock;
-	int data_offset, data_len;
-	int err;
-
-	err = cmd_ciprecvdata_parse(sock, data->rx_buf, len, &data_offset,
-				    &data_len);
-	if (err) {
-		if (err == -EAGAIN) {
-			return -EAGAIN;
-		}
-
-		return err;
+	/* FIXME: Inefficient way of waiting for data */
+	if (data_offset + data_len > frags_len) {
+		ret = -EAGAIN;
+		goto out;
 	}
 
 	sock->bytes_avail -= data_len;
+	ret = data_offset + data_len;
 
-	esp_socket_rx(sock, data->rx_buf, data_offset, data_len);
+	pkt = esp_prepare_pkt(dev, data->rx_buf, data_offset, data_len);
+	if (!pkt) {
+		/* FIXME: Should probably terminate connection */
+		LOG_ERR("Failed to get net_pkt: len %d", data_len);
+		goto out;
+	}
 
-	return data_offset + data_len;
+	k_fifo_put(&sock->fifo_rx_pkt, pkt);
+	k_work_submit_to_queue(&dev->workq, &sock->recv_work);
+
+out:
+	return ret;
 }
 
 static void esp_recvdata_work(struct k_work *work)
@@ -477,8 +496,8 @@ static void esp_recvdata_work(struct k_work *work)
 	struct esp_socket *sock;
 	struct esp_data *dev;
 	int len = CIPRECVDATA_MAX_LEN, ret;
-	char cmd[sizeof("AT+CIPRECVDATA=0,"STRINGIFY(CIPRECVDATA_MAX_LEN))];
-	static const struct modem_cmd cmds[] = {
+	char cmd[32];
+	struct modem_cmd cmds[] = {
 		MODEM_CMD_DIRECT(_CIPRECVDATA, on_cmd_ciprecvdata),
 	};
 
@@ -504,7 +523,9 @@ static void esp_recvdata_work(struct k_work *work)
 
 	snprintk(cmd, sizeof(cmd), "AT+CIPRECVDATA=%d,%d", sock->link_id, len);
 
-	ret = esp_cmd_send(dev, cmds, ARRAY_SIZE(cmds), cmd, ESP_CMD_TIMEOUT);
+	ret = modem_cmd_send(&dev->mctx.iface, &dev->mctx.cmd_handler,
+			     cmds, ARRAY_SIZE(cmds), cmd, &dev->sem_response,
+			     ESP_CMD_TIMEOUT);
 	if (ret < 0) {
 		LOG_ERR("Error during rx: link %d, ret %d", sock->link_id,
 			ret);
@@ -540,14 +561,6 @@ static void esp_recv_work(struct k_work *work)
 		}
 
 		pkt = k_fifo_get(&sock->fifo_rx_pkt, K_NO_WAIT);
-	}
-
-	if (esp_socket_close_pending(sock)) {
-		if (esp_socket_connected(sock)) {
-			esp_socket_close(sock);
-		}
-
-		sock->flags &= ~(ESP_SOCK_CONNECTED | ESP_SOCK_CLOSE_PENDING);
 	}
 
 	/* Should we notify that the socket has been closed? */
@@ -592,12 +605,28 @@ static int esp_recv(struct net_context *context,
 static int esp_put(struct net_context *context)
 {
 	struct esp_socket *sock;
+	struct esp_data *dev;
 	struct net_pkt *pkt;
+	char cmd_buf[16];
+	int ret;
 
 	sock = (struct esp_socket *)context->offload_context;
+	dev = esp_socket_to_dev(sock);
 
 	if (esp_socket_connected(sock)) {
-		esp_socket_close(sock);
+		snprintk(cmd_buf, sizeof(cmd_buf), "AT+CIPCLOSE=%d",
+			 sock->link_id);
+		ret = modem_cmd_send(&dev->mctx.iface, &dev->mctx.cmd_handler,
+				     NULL, 0, cmd_buf, &dev->sem_response,
+				     ESP_CMD_TIMEOUT);
+		if (ret < 0) {
+			/* FIXME:
+			 * If link doesn't close correctly here, esp_get could
+			 * allocate a socket with an already open link.
+			 */
+			LOG_ERR("Failed to close link %d, ret %d",
+				sock->link_id, ret);
+		}
 	}
 
 	sock->connect_cb = NULL;
@@ -647,6 +676,7 @@ static int esp_get(sa_family_t family,
 	k_work_init(&sock->send_work, esp_send_work);
 	k_work_init(&sock->recv_work, esp_recv_work);
 	k_work_init(&sock->recvdata_work, esp_recvdata_work);
+	sock->family = family;
 	sock->type = type;
 	sock->ip_proto = ip_proto;
 	sock->context = *context;

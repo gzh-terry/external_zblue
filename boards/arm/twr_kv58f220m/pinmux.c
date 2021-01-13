@@ -12,25 +12,25 @@ static int twr_kv58f220m_pinmux_init(const struct device *dev)
 {
 	ARG_UNUSED(dev);
 
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(porta), okay)
+#ifdef CONFIG_PINMUX_MCUX_PORTA
 	__unused const struct device *porta =
-		device_get_binding(DT_LABEL(DT_NODELABEL(porta)));
+		device_get_binding(CONFIG_PINMUX_MCUX_PORTA_NAME);
 #endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(portb), okay)
+#ifdef CONFIG_PINMUX_MCUX_PORTB
 	__unused const struct device *portb =
-		device_get_binding(DT_LABEL(DT_NODELABEL(portb)));
+		device_get_binding(CONFIG_PINMUX_MCUX_PORTB_NAME);
 #endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(portc), okay)
+#ifdef CONFIG_PINMUX_MCUX_PORTC
 	__unused const struct device *portc =
-		device_get_binding(DT_LABEL(DT_NODELABEL(portc)));
+		device_get_binding(CONFIG_PINMUX_MCUX_PORTC_NAME);
 #endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(portd), okay)
+#ifdef CONFIG_PINMUX_MCUX_PORTD
 	__unused const struct device *portd =
-		device_get_binding(DT_LABEL(DT_NODELABEL(portd)));
+		device_get_binding(CONFIG_PINMUX_MCUX_PORTD_NAME);
 #endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(porte), okay)
+#ifdef CONFIG_PINMUX_MCUX_PORTE
 	__unused const struct device *porte =
-		device_get_binding(DT_LABEL(DT_NODELABEL(porte)));
+		device_get_binding(CONFIG_PINMUX_MCUX_PORTE_NAME);
 #endif
 
 	/* LEDs */

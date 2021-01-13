@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <zephyr/types.h>
 #include <soc.h>
 
 #include "hal/nrf5/swi.h"
