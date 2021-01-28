@@ -38,6 +38,9 @@ void bt_mesh_model_foreach(void (*func)(struct bt_mesh_model *mod,
 {
 	int i, j;
 
+	if (!dev_comp)
+		return;
+
 	for (i = 0; i < dev_comp->elem_count; i++) {
 		struct bt_mesh_elem *elem = &dev_comp->elem[i];
 
@@ -332,6 +335,9 @@ void bt_mesh_comp_provision(uint16_t addr)
 	int i;
 
 	dev_primary_addr = addr;
+
+	if (!dev_comp)
+		return;
 
 	BT_DBG("addr 0x%04x elem_count %zu", addr, dev_comp->elem_count);
 

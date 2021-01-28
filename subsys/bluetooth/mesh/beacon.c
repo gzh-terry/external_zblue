@@ -229,7 +229,7 @@ static void unprovisioned_beacon_recv(struct net_buf_simple *buf)
 
 	prov = bt_mesh_prov_get();
 
-	if (prov->unprovisioned_beacon) {
+	if (prov && prov->unprovisioned_beacon) {
 		prov->unprovisioned_beacon(uuid,
 					   (bt_mesh_prov_oob_info_t)oob_info,
 					   uri_hash);

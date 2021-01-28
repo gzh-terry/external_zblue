@@ -1240,7 +1240,7 @@ int bt_mesh_prov_disable(bt_mesh_prov_bearer_t bearers)
 
 void bt_mesh_prov_complete(uint16_t net_idx, uint16_t addr)
 {
-	if (prov->complete) {
+	if (prov && prov->complete) {
 		prov->complete(net_idx, addr);
 	}
 }

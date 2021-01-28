@@ -3495,7 +3495,7 @@ uint8_t *bt_mesh_label_uuid_get(uint16_t addr)
 
 struct bt_mesh_hb_pub *bt_mesh_hb_pub_get(void)
 {
-	return &conf->hb_pub;
+	return conf ? &conf->hb_pub : conf;
 }
 
 void bt_mesh_hb_pub_disable(void)
