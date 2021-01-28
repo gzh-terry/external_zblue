@@ -6,50 +6,40 @@
 
 #include <zephyr.h>
 #include <kernel.h>
-#include <power/power_state.h>
 #include "pm_policy.h"
 
 #include <logging/log.h>
-LOG_MODULE_DECLARE(power, CONFIG_PM_LOG_LEVEL);
+LOG_MODULE_DECLARE(power, CONFIG_SYS_PM_LOG_LEVEL);
 
-#define STATE_ACTIVE \
-	(struct pm_state_info){PM_STATE_ACTIVE, 0, 0}
-
-static const struct pm_state_info pm_dummy_states[] =
-	PM_STATE_DT_ITEMS_LIST(DT_NODELABEL(cpu0));
-
-struct pm_state_info pm_policy_next_state(int32_t ticks)
+enum power_states sys_pm_policy_next_state(int32_t ticks)
 {
-	static struct pm_state_info cur_pm_state_info;
-	int i = (int)cur_pm_state_info.state;
-	uint8_t states_len = ARRAY_SIZE(pm_dummy_states);
+	static uint8_t cur_power_state;
+	int i = cur_power_state;
 
-	if (states_len == 0) {
+	if (SYS_POWER_STATE_MAX == 0) {
 		/* No power states to go through. */
-		return STATE_ACTIVE;
+		return SYS_POWER_STATE_ACTIVE;
 	}
 
 	do {
-		i = (i + 1) % states_len;
+		i = (i + 1) % SYS_POWER_STATE_MAX;
 
-#ifdef CONFIG_PM_STATE_LOCK
-		if (!pm_ctrl_is_state_enabled(
-			    pm_dummy_states[i].state)) {
+#ifdef CONFIG_SYS_PM_STATE_LOCK
+		if (!sys_pm_ctrl_is_state_enabled((enum power_states)(i))) {
 			continue;
 		}
 #endif
-		cur_pm_state_info = pm_dummy_states[i];
+		cur_power_state = i;
 
-		LOG_DBG("Selected power state: %u", pm_dummy_states[i].state);
-
-		return pm_dummy_states[i].state;
-	} while (pm_dummy_states[i].state != cur_pm_state_info.state);
+		LOG_DBG("Selected power state: %u", i);
+		return (enum power_states)(i);
+	} while (i != cur_power_state);
 
 	LOG_DBG("No suitable power state found!");
-	return STATE_ACTIVE;
+	return SYS_POWER_STATE_ACTIVE;
 }
 
-__weak bool pm_policy_low_power_devices(enum pm_state state)
+__weak bool sys_pm_policy_low_power_devices(enum power_states pm_state)
 {
-	return pm_is_sleep_state(state);
+	return sys_pm_is_sleep_state(pm_state);
 }

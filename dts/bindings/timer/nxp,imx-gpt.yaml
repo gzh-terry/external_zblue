@@ -16,8 +16,3 @@ properties:
 
     label:
       required: true
-
-    gptfreq:
-      type: int
-      required: true
-      description: gpt frequences

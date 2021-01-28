@@ -51,20 +51,14 @@
 	#define RAMABLE_REGION RAM
 #endif
 
-#ifdef CONFIG_MMU
-	#define MMU_PAGE_ALIGN		. = ALIGN(CONFIG_MMU_PAGE_SIZE);
-#else
-	#define MMU_PAGE_ALIGN
-#endif
-
 /* Used to align areas with separate memory permission characteristics
  * so that the page permissions can be set in the MMU. Without this,
  * the kernel is just one blob with the same RWX permissions on all RAM
  */
 #ifdef CONFIG_SRAM_REGION_PERMISSIONS
-	#define MMU_PAGE_ALIGN_PERM	MMU_PAGE_ALIGN
+	#define MMU_PAGE_ALIGN	. = ALIGN(CONFIG_MMU_PAGE_SIZE);
 #else
-	#define MMU_PAGE_ALIGN_PERM
+	#define MMU_PAGE_ALIGN
 #endif
 
 ENTRY(CONFIG_KERNEL_ENTRY)
@@ -90,15 +84,10 @@ SECTIONS
 
 	. = ALIGN(8);
 
-#ifdef CONFIG_XIP
 	_image_rom_start = PHYS_LOAD_ADDR;
-#endif
+	_image_text_start = PHYS_LOAD_ADDR;
 	SECTION_PROLOGUE(_TEXT_SECTION_NAME,,)
 	{
-	_image_text_start = .;
-#ifndef CONFIG_XIP
-	z_mapped_start = .;
-#endif
 
 /* Located in generated directory. This file is populated by calling
  * zephyr_linker_sources(ROM_START ...). This typically contains the vector
@@ -121,7 +110,7 @@ SECTIONS
 
 #include <linker/kobject-text.ld>
 
-	MMU_PAGE_ALIGN_PERM
+	MMU_PAGE_ALIGN
 	} GROUP_LINK_IN(ROMABLE_REGION)
 
 	_image_text_end = .;
@@ -129,13 +118,19 @@ SECTIONS
 	_image_rodata_start = .;
 
 #include <linker/common-rom.ld>
-#include <linker/thread-local-storage.ld>
 
 	SECTION_PROLOGUE(_RODATA_SECTION_NAME,,)
 	{
 	*(.rodata)
 	*(".rodata.*")
 	*(.gnu.linkonce.r.*)
+
+#ifdef CONFIG_X86_MMU
+	. = ALIGN(4);
+	_mmu_region_list_start = .;
+	KEEP(*("._mmu_region.static.*"))
+	_mmu_region_list_end = .;
+#endif /* CONFIG_X86_MMU */
 
 #ifndef CONFIG_DYNAMIC_INTERRUPTS
 	. = ALIGN(8);
@@ -165,13 +160,11 @@ SECTIONS
 
 #include <linker/cplusplus-rom.ld>
 
-	MMU_PAGE_ALIGN_PERM
+	MMU_PAGE_ALIGN
 	/* ROM ends here, position counter will now be in RAM areas */
-#ifdef CONFIG_XIP
 	_image_rom_end = .;
 	_image_rom_size = _image_rom_end - _image_rom_start;
-#endif
-	_image_rodata_end = .;
+	_image_rodata_end = _image_rom_end;
 	_image_rodata_size = _image_rodata_end - _image_rodata_start;
 	GROUP_END(ROMABLE_REGION)
 	/*
@@ -186,10 +179,6 @@ SECTIONS
 	/* RAMABLE_REGION */
 	GROUP_START(RAMABLE_REGION)
 
-#ifdef CONFIG_XIP
-	MMU_PAGE_ALIGN
-	z_mapped_start = .;
-#endif
 /* Located in generated directory. This file is populated by the
  * zephyr_linker_sources() Cmake function.
  */
@@ -197,8 +186,8 @@ SECTIONS
 
 #ifdef CONFIG_USERSPACE
 	/* APP SHARED MEMORY REGION */
-#define SMEM_PARTITION_ALIGN(size) MMU_PAGE_ALIGN_PERM
-#define APP_SHARED_ALIGN  MMU_PAGE_ALIGN_PERM
+#define SMEM_PARTITION_ALIGN(size) MMU_PAGE_ALIGN
+#define APP_SHARED_ALIGN  MMU_PAGE_ALIGN
 
 #include <app_smem.ld>
 
@@ -211,7 +200,7 @@ SECTIONS
 
 	SECTION_PROLOGUE(_BSS_SECTION_NAME, (NOLOAD),)
 	{
-	MMU_PAGE_ALIGN_PERM
+	MMU_PAGE_ALIGN
 #if !defined(CONFIG_USERSPACE)
 	_image_ram_start = .;
 #endif
@@ -240,7 +229,7 @@ SECTIONS
 
 #include <linker/common-noinit.ld>
 
-	MMU_PAGE_ALIGN_PERM
+	MMU_PAGE_ALIGN
 
 	SECTION_DATA_PROLOGUE(_DATA_SECTION_NAME,,)
 	{
@@ -274,7 +263,7 @@ SECTIONS
 #include <snippets-rwdata.ld>
 
 #ifdef CONFIG_X86_KPTI
-	MMU_PAGE_ALIGN_PERM
+	MMU_PAGE_ALIGN
 	z_shared_kernel_page_start = .;
 	/* Special page containing supervisor data that is still mapped in
 	 * user mode page tables. IDT, GDT, TSSes, trampoline stack, and
@@ -315,7 +304,7 @@ SECTIONS
 
 #ifdef CONFIG_X86_KPTI
 	z_trampoline_stack_start = .;
-	MMU_PAGE_ALIGN_PERM
+	MMU_PAGE_ALIGN
 	z_trampoline_stack_end = .;
 	z_shared_kernel_page_end = .;
 
@@ -347,8 +336,6 @@ SECTIONS
 	_image_ram_end = .;
 	_image_ram_all = (KERNEL_BASE_ADDR + KERNEL_RAM_SIZE) - _image_ram_start;
 
-	z_mapped_end = .;
-	z_mapped_size = z_mapped_end - z_mapped_start;
 	_end = .; /* end of image */
 
 	GROUP_END(RAMABLE_REGION)

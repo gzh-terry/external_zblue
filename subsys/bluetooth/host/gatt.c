@@ -79,7 +79,6 @@ static sys_slist_t db;
 #endif /* CONFIG_BT_GATT_DYNAMIC_DB */
 
 static atomic_t init;
-static atomic_t service_init;
 
 static ssize_t read_name(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 			 void *buf, uint16_t len, uint16_t offset)
@@ -208,11 +207,7 @@ struct gatt_sc_cfg {
 	} data;
 };
 
-#if defined(CONFIG_BT_GATT_SERVICE_CHANGED)
 #define SC_CFG_MAX (CONFIG_BT_MAX_PAIRED + CONFIG_BT_MAX_CONN)
-#else
-#define SC_CFG_MAX 0
-#endif
 static struct gatt_sc_cfg sc_cfg[SC_CFG_MAX];
 BUILD_ASSERT(sizeof(struct sc_data) == sizeof(sc_cfg[0].data));
 
@@ -885,7 +880,6 @@ enum {
 	SC_NUM_FLAGS,
 };
 
-#if defined(CONFIG_BT_GATT_SERVICE_CHANGED)
 static struct gatt_sc {
 	struct bt_gatt_indicate_params params;
 	uint16_t start;
@@ -893,18 +887,9 @@ static struct gatt_sc {
 	struct k_delayed_work work;
 	ATOMIC_DEFINE(flags, SC_NUM_FLAGS);
 } gatt_sc;
-#endif /* defined(CONFIG_BT_GATT_SERVICE_CHANGED) */
 
-static inline void sc_work_submit(k_timeout_t timeout)
-{
-#if defined(CONFIG_BT_GATT_SERVICE_CHANGED)
-	k_delayed_work_submit(&gatt_sc.work, timeout);
-#endif
-}
-
-#if defined(CONFIG_BT_GATT_SERVICE_CHANGED)
 static void sc_indicate_rsp(struct bt_conn *conn,
-			    struct bt_gatt_indicate_params *params, uint8_t err)
+			    const struct bt_gatt_attr *attr, uint8_t err)
 {
 #if defined(CONFIG_BT_GATT_CACHING)
 	struct gatt_cf_cfg *cfg;
@@ -917,7 +902,7 @@ static void sc_indicate_rsp(struct bt_conn *conn,
 	/* Check if there is new change in the meantime */
 	if (atomic_test_bit(gatt_sc.flags, SC_RANGE_CHANGED)) {
 		/* Reschedule without any delay since it is waiting already */
-		sc_work_submit(K_NO_WAIT);
+		k_delayed_work_submit(&gatt_sc.work, K_NO_WAIT);
 	}
 
 #if defined(CONFIG_BT_GATT_CACHING)
@@ -963,7 +948,6 @@ static void sc_process(struct k_work *work)
 
 	atomic_set_bit(sc->flags, SC_INDICATE_PENDING);
 }
-#endif /* defined(CONFIG_BT_GATT_SERVICE_CHANGED) */
 
 static void clear_ccc_cfg(struct bt_gatt_ccc_cfg *cfg)
 {
@@ -1039,24 +1023,15 @@ static void ccc_delayed_store(struct k_work *work)
 }
 #endif
 
-static void bt_gatt_service_init(void)
-{
-	if (!atomic_cas(&service_init, 0, 1)) {
-		return;
-	}
-
-	Z_STRUCT_SECTION_FOREACH(bt_gatt_service_static, svc) {
-		last_static_handle += svc->attr_count;
-	}
-}
-
 void bt_gatt_init(void)
 {
 	if (!atomic_cas(&init, 0, 1)) {
 		return;
 	}
 
-	bt_gatt_service_init();
+	Z_STRUCT_SECTION_FOREACH(bt_gatt_service_static, svc) {
+		last_static_handle += svc->attr_count;
+	}
 
 #if defined(CONFIG_BT_GATT_CACHING)
 	k_delayed_work_init(&db_hash_work, db_hash_process);
@@ -1067,15 +1042,15 @@ void bt_gatt_init(void)
 	k_delayed_work_submit(&db_hash_work, DB_HASH_TIMEOUT);
 #endif /* CONFIG_BT_GATT_CACHING */
 
-#if defined(CONFIG_BT_GATT_SERVICE_CHANGED)
-	k_delayed_work_init(&gatt_sc.work, sc_process);
-	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
-		/* Make sure to not send SC indications until SC
-		 * settings are loaded
-		 */
-		atomic_set_bit(gatt_sc.flags, SC_INDICATE_PENDING);
+	if (IS_ENABLED(CONFIG_BT_GATT_SERVICE_CHANGED)) {
+		k_delayed_work_init(&gatt_sc.work, sc_process);
+		if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
+			/* Make sure to not send SC indications until SC
+			 * settings are loaded
+			 */
+			atomic_set_bit(gatt_sc.flags, SC_INDICATE_PENDING);
+		}
 	}
-#endif /* defined(CONFIG_BT_GATT_SERVICE_CHANGED) */
 
 #if defined(CONFIG_BT_SETTINGS_CCC_STORE_ON_WRITE)
 	k_delayed_work_init(&gatt_ccc_store.work, ccc_delayed_store);
@@ -1105,7 +1080,7 @@ submit:
 	}
 
 	/* Reschedule since the range has changed */
-	sc_work_submit(SC_TIMEOUT);
+	k_delayed_work_submit(&gatt_sc.work, SC_TIMEOUT);
 }
 #endif /* BT_GATT_DYNAMIC_DB || (BT_GATT_CACHING && BT_SETTINGS) */
 
@@ -1200,7 +1175,7 @@ int bt_gatt_service_register(struct bt_gatt_service *svc)
 	__ASSERT(svc->attr_count, "invalid parameters\n");
 
 	/* Init GATT core services */
-	bt_gatt_service_init();
+	bt_gatt_init();
 
 	/* Do no allow to register mandatory services twice */
 	if (!bt_uuid_cmp(svc->attrs[0].uuid, BT_UUID_GAP) ||
@@ -1211,11 +1186,6 @@ int bt_gatt_service_register(struct bt_gatt_service *svc)
 	err = gatt_register(svc);
 	if (err < 0) {
 		return err;
-	}
-
-	/* Don't submit any work until the stack is initialized */
-	if (!atomic_get(&init)) {
-		return 0;
 	}
 
 	sc_indicate(svc->attrs[0].handle,
@@ -1235,11 +1205,6 @@ int bt_gatt_service_unregister(struct bt_gatt_service *svc)
 	err = gatt_unregister(svc);
 	if (err) {
 		return err;
-	}
-
-	/* Don't submit any work until the stack is initialized */
-	if (!atomic_get(&init)) {
-		return 0;
 	}
 
 	sc_indicate(svc->attrs[0].handle,
@@ -1383,7 +1348,8 @@ uint16_t bt_gatt_attr_value_handle(const struct bt_gatt_attr *attr)
 {
 	uint16_t handle = 0;
 
-	if (attr != NULL && bt_uuid_cmp(attr->uuid, BT_UUID_GATT_CHRC) == 0) {
+	if ((attr != NULL)
+	    && (attr->read == bt_gatt_attr_read_chrc)) {
 		struct bt_gatt_chrc *chrc = attr->user_data;
 
 		handle = chrc->value_handle;
@@ -1733,8 +1699,6 @@ ssize_t bt_gatt_attr_read_cpf(struct bt_conn *conn,
 }
 
 struct notify_data {
-	const struct bt_gatt_attr *attr;
-	uint16_t handle;
 	int err;
 	uint16_t type;
 	union {
@@ -1900,11 +1864,7 @@ static void gatt_indicate_rsp(struct bt_conn *conn, uint8_t err,
 {
 	struct bt_gatt_indicate_params *params = user_data;
 
-	params->_ref--;
-	params->func(conn, params, err);
-	if (params->destroy && (params->_ref == 0)) {
-		params->destroy(params);
-	}
+	params->func(conn, params->attr, err);
 }
 
 static int gatt_send(struct bt_conn *conn, struct net_buf *buf,
@@ -2052,19 +2012,10 @@ static uint8_t notify_cb(const struct bt_gatt_attr *attr, uint16_t handle,
 			continue;
 		}
 
-		/* Use the Characteristic Value handle discovered since the
-		 * Client Characteristic Configuration descriptor may occur
-		 * in any position within the characteristic definition after
-		 * the Characteristic Value.
-		 */
 		if (data->type == BT_GATT_CCC_INDICATE) {
-			err = gatt_indicate(conn, data->handle,
-					    data->ind_params);
-			if (err == 0) {
-				data->ind_params->_ref++;
-			}
+			err = gatt_indicate(conn, handle - 1, data->ind_params);
 		} else {
-			err = gatt_notify(conn, data->handle, data->nfy_params);
+			err = gatt_notify(conn, handle - 1, data->nfy_params);
 		}
 
 		bt_conn_unref(conn);
@@ -2079,18 +2030,23 @@ static uint8_t notify_cb(const struct bt_gatt_attr *attr, uint16_t handle,
 	return BT_GATT_ITER_CONTINUE;
 }
 
+struct find_data {
+	const struct bt_gatt_attr *attr;
+	uint16_t handle;
+};
+
 static uint8_t match_uuid(const struct bt_gatt_attr *attr, uint16_t handle,
 			  void *user_data)
 {
-	struct notify_data *data = user_data;
+	struct find_data *found = user_data;
 
-	data->attr = attr;
-	data->handle = handle;
+	found->attr = attr;
+	found->handle = handle;
 
 	return BT_GATT_ITER_STOP;
 }
 
-static bool gatt_find_by_uuid(struct notify_data *found,
+static bool gatt_find_by_uuid(struct find_data *found,
 			      const struct bt_uuid *uuid)
 {
 	found->attr = NULL;
@@ -2105,6 +2061,7 @@ int bt_gatt_notify_cb(struct bt_conn *conn,
 		      struct bt_gatt_notify_params *params)
 {
 	struct notify_data data;
+	struct find_data found;
 
 	__ASSERT(params, "invalid parameters\n");
 	__ASSERT(params->attr, "invalid parameters\n");
@@ -2113,44 +2070,44 @@ int bt_gatt_notify_cb(struct bt_conn *conn,
 		return -EAGAIN;
 	}
 
-	data.attr = params->attr;
+	found.attr = params->attr;
 
 	if (conn && conn->state != BT_CONN_CONNECTED) {
 		return -ENOTCONN;
 	}
 
-	data.handle = bt_gatt_attr_get_handle(data.attr);
-	if (!data.handle) {
+	found.handle = bt_gatt_attr_get_handle(found.attr);
+	if (!found.handle) {
 		return -ENOENT;
 	}
 
 	/* Lookup UUID if it was given */
 	if (params->uuid) {
-		if (!gatt_find_by_uuid(&data, params->uuid)) {
+		if (!gatt_find_by_uuid(&found, params->uuid)) {
 			return -ENOENT;
 		}
 	}
 
 	/* Check if attribute is a characteristic then adjust the handle */
-	if (!bt_uuid_cmp(data.attr->uuid, BT_UUID_GATT_CHRC)) {
-		struct bt_gatt_chrc *chrc = data.attr->user_data;
+	if (!bt_uuid_cmp(found.attr->uuid, BT_UUID_GATT_CHRC)) {
+		struct bt_gatt_chrc *chrc = found.attr->user_data;
 
 		if (!(chrc->properties & BT_GATT_CHRC_NOTIFY)) {
 			return -EINVAL;
 		}
 
-		data.handle = bt_gatt_attr_value_handle(data.attr);
+		found.handle = bt_gatt_attr_value_handle(found.attr);
 	}
 
 	if (conn) {
-		return gatt_notify(conn, data.handle, params);
+		return gatt_notify(conn, found.handle, params);
 	}
 
 	data.err = -ENOTCONN;
 	data.type = BT_GATT_CCC_NOTIFY;
 	data.nfy_params = params;
 
-	bt_gatt_foreach_attr_type(data.handle, 0xffff, BT_UUID_GATT_CCC, NULL,
+	bt_gatt_foreach_attr_type(found.handle, 0xffff, BT_UUID_GATT_CCC, NULL,
 				  1, notify_cb, &data);
 
 	return data.err;
@@ -2181,6 +2138,7 @@ int bt_gatt_indicate(struct bt_conn *conn,
 		     struct bt_gatt_indicate_params *params)
 {
 	struct notify_data data;
+	struct find_data found;
 
 	__ASSERT(params, "invalid parameters\n");
 	__ASSERT(params->attr, "invalid parameters\n");
@@ -2189,46 +2147,44 @@ int bt_gatt_indicate(struct bt_conn *conn,
 		return -EAGAIN;
 	}
 
-	data.attr = params->attr;
+	found.attr = params->attr;
 
 	if (conn && conn->state != BT_CONN_CONNECTED) {
 		return -ENOTCONN;
 	}
 
-	data.handle = bt_gatt_attr_get_handle(data.attr);
-	if (!data.handle) {
+	found.handle = bt_gatt_attr_get_handle(found.attr);
+	if (!found.handle) {
 		return -ENOENT;
 	}
 
 	/* Lookup UUID if it was given */
 	if (params->uuid) {
-		if (!gatt_find_by_uuid(&data, params->uuid)) {
+		if (!gatt_find_by_uuid(&found, params->uuid)) {
 			return -ENOENT;
 		}
 	}
 
 	/* Check if attribute is a characteristic then adjust the handle */
-	if (!bt_uuid_cmp(data.attr->uuid, BT_UUID_GATT_CHRC)) {
-		struct bt_gatt_chrc *chrc = data.attr->user_data;
+	if (!bt_uuid_cmp(found.attr->uuid, BT_UUID_GATT_CHRC)) {
+		struct bt_gatt_chrc *chrc = found.attr->user_data;
 
 		if (!(chrc->properties & BT_GATT_CHRC_INDICATE)) {
 			return -EINVAL;
 		}
 
-		data.handle = bt_gatt_attr_value_handle(data.attr);
+		found.handle = bt_gatt_attr_value_handle(found.attr);
 	}
 
 	if (conn) {
-		params->_ref = 1;
-		return gatt_indicate(conn, data.handle, params);
+		return gatt_indicate(conn, found.handle, params);
 	}
 
 	data.err = -ENOTCONN;
 	data.type = BT_GATT_CCC_INDICATE;
 	data.ind_params = params;
 
-	params->_ref = 0;
-	bt_gatt_foreach_attr_type(data.handle, 0xffff, BT_UUID_GATT_CCC, NULL,
+	bt_gatt_foreach_attr_type(found.handle, 0xffff, BT_UUID_GATT_CCC, NULL,
 				  1, notify_cb, &data);
 
 	return data.err;
@@ -2277,7 +2233,7 @@ uint8_t bt_gatt_check_perm(struct bt_conn *conn, const struct bt_gatt_attr *attr
 }
 
 static void sc_restore_rsp(struct bt_conn *conn,
-			   struct bt_gatt_indicate_params *params, uint8_t err)
+			   const struct bt_gatt_attr *attr, uint8_t err)
 {
 #if defined(CONFIG_BT_GATT_CACHING)
 	struct gatt_cf_cfg *cfg;
@@ -2790,49 +2746,52 @@ static void gatt_find_type_rsp(struct bt_conn *conn, uint8_t err,
 			       const void *pdu, uint16_t length,
 			       void *user_data)
 {
-	const struct bt_att_handle_group *rsp = pdu;
+	const struct bt_att_find_type_rsp *rsp = pdu;
 	struct bt_gatt_discover_params *params = user_data;
-	uint8_t count;
+	uint8_t i;
 	uint16_t end_handle = 0U, start_handle;
 
 	BT_DBG("err 0x%02x", err);
 
-	if (err || (length % sizeof(struct bt_att_handle_group) != 0)) {
+	if (err) {
 		goto done;
 	}
 
-	count = length / sizeof(struct bt_att_handle_group);
-
 	/* Parse attributes found */
-	for (uint8_t i = 0U; i < count; i++) {
+	for (i = 0U; length >= sizeof(rsp->list[i]);
+	     i++, length -=  sizeof(rsp->list[i])) {
 		struct bt_uuid_16 uuid_svc;
-		struct bt_gatt_attr attr;
+		struct bt_gatt_attr attr = {};
 		struct bt_gatt_service_val value;
 
-		start_handle = sys_le16_to_cpu(rsp[i].start_handle);
-		end_handle = sys_le16_to_cpu(rsp[i].end_handle);
+		start_handle = sys_le16_to_cpu(rsp->list[i].start_handle);
+		end_handle = sys_le16_to_cpu(rsp->list[i].end_handle);
 
 		BT_DBG("start_handle 0x%04x end_handle 0x%04x", start_handle,
 		       end_handle);
 
 		uuid_svc.uuid.type = BT_UUID_TYPE_16;
 		if (params->type == BT_GATT_DISCOVER_PRIMARY) {
-			uuid_svc.val = BT_UUID_GATT_PRIMARY_VAL;
+			uuid_svc.val = BT_UUID_16(BT_UUID_GATT_PRIMARY)->val;
 		} else {
-			uuid_svc.val = BT_UUID_GATT_SECONDARY_VAL;
+			uuid_svc.val = BT_UUID_16(BT_UUID_GATT_SECONDARY)->val;
 		}
 
 		value.end_handle = end_handle;
 		value.uuid = params->uuid;
 
-		attr = (struct bt_gatt_attr)BT_GATT_ATTRIBUTE(&uuid_svc.uuid, 0,
-							      NULL, NULL,
-							      &value);
+		attr.uuid = &uuid_svc.uuid;
 		attr.handle = start_handle;
+		attr.user_data = &value;
 
 		if (params->func(conn, &attr, params) == BT_GATT_ITER_STOP) {
 			return;
 		}
+	}
+
+	/* Stop if could not parse the whole PDU */
+	if (length > 0) {
+		goto done;
 	}
 
 	gatt_discover_next(conn, end_handle, params);
@@ -2859,9 +2818,9 @@ static int gatt_find_type(struct bt_conn *conn,
 	req->end_handle = sys_cpu_to_le16(params->end_handle);
 
 	if (params->type == BT_GATT_DISCOVER_PRIMARY) {
-		uuid_val = BT_UUID_GATT_PRIMARY_VAL;
+		uuid_val = BT_UUID_16(BT_UUID_GATT_PRIMARY)->val;
 	} else {
-		uuid_val = BT_UUID_GATT_SECONDARY_VAL;
+		uuid_val = BT_UUID_16(BT_UUID_GATT_SECONDARY)->val;
 	}
 
 	req->type = sys_cpu_to_le16(uuid_val);
@@ -2892,7 +2851,7 @@ static void read_included_uuid_cb(struct bt_conn *conn, uint8_t err,
 {
 	struct bt_gatt_discover_params *params = user_data;
 	struct bt_gatt_include value;
-	struct bt_gatt_attr attr;
+	struct bt_gatt_attr *attr;
 	union {
 		struct bt_uuid uuid;
 		struct bt_uuid_128 u128;
@@ -2919,11 +2878,12 @@ static void read_included_uuid_cb(struct bt_conn *conn, uint8_t err,
 		goto next;
 	}
 
-	attr = (struct bt_gatt_attr)BT_GATT_ATTRIBUTE(
-		BT_UUID_GATT_INCLUDE, 0, NULL, NULL, &value);
-	attr.handle = params->_included.attr_handle;
+	attr = (&(struct bt_gatt_attr) {
+		.uuid = BT_UUID_GATT_INCLUDE,
+		.user_data = &value, });
+	attr->handle = params->_included.attr_handle;
 
-	if (params->func(conn, &attr, params) == BT_GATT_ITER_STOP) {
+	if (params->func(conn, attr, params) == BT_GATT_ITER_STOP) {
 		return;
 	}
 next:
@@ -2984,7 +2944,7 @@ static uint16_t parse_include(struct bt_conn *conn, const void *pdu,
 	/* Parse include found */
 	for (length--, pdu = rsp->data; length >= rsp->len;
 	     length -= rsp->len, pdu = (const uint8_t *)pdu + rsp->len) {
-		struct bt_gatt_attr attr;
+		struct bt_gatt_attr *attr;
 		const struct bt_att_data *data = pdu;
 		struct gatt_incl *incl = (void *)data->value;
 
@@ -3023,11 +2983,12 @@ static uint16_t parse_include(struct bt_conn *conn, const void *pdu,
 			continue;
 		}
 
-		attr = (struct bt_gatt_attr)BT_GATT_ATTRIBUTE(
-			BT_UUID_GATT_INCLUDE, 0, NULL, NULL, &value);
-		attr.handle = handle;
+		attr = (&(struct bt_gatt_attr) {
+			.uuid = BT_UUID_GATT_INCLUDE,
+			.user_data = &value, });
+		attr->handle = handle;
 
-		if (params->func(conn, &attr, params) == BT_GATT_ITER_STOP) {
+		if (params->func(conn, attr, params) == BT_GATT_ITER_STOP) {
 			return 0;
 		}
 	}
@@ -3041,6 +3002,13 @@ done:
 	params->func(conn, NULL, params);
 	return 0;
 }
+
+#define BT_GATT_CHRC(_uuid, _handle, _props)				\
+	BT_GATT_ATTRIBUTE(BT_UUID_GATT_CHRC, BT_GATT_PERM_READ,		\
+			  bt_gatt_attr_read_chrc, NULL,			\
+			  (&(struct bt_gatt_chrc) { .uuid = _uuid,	\
+						    .value_handle = _handle,  \
+						    .properties = _props, }))
 
 static uint16_t parse_characteristic(struct bt_conn *conn, const void *pdu,
 				  struct bt_gatt_discover_params *params,
@@ -3070,8 +3038,7 @@ static uint16_t parse_characteristic(struct bt_conn *conn, const void *pdu,
 	/* Parse characteristics found */
 	for (length--, pdu = rsp->data; length >= rsp->len;
 	     length -= rsp->len, pdu = (const uint8_t *)pdu + rsp->len) {
-		struct bt_gatt_attr attr;
-		struct bt_gatt_chrc value;
+		struct bt_gatt_attr *attr;
 		const struct bt_att_data *data = pdu;
 		struct gatt_chrc *chrc = (void *)data->value;
 
@@ -3098,13 +3065,12 @@ static uint16_t parse_characteristic(struct bt_conn *conn, const void *pdu,
 			continue;
 		}
 
-		value = (struct bt_gatt_chrc)BT_GATT_CHRC_INIT(
-			&u.uuid, chrc->value_handle, chrc->properties);
-		attr = (struct bt_gatt_attr)BT_GATT_ATTRIBUTE(
-			BT_UUID_GATT_CHRC, 0, NULL, NULL, &value);
-		attr.handle = handle;
+		attr = (&(struct bt_gatt_attr)BT_GATT_CHRC(&u.uuid,
+							   chrc->value_handle,
+							   chrc->properties));
+		attr->handle = handle;
 
-		if (params->func(conn, &attr, params) == BT_GATT_ITER_STOP) {
+		if (params->func(conn, attr, params) == BT_GATT_ITER_STOP) {
 			return 0;
 		}
 	}
@@ -3162,9 +3128,9 @@ static int gatt_read_type(struct bt_conn *conn,
 	req->end_handle = sys_cpu_to_le16(params->end_handle);
 
 	if (params->type == BT_GATT_DISCOVER_INCLUDE) {
-		net_buf_add_le16(buf, BT_UUID_GATT_INCLUDE_VAL);
+		net_buf_add_le16(buf, BT_UUID_16(BT_UUID_GATT_INCLUDE)->val);
 	} else {
-		net_buf_add_le16(buf, BT_UUID_GATT_CHRC_VAL);
+		net_buf_add_le16(buf, BT_UUID_16(BT_UUID_GATT_CHRC)->val);
 	}
 
 	BT_DBG("start_handle 0x%04x end_handle 0x%04x", params->start_handle,
@@ -3231,9 +3197,9 @@ static uint16_t parse_service(struct bt_conn *conn, const void *pdu,
 
 		uuid_svc.uuid.type = BT_UUID_TYPE_16;
 		if (params->type == BT_GATT_DISCOVER_PRIMARY) {
-			uuid_svc.val = BT_UUID_GATT_PRIMARY_VAL;
+			uuid_svc.val = BT_UUID_16(BT_UUID_GATT_PRIMARY)->val;
 		} else {
-			uuid_svc.val = BT_UUID_GATT_SECONDARY_VAL;
+			uuid_svc.val = BT_UUID_16(BT_UUID_GATT_SECONDARY)->val;
 		}
 
 		value.end_handle = end_handle;
@@ -3296,9 +3262,9 @@ static int gatt_read_group(struct bt_conn *conn,
 	req->end_handle = sys_cpu_to_le16(params->end_handle);
 
 	if (params->type == BT_GATT_DISCOVER_PRIMARY) {
-		net_buf_add_le16(buf, BT_UUID_GATT_PRIMARY_VAL);
+		net_buf_add_le16(buf, BT_UUID_16(BT_UUID_GATT_PRIMARY)->val);
 	} else {
-		net_buf_add_le16(buf, BT_UUID_GATT_SECONDARY_VAL);
+		net_buf_add_le16(buf, BT_UUID_16(BT_UUID_GATT_SECONDARY)->val);
 	}
 
 	BT_DBG("start_handle 0x%04x end_handle 0x%04x", params->start_handle,
@@ -3358,7 +3324,7 @@ static void gatt_find_info_rsp(struct bt_conn *conn, uint8_t err,
 	/* Parse descriptors found */
 	for (i = length / len, pdu = rsp->info; i != 0;
 	     i--, pdu = (const uint8_t *)pdu + len) {
-		struct bt_gatt_attr attr;
+		struct bt_gatt_attr *attr;
 
 		info.i16 = pdu;
 		handle = sys_le16_to_cpu(info.i16->handle);
@@ -3403,11 +3369,11 @@ static void gatt_find_info_rsp(struct bt_conn *conn, uint8_t err,
 			}
 		}
 
-		attr = (struct bt_gatt_attr)BT_GATT_ATTRIBUTE(
-			&u.uuid, 0, NULL, NULL, NULL);
-		attr.handle = handle;
+		attr = (&(struct bt_gatt_attr)
+			BT_GATT_DESCRIPTOR(&u.uuid, 0, NULL, NULL, NULL));
+		attr->handle = handle;
 
-		if (params->func(conn, &attr, params) == BT_GATT_ITER_STOP) {
+		if (params->func(conn, attr, params) == BT_GATT_ITER_STOP) {
 			return;
 		}
 	}
@@ -4129,7 +4095,10 @@ int bt_gatt_subscribe(struct bt_conn *conn,
 
 #if defined(CONFIG_BT_GATT_AUTO_DISCOVER_CCC)
 		if (!params->ccc_handle) {
-			return gatt_ccc_discover(conn, params);
+			err = gatt_ccc_discover(conn, params);
+			if (err) {
+				return err;
+			}
 		}
 #endif
 		err = gatt_write_ccc(conn, params->ccc_handle, params->value,
@@ -4369,6 +4338,11 @@ next:
 static int ccc_set(const char *name, size_t len_rd, settings_read_cb read_cb,
 		   void *cb_arg)
 {
+	if (IS_ENABLED(CONFIG_BT_SETTINGS_CCC_LAZY_LOADING)) {
+		/* Only load CCCs on demand */
+		return 0;
+	}
+
 	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
 		struct ccc_store ccc_store[CCC_STORE_MAX];
 		struct ccc_load load;
@@ -4426,18 +4400,7 @@ static int ccc_set(const char *name, size_t len_rd, settings_read_cb read_cb,
 	return 0;
 }
 
-static int ccc_set_cb(const char *name, size_t len_rd, settings_read_cb read_cb,
-		      void *cb_arg)
-{
-	if (IS_ENABLED(CONFIG_BT_SETTINGS_CCC_LAZY_LOADING)) {
-		/* Only load CCCs on demand */
-		return 0;
-	}
-
-	return ccc_set(name, len_rd, read_cb, cb_arg);
-}
-
-SETTINGS_STATIC_HANDLER_DEFINE(bt_ccc, "bt/ccc", NULL, ccc_set_cb, NULL, NULL);
+SETTINGS_STATIC_HANDLER_DEFINE(bt_ccc, "bt/ccc", NULL, ccc_set, NULL, NULL);
 
 static int ccc_set_direct(const char *key, size_t len, settings_read_cb read_cb,
 			  void *cb_arg, void *param)
@@ -4790,7 +4753,7 @@ static int sc_commit(void)
 
 	if (atomic_test_bit(gatt_sc.flags, SC_RANGE_CHANGED)) {
 		/* Schedule SC indication since the range has changed */
-		sc_work_submit(SC_TIMEOUT);
+		k_delayed_work_submit(&gatt_sc.work, SC_TIMEOUT);
 	}
 
 	return 0;

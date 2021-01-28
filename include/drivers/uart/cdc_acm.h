@@ -25,8 +25,7 @@ extern "C" {
  * @brief A function that is called when the USB host changes the baud
  * rate.
  *
- * @param dev Device struct for the CDC ACM device.
- * @param rate New USB baud rate
+ * @param port Device struct for the CDC ACM device.
  */
 typedef void (*cdc_dte_rate_callback_t)(const struct device *dev,
 					uint32_t rate);

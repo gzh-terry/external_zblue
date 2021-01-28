@@ -75,10 +75,10 @@ if DMA
 config DMA_STM32
 	default y
 
-endif # DMA
+config HEAP_MEM_POOL_SIZE
+	default 1024
+	depends on DMAMUX_STM32
 
-config MEMC_STM32
-	default y
-	depends on MEMC
+endif # DMA
 
 endif # SOC_FAMILY_STM32

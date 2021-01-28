@@ -276,9 +276,8 @@ static struct lp503x_data lp503x_data_##id = {			\
 	.chan_buf	= lp503x_chan_buf_##id,			\
 };								\
 								\
-DEVICE_DT_INST_DEFINE(id,					\
+DEVICE_AND_API_INIT(lp503x_led_##id, DT_INST_LABEL(id),		\
 		    &lp503x_init,				\
-		    device_pm_control_nop,			\
 		    &lp503x_data_##id,				\
 		    &lp503x_config_##id,			\
 		    POST_KERNEL, CONFIG_LED_INIT_PRIORITY,	\

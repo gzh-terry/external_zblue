@@ -27,13 +27,10 @@ extern void test_nanosleep_req_is_rem(void);
 extern void test_nanosleep_n1_0(void);
 extern void test_nanosleep_0_n1(void);
 extern void test_nanosleep_n1_n1(void);
-extern void test_nanosleep_0_1(void);
-extern void test_nanosleep_0_1001(void);
 extern void test_nanosleep_0_1000000000(void);
+extern void test_nanosleep_0_1(void);
 extern void test_nanosleep_0_500000000(void);
 extern void test_nanosleep_1_0(void);
-extern void test_nanosleep_1_1(void);
-extern void test_nanosleep_1_1001(void);
 
 void test_main(void)
 {
@@ -58,12 +55,10 @@ void test_main(void)
 			ztest_unit_test(test_nanosleep_n1_0),
 			ztest_unit_test(test_nanosleep_0_n1),
 			ztest_unit_test(test_nanosleep_n1_n1),
+			ztest_unit_test(test_nanosleep_0_1000000000),
 			ztest_unit_test(test_nanosleep_0_1),
-			ztest_unit_test(test_nanosleep_0_1001),
 			ztest_unit_test(test_nanosleep_0_500000000),
-			ztest_unit_test(test_nanosleep_1_0),
-			ztest_unit_test(test_nanosleep_1_1),
-			ztest_unit_test(test_nanosleep_1_1001)
+			ztest_unit_test(test_nanosleep_1_0)
 			);
 	ztest_run_test_suite(posix_apis);
 }

@@ -80,15 +80,13 @@ void test_main(void)
 			 ztest_unit_test(test_file_open),
 			 ztest_unit_test(test_file_write),
 			 ztest_unit_test(test_file_read),
-			 ztest_unit_test(test_file_seek),
 			 ztest_unit_test(test_file_truncate),
 			 ztest_unit_test(test_file_close),
 			 ztest_unit_test(test_file_sync),
 			 ztest_unit_test(test_file_rename),
 			 ztest_unit_test(test_file_stat),
 			 ztest_unit_test(test_file_unlink),
-			 ztest_unit_test(test_unmount),
-			 ztest_unit_test_setup_teardown(test_mount_flags,
+			 ztest_unit_test_setup_teardown(test_unmount,
 							dummy_setup,
 							fs_teardown)
 			 );

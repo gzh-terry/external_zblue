@@ -117,17 +117,6 @@ struct bt_conn_tx {
 	uint32_t pending_no_cb;
 };
 
-struct acl_data {
-	/* Extend the bt_buf user data */
-	struct bt_buf_data buf_data;
-
-	/* Index into the bt_conn storage array */
-	uint8_t  index;
-
-	/** ACL connection handle */
-	uint16_t handle;
-};
-
 struct bt_conn {
 	uint16_t			handle;
 	uint8_t			type;
@@ -148,7 +137,8 @@ struct bt_conn {
 	uint8_t			err;
 
 	bt_conn_state_t		state;
-	uint16_t rx_len;
+
+	uint16_t		        rx_len;
 	struct net_buf		*rx;
 
 	/* Sent but not acknowledged TX packets with a callback */
@@ -169,12 +159,10 @@ struct bt_conn {
 	/* Active L2CAP/ISO channels */
 	sys_slist_t		channels;
 
-	/* Delayed work deferred tasks:
-	 * - Peripheral delayed connection update.
-	 * - Initiator connect create cancel.
-	 * - Connection cleanup.
-	 */
-	struct k_delayed_work	deferred_work;
+	atomic_t		ref;
+
+	/* Delayed work for connection update and other deferred tasks */
+	struct k_delayed_work	update_work;
 
 	union {
 		struct bt_conn_le	le;
@@ -194,10 +182,6 @@ struct bt_conn {
 		uint16_t subversion;
 	} rv;
 #endif
-	/* Must be at the end so that everything else in the structure can be
-	 * memset to zero without affecting the ref.
-	 */
-	atomic_t		ref;
 };
 
 void bt_conn_reset_rx_state(struct bt_conn *conn);

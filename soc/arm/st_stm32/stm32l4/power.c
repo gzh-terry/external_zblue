@@ -17,15 +17,12 @@
 LOG_MODULE_DECLARE(soc, CONFIG_SOC_LOG_LEVEL);
 
 /* Invoke Low Power/System Off specific Tasks */
-void pm_power_state_set(struct pm_state_info info)
+void sys_set_power_state(enum power_states state)
 {
-	if (info.state != PM_STATE_SUSPEND_TO_IDLE) {
-		LOG_DBG("Unsupported power state %u", info.state);
-		return;
-	}
-
-	switch (info.substate_id) {
-	case 0:
+	switch (state) {
+#ifdef CONFIG_SYS_POWER_SLEEP_STATES
+#ifdef CONFIG_HAS_SYS_POWER_STATE_SLEEP_1
+	case SYS_POWER_STATE_SLEEP_1:
 
 		/* this corresponds to the STOP0 mode: */
 #ifdef CONFIG_DEBUG
@@ -40,7 +37,9 @@ void pm_power_state_set(struct pm_state_info info)
 		/* enter SLEEP mode : WFE or WFI */
 		k_cpu_idle();
 		break;
-	case 1:
+#endif /* CONFIG_HAS_SYS_POWER_STATE_SLEEP_1 */
+#ifdef CONFIG_HAS_SYS_POWER_STATE_SLEEP_2
+	case SYS_POWER_STATE_SLEEP_2:
 		/* this corresponds to the STOP1 mode: */
 #ifdef CONFIG_DEBUG
 		/* Enable the Debug Module during STOP mode */
@@ -53,7 +52,9 @@ void pm_power_state_set(struct pm_state_info info)
 		LL_LPM_EnableDeepSleep();
 		k_cpu_idle();
 		break;
-	case 2:
+#endif /* CONFIG_HAS_SYS_POWER_STATE_SLEEP_2 */
+#ifdef CONFIG_HAS_SYS_POWER_STATE_SLEEP_3
+	case SYS_POWER_STATE_SLEEP_3:
 		/* this corresponds to the STOP2 mode: */
 #ifdef CONFIG_DEBUG
 		/* Enable the Debug Module during STOP mode */
@@ -69,33 +70,34 @@ void pm_power_state_set(struct pm_state_info info)
 		LL_LPM_EnableDeepSleep();
 		k_cpu_idle();
 		break;
+#endif /* CONFIG_HAS_SYS_POWER_STATE_SLEEP_3 */
+#endif /* CONFIG_SYS_POWER_SLEEP_STATES */
 	default:
-		LOG_DBG("Unsupported power state substate-id %u",
-			info.substate_id);
+		LOG_DBG("Unsupported power state %u", state);
 		break;
 	}
 }
 
 /* Handle SOC specific activity after Low Power Mode Exit */
-void pm_power_state_exit_post_ops(struct pm_state_info info)
+void _sys_pm_power_state_exit_post_ops(enum power_states state)
 {
-	if (info.state != PM_STATE_SUSPEND_TO_IDLE) {
-		LOG_DBG("Unsupported power substate-id %u", info.state);
-	} else {
-		switch (info.substate_id) {
-		case 0:	/* STOP0 */
-			__fallthrough;
-		case 1:	/* STOP1 */
-			__fallthrough;
-		case 2:	/* STOP2 */
-			LL_LPM_DisableSleepOnExit();
-			LL_LPM_EnableSleep();
-			break;
-		default:
-			LOG_DBG("Unsupported power substate-id %u",
-				info.substate_id);
-			break;
-		}
+	switch (state) {
+#ifdef CONFIG_SYS_POWER_SLEEP_STATES
+#ifdef CONFIG_HAS_SYS_POWER_STATE_SLEEP_1
+	case SYS_POWER_STATE_SLEEP_1:
+#endif /* CONFIG_HAS_SYS_POWER_STATE_SLEEP_1 */
+#ifdef CONFIG_HAS_SYS_POWER_STATE_SLEEP_2
+	case SYS_POWER_STATE_SLEEP_2:
+#endif /* CONFIG_HAS_SYS_POWER_STATE_SLEEP_2 */
+#ifdef CONFIG_HAS_SYS_POWER_STATE_SLEEP_3
+	case SYS_POWER_STATE_SLEEP_3:
+#endif /* CONFIG_HAS_SYS_POWER_STATE_SLEEP_3 */
+		LL_LPM_DisableSleepOnExit();
+		break;
+#endif /* CONFIG_SYS_POWER_SLEEP_STATES */
+	default:
+		LOG_DBG("Unsupported power state %u", state);
+		break;
 	}
 
 	/*
