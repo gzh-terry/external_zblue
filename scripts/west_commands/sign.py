@@ -109,6 +109,8 @@ class Sign(Forceable):
                            are currently supported''')
         group.add_argument('-p', '--tool-path', default=None,
                            help='''path to the tool itself, if needed''')
+        group.add_argument('-D', '--tool-data', default=None,
+                           help='''path to tool data/configuration directory, if needed''')
         group.add_argument('tool_args', nargs='*', metavar='tool_opt',
                            help='extra option(s) to pass to the signing tool')
 
@@ -172,11 +174,6 @@ class Sign(Forceable):
             formats.append('hex')
         elif args.gen_hex is None and hex_exists:
             formats.append('hex')
-
-        if not formats:
-            if not args.quiet:
-                log.dbg('nothing to do: no output files')
-            return
 
         # Delegate to the signer.
         if args.tool == 'imgtool':
@@ -391,6 +388,19 @@ class ImgtoolSigner(Signer):
 
 class RimageSigner(Signer):
 
+    @staticmethod
+    def edt_get_rimage_target(board):
+        if 'intel_adsp_cavs15' in board:
+            return 'apl'
+        if 'intel_adsp_cavs18' in board:
+            return 'cnl'
+        if 'intel_adsp_cavs20' in board:
+            return 'icl'
+        if 'intel_adsp_cavs25' in board:
+            return 'tgl'
+
+        log.die('Signing not supported for board ' + board)
+
     def sign(self, command, build_dir, bcfg, formats):
         args = command.args
 
@@ -409,8 +419,10 @@ class RimageSigner(Signer):
         cache = CMakeCache.from_build_dir(build_dir)
 
         board = cache['CACHED_BOARD']
-        if board != 'up_squared_adsp':
-            log.die('Supported only for up_squared_adsp board')
+        log.inf('Signing for board ' + board)
+        target = self.edt_get_rimage_target(board)
+        conf = target + '.toml'
+        log.inf('Signing for SOC target ' + target + ' using ' + conf)
 
         if not args.quiet:
             log.inf('Signing with tool {}'.format(tool_path))
@@ -418,11 +430,33 @@ class RimageSigner(Signer):
         bootloader = str(b / 'zephyr' / 'bootloader.elf.mod')
         kernel = str(b / 'zephyr' / 'zephyr.elf.mod')
         out_bin = str(b / 'zephyr' / 'zephyr.ri')
+        out_xman = str(b / 'zephyr' / 'zephyr.ri.xman')
+        out_tmp = str(b / 'zephyr' / 'zephyr.rix')
+        conf_path_cmd = []
+        if cache.get('RIMAGE_CONFIG_PATH') and not args.tool_data:
+            rimage_conf = pathlib.Path(cache['RIMAGE_CONFIG_PATH'])
+            conf_path = str(rimage_conf / conf)
+            conf_path_cmd = ['-c', conf_path]
+        elif args.tool_data:
+            conf_dir = pathlib.Path(args.tool_data)
+            conf_path = str(conf_dir / conf)
+            conf_path_cmd = ['-c', conf_path]
+        else:
+            log.die('Configuration not found')
 
         sign_base = ([tool_path] + args.tool_args +
-                     ['-o', out_bin, '-m', 'apl', '-i', '3'] +
+                     ['-o', out_bin] +  conf_path_cmd + ['-i', '3', '-e'] +
                      [bootloader, kernel])
 
         if not args.quiet:
             log.inf(quote_sh_list(sign_base))
         subprocess.check_call(sign_base)
+
+        filenames = [out_xman, out_bin]
+        with open(out_tmp, 'wb') as outfile:
+            for fname in filenames:
+                with open(fname, 'rb') as infile:
+                    outfile.write(infile.read())
+
+        os.remove(out_bin)
+        os.rename(out_tmp, out_bin)

@@ -105,13 +105,10 @@ static int apa102_init(const struct device *dev)
 		return -ENODEV;
 	}
 	data->cs_ctl.gpio_pin = DT_INST_SPI_DEV_CS_GPIOS_PIN(0);
+	data->cs_ctl.gpio_dt_flags = DT_INST_SPI_DEV_CS_GPIOS_FLAGS(0);
 	data->cs_ctl.delay = 0;
 
 	data->cfg.cs = &data->cs_ctl;
-
-	gpio_pin_configure(data->cs_ctl.gpio_dev, data->cs_ctl.gpio_pin,
-			   GPIO_OUTPUT_INACTIVE |
-			   DT_INST_SPI_DEV_CS_GPIOS_FLAGS(0));
 #endif /* DT_INST_SPI_DEV_HAS_CS_GPIOS(0) */
 
 	return 0;
@@ -124,6 +121,6 @@ static const struct led_strip_driver_api apa102_api = {
 	.update_channels = apa102_update_channels,
 };
 
-DEVICE_AND_API_INIT(apa102_0, DT_INST_LABEL(0), apa102_init,
+DEVICE_DT_INST_DEFINE(0, apa102_init, device_pm_control_nop,
 		    &apa102_data_0, NULL, POST_KERNEL,
 		    CONFIG_LED_STRIP_INIT_PRIORITY, &apa102_api);
