@@ -27,9 +27,10 @@ void zperf_tcp_upload(const struct shell *shell,
 		      unsigned int packet_size,
 		      struct zperf_results *results)
 {
-	int64_t duration = z_timeout_end_calc(K_MSEC(duration_in_ms));
-	int64_t start_time, last_print_time, end_time, remaining;
+	uint32_t duration = MSEC_TO_HW_CYCLES(duration_in_ms);
 	uint32_t nb_packets = 0U, nb_errors = 0U;
+	uint32_t start_time, last_print_time, end_time;
+	uint8_t time_elapsed = 0U, finished = 0U;
 	uint32_t alloc_errors = 0U;
 
 	if (packet_size > PACKET_SIZE_MAX) {
@@ -40,7 +41,7 @@ void zperf_tcp_upload(const struct shell *shell,
 	}
 
 	/* Start the loop */
-	start_time = k_uptime_ticks();
+	start_time = k_cycle_get_32();
 	last_print_time = start_time;
 
 	shell_fprintf(shell, SHELL_NORMAL,
@@ -56,6 +57,10 @@ void zperf_tcp_upload(const struct shell *shell,
 
 	do {
 		int ret = 0;
+		uint32_t loop_time;
+
+		/* Timestamps */
+		loop_time = k_cycle_get_32();
 
 		/* Send the packet */
 		ret = net_context_send(ctx, sample_packet,
@@ -82,23 +87,30 @@ void zperf_tcp_upload(const struct shell *shell,
 			}
 		} else {
 			nb_packets++;
+
+			if (time_elapsed) {
+				finished = 1U;
+			}
+		}
+
+		if (!time_elapsed && time_delta(start_time,
+						loop_time) > duration) {
+			time_elapsed = 1U;
 		}
 
 #if defined(CONFIG_ARCH_POSIX)
-		k_busy_wait(100 * USEC_PER_MSEC);
+		k_busy_wait(K_MSEC(100) * USEC_PER_MSEC);
 #else
 		k_yield();
 #endif
+	} while (!finished);
 
-		remaining = duration - k_uptime_ticks();
-	} while (remaining > 0);
-
-	end_time = k_uptime_ticks();
+	end_time = k_cycle_get_32();
 
 	/* Add result coming from the client */
 	results->nb_packets_sent = nb_packets;
 	results->client_time_in_us =
-				k_ticks_to_us_ceil32(end_time - start_time);
+		HW_CYCLES_TO_USEC(time_delta(start_time, end_time));
 	results->packet_size = packet_size;
 	results->nb_packets_errors = nb_errors;
 

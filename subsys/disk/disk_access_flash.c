@@ -14,7 +14,7 @@
 #include <device.h>
 #include <drivers/flash.h>
 
-#define SECTOR_SIZE CONFIG_DISK_FLASH_SECTOR_SIZE
+#define SECTOR_SIZE 512
 
 static const struct device *flash_dev;
 

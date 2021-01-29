@@ -9,11 +9,6 @@ Overview
 The MEC15xxEVB_ASSY6853 kit is a future development platform to evaluate the
 Microchip MEC15XX series microcontrollers. This board needs to be mated with
 part number MEC1501 144WFBA SOLDER DC ASSY 6860(cpu board) in order to operate.
-The MEC152x has superceded the MEC1501 in production. MEC152x is identical to
-MEC150x except for an enhanced Boot-ROM SPI loader. The SPI image format has
-been updated requiring a new SPI image tool. MEC1501 and MEC152x SPI image
-formats are not compatible with each other. Evaluation and cpu boards are
-compatible.
 
 .. image:: ./mec15xxevb_assy6853.png
      :width: 600px
@@ -23,7 +18,7 @@ compatible.
 Hardware
 ********
 
-- MEC1521HA0SZ ARM Cortex-M4 Processor
+- MEC1501HB0SZ ARM Cortex-M4 Processor
 - 256 KB RAM and 64 KB boot ROM
 - Keyboard interface
 - ADC & GPIO headers
@@ -45,7 +40,7 @@ Hardware
 - One external LTC2489 delta-sigma ADC with jumper selectable I2C address.
 - Board power jumper selectable from +5V 2.1mm/5.5mm barrel connector or USB Micro A connector.
 
-For more information about the SOC's please see `MEC152x Reference Manual`_
+For more information about the SOC please see the `MEC1501 Reference Manual`_
 
 Supported Features
 ==================
@@ -89,13 +84,13 @@ Connections and IOs
 This evaluation board kit is comprised of the following HW blocks:
 
 - MEC15xx EVB ASSY 6853 Rev A `MEC15xx EVB Schematic`_
-- MEC1501 144WFBA SOLDER DC ASSY 6883 with MEC152x silicon `MEC1501 Daughter Card Schematic`_
+- MEC1501 144WFBA SOLDER DC ASSY 6860 `MEC1501 Daughter Card Schematic`_
 - SPI DONGLE ASSY 6791 `SPI Dongle Schematic`_
 
 System Clock
 ============
 
-The MEC1521 MCU is configured to use the 48Mhz internal oscillator with the
+The MEC1501 MCU is configured to use the 48Mhz internal oscillator with the
 on-chip PLL to generate a resulting EC clock rate of 12 MHz. See Processor clock
 control register in chapter 4 "4.0 POWER, CLOCKS, and RESETS" of the data sheet in
 the references at the end of this document.
@@ -261,9 +256,8 @@ Setup
    Add directory with program ``dpcmd`` (on Linux)
    or ``dpcmd.exe`` (on Windows) to your ``PATH``.
 
-#. Clone the `MEC152x SPI Image Gen`_ repository or download the files within
-   that directory. For the pre-production MEC150x use `MEC150x SPI Image Gen`_
-   repository.
+#. Clone the `SPI Image Gen`_ repository or download the files within
+   that directory.
 
 #. Make the image generation available for Zephyr, by making the tool
    searchable by path, or by setting an environment variable
@@ -271,10 +265,9 @@ Setup
 
    .. code-block:: console
 
-      export EVERGLADES_SPI_GEN=<path to tool>/everglades_spi_gen_RomE
+      export EVERGLADES_SPI_GEN=<path to tool>/everglades_spi_gen_lin64
 
    Note that the tools for Linux and Windows have different file names.
-   For the pre-production MEC1501 SOC use everglades_spi_gen_lin64.
 
 #. If needed, a custom SPI image configuration file can be specified
    to override the default one.
@@ -434,10 +427,6 @@ References
     https://github.com/MicrochipTech/CPGZephyrDocs/blob/master/MEC1501/MEC1501_Datasheet.pdf
 .. _MEC1501 Reference Manual:
     https://github.com/MicrochipTech/CPGZephyrDocs/blob/master/MEC1501/MEC1501_Datasheet.pdf
-.. _MEC152x Preliminary Data Sheet:
-    https://github.com/MicrochipTech/CPGZephyrDocs/blob/master/MEC152x/MEC152x_Datasheet.pdf
-.. _MEC152x Reference Manual:
-    https://github.com/MicrochipTech/CPGZephyrDocs/blob/master/MEC152x/MEC152x_Datasheet.pdf
 .. _MEC15xx EVB Schematic:
     https://github.com/MicrochipTech/CPGZephyrDocs/blob/master/MEC1501/Everglades%20EVB%20-%20Assy_6853%20Rev%20A1p1%20-%20SCH.pdf
 .. _MEC1501 Daughter Card Schematic:
@@ -446,9 +435,7 @@ References
     https://github.com/MicrochipTech/CPGZephyrDocs/blob/master/MEC1501/MEC1503%20Socket%20DC%20for%20EVERGLADES%20EVB%20-%20Assy_6856%20Rev%20A1p0%20-%20SCH.pdf
 .. _SPI Dongle Schematic:
     https://github.com/MicrochipTech/CPGZephyrDocs/blob/master/MEC1501/SPI%20Dongles%20and%20Aardvark%20Interposer%20Assy%206791%20Rev%20A1p1%20-%20SCH.pdf
-.. _MEC152x SPI Image Gen:
-    https://github.com/MicrochipTech/CPGZephyrDocs/tree/master/MEC152x/SPI_image_gen
-.. _MEC150x SPI Image Gen:
+.. _SPI Image Gen:
     https://github.com/MicrochipTech/CPGZephyrDocs/tree/master/MEC1501/SPI_image_gen
 .. _SF100 Linux GitHub:
     https://github.com/DediProgSW/SF100Linux

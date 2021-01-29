@@ -20,7 +20,6 @@
 #include <sys/printk.h>
 #include <sys/byteorder.h>
 #include <zephyr.h>
-#include <usb/usb_device.h>
 
 #include <shell/shell.h>
 
@@ -122,11 +121,6 @@ static void hrs_notify(void)
 
 void main(void)
 {
-	if (IS_ENABLED(CONFIG_USB_UART_CONSOLE)) {
-		usb_enable(NULL);
-		k_sleep(K_SECONDS(2));
-	}
-
 	printk("Type \"help\" for supported commands.");
 	printk("Before any Bluetooth commands you must `bt init` to initialize"
 	       " the stack.\n");

@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* nRF51 and nRF52 Series IRQ mapping*/
 #if defined(CONFIG_SOC_SERIES_NRF51X) || defined(CONFIG_SOC_COMPATIBLE_NRF52X)
 
 #define HAL_SWI_RADIO_IRQ  SWI4_IRQn
@@ -17,12 +16,9 @@
 #define HAL_SWI_JOB_IRQ    SWI5_IRQn
 #endif
 
-/* nRF53 Series IRQ mapping */
 #elif defined(CONFIG_SOC_SERIES_NRF53X)
 
-/* nRF53 Series Engineering D and Revision 1 IRQ mapping */
-#if defined(CONFIG_SOC_NRF5340_CPUNET) && \
-	!defined(CONFIG_BOARD_NRF5340PDK_NRF5340_CPUNET)
+#if defined(CONFIG_BOARD_NRF5340DK_NRF5340_CPUNET)
 
 #define HAL_SWI_RADIO_IRQ  SWI2_IRQn
 #define HAL_SWI_WORKER_IRQ RTC0_IRQn
@@ -34,10 +30,8 @@
 #define HAL_SWI_JOB_IRQ    SWI3_IRQn
 #endif
 
-/* nRF53 Series Engineering A IRQ mapping */
 #elif defined(CONFIG_BOARD_NRF5340PDK_NRF5340_CPUNET)
 
-/* NOTE: nRF5340 Engineering A Errata [29] SWI: SWIRQ is not functional */
 #define HAL_SWI_RADIO_IRQ  EGU0_IRQn
 #define HAL_SWI_WORKER_IRQ RTC0_IRQn
 

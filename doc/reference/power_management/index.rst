@@ -90,7 +90,7 @@ System Power Management
 ***********************
 
 The kernel enters the idle state when it has nothing to schedule. If enabled via
-the :option:`CONFIG_PM` Kconfig option, the Power Management
+the :option:`CONFIG_SYS_POWER_MANAGEMENT` Kconfig option, the Power Management
 Subsystem can put an idle system in one of the supported power states, based
 on the selected power management policy and the duration of the idle time
 allotted by the kernel.
@@ -111,7 +111,7 @@ The power management subsystem classifies power states into two categories,
 Sleep State and Deep Sleep State, based on whether the CPU loses execution
 context during the power state transition.
 
-The list of available power states is defined by :code:`enum pm_state`. In
+The list of available power states is defined by :code:`enum power_states`. In
 general power states with higher indexes will offer greater power savings and
 have higher wake latencies.
 
@@ -158,7 +158,7 @@ the following function.
 
 .. code-block:: c
 
-   struct pm_state_info pm_policy_next_state(int32_t ticks);
+   enum power_states sys_pm_policy_next_state(int32_t ticks);
 
 Dummy
 -----
@@ -491,7 +491,7 @@ Power Management Configuration Flags
 The Power Management features can be individually enabled and disabled using
 the following configuration flags.
 
-:option:`CONFIG_PM`
+:option:`CONFIG_SYS_POWER_MANAGEMENT`
 
    This flag enables the power management subsystem.
 
@@ -499,12 +499,20 @@ the following configuration flags.
 
    This flag enables the tickless idle power saving feature.
 
-:option:`CONFIG_PM_DEVICE`
+:option:`CONFIG_SYS_POWER_SLEEP_STATES`
+
+   This flag enables support for the Sleep states.
+
+:option:`CONFIG_SYS_POWER_DEEP_SLEEP_STATES`
+
+   This flag enables support for the Deep Sleep states.
+
+:option:`CONFIG_DEVICE_POWER_MANAGEMENT`
 
    This flag is enabled if the SOC interface and the devices support device power
    management.
 
-:code:`CONFIG_PM_DEVICE_IDLE`
+:code:`CONFIG_DEVICE_IDLE_PM`
 
    This flag enables the Device Idle Power Management.
 

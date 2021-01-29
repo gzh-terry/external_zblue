@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <assert.h>
 #include <string.h>
 #include "net/buf.h"
 #include "mgmt/mcumgr/buf.h"

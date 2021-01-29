@@ -7,7 +7,6 @@
 
 /*
  * Copyright (c) 2017-2018 Linaro Limited
- * Copyright (c) 2021 Nordic Semiconductor
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -120,12 +119,6 @@ struct zsock_pollfd {
  *    - 1 - server
  */
 #define TLS_DTLS_ROLE 6
-/** Socket option for setting the supported Application Layer Protocols.
- *  It accepts and returns a const char array of NULL terminated strings
- *  representing the supported application layer protocols listed during
- *  the TLS handshake.
- */
-#define TLS_ALPN_LIST 7
 
 /** @} */
 
@@ -795,12 +788,6 @@ static inline char *inet_ntop(sa_family_t family, const void *src, char *dst,
 #define SO_REUSEADDR 2
 /** sockopt: Async error (ignored, for compatibility) */
 #define SO_ERROR 4
-
-/**
- * sockopt: Receive timeout
- * Applies to receive functions like recv(), but not to connect()
- */
-#define SO_RCVTIMEO 20
 
 /** sockopt: Timestamp TX packets */
 #define SO_TIMESTAMPING 37

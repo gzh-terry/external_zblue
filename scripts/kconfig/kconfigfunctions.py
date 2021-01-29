@@ -72,7 +72,7 @@ def dt_chosen_enabled(kconf, _, chosen):
         return "n"
 
     node = edt.chosen_node(chosen)
-    return "y" if node and node.status == "okay" else "n"
+    return "y" if node and node.enabled else "n"
 
 
 def dt_chosen_path(kconf, _, chosen):
@@ -117,7 +117,7 @@ def dt_node_enabled(kconf, name, node):
     except edtlib.EDTError:
         return "n"
 
-    return "y" if node and node.status == "okay" else "n"
+    return "y" if node and node.enabled else "n"
 
 
 def dt_nodelabel_enabled(kconf, _, label):
@@ -132,7 +132,7 @@ def dt_nodelabel_enabled(kconf, _, label):
 
     node = edt.label2node.get(label)
 
-    return "y" if node and node.status == "okay" else "n"
+    return "y" if node and node.enabled else "n"
 
 
 def _node_reg_addr(node, index, unit):
@@ -324,29 +324,6 @@ def dt_node_has_bool_prop(kconf, _, path, prop):
 
     return "n"
 
-def dt_node_has_prop(kconf, _, label, prop):
-    """
-    This function takes a 'label' and looks for an EDT node for that label. If
-    it finds an EDT node, it will look to see if that node has a property
-    by the name of 'prop'.  If the 'prop' exists it will return "y" otherwise
-    we return "n".
-    """
-
-    if doc_mode or edt is None:
-        return "n"
-
-    try:
-        node = edt.label2node.get(label)
-    except edtlib.EDTError:
-        return "n"
-
-    if node is None:
-        return "n"
-
-    if prop in node.props:
-        return "y"
-
-    return "n"
 
 def dt_node_int_prop(kconf, name, path, prop):
     """
@@ -373,13 +350,13 @@ def dt_node_int_prop(kconf, name, path, prop):
 
 def dt_compat_enabled(kconf, _, compat):
     """
-    This function takes a 'compat' and returns "y" if we find a status "okay"
+    This function takes a 'compat' and returns "y" if we find an "enabled"
     compatible node in the EDT otherwise we return "n"
     """
     if doc_mode or edt is None:
         return "n"
 
-    return "y" if compat in edt.compat2okay else "n"
+    return "y" if compat in edt.compat2enabled else "n"
 
 
 def dt_compat_on_bus(kconf, _, compat, bus):
@@ -390,7 +367,7 @@ def dt_compat_on_bus(kconf, _, compat, bus):
     if doc_mode or edt is None:
         return "n"
 
-    for node in edt.compat2okay[compat]:
+    for node in edt.compat2enabled[compat]:
         if node.on_bus is not None and node.on_bus == bus:
             return "y"
 
@@ -406,7 +383,7 @@ def dt_nodelabel_has_compat(kconf, _, label, compat):
     if doc_mode or edt is None:
         return "n"
 
-    for node in edt.compat2okay[compat]:
+    for node in edt.compat2enabled[compat]:
         if label in node.labels:
             return "y"
 
@@ -468,7 +445,6 @@ functions = {
         "dt_node_reg_size_int": (dt_node_reg, 1, 3),
         "dt_node_reg_size_hex": (dt_node_reg, 1, 3),
         "dt_node_has_bool_prop": (dt_node_has_bool_prop, 2, 2),
-        "dt_node_has_prop": (dt_node_has_prop, 2, 2),
         "dt_node_int_prop_int": (dt_node_int_prop, 2, 2),
         "dt_node_int_prop_hex": (dt_node_int_prop, 2, 2),
         "dt_nodelabel_has_compat": (dt_nodelabel_has_compat, 2, 2),
