@@ -210,23 +210,27 @@ static void e1000_isr(const struct device *device)
 #define PCI_VENDOR_ID_INTEL	0x8086
 #define PCI_DEVICE_ID_I82540EM	0x100e
 
+DEVICE_DECLARE(eth_e1000);
+
 int e1000_probe(const struct device *device)
 {
 	const pcie_bdf_t bdf = PCIE_BDF(0, 3, 0);
 	struct e1000_dev *dev = device->data;
 	uint32_t ral, rah;
-	struct pcie_mbar mbar;
+	uintptr_t phys_addr;
+	size_t size;
 
 	if (!pcie_probe(bdf, PCIE_ID(PCI_VENDOR_ID_INTEL,
 				     PCI_DEVICE_ID_I82540EM))) {
 		return -ENODEV;
 	}
 
-	pcie_get_mbar(bdf, 0, &mbar);
+	phys_addr = pcie_get_mbar(bdf, 0);
 	pcie_set_cmd(bdf, PCIE_CONF_CMDSTAT_MEM |
 		     PCIE_CONF_CMDSTAT_MASTER, true);
+	size = KB(128); /* TODO: get from PCIe */
 
-	device_map(&dev->address, mbar.phys_addr, mbar.size,
+	device_map(&dev->address, phys_addr, size,
 		   K_MEM_CACHE_NONE);
 
 	/* Setup TX descriptor */
@@ -277,7 +281,7 @@ static void e1000_iface_init(struct net_if *iface)
 		/* Do the phy link up only once */
 		IRQ_CONNECT(DT_INST_IRQN(0),
 			DT_INST_IRQ(0, priority),
-			e1000_isr, DEVICE_DT_INST_GET(0),
+			e1000_isr, DEVICE_GET(eth_e1000),
 			DT_INST_IRQ(0, sense));
 
 		irq_enable(DT_INST_IRQN(0));
@@ -301,7 +305,8 @@ static const struct ethernet_api e1000_api = {
 	.send			= e1000_send,
 };
 
-ETH_NET_DEVICE_DT_INST_DEFINE(0,
+ETH_NET_DEVICE_INIT(eth_e1000,
+		    "ETH_0",
 		    e1000_probe,
 		    device_pm_control_nop,
 		    &e1000_dev,

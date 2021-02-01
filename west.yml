@@ -26,7 +26,7 @@ manifest:
   # Please add items below based on alphabetical order
   projects:
     - name: cmsis
-      revision: c3bd2094f92d574377f7af2aec147ae181aa5f8e
+      revision: 542b2296e6d515b265e25c6b7208e8fea3014f90
       path: modules/hal/cmsis
     - name: hal_atmel
       revision: 9f0a699a2f0253dc9688211ef696daa7b8fadb75
@@ -36,19 +36,18 @@ manifest:
       path: modules/hal/altera
     - name: canopennode
       path: modules/lib/canopennode
-      revision: 468d350028a975b96563e58344de48281a0ab371
+      revision: 5c6b0566d56264efd4bf23ed58bc7cb8b32fe063
     - name: ci-tools
       revision: da9a2df574094f52d87a03f6393928bdc7dce17c
       path: tools/ci-tools
     - name: civetweb
-      revision: e6903b80c09d17cd1a8bb32e40080005558aad29
+      revision: 99129c5efc907ea613c4b73ccff07581feb58a7a
       path: modules/lib/civetweb
-    - name: hal_espressif
-      west-commands: west/west-commands.yml
-      revision: 895d99ed0902e8f3ddde7bdeb3a1fe2fa875b005
-      path: modules/hal/espressif
+    - name: esp-idf
+      revision: 6835bfc741bf15e98fb7971293913f770df6081f
+      path: modules/hal/esp-idf
     - name: fatfs
-      revision: 1d1fcc725aa1cb3c32f366e0c53d7490d0fe1109
+      revision: 13697783bf653dfdf17c57129ce8e181634e5970
       path: modules/fs/fatfs
     - name: hal_cypress
       revision: a12d92816a53a521d79cefcf5c38b9dc8a4fed6e
@@ -57,7 +56,7 @@ manifest:
       revision: f1fa8241f8786198ba41155413243de36ed878a5
       path: modules/hal/infineon
     - name: hal_nordic
-      revision: f0d54d8449acbee49b3cebcef0e3e56640c50277
+      revision: e71035877db9f4e194463c30964c69f2b935a62c
       path: modules/hal/nordic
     - name: hal_openisa
       revision: 40d049f69c50b58ea20473bee14cf93f518bf262
@@ -69,57 +68,54 @@ manifest:
       revision: a1ec761014740a08699720298dd37ad4da360840
       path: modules/hal/microchip
     - name: hal_silabs
-      revision: 6bb4a17a2f94a39eba295dd55dbeae6f6c4c9b1b
+      revision: 69c3e1e6e167767cb75aa2b468df4ade05988cdb
       path: modules/hal/silabs
     - name: hal_st
-      revision: b52fdbf4b62439be9fab9bb4bae9690a42d2fb14
+      revision: 5b3ec3e182d4310e8943cc34c6c70ae57d9711da
       path: modules/hal/st
     - name: hal_stm32
-      revision: cc8731dba4fd9c57d7fe8ea6149828b89c2bd635
+      revision: cea57f86d3ade46c0b99dab32b2ac63435ed0693
       path: modules/hal/stm32
     - name: hal_ti
-      revision: 277d70a65ab14d46bf1ec0935cf9bb28bbaa8ab9
+      revision: deb246ade0d4d64f470482017caec600cc48086e
       path: modules/hal/ti
     - name: libmetal
-      revision: 9d4ee2c3cfd5f49861939447990f3b7d7bf9bf94
+      revision: 87e9e7f2c5b4e238236fe703db61ba23e48dc2ef
       path: modules/hal/libmetal
     - name: hal_quicklogic
       repo-path: hal_quicklogic
-      revision: b3a66fe6d04d87fd1533a5c8de51d0599fcd08d0
+      revision: 7deb3aab1cc430a7650143f9833cfc8ddad76eb5
       path: modules/hal/quicklogic
     - name: lvgl
-      revision: 31acbaa36e9e74ab88ac81e3d21e7f1d00a71136
+      revision: 928b61c7c8ef5f770f10e6fd36d4fea0cf375b5e
       path: modules/lib/gui/lvgl
     - name: mbedtls
-      revision: 13cf2e52024a144ecee9f37680681760a85febab
+      revision: 9638398d3c319074ae3878035138ef8a76001e5b
       path: modules/crypto/mbedtls
     - name: mcuboot
-      revision: 30e0c5a0af21433efc8ea35cabc44bee3f096a62
+      revision: 480421999ec2d8d2a20091e4f3a0393db04de5c4
       path: bootloader/mcuboot
     - name: mcumgr
-      revision: 43845e883ff3a6cdaae22e23f3e60b5fcf78c6ba
+      revision: 5051f9d900bbb194a23d4ce80f3c6dc6d6780cc2
       path: modules/lib/mcumgr
     - name: net-tools
-      revision: 41132e9220f8bc1223084975350c5e5f3b492afe
+      revision: 1c4fdba512b268033a4cf926bddd323866c3261a
       path: tools/net-tools
     - name: hal_nxp
-      revision: b916bca1d5976b0157be80b326e3bb46ef605286
+      revision: e13b23c06850530c6c34208905d58e7a6a12cdd5
       path: modules/hal/nxp
     - name: open-amp
-      revision: de1b85a13032a2de1d8b6695ae5f800b613e739d
+      revision: 724f7e2a4519d7e1d40ef330042682dea950c991
       path: modules/lib/open-amp
     - name: loramac-node
       revision: 3f545d76a2e6d1db83a470ccdb5bebd1f484e137
       path: modules/lib/loramac-node
     - name: openthread
-      revision: aad6518ee30d3840411b21437d396f0405e947c3
+      revision: f23165fde96ae8bd710b08c6d77879465ed92cac
       path: modules/lib/openthread
     - name: segger
-      revision: 38c79a447e4a47d413b4e8d34448316a5cece77c
+      revision: 874d9e9696b00c09f9eeefe839028dc25fe44983
       path: modules/debug/segger
-    - name: sof
-      revision: b5b772dd611879ee6309da38759def79fc7f33f1
-      path: modules/audio/sof
     - name: tinycbor
       path: modules/lib/tinycbor
       revision: 40daca97b478989884bffb5226e9ab73ca54b8c4
@@ -131,23 +127,19 @@ manifest:
       revision: 9e4498d1c73009acd84bb36036ee5e2869112a6c
     - name: mipi-sys-t
       path: modules/debug/mipi-sys-t
-      revision: 75e671550ac1acb502f315fe4952514dc73f7bfb
+      revision: 957d46bc3ce0d5f628f0d525196bb4db207672ee
     - name: nrf_hw_models
       path: modules/bsim_hw_models/nrf_hw_models
-      revision: a47e326ca772ddd14cc3b9d4ca30a9ab44ecca16
+      revision: f86079a7333968f0ba71fe1266e241295a4e9943
     - name: hal_xtensa
-      revision: 2f04b615cd5ad3a1b8abef33f9bdd10cc1990ed6
+      revision: e7a57d0c252f9c5f3cab9d5ceadda8753cacee5b
       path: modules/hal/xtensa
     - name: edtt
       path: tools/edtt
-      revision: 7dd56fc100d79cc45c33d43e7401d1803e26f6e7
+      revision: c39888ff74acf421eeff9a7514fa9b172c3373f7
     - name: trusted-firmware-m
       path: modules/tee/tfm
-      revision: 96340fb6c0b7e31c2070e1f428ca24076d2700a6
-    - name: tfm-mcuboot # This is used by the trusted-firmware-m module.
-      repo-path: mcuboot
-      path: modules/tee/tfm-mcuboot
-      revision: 1.7.0-rc1
+      revision: 143df675557305b61f7930a50459a53a8d2bb097
 
   self:
     path: zephyr

@@ -42,20 +42,11 @@
 	KEEP(*(SORT_BY_NAME(._##struct_type.static.*))); \
 	_CONCAT(_##struct_type, _list_end) = .
 
-#define Z_LINK_ITERABLE_GC_ALLOWED(struct_type) \
-	_CONCAT(_##struct_type, _list_start) = .; \
-	*(SORT_BY_NAME(._##struct_type.static.*)); \
-	_CONCAT(_##struct_type, _list_end) = .
-
 /* Define an output section which will set up an iterable area
  * of equally-sized data structures. For use with Z_STRUCT_SECTION_ITERABLE.
  * Input sections will be sorted by name, per ld's SORT_BY_NAME.
  *
  * This macro should be used for read-only data.
- *
- * Note that this keeps the symbols in the image even though
- * they are not being directly referenced. Use this when symbols
- * are indirectly referenced by iterating through the section.
  */
 #define Z_ITERABLE_SECTION_ROM(struct_type, subalign) \
 	SECTION_PROLOGUE(struct_type##_area,,SUBALIGN(subalign)) \
@@ -67,45 +58,12 @@
  * of equally-sized data structures. For use with Z_STRUCT_SECTION_ITERABLE.
  * Input sections will be sorted by name, per ld's SORT_BY_NAME.
  *
- * This macro should be used for read-only data.
- *
- * Note that the symbols within the section can be garbage collected.
- */
-#define Z_ITERABLE_SECTION_ROM_GC_ALLOWED(struct_type, subalign) \
-	SECTION_PROLOGUE(struct_type##_area,,SUBALIGN(subalign)) \
-	{ \
-		Z_LINK_ITERABLE_GC_ALLOWED(struct_type); \
-	} GROUP_LINK_IN(ROMABLE_REGION)
-
-/* Define an output section which will set up an iterable area
- * of equally-sized data structures. For use with Z_STRUCT_SECTION_ITERABLE.
- * Input sections will be sorted by name, per ld's SORT_BY_NAME.
- *
  * This macro should be used for read-write data that is modified at runtime.
- *
- * Note that this keeps the symbols in the image even though
- * they are not being directly referenced. Use this when symbols
- * are indirectly referenced by iterating through the section.
  */
 #define Z_ITERABLE_SECTION_RAM(struct_type, subalign) \
 	SECTION_DATA_PROLOGUE(struct_type##_area,,SUBALIGN(subalign)) \
 	{ \
 		Z_LINK_ITERABLE(struct_type); \
-	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
-
-
-/* Define an output section which will set up an iterable area
- * of equally-sized data structures. For use with Z_STRUCT_SECTION_ITERABLE.
- * Input sections will be sorted by name, per ld's SORT_BY_NAME.
- *
- * This macro should be used for read-write data that is modified at runtime.
- *
- * Note that the symbols within the section can be garbage collected.
- */
-#define Z_ITERABLE_SECTION_RAM_GC_ALLOWED(struct_type, subalign) \
-	SECTION_DATA_PROLOGUE(struct_type##_area,,SUBALIGN(subalign)) \
-	{ \
-		Z_LINK_ITERABLE_GC_ALLOWED(struct_type); \
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
 
 /*
@@ -182,13 +140,6 @@ extern char __data_ram_start[];
 extern char __data_ram_end[];
 #endif /* CONFIG_XIP */
 
-#ifdef CONFIG_MMU
-/* Virtual addresses of page-aligned kernel image mapped into RAM at boot */
-extern char z_mapped_start[];
-extern char z_mapped_end[];
-extern char z_mapped_size[];
-#endif /* CONFIG_MMU */
-
 /* Includes text and rodata */
 extern char _image_rom_start[];
 extern char _image_rom_end[];
@@ -235,13 +186,6 @@ extern char __ccm_bss_end[];
 extern char __ccm_noinit_start[];
 extern char __ccm_noinit_end[];
 extern char __ccm_end[];
-#endif
-
-#if DT_NODE_HAS_STATUS(DT_CHOSEN(zephyr_itcm), okay)
-extern char __itcm_start[];
-extern char __itcm_end[];
-extern char __itcm_size[];
-extern char __itcm_rom_start[];
 #endif
 
 #if DT_NODE_HAS_STATUS(DT_CHOSEN(zephyr_dtcm), okay)
@@ -303,20 +247,7 @@ extern char z_priv_stacks_ram_start[];
 extern char z_priv_stacks_ram_end[];
 extern char z_user_stacks_start[];
 extern char z_user_stacks_end[];
-extern char z_kobject_data_begin[];
 #endif /* CONFIG_USERSPACE */
-
-#ifdef CONFIG_THREAD_LOCAL_STORAGE
-extern char __tdata_start[];
-extern char __tdata_end[];
-extern char __tdata_size[];
-extern char __tbss_start[];
-extern char __tbss_end[];
-extern char __tbss_size[];
-extern char __tls_start[];
-extern char __tls_end[];
-extern char __tls_size[];
-#endif /* CONFIG_THREAD_LOCAL_STORAGE */
 
 #endif /* ! _ASMLANGUAGE */
 

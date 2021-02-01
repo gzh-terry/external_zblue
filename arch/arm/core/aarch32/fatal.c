@@ -14,7 +14,7 @@
 
 #include <kernel.h>
 #include <logging/log.h>
-LOG_MODULE_DECLARE(os, CONFIG_KERNEL_LOG_LEVEL);
+LOG_MODULE_DECLARE(os);
 
 static void esf_dump(const z_arch_esf_t *esf)
 {

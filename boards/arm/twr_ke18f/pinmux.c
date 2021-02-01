@@ -12,25 +12,26 @@ static int twr_ke18f_pinmux_init(const struct device *dev)
 {
 	ARG_UNUSED(dev);
 
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(porta), okay)
+#ifdef CONFIG_PINMUX_MCUX_PORTA
 	__unused const struct device *porta =
-		device_get_binding(DT_LABEL(DT_NODELABEL(porta)));
+		device_get_binding(CONFIG_PINMUX_MCUX_PORTA_NAME);
 #endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(portb), okay)
+#ifdef CONFIG_PINMUX_MCUX_PORTB
 	__unused const struct device *portb =
-		device_get_binding(DT_LABEL(DT_NODELABEL(portb)));
+		device_get_binding(CONFIG_PINMUX_MCUX_PORTB_NAME);
 #endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(portc), okay)
+#ifdef CONFIG_PINMUX_MCUX_PORTC
 	__unused const struct device *portc =
-		device_get_binding(DT_LABEL(DT_NODELABEL(portc)));
+		device_get_binding(CONFIG_PINMUX_MCUX_PORTC_NAME);
 #endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(portd), okay)
+#ifdef CONFIG_PINMUX_MCUX_PORTD
 	__unused const struct device *portd =
-		device_get_binding(DT_LABEL(DT_NODELABEL(portd)));
+		device_get_binding(CONFIG_PINMUX_MCUX_PORTD_NAME);
 #endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(porte), okay)
+
+#ifdef CONFIG_PINMUX_MCUX_PORTE
 	__unused const struct device *porte =
-		device_get_binding(DT_LABEL(DT_NODELABEL(porte)));
+		device_get_binding(CONFIG_PINMUX_MCUX_PORTE_NAME);
 #endif
 
 #if DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(ftm0), nxp_kinetis_ftm_pwm, okay) && CONFIG_PWM
@@ -45,11 +46,6 @@ static int twr_ke18f_pinmux_init(const struct device *dev)
 	pinmux_pin_set(portd, 16, PORT_PCR_MUX(kPORT_MuxAsGpio));
 #endif
 
-#if DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(ftm2), nxp_kinetis_ftm_pwm, okay) && CONFIG_PWM
-	/* PWM output on J20 pin 5 */
-	pinmux_pin_set(porte, 15, PORT_PCR_MUX(kPORT_MuxAlt4));
-#endif
-
 #if DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(ftm3), nxp_kinetis_ftm_pwm, okay) && CONFIG_PWM
 	/* User LEDs as PWM */
 	pinmux_pin_set(portc, 10, PORT_PCR_MUX(kPORT_MuxAlt2));
@@ -62,11 +58,6 @@ static int twr_ke18f_pinmux_init(const struct device *dev)
 	pinmux_pin_set(portc, 11, PORT_PCR_MUX(kPORT_MuxAsGpio));
 	pinmux_pin_set(portc, 12, PORT_PCR_MUX(kPORT_MuxAsGpio));
 	pinmux_pin_set(portc, 13, PORT_PCR_MUX(kPORT_MuxAsGpio));
-#endif
-
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(pwt), okay) && CONFIG_PWM_CAPTURE
-	/* PWM capture input on J20 pin 8 */
-	pinmux_pin_set(porte, 11, PORT_PCR_MUX(kPORT_MuxAlt2));
 #endif
 
 	/* Buttons */
@@ -147,10 +138,6 @@ static int twr_ke18f_pinmux_init(const struct device *dev)
 	/* Thermistor A, B */
 	pinmux_pin_set(porta, 0, PORT_PCR_MUX(kPORT_PinDisabledOrAnalog));
 	pinmux_pin_set(porta, 1, PORT_PCR_MUX(kPORT_PinDisabledOrAnalog));
-#endif
-
-#if (DT_NODE_HAS_STATUS(DT_NODELABEL(adc0), okay) && CONFIG_ADC) || \
-    (DT_NODE_HAS_STATUS(DT_NODELABEL(cmp2), okay) && CONFIG_MCUX_ACMP)
 	/* Potentiometer */
 	pinmux_pin_set(portc, 14, PORT_PCR_MUX(kPORT_PinDisabledOrAnalog));
 #endif

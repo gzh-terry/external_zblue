@@ -102,7 +102,7 @@ The :dfn:`system heap` is a predefined memory allocator that allows
 threads to dynamically allocate memory from a common memory region in
 a :c:func:`malloc`-like manner.
 
-Only a single system heap is defined. Unlike other heaps or memory
+Only a single system heap is be defined. Unlike other heaps or memory
 pools, the system heap cannot be directly referenced using its
 memory address.
 
@@ -136,6 +136,9 @@ A chunk of heap memory is allocated by calling :c:func:`k_malloc`.
 The following code allocates a 200 byte chunk of heap memory, then fills it
 with zeros. A warning is issued if a suitable chunk is not obtained.
 
+Note that the application will actually allocate a 256 byte memory block,
+since that is the closest matching size supported by the heap memory pool.
+
 .. code-block:: c
 
     char *mem_ptr;
@@ -154,7 +157,8 @@ Releasing Memory
 A chunk of heap memory is released by calling :c:func:`k_free`.
 
 The following code allocates a 75 byte chunk of memory, then releases it
-once it is no longer needed.
+once it is no longer needed. (A 256 byte memory block from the heap memory
+pool is actually used to satisfy the request.)
 
 .. code-block:: c
 

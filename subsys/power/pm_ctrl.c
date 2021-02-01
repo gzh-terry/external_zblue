@@ -8,22 +8,19 @@
 #include <string.h>
 #include <device.h>
 #include <sys/atomic.h>
-#include <power/power_state.h>
 #include "policy/pm_policy.h"
 
-#define LOG_LEVEL CONFIG_PM_LOG_LEVEL /* From power module Kconfig */
+#define LOG_LEVEL CONFIG_SYS_PM_LOG_LEVEL /* From power module Kconfig */
 #include <logging/log.h>
 LOG_MODULE_DECLARE(power);
 
-#define PM_STATES_LEN (PM_STATE_SOFT_OFF - PM_STATE_ACTIVE)
+static atomic_t power_state_disable_count[SYS_POWER_STATE_MAX];
 
-static atomic_t power_state_disable_count[PM_STATES_LEN];
-
-void pm_ctrl_disable_state(enum pm_state state)
+void sys_pm_ctrl_disable_state(enum power_states state)
 {
 	atomic_val_t v;
 
-	__ASSERT(state < PM_STATES_LEN, "Invalid power state!");
+	__ASSERT(state < SYS_POWER_STATE_MAX, "Invalid power state!");
 	v = atomic_inc(&power_state_disable_count[state]);
 	__ASSERT(v < UINT_MAX, "Power state disable count overflowed!");
 
@@ -31,11 +28,11 @@ void pm_ctrl_disable_state(enum pm_state state)
 	(void)(v);
 }
 
-void pm_ctrl_enable_state(enum pm_state state)
+void sys_pm_ctrl_enable_state(enum power_states state)
 {
 	atomic_val_t v;
 
-	__ASSERT(state < PM_STATES_LEN, "Invalid power state!");
+	__ASSERT(state < SYS_POWER_STATE_MAX, "Invalid power state!");
 	v = atomic_dec(&power_state_disable_count[state]);
 	__ASSERT(v > 0, "Power state disable count underflowed!");
 
@@ -43,9 +40,9 @@ void pm_ctrl_enable_state(enum pm_state state)
 	(void)(v);
 }
 
-bool pm_ctrl_is_state_enabled(enum pm_state state)
+bool sys_pm_ctrl_is_state_enabled(enum power_states state)
 {
-	__ASSERT(state < PM_STATES_LEN, "Invalid power state!");
+	__ASSERT(state < SYS_POWER_STATE_MAX, "Invalid power state!");
 
 	return (atomic_get(&power_state_disable_count[state]) == 0);
 }

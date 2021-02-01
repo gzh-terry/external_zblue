@@ -241,10 +241,10 @@ static void oacp_read_proc_execute(struct bt_ots *ots,
 }
 
 static void oacp_ind_cb(struct bt_conn *conn,
-			struct bt_gatt_indicate_params *params,
+			const struct bt_gatt_attr *attr,
 			uint8_t err)
 {
-	struct bt_ots *ots = (struct bt_ots *) params->attr->user_data;
+	struct bt_ots *ots = (struct bt_ots *) attr->user_data;
 
 	LOG_DBG("Received OACP Indication ACK with status: 0x%04X", err);
 
