@@ -40,4 +40,8 @@ config BT_OTS_L2CAP_CHAN_RX_MTU
 	range 23 BT_L2CAP_RX_MTU if BT_HCI_ACL_FLOW_CONTROL
 	range 23 BT_RX_BUF_LEN
 
+module = BT_OTS
+module-str = BT_OTS
+source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
+
 endif # BT_OTS

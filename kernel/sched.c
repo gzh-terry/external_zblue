@@ -15,7 +15,8 @@
 #include <stdbool.h>
 #include <kernel_internal.h>
 #include <logging/log.h>
-LOG_MODULE_DECLARE(os);
+#include <sys/atomic.h>
+LOG_MODULE_DECLARE(os, CONFIG_KERNEL_LOG_LEVEL);
 
 /* Maximum time between the time a self-aborting thread flags itself
  * DEAD and the last read or write to its stack memory (i.e. the time
@@ -57,6 +58,8 @@ struct z_kernel _kernel;
 
 static struct k_spinlock sched_spinlock;
 
+static void update_cache(int);
+
 #define LOCKED(lck) for (k_spinlock_key_t __i = {},			\
 					  __key = k_spin_lock(lck);	\
 			!__i.key;					\
@@ -97,18 +100,18 @@ bool z_is_t1_higher_prio_than_t2(struct k_thread *thread_1,
 	}
 
 #ifdef CONFIG_SCHED_DEADLINE
-	/* Note that we don't care about wraparound conditions.  The
-	 * expectation is that the application will have arranged to
-	 * block the threads, change their priorities or reset their
-	 * deadlines when the job is complete.  Letting the deadlines
-	 * go negative is fine and in fact prevents aliasing bugs.
+	/* If we assume all deadlines live within the same "half" of
+	 * the 32 bit modulus space (this is a documented API rule),
+	 * then the latest dealine in the queue minus the earliest is
+	 * guaranteed to be (2's complement) non-negative.  We can
+	 * leverage that to compare the values without having to check
+	 * the current time.
 	 */
 	if (thread_1->base.prio == thread_2->base.prio) {
-		int now = (int) k_cycle_get_32();
-		int dt1 = thread_1->base.prio_deadline - now;
-		int dt2 = thread_2->base.prio_deadline - now;
+		int32_t d1 = thread_1->base.prio_deadline;
+		int32_t d2 = thread_2->base.prio_deadline;
 
-		return dt1 < dt2;
+		return (d2 - d1) >= 0;
 	}
 #endif
 
@@ -180,7 +183,16 @@ static ALWAYS_INLINE struct k_thread *_priq_dumb_mask_best(sys_dlist_t *pq)
 
 static ALWAYS_INLINE struct k_thread *next_up(void)
 {
-	struct k_thread *thread = _priq_run_best(&_kernel.ready_q.runq);
+	struct k_thread *thread;
+
+	/* If a thread self-aborted we need the idle thread to clean it up
+	 * before any other thread can run on this CPU
+	 */
+	if (_current_cpu->pending_abort != NULL) {
+		return _current_cpu->idle_thread;
+	}
+
+	thread = _priq_run_best(&_kernel.ready_q.runq);
 
 #if (CONFIG_NUM_METAIRQ_PRIORITIES > 0) && (CONFIG_NUM_COOP_PRIORITIES > 0)
 	/* MetaIRQs must always attempt to return back to a
@@ -264,6 +276,16 @@ static ALWAYS_INLINE struct k_thread *next_up(void)
 #endif
 }
 
+static void move_thread_to_end_of_prio_q(struct k_thread *thread)
+{
+	if (z_is_thread_queued(thread)) {
+		_priq_run_remove(&_kernel.ready_q.runq, thread);
+	}
+	_priq_run_add(&_kernel.ready_q.runq, thread);
+	z_mark_thread_as_queued(thread);
+	update_cache(thread == _current);
+}
+
 #ifdef CONFIG_TIMESLICING
 
 static int slice_time;
@@ -303,17 +325,27 @@ void k_sched_time_slice_set(int32_t slice, int prio)
 static inline int sliceable(struct k_thread *thread)
 {
 	return is_preempt(thread)
+		&& !z_is_thread_prevented_from_running(thread)
 		&& !z_is_prio_higher(thread->base.prio, slice_max_prio)
-		&& !z_is_idle_thread_object(thread)
-		&& !z_is_thread_timeout_active(thread);
+		&& !z_is_idle_thread_object(thread);
 }
 
 /* Called out of each timer interrupt */
 void z_time_slice(int ticks)
 {
+	/* Hold sched_spinlock, so that activity on another CPU
+	 * (like a call to k_thread_abort() at just the wrong time)
+	 * won't affect the correctness of the decisions made here.
+	 * Also prevents any nested interrupts from changing
+	 * thread state to avoid similar issues, since this would
+	 * normally run with IRQs enabled.
+	 */
+	k_spinlock_key_t key = k_spin_lock(&sched_spinlock);
+
 #ifdef CONFIG_SWAP_NONATOMIC
 	if (pending_current == _current) {
 		z_reset_time_slice();
+		k_spin_unlock(&sched_spinlock, key);
 		return;
 	}
 	pending_current = NULL;
@@ -321,7 +353,7 @@ void z_time_slice(int ticks)
 
 	if (slice_time && sliceable(_current)) {
 		if (ticks >= _current_cpu->slice_ticks) {
-			z_move_thread_to_end_of_prio_q(_current);
+			move_thread_to_end_of_prio_q(_current);
 			z_reset_time_slice();
 		} else {
 			_current_cpu->slice_ticks -= ticks;
@@ -329,6 +361,7 @@ void z_time_slice(int ticks)
 	} else {
 		_current_cpu->slice_ticks = 0;
 	}
+	k_spin_unlock(&sched_spinlock, key);
 }
 #endif
 
@@ -343,7 +376,7 @@ static void update_metairq_preempt(struct k_thread *thread)
 	    !is_preempt(_current)) {
 		/* Record new preemption */
 		_current_cpu->metairq_preempted = _current;
-	} else if (!is_metairq(thread)) {
+	} else if (!is_metairq(thread) && !z_is_idle_thread_object(thread)) {
 		/* Returning from existing preemption */
 		_current_cpu->metairq_preempted = NULL;
 	}
@@ -380,7 +413,14 @@ static void update_cache(int preempt_ok)
 
 static void ready_thread(struct k_thread *thread)
 {
-	if (z_is_thread_ready(thread)) {
+#ifdef CONFIG_KERNEL_COHERENCE
+	__ASSERT_NO_MSG(arch_mem_coherent(thread));
+#endif
+
+	/* If thread is queued already, do not try and added it to the
+	 * run queue again
+	 */
+	if (!z_is_thread_queued(thread) && z_is_thread_ready(thread)) {
 		sys_trace_thread_ready(thread);
 		_priq_run_add(&_kernel.ready_q.runq, thread);
 		z_mark_thread_as_queued(thread);
@@ -401,12 +441,7 @@ void z_ready_thread(struct k_thread *thread)
 void z_move_thread_to_end_of_prio_q(struct k_thread *thread)
 {
 	LOCKED(&sched_spinlock) {
-		if (z_is_thread_queued(thread)) {
-			_priq_run_remove(&_kernel.ready_q.runq, thread);
-		}
-		_priq_run_add(&_kernel.ready_q.runq, thread);
-		z_mark_thread_as_queued(thread);
-		update_cache(thread == _current);
+		move_thread_to_end_of_prio_q(thread);
 	}
 }
 
@@ -455,6 +490,12 @@ void z_impl_k_thread_resume(struct k_thread *thread)
 {
 	k_spinlock_key_t key = k_spin_lock(&sched_spinlock);
 
+	/* Do not try to resume a thread that was not suspended */
+	if (!z_is_thread_suspended(thread)) {
+		k_spin_unlock(&sched_spinlock, key);
+		return;
+	}
+
 	z_mark_thread_as_not_suspended(thread);
 	ready_thread(thread);
 
@@ -479,12 +520,25 @@ static _wait_q_t *pended_on(struct k_thread *thread)
 
 void z_thread_single_abort(struct k_thread *thread)
 {
+	void (*fn_abort)(struct k_thread *aborted) = NULL;
+
 	__ASSERT(!(thread->base.user_options & K_ESSENTIAL),
 		 "essential thread aborted");
+	__ASSERT(thread != _current || arch_is_in_isr(),
+		 "self-abort detected");
 
-	if (thread->fn_abort != NULL) {
-		thread->fn_abort();
+	/* Prevent any of the further logic in this function from running more
+	 * than once
+	 */
+	k_spinlock_key_t key = k_spin_lock(&sched_spinlock);
+	if ((thread->base.thread_state &
+	     (_THREAD_ABORTING | _THREAD_DEAD)) != 0) {
+		LOG_DBG("Thread %p already dead or on the way out", thread);
+		k_spin_unlock(&sched_spinlock, key);
+		return;
 	}
+	thread->base.thread_state |= _THREAD_ABORTING;
+	k_spin_unlock(&sched_spinlock, key);
 
 	(void)z_abort_thread_timeout(thread);
 
@@ -493,6 +547,7 @@ void z_thread_single_abort(struct k_thread *thread)
 	}
 
 	LOCKED(&sched_spinlock) {
+		LOG_DBG("Cleanup aborting thread %p", thread);
 		struct k_thread *waiter;
 
 		if (z_is_thread_ready(thread)) {
@@ -511,37 +566,6 @@ void z_thread_single_abort(struct k_thread *thread)
 			}
 		}
 
-		uint32_t mask = _THREAD_DEAD;
-
-		/* If the abort is happening in interrupt context,
-		 * that means that execution will never return to the
-		 * thread's stack and that the abort is known to be
-		 * complete.  Otherwise the thread still runs a bit
-		 * until it can swap, requiring a delay.
-		 */
-		if (IS_ENABLED(CONFIG_SMP) && arch_is_in_isr()) {
-			mask |= _THREAD_ABORTED_IN_ISR;
-		}
-
-		thread->base.thread_state |= mask;
-
-#ifdef CONFIG_USERSPACE
-		/* Clear initialized state so that this thread object may be
-		 * re-used and triggers errors if API calls are made on it from
-		 * user threads
-		 *
-		 * For a whole host of reasons this is not ideal and should be
-		 * iterated on.
-		 */
-		z_object_uninit(thread->stack_obj);
-		z_object_uninit(thread);
-
-		/* Revoke permissions on thread's ID so that it may be
-		 * recycled
-		 */
-		z_thread_perms_all_clear(thread);
-#endif
-
 		/* Wake everybody up who was trying to join with this thread.
 		 * A reschedule is invoked later by k_thread_abort().
 		 */
@@ -554,10 +578,60 @@ void z_thread_single_abort(struct k_thread *thread)
 			arch_thread_return_value_set(waiter, 0);
 			ready_thread(waiter);
 		}
+
+		if (z_is_idle_thread_object(_current)) {
+			update_cache(1);
+		}
+
+		thread->base.thread_state |= _THREAD_DEAD;
+
+		/* Read this here from the thread struct now instead of
+		 * after we unlock
+		 */
+		fn_abort = thread->fn_abort;
+
+		/* Keep inside the spinlock as these may use the contents
+		 * of the thread object. As soon as we release this spinlock,
+		 * the thread object could be destroyed at any time.
+		 */
+		sys_trace_thread_abort(thread);
+		z_thread_monitor_exit(thread);
+
+#ifdef CONFIG_USERSPACE
+		/* Remove this thread from its memory domain, which takes
+		 * it off the domain's thread list and possibly also arch-
+		 * specific tasks.
+		 */
+		z_mem_domain_exit_thread(thread);
+
+		/* Revoke permissions on thread's ID so that it may be
+		 * recycled
+		 */
+		z_thread_perms_all_clear(thread);
+
+		/* Clear initialized state so that this thread object may be
+		 * re-used and triggers errors if API calls are made on it from
+		 * user threads
+		 */
+		z_object_uninit(thread->stack_obj);
+		z_object_uninit(thread);
+#endif
+		/* Kernel should never look at the thread object again past
+		 * this point unless another thread API is called. If the
+		 * object doesn't get corrupted, we'll catch other
+		 * k_thread_abort()s on this object, although this is
+		 * somewhat undefined behavoir. It must be safe to call
+		 * k_thread_create() or free the object at this point.
+		 */
+#if __ASSERT_ON
+		atomic_clear(&thread->base.cookie);
+#endif
 	}
 
-	sys_trace_thread_abort(thread);
-	z_thread_monitor_exit(thread);
+	if (fn_abort != NULL) {
+		/* Thread object provided to be freed or recycled */
+		fn_abort(thread);
+	}
 }
 
 static void unready_thread(struct k_thread *thread)
@@ -592,9 +666,6 @@ static void add_to_waitq_locked(struct k_thread *thread, _wait_q_t *wait_q)
 static void add_thread_timeout(struct k_thread *thread, k_timeout_t timeout)
 {
 	if (!K_TIMEOUT_EQ(timeout, K_FOREVER)) {
-#ifdef CONFIG_LEGACY_TIMEOUT_API
-		timeout = _TICK_ALIGN + k_ms_to_ticks_ceil32(timeout);
-#endif
 		z_add_thread_timeout(thread, timeout);
 	}
 }
@@ -602,6 +673,10 @@ static void add_thread_timeout(struct k_thread *thread, k_timeout_t timeout)
 static void pend(struct k_thread *thread, _wait_q_t *wait_q,
 		 k_timeout_t timeout)
 {
+#ifdef CONFIG_KERNEL_COHERENCE
+	__ASSERT_NO_MSG(arch_mem_coherent(wait_q));
+#endif
+
 	LOCKED(&sched_spinlock) {
 		add_to_waitq_locked(thread, wait_q);
 	}
@@ -630,12 +705,17 @@ ALWAYS_INLINE struct k_thread *z_find_first_thread_to_unpend(_wait_q_t *wait_q,
 	return ret;
 }
 
+static inline void unpend_thread_no_timeout(struct k_thread *thread)
+{
+	_priq_wait_remove(&pended_on(thread)->waitq, thread);
+	z_mark_thread_as_not_pending(thread);
+	thread->base.pended_on = NULL;
+}
+
 ALWAYS_INLINE void z_unpend_thread_no_timeout(struct k_thread *thread)
 {
 	LOCKED(&sched_spinlock) {
-		_priq_wait_remove(&pended_on(thread)->waitq, thread);
-		z_mark_thread_as_not_pending(thread);
-		thread->base.pended_on = NULL;
+		unpend_thread_no_timeout(thread);
 	}
 }
 
@@ -643,15 +723,17 @@ ALWAYS_INLINE void z_unpend_thread_no_timeout(struct k_thread *thread)
 /* Timeout handler for *_thread_timeout() APIs */
 void z_thread_timeout(struct _timeout *timeout)
 {
-	struct k_thread *thread = CONTAINER_OF(timeout,
-					       struct k_thread, base.timeout);
+	LOCKED(&sched_spinlock) {
+		struct k_thread *thread = CONTAINER_OF(timeout,
+						struct k_thread, base.timeout);
 
-	if (thread->base.pended_on != NULL) {
-		z_unpend_thread_no_timeout(thread);
+		if (thread->base.pended_on != NULL) {
+			unpend_thread_no_timeout(thread);
+		}
+		z_mark_thread_as_started(thread);
+		z_mark_thread_as_not_suspended(thread);
+		ready_thread(thread);
 	}
-	z_mark_thread_as_started(thread);
-	z_mark_thread_as_not_suspended(thread);
-	z_ready_thread(thread);
 }
 #endif
 
@@ -829,29 +911,33 @@ struct k_thread *z_get_next_ready_thread(void)
 /* Just a wrapper around _current = xxx with tracing */
 static inline void set_current(struct k_thread *new_thread)
 {
-	sys_trace_thread_switched_out();
+	z_thread_mark_switched_out();
 	_current_cpu->current = new_thread;
 }
 
 #ifdef CONFIG_USE_SWITCH
 void *z_get_next_switch_handle(void *interrupted)
 {
-	_current->switch_handle = interrupted;
-
 	z_check_stack_sentinel();
 
 #ifdef CONFIG_SMP
 	LOCKED(&sched_spinlock) {
-		struct k_thread *thread = next_up();
+		struct k_thread *old_thread = _current, *new_thread;
 
-		if (_current != thread) {
-			update_metairq_preempt(thread);
+		old_thread->switch_handle = NULL;
+		new_thread = next_up();
+
+		if (old_thread != new_thread) {
+			update_metairq_preempt(new_thread);
+			wait_for_switch(new_thread);
+			arch_cohere_stacks(old_thread, interrupted, new_thread);
 
 #ifdef CONFIG_TIMESLICING
 			z_reset_time_slice();
 #endif
 			_current_cpu->swap_ok = 0;
-			set_current(thread);
+			set_current(new_thread);
+
 #ifdef CONFIG_SPIN_VALIDATE
 			/* Changed _current!  Update the spinlock
 			 * bookeeping so the validation doesn't get
@@ -861,15 +947,12 @@ void *z_get_next_switch_handle(void *interrupted)
 			z_spin_lock_set_owner(&sched_spinlock);
 #endif
 		}
+		old_thread->switch_handle = interrupted;
 	}
 #else
-	struct k_thread *thread = z_get_next_ready_thread();
-	if (_current != thread) {
-		set_current(thread);
-	}
+	_current->switch_handle = interrupted;
+	set_current(z_get_next_ready_thread());
 #endif
-
-	wait_for_switch(_current);
 	return _current->switch_handle;
 }
 #endif
@@ -1170,14 +1253,19 @@ static inline void z_vrfy_k_yield(void)
 #include <syscalls/k_yield_mrsh.c>
 #endif
 
-static int32_t z_tick_sleep(int32_t ticks)
+static int32_t z_tick_sleep(k_ticks_t ticks)
 {
 #ifdef CONFIG_MULTITHREADING
-	uint32_t expected_wakeup_time;
+	uint32_t expected_wakeup_ticks;
 
 	__ASSERT(!arch_is_in_isr(), "");
 
-	LOG_DBG("thread %p for %d ticks", _current, ticks);
+#ifndef CONFIG_TIMEOUT_64BIT
+	/* LOG subsys does not handle 64-bit values
+	 * https://github.com/zephyrproject-rtos/zephyr/issues/26246
+	 */
+	LOG_DBG("thread %p for %u ticks", _current, ticks);
+#endif
 
 	/* wait of 0 ms is treated as a 'yield' */
 	if (ticks == 0) {
@@ -1185,36 +1273,24 @@ static int32_t z_tick_sleep(int32_t ticks)
 		return 0;
 	}
 
-	k_timeout_t timeout;
+	k_timeout_t timeout = Z_TIMEOUT_TICKS(ticks);
 
-#ifndef CONFIG_LEGACY_TIMEOUT_API
-	timeout = Z_TIMEOUT_TICKS(ticks);
-#else
-	ticks += _TICK_ALIGN;
-	timeout = (k_ticks_t) ticks;
-#endif
+	expected_wakeup_ticks = ticks + z_tick_get_32();
 
-	expected_wakeup_time = ticks + z_tick_get_32();
-
-	/* Spinlock purely for local interrupt locking to prevent us
-	 * from being interrupted while _current is in an intermediate
-	 * state.  Should unify this implementation with pend().
-	 */
-	struct k_spinlock local_lock = {};
-	k_spinlock_key_t key = k_spin_lock(&local_lock);
+	k_spinlock_key_t key = k_spin_lock(&sched_spinlock);
 
 #if defined(CONFIG_TIMESLICING) && defined(CONFIG_SWAP_NONATOMIC)
 	pending_current = _current;
 #endif
-	z_remove_thread_from_ready_q(_current);
+	unready_thread(_current);
 	z_add_thread_timeout(_current, timeout);
 	z_mark_thread_as_suspended(_current);
 
-	(void)z_swap(&local_lock, key);
+	(void)z_swap(&sched_spinlock, key);
 
 	__ASSERT(!z_is_thread_state_set(_current, _THREAD_SUSPENDED), "");
 
-	ticks = expected_wakeup_time - z_tick_get_32();
+	ticks = (k_ticks_t)expected_wakeup_ticks - z_tick_get_32();
 	if (ticks > 0) {
 		return ticks;
 	}
@@ -1230,16 +1306,13 @@ int32_t z_impl_k_sleep(k_timeout_t timeout)
 	__ASSERT(!arch_is_in_isr(), "");
 	sys_trace_void(SYS_TRACE_ID_SLEEP);
 
+	/* in case of K_FOREVER, we suspend */
 	if (K_TIMEOUT_EQ(timeout, K_FOREVER)) {
 		k_thread_suspend(_current);
 		return (int32_t) K_TICKS_FOREVER;
 	}
 
-#ifdef CONFIG_LEGACY_TIMEOUT_API
-	ticks = k_ms_to_ticks_ceil32(timeout);
-#else
 	ticks = timeout.ticks;
-#endif
 
 	ticks = z_tick_sleep(ticks);
 	sys_trace_end_call(SYS_TRACE_ID_SLEEP);
@@ -1324,9 +1397,6 @@ void z_sched_abort(struct k_thread *thread)
 	 * it locally.  Not all architectures support that, alas.  If
 	 * we don't have it, we need to wait for some other interrupt.
 	 */
-	key = k_spin_lock(&sched_spinlock);
-	thread->base.thread_state |= _THREAD_ABORTING;
-	k_spin_unlock(&sched_spinlock, key);
 #ifdef CONFIG_SCHED_IPI_SUPPORTED
 	arch_sched_ipi();
 #endif
@@ -1349,16 +1419,6 @@ void z_sched_abort(struct k_thread *thread)
 			k_spin_unlock(&sched_spinlock, key);
 			k_busy_wait(100);
 		}
-	}
-
-	/* If the thread self-aborted (e.g. its own exit raced with
-	 * this external abort) then even though it is flagged DEAD,
-	 * it's still running until its next swap and thus the thread
-	 * object is still in use.  We have to resort to a fallback
-	 * delay in that circumstance.
-	 */
-	if ((thread->base.thread_state & _THREAD_ABORTED_IN_ISR) == 0U) {
-		k_busy_wait(THREAD_ABORT_DELAY_US);
 	}
 }
 #endif
@@ -1518,7 +1578,7 @@ static bool thread_obj_validate(struct k_thread *thread)
 #endif
 		Z_OOPS(Z_SYSCALL_VERIFY_MSG(ret, "access denied"));
 	}
-	CODE_UNREACHABLE;
+	CODE_UNREACHABLE; /* LCOV_EXCL_LINE */
 }
 
 static inline int z_vrfy_k_thread_join(struct k_thread *thread,

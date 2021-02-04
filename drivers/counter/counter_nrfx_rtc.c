@@ -534,7 +534,7 @@ static int init_rtc(const struct device *dev, uint32_t prescaler)
 	NRF_RTC_Type *rtc = nrfx_config->rtc;
 	int err;
 
-	z_nrf_clock_control_lf_on(NRF_LFCLK_START_MODE_NOWAIT);
+	z_nrf_clock_control_lf_on(CLOCK_CONTROL_NRF_LF_START_NOWAIT);
 
 	nrf_rtc_prescaler_set(rtc, prescaler);
 
@@ -665,11 +665,10 @@ static const struct counter_driver_api counter_nrfx_driver_api = {
 	BUILD_ASSERT((RTC_PROP(idx, prescaler) - 1) <=			       \
 		     RTC_PRESCALER_PRESCALER_Msk,			       \
 		     "RTC prescaler out of range");			       \
-	DEVICE_DECLARE(rtc_##idx);					       \
 	static int counter_##idx##_init(const struct device *dev)	       \
 	{								       \
 		IRQ_CONNECT(DT_IRQN(RTC(idx)), DT_IRQ(RTC(idx), priority),     \
-			    irq_handler, DEVICE_GET(rtc_##idx), 0);	       \
+			    irq_handler, DEVICE_DT_GET(RTC(idx)), 0);	       \
 		return init_rtc(dev, RTC_PROP(idx, prescaler) - 1);	       \
 	}								       \
 	static struct counter_nrfx_data counter_##idx##_data;		       \
@@ -693,9 +692,9 @@ static const struct counter_driver_api counter_nrfx_driver_api = {
 			   (.fixed_top = RTC_PROP(idx, fixed_top),))	       \
 		LOG_INSTANCE_PTR_INIT(log, LOG_MODULE_NAME, idx)	       \
 	};								       \
-	DEVICE_AND_API_INIT(rtc_##idx,					       \
-			    DT_LABEL(RTC(idx)),				       \
+	DEVICE_DT_DEFINE(RTC(idx),					       \
 			    counter_##idx##_init,			       \
+			    device_pm_control_nop,			       \
 			    &counter_##idx##_data,			       \
 			    &nrfx_counter_##idx##_config.info,		       \
 			    PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,  \
