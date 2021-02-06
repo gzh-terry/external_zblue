@@ -112,7 +112,7 @@ static void prepare_for_transfer(const struct device *dev)
 	struct spi_context *ctx = &dev_data->ctx;
 	int status;
 
-	size_t buf_len = spi_context_longest_current_buf(ctx);
+	size_t buf_len = spi_context_max_continuous_chunk(ctx);
 
 	if (buf_len > 0) {
 		nrfx_err_t result;
@@ -151,7 +151,7 @@ static int transceive(const struct device *dev,
 	struct spi_nrfx_data *dev_data = get_dev_data(dev);
 	int error;
 
-	spi_context_lock(&dev_data->ctx, asynchronous, signal);
+	spi_context_lock(&dev_data->ctx, asynchronous, signal, spi_cfg);
 
 	error = configure(dev, spi_cfg);
 	if (error != 0) {
@@ -287,9 +287,9 @@ static int init_spis(const struct device *dev,
 		.spis = NRFX_SPIS_INSTANCE(idx),			       \
 		.max_buf_len = (1 << SPIS##idx##_EASYDMA_MAXCNT_SIZE) - 1,     \
 	};								       \
-	DEVICE_AND_API_INIT(spi_##idx,					       \
-			    DT_LABEL(SPIS(idx)),			       \
+	DEVICE_DT_DEFINE(SPIS(idx),					       \
 			    spi_##idx##_init,				       \
+			    device_pm_control_nop,			       \
 			    &spi_##idx##_data,				       \
 			    &spi_##idx##z_config,			       \
 			    POST_KERNEL,				       \

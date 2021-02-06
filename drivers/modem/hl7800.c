@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#define DT_DRV_COMPAT swi_hl7800
+#define DT_DRV_COMPAT swir_hl7800
 
 #include <logging/log.h>
 LOG_MODULE_REGISTER(modem_hl7800, CONFIG_MODEM_LOG_LEVEL);
@@ -257,8 +257,6 @@ static const struct mdm_control_pinconfig pinconfig[] = {
 #define MDM_MTU 1500
 #define MDM_MAX_RESP_SIZE 128
 
-#define MDM_RECV_MAX_BUF 30
-#define MDM_RECV_BUF_SIZE 128
 #define MDM_HANDLER_MATCH_MAX_LEN 100
 
 #define MDM_MAX_SOCKETS 6
@@ -313,11 +311,12 @@ static const struct mdm_control_pinconfig pinconfig[] = {
 #define PROFILE_LINE_2                                                         \
 	"S00:255 S01:255 S03:255 S04:255 S05:255 S07:255 S08:255 S10:255\r\n"
 
-#define SETUP_GPRS_CONNECTION_CMD "AT+KCNXCFG=1,\"GPRS\",\"\""
+#define SETUP_GPRS_CONNECTION_CMD "AT+KCNXCFG=1,\"GPRS\",\"\",,,\"IPV4V6\""
 
 #define MAX_PROFILE_LINE_LENGTH                                                \
 	MAX(sizeof(PROFILE_LINE_1), sizeof(PROFILE_LINE_2))
 
+#ifdef CONFIG_NEWLIB_LIBC
 /* The ? can be a + or - */
 static const char TIME_STRING_FORMAT[] = "\"yy/MM/dd,hh:mm:ss?zz\"";
 #define TIME_STRING_DIGIT_STRLEN 2
@@ -336,6 +335,7 @@ static const char TIME_STRING_FORMAT[] = "\"yy/MM/dd,hh:mm:ss?zz\"";
 #define TM_SEC_RANGE 0, 60 /* leap second */
 #define QUARTER_HOUR_RANGE 0, 96
 #define SECONDS_PER_QUARTER_HOUR (15 * 60)
+#endif
 
 #define SEND_AT_CMD_ONCE_EXPECT_OK(c)                                          \
 	do {                                                                   \
@@ -377,8 +377,8 @@ static const char TIME_STRING_FORMAT[] = "\"yy/MM/dd,hh:mm:ss?zz\"";
 		}                                                              \
 	} while (0)
 
-NET_BUF_POOL_DEFINE(mdm_recv_pool, MDM_RECV_MAX_BUF, MDM_RECV_BUF_SIZE, 0,
-		    NULL);
+NET_BUF_POOL_DEFINE(mdm_recv_pool, CONFIG_MODEM_HL7800_RECV_BUF_CNT,
+		    CONFIG_MODEM_HL7800_RECV_BUF_SIZE, 0, NULL);
 
 static uint8_t mdm_recv_buf[MDM_MAX_DATA_LENGTH];
 
@@ -869,7 +869,7 @@ static int send_at_cmd(struct hl7800_socket *sock, const uint8_t *data,
 		}
 		if (no_id_resp) {
 			strncpy(ictx.no_id_resp_cmd, data,
-				sizeof(ictx.no_id_resp_cmd));
+				sizeof(ictx.no_id_resp_cmd) - 1);
 			ictx.search_no_id_resp = true;
 		}
 
@@ -1484,7 +1484,7 @@ done:
 
 static void dns_work_cb(struct k_work *work)
 {
-#ifdef CONFIG_DNS_RESOLVER
+#if defined(CONFIG_DNS_RESOLVER) && !defined(CONFIG_DNS_SERVER_IP_ADDRESSES)
 	int ret;
 	struct dns_resolve_context *dnsCtx;
 	const char *dns_servers_str[] = { ictx.dns_string };
@@ -2387,7 +2387,6 @@ static bool valid_time_string(const char *time_string)
 	}
 	return false;
 }
-#endif
 
 int get_next_time_string_digit(int *failure_cnt, char **pp, int min, int max)
 {
@@ -2409,7 +2408,6 @@ int get_next_time_string_digit(int *failure_cnt, char **pp, int min, int max)
 	}
 }
 
-#ifdef CONFIG_NEWLIB_LIBC
 static bool convert_time_string_to_struct(struct tm *tm, int32_t *offset,
 					  char *time_string)
 {
@@ -2778,7 +2776,7 @@ static void sock_read(struct net_buf **buf, uint16_t len)
 	sock = socket_from_id(ictx.last_socket_id);
 	if (!sock) {
 		LOG_ERR("Socket not found! (%d)", ictx.last_socket_id);
-		goto done;
+		goto exit;
 	}
 
 	if (sock->error) {
@@ -2915,6 +2913,7 @@ done:
 	} else {
 		sock->state = SOCK_IDLE;
 	}
+exit:
 	allow_sleep(true);
 	hl7800_TX_unlock();
 }
@@ -2959,8 +2958,12 @@ static int start_socket_rx(struct hl7800_socket *sock, uint16_t rx_size)
 			sock->rx_size =
 				net_if_get_mtu(ictx.iface) - NET_IPV4UDPH_LEN;
 		}
-#else
-#warning IPV6 not supported in HL7800 driver
+#endif
+#if defined(CONFIG_NET_IPV6)
+		if (rx_size > (net_if_get_mtu(ictx.iface) - NET_IPV6UDPH_LEN)) {
+			sock->rx_size =
+				net_if_get_mtu(ictx.iface) - NET_IPV6UDPH_LEN;
+		}
 #endif
 		snprintk(sendbuf, sizeof(sendbuf), "AT+KUDPRCV=%d,%u",
 			 sock->socket_id, rx_size);
@@ -2970,8 +2973,12 @@ static int start_socket_rx(struct hl7800_socket *sock, uint16_t rx_size)
 			sock->rx_size =
 				net_if_get_mtu(ictx.iface) - NET_IPV4TCPH_LEN;
 		}
-#else
-#warning IPV6 not supported in HL7800 driver
+#endif
+#if defined(CONFIG_NET_IPV6)
+		if (rx_size > (net_if_get_mtu(ictx.iface) - NET_IPV6TCPH_LEN)) {
+			sock->rx_size =
+				net_if_get_mtu(ictx.iface) - NET_IPV6TCPH_LEN;
+		}
 #endif
 		snprintk(sendbuf, sizeof(sendbuf), "AT+KTCPRCV=%d,%u",
 			 sock->socket_id, sock->rx_size);
@@ -3109,7 +3116,7 @@ static inline struct net_buf *read_rx_allocator(k_timeout_t timeout,
 
 static size_t hl7800_read_rx(struct net_buf **buf)
 {
-	uint8_t uart_buffer[MDM_RECV_BUF_SIZE];
+	uint8_t uart_buffer[CONFIG_MODEM_HL7800_RECV_BUF_SIZE];
 	size_t bytes_read, total_read;
 	int ret;
 	uint16_t rx_len;
@@ -3279,6 +3286,9 @@ static void hl7800_rx(void)
 	static char rx_msg[MDM_HANDLER_MATCH_MAX_LEN];
 	bool unlock = false;
 	bool remove_line_from_buf = true;
+#ifdef HL7800_LOG_UNHANDLED_RX_MSGS
+	char msg[MDM_MAX_RESP_SIZE];
+#endif
 
 	static const struct cmd_handler handlers[] = {
 		/* MODEM Information */
@@ -3440,7 +3450,6 @@ static void hl7800_rx(void)
 			/* Handle unhandled commands */
 			if (IS_ENABLED(HL7800_LOG_UNHANDLED_RX_MSGS) &&
 			    !cmd_handled && frag && len > 1) {
-				char msg[len + 1];
 				out_len = net_buf_linearize(msg, sizeof(msg),
 							    rx_buf, 0, len);
 				msg[out_len] = 0;
@@ -3464,7 +3473,7 @@ static void hl7800_rx(void)
 
 static void shutdown_uart(void)
 {
-#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
+#ifdef CONFIG_PM_DEVICE
 	int rc;
 
 	if (ictx.uart_on) {
@@ -3482,7 +3491,7 @@ static void shutdown_uart(void)
 
 static void power_on_uart(void)
 {
-#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
+#ifdef CONFIG_PM_DEVICE
 	int rc;
 
 	if (!ictx.uart_on) {
@@ -3528,8 +3537,7 @@ static void mdm_vgpio_work_cb(struct k_work *item)
 	hl7800_unlock();
 }
 
-void mdm_vgpio_callback_isr(const struct device *port,
-			    struct gpio_callback *cb,
+void mdm_vgpio_callback_isr(const struct device *port, struct gpio_callback *cb,
 			    uint32_t pins)
 {
 	ictx.vgpio_state = (uint32_t)gpio_pin_get(ictx.gpio_port_dev[MDM_VGPIO],
@@ -3558,8 +3566,7 @@ void mdm_vgpio_callback_isr(const struct device *port,
 }
 
 void mdm_uart_dsr_callback_isr(const struct device *port,
-			       struct gpio_callback *cb,
-			       uint32_t pins)
+			       struct gpio_callback *cb, uint32_t pins)
 {
 	ictx.dsr_state = (uint32_t)gpio_pin_get(
 		ictx.gpio_port_dev[MDM_UART_DSR], pinconfig[MDM_UART_DSR].pin);
@@ -3583,8 +3590,7 @@ static void mark_sockets_for_reconfig(void)
 }
 #endif
 
-void mdm_gpio6_callback_isr(const struct device *port,
-			    struct gpio_callback *cb,
+void mdm_gpio6_callback_isr(const struct device *port, struct gpio_callback *cb,
 			    uint32_t pins)
 {
 #ifdef CONFIG_MODEM_HL7800_LOW_POWER_MODE
@@ -3607,11 +3613,9 @@ void mdm_gpio6_callback_isr(const struct device *port,
 #else
 	HL7800_IO_DBG_LOG("Spurious gpio6 interrupt from the modem");
 #endif
-#endif
 }
 
-void mdm_uart_cts_callback(const struct device *port,
-			   struct gpio_callback *cb,
+void mdm_uart_cts_callback(const struct device *port, struct gpio_callback *cb,
 			   uint32_t pins)
 {
 	ictx.cts_state = (uint32_t)gpio_pin_get(
@@ -3999,7 +4003,7 @@ static int write_apn(char *access_point_name)
 
 	/* PDP Context */
 	memset(cmd_string, 0, MDM_HL7800_APN_CMD_MAX_SIZE);
-	strncat(cmd_string, "AT+CGDCONT=1,\"IP\",\"",
+	strncat(cmd_string, "AT+CGDCONT=1,\"IPV4V6\",\"",
 		MDM_HL7800_APN_CMD_MAX_STRLEN);
 	strncat(cmd_string, access_point_name, MDM_HL7800_APN_CMD_MAX_STRLEN);
 	strncat(cmd_string, "\"", MDM_HL7800_APN_CMD_MAX_STRLEN);
@@ -4544,7 +4548,6 @@ static int offload_put(struct net_context *context)
 	struct hl7800_socket *sock;
 	char cmd1[sizeof("AT+KTCPCLOSE=##")];
 	char cmd2[sizeof("AT+KTCPDEL=##")];
-	int ret;
 
 	if (!context) {
 		return -EINVAL;
@@ -4561,15 +4564,6 @@ static int offload_put(struct net_context *context)
 
 	hl7800_lock();
 
-	/* if IP connection needs to be reconfigured,
-	 * we dont need to issue the close command,
-	 * just need to cleanup
-	 */
-	if (ictx.reconfig_IP_connection || !net_if_is_up(ictx.iface)) {
-		LOG_DBG("Skip issuing close socket cmd");
-		goto cleanup;
-	}
-
 	/* close connection */
 	if (sock->type == SOCK_STREAM) {
 		snprintk(cmd1, sizeof(cmd1), "AT+KTCPCLOSE=%d",
@@ -4582,25 +4576,14 @@ static int offload_put(struct net_context *context)
 
 	wakeup_hl7800();
 
-	if (sock->state != SOCK_SERVER_CLOSED) {
-		ret = send_at_cmd(sock, cmd1, MDM_CMD_SEND_TIMEOUT, 0, false);
-		if (ret < 0) {
-			LOG_ERR("AT+K**PCLOSE ret:%d", ret);
-		}
-	}
+	send_at_cmd(sock, cmd1, MDM_CMD_SEND_TIMEOUT, 0, false);
 
 	if (sock->type == SOCK_STREAM) {
 		/* delete session */
-		ret = send_at_cmd(sock, cmd2, MDM_CMD_SEND_TIMEOUT, 0, false);
-		if (ret < 0) {
-			LOG_ERR("AT+K**PDEL ret:%d", ret);
-		}
+		send_at_cmd(sock, cmd2, MDM_CMD_SEND_TIMEOUT, 0, false);
 	}
 	allow_sleep(true);
-cleanup:
-	sock->context->connect_cb = NULL;
-	sock->context->recv_cb = NULL;
-	sock->context->send_cb = NULL;
+
 	socket_put(sock);
 	net_context_unref(context);
 	if (sock->type == SOCK_STREAM) {
@@ -4631,7 +4614,7 @@ static struct net_offload offload_funcs = {
 
 static inline uint8_t *hl7800_get_mac(const struct device *dev)
 {
-	struct hl7800_iface_ctx *ctx = dev->driver_data;
+	struct hl7800_iface_ctx *ctx = dev->data;
 
 	/* use the last 6 digits of the IMEI as the mac address */
 	ctx->mac_addr[0] = ictx.mdm_imei[MDM_HL7800_IMEI_STRLEN - 6];
@@ -4665,7 +4648,7 @@ int32_t mdm_hl7800_update_fw(char *file_path)
 		goto err;
 	}
 
-	ret = fs_open(&ictx.fw_update_file, file_path);
+	ret = fs_open(&ictx.fw_update_file, file_path, FS_O_READ);
 	if (ret < 0) {
 		LOG_ERR("%s open err: %d", log_strdup(file_path), ret);
 		goto err;
@@ -4863,7 +4846,9 @@ static int hl7800_init(const struct device *dev)
 	ictx.mdm_ctx.data_manufacturer = ictx.mdm_manufacturer;
 	ictx.mdm_ctx.data_model = ictx.mdm_model;
 	ictx.mdm_ctx.data_revision = ictx.mdm_revision;
+#ifdef CONFIG_MODEM_SIM_NUMBERS
 	ictx.mdm_ctx.data_imei = ictx.mdm_imei;
+#endif
 
 	ret = mdm_receiver_register(&ictx.mdm_ctx, MDM_UART_DEV_NAME,
 				    mdm_recv_buf, sizeof(mdm_recv_buf));
@@ -4888,7 +4873,7 @@ static int hl7800_init(const struct device *dev)
 static void offload_iface_init(struct net_if *iface)
 {
 	const struct device *dev = net_if_get_device(iface);
-	struct hl7800_iface_ctx *ctx = dev->driver_data;
+	struct hl7800_iface_ctx *ctx = dev->data;
 
 	iface->if_dev->offload = &offload_funcs;
 	net_if_set_link_addr(iface, hl7800_get_mac(dev), sizeof(ctx->mac_addr),
@@ -4901,6 +4886,7 @@ static struct net_if_api api_funcs = {
 	.init = offload_iface_init,
 };
 
-NET_DEVICE_OFFLOAD_INIT(modem_hl7800, "MODEM_HL7800", hl7800_init,
-			device_pm_control_nop, &ictx, NULL,
-			CONFIG_MODEM_HL7800_INIT_PRIORITY, &api_funcs, MDM_MTU);
+NET_DEVICE_DT_INST_OFFLOAD_DEFINE(0, hl7800_init, device_pm_control_nop,
+				  &ictx, NULL,
+				  CONFIG_MODEM_HL7800_INIT_PRIORITY, &api_funcs,
+				  MDM_MTU);

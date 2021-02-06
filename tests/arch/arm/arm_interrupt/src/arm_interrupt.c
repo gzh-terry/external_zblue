@@ -153,6 +153,8 @@ void set_regs_with_known_pattern(void)
 
 void test_arm_esf_collection(void)
 {
+	int test_validation_rv;
+
 	/* if the check in the fault handler succeeds,
 	 * this will be set to TC_PASS
 	 */
@@ -178,13 +180,25 @@ void test_arm_esf_collection(void)
 			(k_thread_entry_t)set_regs_with_known_pattern,
 			NULL, NULL, NULL, K_PRIO_COOP(PRIORITY), 0,
 			K_NO_WAIT);
-	zassert_not_equal(esf_validation_rv, TC_FAIL,
+
+	test_validation_rv = esf_validation_rv;
+
+	zassert_not_equal(test_validation_rv, TC_FAIL,
 		"ESF fault collection failed");
 }
 
 void arm_isr_handler(const void *args)
 {
 	ARG_UNUSED(args);
+
+#if defined(CONFIG_CPU_CORTEX_M) && defined(CONFIG_FPU) && \
+	defined(CONFIG_FPU_SHARING)
+	/* Clear Floating Point Status and Control Register (FPSCR),
+	 * to prevent from having the interrupt line set to pending again,
+	 * in case FPU IRQ is selected by the test as "Available IRQ line"
+	 */
+	__set_FPSCR(0);
+#endif
 
 	test_flag++;
 

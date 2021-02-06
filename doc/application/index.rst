@@ -266,12 +266,17 @@ should know about.
   built-in boards, and :ref:`board_porting_guide` for information on
   adding board support.
 
-* :makevar:`CONF_FILE`: Indicates the name of one or more configuration
+* :makevar:`CONF_FILE`: Indicates the name of one or more Kconfig configuration
   fragment files. Multiple filenames can be separated with either spaces or
   semicolons. Each file includes Kconfig configuration values that override
   the default configuration values.
 
   See :ref:`initial-conf` for more information.
+
+* :makevar:`OVERLAY_CONFIG`: Additional Kconfig configuration fragment files.
+  Multiple filenames can be separated with either spaces or semicolons. This
+  can be useful in order to leave :makevar:`CONF_FILE` at its default value,
+  but "mix in" some additional configuration options.
 
 * :makevar:`DTC_OVERLAY_FILE`: One or more devicetree overlay files to use.
   Multiple files can be separated with semicolons.
@@ -481,6 +486,36 @@ following procedure:
 #. Rebuild the application normally following the steps specified
    in :ref:`build_an_application` above.
 
+.. _application_board_version:
+
+Building for a board revision
+=============================
+
+The Zephyr build system has support for specifying multiple hardware revisions
+of a single board with small variations. Using revisions allows the board
+support files to make minor adjustments to a board configuration without
+duplicating all the files described in :ref:`create-your-board-directory` for
+each revision.
+
+To build for a particular revision, use ``<board>@<revision>`` instead of plain
+``<board>``. For example:
+
+.. zephyr-app-commands::
+   :tool: all
+   :cd-into:
+   :board: <board>@<revision>
+   :goals: build
+   :compact:
+
+Check your board's documentation for details on whether it has multiple
+revisions, and what revisions are supported.
+
+When targeting a board revision, the active revision will be printed at CMake
+configure time, like this:
+
+.. code-block:: console
+
+   -- Board: plank, Revision: 1.5.0
 
 .. _application_run:
 
@@ -673,6 +708,12 @@ You can also define the ``BOARD_ROOT`` variable in the application
 :file:`CMakeLists.txt` file. Make sure to do so **before** pulling in the Zephyr
 boilerplate with ``find_package(Zephyr ...)``.
 
+.. note::
+
+   When specifying ``BOARD_ROOT`` in a CMakeLists.txt, then an absolute path must
+   be provided, for example ``list(APPEND BOARD_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/<extra-board-root>``.
+   When using ``-DBOARD_ROOT=<board-root>`` both absolute and relative paths can
+   be used. Relative paths are treated relatively to the application directory.
 
 SOC Definitions
 ===============
@@ -750,6 +791,13 @@ Or you can define the ``SOC_ROOT`` variable in the application
 :file:`CMakeLists.txt` file. Make sure to do so **before** pulling in the
 Zephyr boilerplate with ``find_package(Zephyr ...)``.
 
+.. note::
+
+   When specifying ``SOC_ROOT`` in a CMakeLists.txt, then an absolute path must
+   be provided, for example ``list(APPEND SOC_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/<extra-soc-root>``.
+   When using ``-DSOC_ROOT=<soc-root>`` both absolute and relative paths can be
+   used. Relative paths are treated relatively to the application directory.
+
 .. _dts_root:
 
 Devicetree Definitions
@@ -782,6 +830,13 @@ its location through the ``DTS_ROOT`` CMake Cache variable:
 You can also define the variable in the application :file:`CMakeLists.txt`
 file. Make sure to do so **before** pulling in the Zephyr boilerplate with
 ``find_package(Zephyr ...)``.
+
+.. note::
+
+   When specifying ``DTS_ROOT`` in a CMakeLists.txt, then an absolute path must
+   be provided, for example ``list(APPEND DTS_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/<extra-dts-root>``.
+   When using ``-DDTS_ROOT=<dts-root>`` both absolute and relative paths can be
+   used. Relative paths are treated relatively to the application directory.
 
 Devicetree source are passed through the C preprocessor, so you can
 include files that can be located in a ``DTS_ROOT`` directory.  By
