@@ -151,9 +151,6 @@ void test_poll(void)
 	zassert_equal(res, 1, "");
 	zassert_equal(pollout[0].revents, POLLOUT, "");
 
-	/* Let the network stack run */
-	k_msleep(10);
-
 	res = close(c_sock_tcp);
 	zassert_equal(res, 0, "close failed");
 
@@ -170,6 +167,7 @@ void test_poll(void)
 	zassert_equal(res, 1, "");
 	zassert_equal(pollfds[0].revents, POLLNVAL, "");
 	zassert_equal(pollfds[1].revents, 0, "");
+
 
 	res = close(s_sock);
 	zassert_equal(res, 0, "close failed");

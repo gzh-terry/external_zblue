@@ -18,12 +18,6 @@
 #define BUF_ARRAY_CNT 16
 #define TEST_ARR_SIZE 0x1000
 
-#ifdef DT_CHOSEN_ZEPHYR_FLASH_CONTROLLER_LABEL
-#define FLASH_DEV_NAME DT_CHOSEN_ZEPHYR_FLASH_CONTROLLER_LABEL
-#else
-#define FLASH_DEV_NAME ""
-#endif
-
 static uint8_t __aligned(4) test_arr[TEST_ARR_SIZE];
 
 static int parse_helper(const struct shell *shell, size_t *argc,
@@ -34,7 +28,7 @@ static int parse_helper(const struct shell *shell, size_t *argc,
 
 	*addr = strtoul((*argv)[1], &endptr, 16);
 	*flash_dev = device_get_binding((*endptr != '\0') ? (*argv)[1] :
-			FLASH_DEV_NAME);
+			DT_CHOSEN_ZEPHYR_FLASH_CONTROLLER_LABEL);
 	if (!*flash_dev) {
 		shell_error(shell, "Flash driver was not found!");
 		return -ENODEV;
@@ -80,11 +74,9 @@ static int cmd_erase(const struct shell *shell, size_t argc, char *argv[])
 		size = info.size;
 	}
 
-	flash_write_protection_set(flash_dev, false);
+	flash_write_protection_set(flash_dev, 0);
 
 	result = flash_erase(flash_dev, page_addr, size);
-
-	flash_write_protection_set(flash_dev, true);
 
 	if (result) {
 		shell_error(shell, "Erase Failed, code %d.", result);
@@ -120,7 +112,7 @@ static int cmd_write(const struct shell *shell, size_t argc, char *argv[])
 		j++;
 	}
 
-	flash_write_protection_set(flash_dev, false);
+	flash_write_protection_set(flash_dev, 0);
 
 	if (flash_write(flash_dev, w_addr, buf_array,
 			sizeof(buf_array[0]) * j) != 0) {
@@ -201,43 +193,32 @@ static int cmd_test(const struct shell *shell, size_t argc, char *argv[])
 		return -EINVAL;
 	}
 
+	flash_write_protection_set(flash_dev, 0);
+
 	for (uint32_t i = 0; i < size; i++) {
 		test_arr[i] = (uint8_t)i;
 	}
 
-	result = 0;
-
 	while (repeat--) {
-		flash_write_protection_set(flash_dev, false);
-
 		result = flash_erase(flash_dev, addr, size);
-
 		if (result) {
 			shell_error(shell, "Erase Failed, code %d.", result);
-			break;
+			return -EIO;
 		}
 
 		shell_print(shell, "Erase OK.");
 
-		flash_write_protection_set(flash_dev, false);
-
-		result = flash_write(flash_dev, addr, test_arr, size);
-
-		if (result) {
+		if (flash_write(flash_dev, addr, test_arr, size) != 0) {
 			shell_error(shell, "Write internal ERROR!");
-			break;
+			return -EIO;
 		}
 
 		shell_print(shell, "Write OK.");
 	}
 
-	flash_write_protection_set(flash_dev, true);
+	shell_print(shell, "Erase-Write test done.");
 
-	if (result == 0) {
-		shell_print(shell, "Erase-Write test done.");
-	}
-
-	return result;
+	return 0;
 }
 
 static void device_name_get(size_t idx, struct shell_static_entry *entry);

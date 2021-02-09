@@ -13,8 +13,16 @@
 
 #define DT_DRV_COMPAT snps_designware_i2c
 
-#if DT_ANY_INST_ON_BUS_STATUS_OKAY(pcie)
+#if DT_INST_PROP(0, pcie) || \
+	DT_INST_PROP(1, pcie) || \
+	DT_INST_PROP(2, pcie) || \
+	DT_INST_PROP(3, pcie) || \
+	DT_INST_PROP(4, pcie) || \
+	DT_INST_PROP(5, pcie) || \
+	DT_INST_PROP(6, pcie) || \
+	DT_INST_PROP(7, pcie)
 BUILD_ASSERT(IS_ENABLED(CONFIG_PCIE), "DW I2C in DT needs CONFIG_PCIE");
+#define I2C_DW_PCIE_ENABLED
 #include <drivers/pcie/pcie.h>
 #endif
 
@@ -90,7 +98,7 @@ struct i2c_dw_rom_config {
 	DEVICE_MMIO_ROM;
 	i2c_isr_cb_t	config_func;
 	uint32_t		bitrate;
-#if DT_ANY_INST_ON_BUS_STATUS_OKAY(pcie)
+#ifdef I2C_DW_PCIE_ENABLED
 	bool		pcie;
 	pcie_bdf_t	pcie_bdf;
 	pcie_id_t	pcie_id;

@@ -141,24 +141,22 @@ Pristine Builds
 A *pristine* build directory is essentially a new build directory. All
 byproducts from previous builds have been removed.
 
-To force ``west build`` make the build directory pristine before re-running
-CMake to generate a build system, use the ``--pristine=always`` (or
-``-p=always``) option.
+To have ``west build`` make the build directory pristine before re-running
+CMake to generate a build system, use the ``--pristine`` (or ``-p``)
+option. For example, to switch board and application (which requires a pristine
+build directory) in one command::
 
-Giving ``--pristine`` or ``-p`` without a value has the same effect as giving
-it the value ``always``. For example, these commands are equivalent::
-
+  west build -b qemu_x86 samples/philosophers
   west build -p -b reel_board samples/hello_world
-  west build -p=always -b reel_board samples/hello_world
 
-By default, ``west build`` applies a heuristic to detect if the build directory
-needs to be made pristine. This is the same as using ``--pristine=auto``.
+To let west decide for you if a pristine build is needed, use ``-p auto``::
+
+  west build -p auto -b reel_board samples/hello_world
 
 .. tip::
 
-   You can run ``west config build.pristine always`` to always do a pristine
-   build, or ``west config build.pristine never`` to disable the heuristic.
-   See the ``west build`` :ref:`west-building-config` for details.
+   You can run ``west config build.pristine auto`` to make this setting
+   permanent.
 
 .. _west-building-verbose:
 
@@ -392,14 +390,14 @@ Configuration Overrides
 
 The CMake cache contains default values West uses while flashing, such
 as where the board directory is on the file system, the path to the
-zephyr binaries to flash in several formats, and more. You can
+kernel binaries to flash in several formats, and more. You can
 override any of this configuration at runtime with additional options.
 
 For example, to override the HEX file containing the Zephyr image to
 flash (assuming your runner expects a HEX file), but keep other
 flash configuration at default values::
 
-  west flash --hex-file path/to/some/other.hex
+  west flash --kernel-hex path/to/some/other.hex
 
 The ``west flash -h`` output includes a complete list of overrides
 supported by all runners.
@@ -489,15 +487,15 @@ Configuration Overrides
 
 The CMake cache contains default values West uses for debugging, such
 as where the board directory is on the file system, the path to the
-zephyr binaries containing symbol tables, and more. You can override
+kernel binaries containing symbol tables, and more. You can override
 any of this configuration at runtime with additional options.
 
 For example, to override the ELF file containing the Zephyr binary and
 symbol tables (assuming your runner expects an ELF file), but keep
 other debug configuration at default values::
 
-  west debug --elf-file path/to/some/other.elf
-  west debugserver --elf-file path/to/some/other.elf
+  west debug --kernel-elf path/to/some/other.elf
+  west debugserver --kernel-elf path/to/some/other.elf
 
 The ``west debug -h`` output includes a complete list of overrides
 supported by all runners.
@@ -537,9 +535,9 @@ Flash and debug runners
 ***********************
 
 The flash and debug commands use Python wrappers around various
-:ref:`flash-debug-host-tools`. These wrappers are all defined in a Python
-library at :zephyr_file:`scripts/west_commands/runners`. Each wrapper is
-called a *runner*. Runners can flash and/or debug Zephyr programs.
+:ref:`debug-host-tools`. These wrappers are all defined in a Python library at
+:zephyr_file:`scripts/west_commands/runners`. Each wrapper is called a
+*runner*. Runners can flash and/or debug Zephyr programs.
 
 The central abstraction within this library is ``ZephyrBinaryRunner``, an
 abstract class which represents runners. The set of available runners is

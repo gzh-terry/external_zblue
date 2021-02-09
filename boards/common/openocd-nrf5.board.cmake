@@ -15,16 +15,12 @@ if("${OPENOCD_NRF5_SUBFAMILY}" STREQUAL "")
     "To fix, set CMake variable OPENOCD_NRF5_SUBFAMILY.")
 endif()
 
-if (NOT DEFINED OPENOCD_NRF5_INTERFACE)
-  set(OPENOCD_NRF5_INTERFACE "jlink")
-endif()
-
 # We can do the right thing for supported subfamilies using a generic
 # script, at least for openocd 0.10.0 and the openocd shipped with
 # Zephyr SDK 0.10.3.
 set(pre_init_cmds
   "set WORKAREASIZE 0x4000"	# 16 kB RAM used for flashing
-  "source [find interface/${OPENOCD_NRF5_INTERFACE}.cfg]"
+  "source [find interface/jlink.cfg]"
   "transport select swd"
   "source [find target/${OPENOCD_NRF5_SUBFAMILY}.cfg]"
   "$_TARGETNAME configure -rtos auto"

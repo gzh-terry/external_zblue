@@ -9,7 +9,6 @@ zephyr_library_compile_definitions_ifdef(
 zephyr_library_sources(
   net_core.c
   net_if.c
-  net_timeout.c
   utils.c
   )
 

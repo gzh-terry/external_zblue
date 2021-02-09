@@ -1,5 +1,3 @@
-"Release Notes":
-  - "doc/releases/**/*"
 "area: Modem":
   - "drivers/modem/**/*"
 "area: PWM":
@@ -28,6 +26,7 @@
   - "lib/libc/**/*"
 "area: Devicetree":
   - "dts/**/*"
+  - "!dts/bindings/**/*"
   - "**/*.dts"
   - "**/*.dtsi"
   - "include/devicetree.h"
@@ -57,9 +56,6 @@
 "area: ARM":
   - "arch/arm/**/*"
   - "include/arch/arm/**/*"
-"area: ARM_64":
-  - "arch/arm/core/aarch64/**/*"
-  - "include/arch/arm/aarch64/**/*"
 "area: NIOS2":
   - "arch/nios2/**/*"
   - "include/arch/nios2/**/*"
@@ -102,11 +98,6 @@
   - "**/*bluetooth*"
 "area: Bluetooth Mesh":
   - "subsys/bluetooth/mesh/**/*"
-"area: Bluetooth Controller":
-  - "subsys/bluetooth/controller/**/*"
-"area: Bluetooth Host":
-  - "subsys/bluetooth/host/**/*"
-  - "subsys/bluetooth/services/**/*"
 "area: API":
   - "include/**/*"
 "area: Samples":
@@ -126,9 +117,9 @@
   - "scripts/kconfig/**/*"
   - "Kconfig"
   - "Kconfig.zephyr"
-"area: Twister":
-  - "scripts/twister"
-  - "scripts/pylib/twister/**/*"
+"area: Sanitycheck":
+  - "scripts/sanitycheck"
+  - "scripts/sanity_chk/**/*"
 "area: Modules":
   - "west.yml"
   - "modules/**/*"

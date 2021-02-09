@@ -36,9 +36,6 @@ static void arm_arch_timer_compare_isr(const void *arg)
 			next_cycle += CYC_PER_TICK;
 		}
 		arm_arch_timer_set_compare(next_cycle);
-		arm_arch_timer_set_irq_mask(false);
-	} else {
-		arm_arch_timer_set_irq_mask(true);
 	}
 
 	k_spin_unlock(&lock, key);
@@ -55,16 +52,17 @@ int z_clock_driver_init(const struct device *device)
 	arm_arch_timer_set_compare(arm_arch_timer_count() + CYC_PER_TICK);
 	arm_arch_timer_enable(true);
 	irq_enable(ARM_ARCH_TIMER_IRQ);
-	arm_arch_timer_set_irq_mask(false);
 
 	return 0;
 }
 
 void z_clock_set_timeout(int32_t ticks, bool idle)
 {
+	ARG_UNUSED(idle);
+
 #if defined(CONFIG_TICKLESS_KERNEL)
 
-	if (ticks == K_TICKS_FOREVER && idle) {
+	if (idle) {
 		return;
 	}
 
@@ -85,12 +83,8 @@ void z_clock_set_timeout(int32_t ticks, bool idle)
 	}
 
 	arm_arch_timer_set_compare(req_cycle + last_cycle);
-	arm_arch_timer_set_irq_mask(false);
 	k_spin_unlock(&lock, key);
 
-#else  /* CONFIG_TICKLESS_KERNEL */
-	ARG_UNUSED(ticks);
-	ARG_UNUSED(idle);
 #endif
 }
 

@@ -27,13 +27,13 @@ config SYS_CLOCK_TICKS_PER_SEC
 config ARCH_HAS_CUSTOM_BUSY_WAIT
 	default y
 
-config PM
-	default y if SYS_CLOCK_EXISTS && !HAS_NO_SYS_PM
+config SYS_POWER_MANAGEMENT
+	default y
 
 config BUILD_OUTPUT_HEX
 	default y
 
-if !CORTEX_M_DWT && NRF_RTC_TIMER
+if !CORTEX_M_DWT
 config SOC_HAS_TIMING_FUNCTIONS
 	default y
 endif

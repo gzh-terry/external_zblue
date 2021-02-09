@@ -66,7 +66,7 @@ NET_BUF_POOL_DEFINE(prep_pool, CONFIG_BT_ATT_PREPARE_COUNT, BT_ATT_MTU,
 #endif /* CONFIG_BT_ATT_PREPARE_COUNT */
 
 K_MEM_SLAB_DEFINE(req_slab, sizeof(struct bt_att_req),
-		  CONFIG_BT_ATT_TX_MAX, __alignof__(struct bt_att_req));
+		  CONFIG_BT_ATT_TX_MAX, 16);
 
 enum {
 	ATT_PENDING_RSP,
@@ -107,10 +107,9 @@ struct bt_att {
 };
 
 K_MEM_SLAB_DEFINE(att_slab, sizeof(struct bt_att),
-		  CONFIG_BT_MAX_CONN, __alignof__(struct bt_att));
+		  CONFIG_BT_MAX_CONN, 16);
 K_MEM_SLAB_DEFINE(chan_slab, sizeof(struct bt_att_chan),
-		  CONFIG_BT_MAX_CONN * ATT_CHAN_MAX,
-		  __alignof__(struct bt_att_chan));
+		  CONFIG_BT_MAX_CONN * ATT_CHAN_MAX, 16);
 static struct bt_att_req cancel;
 
 static void att_req_destroy(struct bt_att_req *req)
@@ -132,8 +131,6 @@ typedef void (*bt_att_chan_sent_t)(struct bt_att_chan *chan);
 
 static bt_att_chan_sent_t chan_cb(struct net_buf *buf);
 static bt_conn_tx_cb_t att_cb(bt_att_chan_sent_t cb);
-
-static void bt_att_disconnected(struct bt_l2cap_chan *chan);
 
 void att_sent(struct bt_conn *conn, void *user_data)
 {
@@ -285,11 +282,6 @@ static void bt_att_sent(struct bt_l2cap_chan *ch)
 	}
 
 	atomic_clear_bit(chan->flags, ATT_PENDING_SENT);
-
-	if (!att) {
-		BT_DBG("Ignore sent on detached ATT chan");
-		return;
-	}
 
 	/* Process pending requests first since they require a response they
 	 * can only be processed one at time while if other queues were
@@ -1239,6 +1231,7 @@ struct read_data {
 	struct bt_att_chan *chan;
 	uint16_t offset;
 	struct net_buf *buf;
+	struct bt_att_read_rsp *rsp;
 	uint8_t err;
 };
 
@@ -1251,6 +1244,8 @@ static uint8_t read_cb(const struct bt_gatt_attr *attr, uint16_t handle,
 	int ret;
 
 	BT_DBG("handle 0x%04x", handle);
+
+	data->rsp = net_buf_add(data->buf, sizeof(*data->rsp));
 
 	/*
 	 * If any attribute is founded in handle range it means that error
@@ -1405,6 +1400,8 @@ static uint8_t read_vl_cb(const struct bt_gatt_attr *attr, uint16_t handle,
 	int read;
 
 	BT_DBG("handle 0x%04x", handle);
+
+	data->rsp = net_buf_add(data->buf, sizeof(*data->rsp));
 
 	/*
 	 * If any attribute is founded in handle range it means that error
@@ -2319,7 +2316,7 @@ static const struct att_handler {
 		ATT_RESPONSE,
 		att_handle_find_info_rsp },
 	{ BT_ATT_OP_FIND_TYPE_RSP,
-		sizeof(struct bt_att_handle_group),
+		sizeof(struct bt_att_find_type_rsp),
 		ATT_RESPONSE,
 		att_handle_find_type_rsp },
 	{ BT_ATT_OP_READ_TYPE_RSP,
@@ -2327,16 +2324,16 @@ static const struct att_handler {
 		ATT_RESPONSE,
 		att_handle_read_type_rsp },
 	{ BT_ATT_OP_READ_RSP,
-		0,
+		sizeof(struct bt_att_read_rsp),
 		ATT_RESPONSE,
 		att_handle_read_rsp },
 	{ BT_ATT_OP_READ_BLOB_RSP,
-		0,
+		sizeof(struct bt_att_read_blob_rsp),
 		ATT_RESPONSE,
 		att_handle_read_blob_rsp },
 #if defined(CONFIG_BT_GATT_READ_MULTIPLE)
 	{ BT_ATT_OP_READ_MULT_RSP,
-		0,
+		sizeof(struct bt_att_read_mult_rsp),
 		ATT_RESPONSE,
 		att_handle_read_mult_rsp },
 #if defined(CONFIG_BT_EATT)
@@ -2439,11 +2436,6 @@ static int bt_att_recv(struct bt_l2cap_chan *chan, struct net_buf *buf)
 	hdr = net_buf_pull_mem(buf, sizeof(*hdr));
 	BT_DBG("Received ATT chan %p code 0x%02x len %zu", att_chan, hdr->code,
 	       net_buf_frags_len(buf));
-
-	if (!att_chan->att) {
-		BT_DBG("Ignore recv on detached ATT chan");
-		return 0;
-	}
 
 	for (i = 0, handler = NULL; i < ARRAY_SIZE(handlers); i++) {
 		if (hdr->code == handlers[i].op) {
@@ -2599,6 +2591,8 @@ static void att_timeout(struct k_work *work)
 {
 	struct bt_att_chan *chan = CONTAINER_OF(work, struct bt_att_chan,
 						timeout_work);
+	struct bt_att *att = chan->att;
+	struct bt_l2cap_le_chan *ch = &chan->chan;
 
 	BT_ERR("ATT Timeout");
 
@@ -2610,7 +2604,18 @@ static void att_timeout(struct k_work *work)
 	 * requests, commands, indications or notifications shall be sent to the
 	 * target device on this ATT Bearer.
 	 */
-	bt_att_disconnected(&chan->chan.chan);
+	att_chan_detach(chan);
+
+	/* Don't notify if there are still channels to be used */
+	if (!sys_slist_is_empty(&att->chans)) {
+		return;
+	}
+
+	att_reset(att);
+
+	/* Consider the channel disconnected */
+	bt_gatt_disconnected(ch->chan.conn);
+	ch->chan.conn = NULL;
 }
 
 static struct bt_att_chan *att_get_fixed_chan(struct bt_conn *conn)
@@ -2666,11 +2671,6 @@ static void bt_att_disconnected(struct bt_l2cap_chan *chan)
 
 	BT_DBG("chan %p cid 0x%04x", ch, ch->tx.cid);
 
-	if (!att_chan->att) {
-		BT_DBG("Ignore disconnect on detached ATT chan");
-		return;
-	}
-
 	att_chan_detach(att_chan);
 
 	/* Don't reset if there are still channels to be used */
@@ -2694,17 +2694,12 @@ static void bt_att_encrypt_change(struct bt_l2cap_chan *chan,
 	BT_DBG("chan %p conn %p handle %u sec_level 0x%02x status 0x%02x", ch,
 	       conn, conn->handle, conn->sec_level, hci_status);
 
-	if (!att_chan->att) {
-		BT_DBG("Ignore encrypt change on detached ATT chan");
-		return;
-	}
-
 	/*
 	 * If status (HCI status of security procedure) is non-zero, notify
 	 * outstanding request about security failure.
 	 */
 	if (hci_status) {
-		if (att_chan->req && att_chan->req->retrying) {
+		if (att_chan->req) {
 			att_handle_rsp(att_chan, NULL, 0,
 				       BT_ATT_ERR_AUTHENTICATION);
 		}
@@ -2718,7 +2713,7 @@ static void bt_att_encrypt_change(struct bt_l2cap_chan *chan,
 		return;
 	}
 
-	if (!(att_chan->req && att_chan->req->retrying)) {
+	if (!att_chan->req || !att_chan->req->retrying) {
 		return;
 	}
 
@@ -2740,11 +2735,6 @@ static void bt_att_status(struct bt_l2cap_chan *ch, atomic_t *status)
 	BT_DBG("chan %p status %p", ch, status);
 
 	if (!atomic_test_bit(status, BT_L2CAP_STATUS_OUT)) {
-		return;
-	}
-
-	if (!chan->att) {
-		BT_DBG("Ignore status on detached ATT chan");
 		return;
 	}
 
