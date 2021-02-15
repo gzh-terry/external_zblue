@@ -4,7 +4,8 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * I2C Driver for: STM32F0, STM32F3, STM32F7, STM32L0, STM32L4 and STM32WB
+ * I2C Driver for: STM32F0, STM32F3, STM32F7, STM32L0, STM32L4, STM32WB and
+ * STM32WL
  *
  */
 
@@ -13,6 +14,7 @@
 #include <sys/util.h>
 #include <kernel.h>
 #include <soc.h>
+#include <stm32_ll_i2c.h>
 #include <errno.h>
 #include <drivers/i2c.h>
 #include "i2c_ll_stm32.h"

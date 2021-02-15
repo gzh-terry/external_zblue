@@ -17,8 +17,8 @@ struct timer_data {
 #define DURATION 100
 #define PERIOD 50
 #define EXPIRE_TIMES 4
-#define WITHIN_ERROR(var, target, epsilon)       \
-		(((var) >= (target)) && ((var) <= (target) + (epsilon)))
+#define WITHIN_ERROR(var, target, epsilon) (abs((target) - (var)) <= (epsilon))
+
 /* ms can be converted precisely to ticks only when a ms is exactly
  * represented by an integral number of ticks.  If the conversion is
  * not precise, then the reverse conversion of a difference in ms can
@@ -81,6 +81,31 @@ static void init_timer_data(void)
 {
 	tdata.expire_cnt = 0;
 	tdata.stop_cnt = 0;
+
+	k_usleep(1); /* align to tick */
+	tdata.timestamp = k_uptime_get();
+}
+
+static bool interval_check(int64_t interval, int64_t desired)
+{
+	int64_t slop = INEXACT_MS_CONVERT ? 1 : 0;
+
+	/* Tickless kernels will advance time inside of an ISR, so it
+	 * is always possible (especially with high tick rates and
+	 * slow CPUs) for us to arrive at the uptime check above too
+	 * late to see a full period elapse before the next period.
+	 * We can alias at both sides of the interval, so two
+	 * one-ticks deltas (NOT one two-tick delta!)
+	 */
+	if (IS_ENABLED(CONFIG_TICKLESS_KERNEL)) {
+		slop += 2 * k_ticks_to_ms_ceil32(1);
+	}
+
+	if (abs(interval - desired) > slop) {
+		return false;
+	}
+
+	return true;
 }
 
 /* entry routines */
@@ -91,13 +116,9 @@ static void duration_expire(struct k_timer *timer)
 
 	tdata.expire_cnt++;
 	if (tdata.expire_cnt == 1) {
-		TIMER_ASSERT((interval >= DURATION)
-			     || (INEXACT_MS_CONVERT
-				 && (interval == DURATION - 1)), timer);
+		TIMER_ASSERT(interval_check(interval, DURATION), timer);
 	} else {
-		TIMER_ASSERT((interval >= PERIOD)
-			     || (INEXACT_MS_CONVERT
-				 && (interval == PERIOD - 1)), timer);
+		TIMER_ASSERT(interval_check(interval, PERIOD), timer);
 	}
 
 	if (tdata.expire_cnt >= EXPIRE_TIMES) {
@@ -166,15 +187,49 @@ void test_timer_duration_period(void)
 	init_timer_data();
 	/** TESTPOINT: init timer via k_timer_init */
 	k_timer_start(&duration_timer, K_MSEC(DURATION), K_MSEC(PERIOD));
-	tdata.timestamp = k_uptime_get();
 	busy_wait_ms(DURATION + PERIOD * EXPIRE_TIMES + PERIOD / 2);
 	/** TESTPOINT: check expire and stop times */
 	TIMER_ASSERT(tdata.expire_cnt == EXPIRE_TIMES, &duration_timer);
 	TIMER_ASSERT(tdata.stop_cnt == 1, &duration_timer);
 
+	k_timer_start(&duration_timer, K_FOREVER, K_MSEC(PERIOD));
+	TIMER_ASSERT(tdata.stop_cnt == 1, &duration_timer);
 	/* cleanup environemtn */
 	k_timer_stop(&duration_timer);
 }
+
+/**
+ *
+ * @brief Test restart the timer
+ *
+ * @details Validates initial duration and period of timer. Start the timer with
+ * specific duration and period. Then starts the timer again, and check
+ * the status of timer.
+ *
+ * @ingroup kernel_timer_tests
+ *
+ * @see k_timer_init(), k_timer_start(), k_timer_stop, k_uptime_get(),
+ * k_busy_wait()
+ *
+ */
+void test_timer_restart(void)
+{
+	init_timer_data();
+	k_timer_start(&status_anytime_timer, K_MSEC(DURATION),
+		      K_MSEC(PERIOD));
+	busy_wait_ms(DURATION + PERIOD * (EXPIRE_TIMES - 1) + PERIOD / 2);
+
+	/** TESTPOINT: restart the timer */
+	k_timer_start(&status_anytime_timer, K_MSEC(DURATION),
+		      K_MSEC(PERIOD));
+	/* Restart timer, timer's status is reset to zero */
+	TIMER_ASSERT(k_timer_status_get(&status_anytime_timer) == 0,
+		     &status_anytime_timer);
+
+	/* cleanup environment */
+	k_timer_stop(&status_anytime_timer);
+}
+
 
 /**
  * @brief Test Timer with zero period value
@@ -200,7 +255,6 @@ void test_timer_period_0(void)
 			      - BUSY_SLEW_THRESHOLD_TICKS(DURATION
 							  * USEC_PER_MSEC)),
 		      K_NO_WAIT);
-	tdata.timestamp = k_uptime_get();
 	busy_wait_ms(DURATION + 1);
 
 	/** TESTPOINT: ensure it is one-short timer */
@@ -379,6 +433,9 @@ void test_timer_status_get_anytime(void)
 	/** TESTPOINT: status get at any time */
 	TIMER_ASSERT(k_timer_status_get(&status_anytime_timer) == EXPIRE_TIMES,
 		     &status_anytime_timer);
+	busy_wait_ms(PERIOD);
+	TIMER_ASSERT(k_timer_status_get(&status_anytime_timer) == 1,
+		     &status_anytime_timer);
 
 	/* cleanup environment */
 	k_timer_stop(&status_anytime_timer);
@@ -408,15 +465,21 @@ void test_timer_status_sync(void)
 	for (int i = 0; i < EXPIRE_TIMES; i++) {
 		/** TESTPOINT: check timer not expire */
 		TIMER_ASSERT(tdata.expire_cnt == i, &status_sync_timer);
-		/** TESTPOINT： expired times returned by status sync */
+		/** TESTPOINT: expired times returned by status sync */
 		TIMER_ASSERT(k_timer_status_sync(&status_sync_timer) == 1,
 			     &status_sync_timer);
 		/** TESTPOINT: check timer not expire */
 		TIMER_ASSERT(tdata.expire_cnt == (i + 1), &status_sync_timer);
 	}
 
+	init_timer_data();
+	k_timer_start(&status_sync_timer, K_MSEC(DURATION), K_MSEC(PERIOD));
+	busy_wait_ms(PERIOD*2);
+	zassert_true(k_timer_status_sync(&status_sync_timer), NULL);
+
 	/* cleanup environment */
 	k_timer_stop(&status_sync_timer);
+	zassert_false(k_timer_status_sync(&status_sync_timer), NULL);
 }
 
 /**
@@ -439,7 +502,6 @@ void test_timer_k_define(void)
 	init_timer_data();
 	/** TESTPOINT: init timer via k_timer_init */
 	k_timer_start(&ktimer, K_MSEC(DURATION), K_MSEC(PERIOD));
-	tdata.timestamp = k_uptime_get();
 	busy_wait_ms(DURATION + PERIOD * EXPIRE_TIMES + PERIOD / 2);
 
 	/** TESTPOINT: check expire and stop times */
@@ -499,6 +561,7 @@ static void user_data_timer_handler(struct k_timer *timer)
 	}
 
 	intptr_t data_retrieved = (intptr_t)k_timer_user_data_get(timer);
+
 	user_data_correct[timer_num] = user_data[timer_num] == data_retrieved;
 }
 
@@ -572,16 +635,17 @@ void test_timer_remaining(void)
 	uint32_t slew_ticks;
 	uint64_t now;
 
-	k_usleep(1); /* align to tick */
 
 	init_timer_data();
 	k_timer_start(&remain_timer, K_MSEC(DURATION), K_NO_WAIT);
 	busy_wait_ms(DURATION / 2);
+	rem_ticks = k_timer_remaining_ticks(&remain_timer);
 	now = k_uptime_ticks();
 	rem_ms = k_timer_remaining_get(&remain_timer);
-	rem_ticks = k_timer_remaining_ticks(&remain_timer);
 	exp_ticks = k_timer_expires_ticks(&remain_timer);
 	k_timer_stop(&remain_timer);
+	TIMER_ASSERT(tdata.expire_cnt == 0, &remain_timer);
+	TIMER_ASSERT(tdata.stop_cnt == 1, &remain_timer);
 
 	/*
 	 * While the busy_wait_ms() works with the maximum possible resolution,
@@ -652,7 +716,7 @@ void test_timeout_abs(void)
 	 * ticks, so we have to check that at least one case is
 	 * satisfied.
 	 */
-	k_usleep(1); /* align to tick */
+	init_timer_data();
 	k_timer_start(&remain_timer, t, K_FOREVER);
 	cap_ticks = k_uptime_ticks();
 	rem_ticks = k_timer_remaining_ticks(&remain_timer);
@@ -666,6 +730,22 @@ void test_timeout_abs(void)
 			 && (rem_ticks + cap2_ticks == exp_ticks)),
 		     NULL);
 #endif
+}
+
+void test_sleep_abs(void)
+{
+	const int sleep_ticks = 5;
+	int64_t start, end;
+
+	k_usleep(1); /* tick align */
+
+	start = k_uptime_ticks();
+	k_sleep(K_TIMEOUT_ABS_TICKS(start + sleep_ticks));
+	end = k_uptime_ticks();
+
+	zassert_equal(end, start + sleep_ticks,
+		      "expected wakeup at %lld, got %lld",
+		      start + sleep_ticks, end);
 }
 
 static void timer_init(struct k_timer *timer, k_timer_expiry_t expiry_fn,
@@ -685,7 +765,7 @@ void test_main(void)
 	timer_init(&status_timer, status_expire, status_stop);
 	timer_init(&status_anytime_timer, NULL, NULL);
 	timer_init(&status_sync_timer, duration_expire, duration_stop);
-	timer_init(&remain_timer, NULL, NULL);
+	timer_init(&remain_timer, duration_expire, duration_stop);
 
 	k_thread_access_grant(k_current_get(), &ktimer, &timer0, &timer1,
 			      &timer2, &timer3, &timer4);
@@ -693,6 +773,7 @@ void test_main(void)
 	ztest_test_suite(timer_api,
 			 ztest_unit_test(test_time_conversions),
 			 ztest_user_unit_test(test_timer_duration_period),
+			 ztest_user_unit_test(test_timer_restart),
 			 ztest_user_unit_test(test_timer_period_0),
 			 ztest_user_unit_test(test_timer_expirefn_null),
 			 ztest_user_unit_test(test_timer_periodicity),
@@ -702,6 +783,7 @@ void test_main(void)
 			 ztest_user_unit_test(test_timer_k_define),
 			 ztest_user_unit_test(test_timer_user_data),
 			 ztest_user_unit_test(test_timer_remaining),
-			 ztest_user_unit_test(test_timeout_abs));
+			 ztest_user_unit_test(test_timeout_abs),
+			 ztest_user_unit_test(test_sleep_abs));
 	ztest_run_test_suite(timer_api);
 }
