@@ -28,25 +28,8 @@ static inline void clear_memmap(int index)
 	}
 }
 
-void z_multiboot_init(struct multiboot_info *info_pa)
+void z_multiboot_init(struct multiboot_info *info)
 {
-	struct multiboot_info *info;
-
-#if defined(CONFIG_ARCH_MAPS_ALL_RAM) || !defined(CONFIG_X86_MMU)
-	/*
-	 * Since the struct from bootloader resides in memory
-	 * and all memory is mapped, there is no need to
-	 * manually map it before accessing.
-	 *
-	 * Without MMU, all memory are identity-mapped already
-	 * so there is no need to map them again.
-	 */
-	info = info_pa;
-#else
-	z_phys_map((uint8_t **)&info, POINTER_TO_UINT(info_pa),
-		   sizeof(*info_pa), K_MEM_CACHE_NONE);
-#endif /* CONFIG_ARCH_MAPS_ALL_RAM */
-
 	if (info != NULL) {
 		memcpy(&multiboot_info, info, sizeof(*info));
 	}
@@ -59,26 +42,12 @@ void z_multiboot_init(struct multiboot_info *info_pa)
 
 	if ((info->flags & MULTIBOOT_INFO_FLAGS_MMAP) &&
 	    (x86_memmap_source < X86_MEMMAP_SOURCE_MULTIBOOT_MMAP)) {
-		uintptr_t address;
-		uintptr_t address_end;
+		uint32_t address = info->mmap_addr;
 		struct multiboot_mmap *mmap;
 		int index = 0;
 		uint32_t type;
 
-#if defined(CONFIG_ARCH_MAPS_ALL_RAM) || !defined(CONFIG_X86_MMU)
-		address = info->mmap_addr;
-#else
-		uint8_t *address_va;
-
-		z_phys_map(&address_va, info->mmap_addr, info->mmap_length,
-			   K_MEM_CACHE_NONE);
-
-		address = POINTER_TO_UINT(address_va);
-#endif /* CONFIG_ARCH_MAPS_ALL_RAM */
-
-		address_end = address + info->mmap_length;
-
-		while ((address < address_end) &&
+		while ((address < (info->mmap_addr + info->mmap_length)) &&
 		       (index < CONFIG_X86_MEMMAP_ENTRIES)) {
 			mmap = UINT_TO_POINTER(address);
 
@@ -174,10 +143,9 @@ static int multiboot_framebuf_init(const struct device *dev)
 	}
 }
 
-DEVICE_DEFINE(multiboot_framebuf,
+DEVICE_AND_API_INIT(multiboot_framebuf,
 		    "FRAMEBUF",
 		    multiboot_framebuf_init,
-		    device_pm_control_nop,
 		    &multiboot_framebuf_data,
 		    NULL,
 		    PRE_KERNEL_1,

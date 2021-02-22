@@ -11,7 +11,6 @@ extern void test_mheap_min_block_size(void);
 extern void test_mheap_block_desc(void);
 extern void test_mheap_calloc(void);
 extern void test_mheap_block_release(void);
-extern void test_k_aligned_alloc(void);
 
 /**
  * @brief Heap tests
@@ -29,6 +28,8 @@ void test_main(void)
 			 ztest_unit_test(test_mheap_malloc_free),
 			 ztest_unit_test(test_mheap_calloc),
 			 ztest_unit_test(test_mheap_malloc_align4),
-			 ztest_unit_test(test_k_aligned_alloc));
+			 ztest_unit_test(test_mheap_min_block_size),
+			 ztest_unit_test(test_mheap_block_desc),
+			 ztest_unit_test(test_mheap_block_release));
 	ztest_run_test_suite(mheap_api);
 }

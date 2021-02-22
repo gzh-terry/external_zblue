@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#define DT_DRV_COMPAT st_hts221
-
 #include <device.h>
 #include <drivers/i2c.h>
 #include <sys/__assert.h>
@@ -15,7 +13,6 @@
 #include <logging/log.h>
 #include "hts221.h"
 
-#if HTS221_TRIGGER_ENABLED
 LOG_MODULE_DECLARE(HTS221, CONFIG_SENSOR_LOG_LEVEL);
 
 static inline void setup_drdy(const struct device *dev,
@@ -166,4 +163,3 @@ int hts221_init_interrupt(const struct device *dev)
 
 	return 0;
 }
-#endif /* HTS221_TRIGGER_ENABLED */

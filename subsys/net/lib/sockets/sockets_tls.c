@@ -39,12 +39,6 @@ LOG_MODULE_REGISTER(net_sock_tls, CONFIG_NET_SOCKETS_LOG_LEVEL);
 #include "sockets_internal.h"
 #include "tls_internal.h"
 
-#if defined(CONFIG_NET_SOCKETS_TLS_MAX_APP_PROTOCOLS)
-#define ALPN_MAX_PROTOCOLS (CONFIG_NET_SOCKETS_TLS_MAX_APP_PROTOCOLS + 1)
-#else
-#define ALPN_MAX_PROTOCOLS 0
-#endif /* CONFIG_NET_SOCKETS_TLS_MAX_APP_PROTOCOLS */
-
 static const struct socket_op_vtable tls_sock_fd_op_vtable;
 
 /** A list of secure tags that TLS context should use. */
@@ -73,7 +67,7 @@ struct dtls_timing_context {
 };
 
 /** TLS context information. */
-__net_socket struct tls_context {
+struct tls_context {
 	/** Information whether TLS context is used. */
 	bool is_used;
 
@@ -115,11 +109,6 @@ __net_socket struct tls_context {
 
 		/** DTLS role, client by default. */
 		int8_t role;
-
-		/** NULL-terminated list of allowed application layer
-		 * protocols.
-		 */
-		const char *alpn_list[ALPN_MAX_PROTOCOLS];
 	} options;
 
 #if defined(CONFIG_NET_SOCKETS_ENABLE_DTLS)
@@ -323,53 +312,6 @@ static inline bool is_handshake_complete(struct tls_context *ctx)
 	return k_sem_count_get(&ctx->tls_established) != 0;
 }
 
-/*
- * Copied from include/mbedtls/ssl_internal.h
- *
- * Maximum length we can advertise as our max content length for
- * RFC 6066 max_fragment_length extension negotiation purposes
- * (the lesser of both sizes, if they are unequal.)
- */
-#define MBEDTLS_TLS_EXT_ADV_CONTENT_LEN (                            \
-	(MBEDTLS_SSL_IN_CONTENT_LEN > MBEDTLS_SSL_OUT_CONTENT_LEN)   \
-	? (MBEDTLS_SSL_OUT_CONTENT_LEN)				     \
-	: (MBEDTLS_SSL_IN_CONTENT_LEN)				     \
-	)
-
-#if defined(CONFIG_NET_SOCKETS_TLS_SET_MAX_FRAGMENT_LENGTH) &&	\
-	defined(MBEDTLS_SSL_MAX_FRAGMENT_LENGTH) &&		\
-	(MBEDTLS_TLS_EXT_ADV_CONTENT_LEN < 16384)
-
-BUILD_ASSERT(MBEDTLS_TLS_EXT_ADV_CONTENT_LEN >= 512,
-	     "Too small content length!");
-
-static inline unsigned char tls_mfl_code_from_content_len(void)
-{
-	size_t len = MBEDTLS_TLS_EXT_ADV_CONTENT_LEN;
-
-	if (len >= 4096) {
-		return MBEDTLS_SSL_MAX_FRAG_LEN_4096;
-	} else if (len >= 2048) {
-		return MBEDTLS_SSL_MAX_FRAG_LEN_2048;
-	} else if (len >= 1024) {
-		return MBEDTLS_SSL_MAX_FRAG_LEN_1024;
-	} else if (len >= 512) {
-		return MBEDTLS_SSL_MAX_FRAG_LEN_512;
-	} else {
-		return MBEDTLS_SSL_MAX_FRAG_LEN_INVALID;
-	}
-}
-
-static inline void tls_set_max_frag_len(mbedtls_ssl_config *config)
-{
-	unsigned char mfl_code = tls_mfl_code_from_content_len();
-
-	mbedtls_ssl_conf_max_frag_len(config, mfl_code);
-}
-#else
-static inline void tls_set_max_frag_len(mbedtls_ssl_config *config) {}
-#endif
-
 /* Allocate TLS context. */
 static struct tls_context *tls_alloc(void)
 {
@@ -398,7 +340,6 @@ static struct tls_context *tls_alloc(void)
 
 		mbedtls_ssl_init(&tls->ssl);
 		mbedtls_ssl_config_init(&tls->config);
-		tls_set_max_frag_len(&tls->config);
 #if defined(CONFIG_NET_SOCKETS_ENABLE_DTLS)
 		mbedtls_ssl_cookie_init(&tls->cookie);
 #endif
@@ -556,7 +497,7 @@ static int dtls_rx(void *ctx, unsigned char *buf, size_t len,
 	bool is_block = !((tls_ctx->flags & ZSOCK_MSG_DONTWAIT) ||
 			  (zsock_fcntl(tls_ctx->sock, F_GETFL, 0) &
 			   O_NONBLOCK));
-	int timeout = (dtls_timeout == 0U) ? -1 : dtls_timeout;
+	int timeout = (dtls_timeout == 0U) ? -1 : timeout;
 	uint32_t entry_time = k_uptime_get_32();
 	socklen_t addrlen = sizeof(struct sockaddr);
 	struct sockaddr addr;
@@ -979,16 +920,6 @@ static int tls_mbedtls_init(struct tls_context *context, bool is_server)
 		return ret;
 	}
 
-#if defined(CONFIG_MBEDTLS_SSL_ALPN)
-	if (ALPN_MAX_PROTOCOLS && context->options.alpn_list[0] != NULL) {
-		ret = mbedtls_ssl_conf_alpn_protocols(&context->config,
-				context->options.alpn_list);
-		if (ret != 0) {
-			return -EINVAL;
-		}
-	}
-#endif /* CONFIG_MBEDTLS_SSL_ALPN */
-
 	ret = mbedtls_ssl_setup(&context->ssl,
 				&context->config);
 	if (ret != 0) {
@@ -1024,20 +955,6 @@ static int tls_opt_sec_tag_list_set(struct tls_context *context,
 
 	memcpy(context->options.sec_tag_list.sec_tags, optval, optlen);
 	context->options.sec_tag_list.sec_tag_count = sec_tag_cnt;
-
-	return 0;
-}
-
-static int sock_opt_protocol_get(struct tls_context *context,
-				 void *optval, socklen_t *optlen)
-{
-	int protocol = (int)context->tls_version;
-
-	if (*optlen != sizeof(protocol)) {
-		return -EINVAL;
-	}
-
-	*(int *)optval = protocol;
 
 	return 0;
 }
@@ -1155,64 +1072,6 @@ static int tls_opt_ciphersuite_used_get(struct tls_context *context,
 	return 0;
 }
 
-static int tls_opt_alpn_list_set(struct tls_context *context,
-				 const void *optval, socklen_t optlen)
-{
-	int alpn_cnt;
-
-	if (!ALPN_MAX_PROTOCOLS) {
-		return -EINVAL;
-	}
-
-	if (!optval) {
-		return -EINVAL;
-	}
-
-	if (optlen % sizeof(const char *) != 0) {
-		return -EINVAL;
-	}
-
-	alpn_cnt = optlen / sizeof(const char *);
-	/* + 1 for NULL-termination. */
-	if (alpn_cnt + 1 > ARRAY_SIZE(context->options.alpn_list)) {
-		return -EINVAL;
-	}
-
-	memcpy(context->options.alpn_list, optval, optlen);
-	context->options.alpn_list[alpn_cnt] = NULL;
-
-	return 0;
-}
-
-static int tls_opt_alpn_list_get(struct tls_context *context,
-				 void *optval, socklen_t *optlen)
-{
-	const char **alpn_list = context->options.alpn_list;
-	int alpn_cnt, i = 0;
-	const char **ret_list = optval;
-
-	if (!ALPN_MAX_PROTOCOLS) {
-		return -EINVAL;
-	}
-
-	if (*optlen % sizeof(const char *) != 0 || *optlen == 0) {
-		return -EINVAL;
-	}
-
-	alpn_cnt = *optlen / sizeof(const char *);
-	while (alpn_list[i] != NULL) {
-		ret_list[i] = alpn_list[i];
-
-		if (++i == alpn_cnt) {
-			break;
-		}
-	}
-
-	*optlen = i * sizeof(const char *);
-
-	return 0;
-}
-
 static int tls_opt_peer_verify_set(struct tls_context *context,
 				   const void *optval, socklen_t optlen)
 {
@@ -1313,12 +1172,12 @@ static int ztls_socket(int family, int type, int proto)
 	ctx = tls_alloc();
 	if (ctx == NULL) {
 		errno = ENOMEM;
-		goto free_fd;
+		goto error;
 	}
 
 	sock = zsock_socket(family, type, proto);
 	if (sock < 0) {
-		goto release_tls;
+		goto error;
 	}
 
 	ctx->tls_version = tls_proto;
@@ -1330,10 +1189,7 @@ static int ztls_socket(int family, int type, int proto)
 
 	return fd;
 
-release_tls:
-	(void)tls_release(ctx);
-
-free_fd:
+error:
 	z_free_fd(fd);
 
 	return -1;
@@ -1934,7 +1790,7 @@ static int ztls_poll_update_ctx(struct tls_context *ctx,
 	return ret;
 }
 
-static inline int ztls_poll_offload(struct zsock_pollfd *fds, int nfds, int timeout)
+static inline int ztls_poll_offload(struct pollfd *fds, int nfds, int timeout)
 {
 	int fd_backup[CONFIG_NET_SOCKETS_POLL_MAX];
 	const struct fd_op_vtable *vtable;
@@ -2048,17 +1904,7 @@ int ztls_getsockopt_ctx(struct tls_context *ctx, int level, int optname,
 		return -1;
 	}
 
-	if ((level == SOL_SOCKET) && (optname == SO_PROTOCOL)) {
-		/* Protocol type is overridden during socket creation. Its
-		 * value is restored here to return current value.
-		 */
-		err = sock_opt_protocol_get(ctx, optval, optlen);
-		if (err < 0) {
-			errno = -err;
-			return -1;
-		}
-		return err;
-	} else if (level != SOL_TLS) {
+	if (level != SOL_TLS) {
 		return zsock_getsockopt(ctx->sock, level, optname,
 					optval, optlen);
 	}
@@ -2074,10 +1920,6 @@ int ztls_getsockopt_ctx(struct tls_context *ctx, int level, int optname,
 
 	case TLS_CIPHERSUITE_USED:
 		err = tls_opt_ciphersuite_used_get(ctx, optval, optlen);
-		break;
-
-	case TLS_ALPN_LIST:
-		err = tls_opt_alpn_list_get(ctx, optval, optlen);
 		break;
 
 	default:
@@ -2123,10 +1965,6 @@ int ztls_setsockopt_ctx(struct tls_context *ctx, int level, int optname,
 
 	case TLS_DTLS_ROLE:
 		err = tls_opt_dtls_role_set(ctx, optval, optlen);
-		break;
-
-	case TLS_ALPN_LIST:
-		err = tls_opt_alpn_list_set(ctx, optval, optlen);
 		break;
 
 	default:
@@ -2221,7 +2059,7 @@ static int tls_sock_bind_vmeth(void *obj, const struct sockaddr *addr,
 {
 	struct tls_context *ctx = obj;
 
-	return zsock_bind(ctx->sock, addr, addrlen);
+	return bind(ctx->sock, addr, addrlen);
 }
 
 static int tls_sock_connect_vmeth(void *obj, const struct sockaddr *addr,

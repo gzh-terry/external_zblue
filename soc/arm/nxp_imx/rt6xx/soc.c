@@ -106,22 +106,31 @@ static ALWAYS_INLINE void clock_init(void)
 {
 #ifdef CONFIG_SOC_MIMXRT685S_CM33
 	/* Configure LPOSC clock*/
-	POWER_DisablePD(kPDRUNCFG_PD_LPOSC);
+	if ((SYSCTL0->PDRUNCFG0 & SYSCTL0_PDRUNCFG0_LPOSC_PD_MASK) != 0) {
+		POWER_DisablePD(kPDRUNCFG_PD_LPOSC);
+	}
+
 	/* Configure FFRO clock */
-	POWER_DisablePD(kPDRUNCFG_PD_FFRO);
-	CLOCK_EnableFfroClk(kCLOCK_Ffro48M);
-	/* Configure SFRO clock */
-	POWER_DisablePD(kPDRUNCFG_PD_SFRO);
-	CLOCK_EnableSfroClk();
+	if ((SYSCTL0->PDRUNCFG0 & SYSCTL0_PDRUNCFG0_FFRO_PD_MASK) != 0) {
+		POWER_DisablePD(kPDRUNCFG_PD_FFRO);
+		CLOCK_EnableFfroClk(kCLOCK_Ffro48M);
+	}
+	if ((SYSCTL0->PDRUNCFG0 & SYSCTL0_PDRUNCFG0_SFRO_PD_MASK) != 0) {
+		/* Configure SFRO clock */
+		POWER_DisablePD(kPDRUNCFG_PD_SFRO);
+		CLOCK_EnableSfroClk();
+	}
 
-	/* Let CPU run on FFRO for safe switching. */
+	if ((SYSCTL0->PDRUNCFG0 & SYSCTL0_PDRUNCFG0_SYSXTAL_PD_MASK) != 0) {
+		/* Configure SYSOSC clock source */
+		POWER_DisablePD(kPDRUNCFG_PD_SYSXTAL);
+		CLOCK_EnableSysOscClk(true, true, BOARD_SYSOSC_SETTLING_US);
+	}
+	CLOCK_SetXtalFreq(BOARD_XTAL_SYS_CLK_HZ);
+
+	/* Let CPU and AHB bus run on FFRO 48MHz for safe switching. */
 	CLOCK_AttachClk(kFFRO_to_MAIN_CLK);
-
-	/* Configure SYSOSC clock source */
-	POWER_DisablePD(kPDRUNCFG_PD_SYSXTAL);
-	POWER_UpdateOscSettlingTime(CONFIG_SYSOSC_SETTLING_US);
-	CLOCK_EnableSysOscClk(true, true, CONFIG_SYSOSC_SETTLING_US);
-	CLOCK_SetXtalFreq(CONFIG_XTAL_SYS_CLK_HZ);
+	CLOCK_SetClkDiv(kCLOCK_DivSysCpuAhbClk, 1U);
 
 #ifdef CONFIG_INIT_SYS_PLL
 	/* Configure SysPLL0 clock source */
@@ -130,24 +139,15 @@ static ALWAYS_INLINE void clock_init(void)
 	CLOCK_InitSysPfd(kCLOCK_Pfd2, 24);
 #endif
 
+	/* Set FRGPLLCLKDIV divider to value 12 */
+	CLOCK_SetClkDiv(kCLOCK_DivPllFrgClk, 12U);
+
 #ifdef CONFIG_INIT_AUDIO_PLL
 	/* Configure Audio PLL clock source */
 	CLOCK_InitAudioPll(&g_audioPllConfig);
 	CLOCK_InitAudioPfd(kCLOCK_Pfd0, 26);
 	CLOCK_SetClkDiv(kCLOCK_DivAudioPllClk, 15U);
 #endif
-
-	/* Set SYSCPUAHBCLKDIV divider to value 2 */
-	CLOCK_SetClkDiv(kCLOCK_DivSysCpuAhbClk, 2U);
-
-	/* Set up clock selectors - Attach clocks to the peripheries */
-	CLOCK_AttachClk(kMAIN_PLL_to_MAIN_CLK);
-
-	/* Set up dividers */
-	/* Set PFC0DIV divider to value 2 */
-	CLOCK_SetClkDiv(kCLOCK_DivPfc0Clk, 2U);
-	/* Set FRGPLLCLKDIV divider to value 12 */
-	CLOCK_SetClkDiv(kCLOCK_DivPllFrgClk, 12U);
 
 	CLOCK_AttachClk(kSFRO_to_FLEXCOMM0);
 

@@ -582,6 +582,8 @@ static const struct dma_driver_api pl330_driver_api = {
 	.stop = dma_pl330_transfer_stop,
 };
 
+static struct device DEVICE_NAME_GET(dma_pl330);
+
 static const struct dma_pl330_config pl330_config = {
 	.reg_base = DT_INST_REG_ADDR(0),
 #ifdef CONFIG_DMA_64BIT
@@ -592,7 +594,8 @@ static const struct dma_pl330_config pl330_config = {
 
 static struct dma_pl330_dev_data pl330_data;
 
-DEVICE_DT_INST_DEFINE(0, &dma_pl330_initialize, device_pm_control_nop,
+DEVICE_AND_API_INIT(dma_pl330, CONFIG_DMA_0_NAME,
+		    &dma_pl330_initialize,
 		    &pl330_data, &pl330_config,
 		    POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    &pl330_driver_api);

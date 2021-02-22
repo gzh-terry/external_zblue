@@ -1,5 +1,3 @@
-/* SPDX-License-Identifier: BSD-3-Clause */
-
 /*    $NetBSD: fnmatch.h,v 1.12.50.1 2011/02/08 16:18:55 bouyer Exp $    */
 
 /*-

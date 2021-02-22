@@ -8,6 +8,9 @@ properties:
     reg:
       required: true
 
+    interrupts:
+      required: true
+
     baud-rate:
       type: int
       required: false

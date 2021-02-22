@@ -38,7 +38,6 @@ synchronization.
    other/polling.rst
    synchronization/semaphores.rst
    synchronization/mutexes.rst
-   synchronization/condvar.rst
    smp/smp.rst
 
 Data Passing
@@ -93,6 +92,7 @@ These pages cover memory allocation and management services.
 
    memory/heap.rst
    memory/slabs.rst
+   memory/pools.rst
 
 Timing
 ******

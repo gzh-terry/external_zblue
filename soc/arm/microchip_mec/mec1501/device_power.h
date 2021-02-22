@@ -11,6 +11,7 @@
 
 void soc_lite_sleep_enable(void);
 
+#if defined(CONFIG_SYS_POWER_DEEP_SLEEP_STATES)
 void soc_deep_sleep_enable(void);
 void soc_deep_sleep_disable(void);
 void soc_deep_sleep_periph_save(void);
@@ -18,6 +19,7 @@ void soc_deep_sleep_periph_restore(void);
 void soc_deep_sleep_wait_clk_idle(void);
 void soc_deep_sleep_non_wake_en(void);
 void soc_deep_sleep_non_wake_dis(void);
+#endif
 
 #endif
 

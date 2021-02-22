@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2017 Linaro Limited
- * Copyright (c) 2021 Nordic Semiconductor
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -16,7 +15,6 @@ LOG_MODULE_REGISTER(net_sock, CONFIG_NET_SOCKETS_LOG_LEVEL);
 #include <net/net_context.h>
 #include <net/net_pkt.h>
 #include <net/socket.h>
-#include <net/socket_types.h>
 #include <syscall_handler.h>
 #include <sys/fdtable.h>
 #include <sys/math_extras.h>
@@ -577,21 +575,15 @@ static inline int z_vrfy_zsock_accept(int sock, struct sockaddr *addr,
 #include <syscalls/zsock_accept_mrsh.c>
 #endif /* CONFIG_USERSPACE */
 
-#define WAIT_BUFS K_MSEC(100)
-#define MAX_WAIT_BUFS K_SECONDS(10)
-
 ssize_t zsock_sendto_ctx(struct net_context *ctx, const void *buf, size_t len,
 			 int flags,
 			 const struct sockaddr *dest_addr, socklen_t addrlen)
 {
 	k_timeout_t timeout = K_FOREVER;
-	uint64_t buf_timeout = 0;
 	int status;
 
 	if ((flags & ZSOCK_MSG_DONTWAIT) || sock_is_nonblock(ctx)) {
 		timeout = K_NO_WAIT;
-	} else {
-		buf_timeout = z_timeout_end_calc(MAX_WAIT_BUFS);
 	}
 
 	/* Register the callback before sending in order to receive the response
@@ -604,47 +596,18 @@ ssize_t zsock_sendto_ctx(struct net_context *ctx, const void *buf, size_t len,
 		return -1;
 	}
 
-	while (1) {
-		if (dest_addr) {
-			status = net_context_sendto(ctx, buf, len, dest_addr,
-						    addrlen, NULL, timeout,
-						    ctx->user_data);
-		} else {
-			status = net_context_send(ctx, buf, len, NULL, timeout,
-						  ctx->user_data);
-		}
+	if (dest_addr) {
+		status = net_context_sendto(ctx, buf, len, dest_addr,
+					    addrlen, NULL, timeout,
+					    ctx->user_data);
+	} else {
+		status = net_context_send(ctx, buf, len, NULL, timeout,
+					  ctx->user_data);
+	}
 
-		if (status < 0) {
-			if (((status == -ENOBUFS) || (status == -EAGAIN)) &&
-			    K_TIMEOUT_EQ(timeout, K_FOREVER)) {
-				/* If we cannot get any buffers in reasonable
-				 * amount of time, then do not wait forever as
-				 * there might be some bigger issue.
-				 * If we get -EAGAIN and cannot recover, then
-				 * it means that the sending window is blocked
-				 * and we just cannot send anything.
-				 */
-				int64_t remaining = buf_timeout - z_tick_get();
-
-				if (remaining <= 0) {
-					if (status == -ENOBUFS) {
-						errno = ENOMEM;
-					} else {
-						errno = ENOBUFS;
-					}
-
-					return -1;
-				}
-
-				k_sleep(WAIT_BUFS);
-				continue;
-			} else {
-				errno = -status;
-				return -1;
-			}
-		}
-
-		break;
+	if (status < 0) {
+		errno = -status;
+		return -1;
 	}
 
 	return status;
@@ -936,8 +899,6 @@ static inline ssize_t zsock_recv_dgram(struct net_context *ctx,
 
 	if ((flags & ZSOCK_MSG_DONTWAIT) || sock_is_nonblock(ctx)) {
 		timeout = K_NO_WAIT;
-	} else {
-		net_context_get_option(ctx, NET_OPT_RCVTIMEO, &timeout, NULL);
 	}
 
 	if (flags & ZSOCK_MSG_PEEK) {
@@ -1031,15 +992,8 @@ static inline ssize_t zsock_recv_stream(struct net_context *ctx,
 		return -1;
 	}
 
-	if (net_context_get_state(ctx) != NET_CONTEXT_CONNECTED) {
-		errno = ENOTCONN;
-		return -1;
-	}
-
 	if ((flags & ZSOCK_MSG_DONTWAIT) || sock_is_nonblock(ctx)) {
 		timeout = K_NO_WAIT;
-	} else {
-		net_context_get_option(ctx, NET_OPT_RCVTIMEO, &timeout, NULL);
 	}
 
 	do {
@@ -1497,19 +1451,6 @@ int zsock_getsockopt_ctx(struct net_context *ctx, int level, int optname,
 	switch (level) {
 	case SOL_SOCKET:
 		switch (optname) {
-		case SO_TYPE: {
-			int type = (int)net_context_get_type(ctx);
-
-			if (*optlen != sizeof(type)) {
-				errno = EINVAL;
-				return -1;
-			}
-
-			*(int *)optval = type;
-
-			return 0;
-		}
-
 		case SO_TXTIME:
 			if (IS_ENABLED(CONFIG_NET_CONTEXT_TXTIME)) {
 				ret = net_context_get_option(ctx,
@@ -1522,20 +1463,6 @@ int zsock_getsockopt_ctx(struct net_context *ctx, int level, int optname,
 
 				return 0;
 			}
-			break;
-
-		case SO_PROTOCOL: {
-			int proto = (int)net_context_get_ip_proto(ctx);
-
-			if (*optlen != sizeof(proto)) {
-				errno = EINVAL;
-				return -1;
-			}
-
-			*(int *)optval = proto;
-
-			return 0;
-		}
 		}
 
 		break;
@@ -1617,38 +1544,6 @@ int zsock_setsockopt_ctx(struct net_context *ctx, int level, int optname,
 				ret = net_context_set_option(ctx,
 							     NET_OPT_TIMESTAMP,
 							     optval, optlen);
-				if (ret < 0) {
-					errno = -ret;
-					return -1;
-				}
-
-				return 0;
-			}
-
-			break;
-
-		case SO_RCVTIMEO:
-			if (IS_ENABLED(CONFIG_NET_CONTEXT_RCVTIMEO)) {
-				const struct zsock_timeval *tv = optval;
-				k_timeout_t timeout;
-
-				if (optlen != sizeof(struct zsock_timeval)) {
-					errno = EINVAL;
-					return -1;
-				}
-
-				if (tv->tv_sec == 0 && tv->tv_usec == 0) {
-					timeout = K_FOREVER;
-				} else {
-					timeout = K_USEC(tv->tv_sec * 1000000ULL
-							 + tv->tv_usec);
-				}
-
-				ret = net_context_set_option(ctx,
-							     NET_OPT_RCVTIMEO,
-							     &timeout,
-							     sizeof(timeout));
-
 				if (ret < 0) {
 					errno = -ret;
 					return -1;

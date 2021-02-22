@@ -298,10 +298,7 @@ enum net_verdict net_ipv4_input(struct net_pkt *pkt)
 	switch (hdr->proto) {
 	case IPPROTO_ICMP:
 		verdict = net_icmpv4_input(pkt, hdr);
-		if (verdict == NET_DROP) {
-			goto drop;
-		}
-		return verdict;
+		break;
 	case IPPROTO_TCP:
 		proto_hdr.tcp = net_tcp_input(pkt, &tcp_access);
 		if (proto_hdr.tcp) {
@@ -318,6 +315,8 @@ enum net_verdict net_ipv4_input(struct net_pkt *pkt)
 
 	if (verdict == NET_DROP) {
 		goto drop;
+	} else if (hdr->proto == IPPROTO_ICMP) {
+		return verdict;
 	}
 
 	ip.ipv4 = hdr;

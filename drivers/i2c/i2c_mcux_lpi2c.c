@@ -23,7 +23,7 @@ LOG_MODULE_REGISTER(mcux_lpi2c);
 
 struct mcux_lpi2c_config {
 	LPI2C_Type *base;
-	const struct device *clock_dev;
+	char *clock_name;
 	clock_control_subsys_t clock_subsys;
 	void (*irq_config_func)(const struct device *dev);
 	uint32_t bitrate;
@@ -41,6 +41,7 @@ static int mcux_lpi2c_configure(const struct device *dev,
 {
 	const struct mcux_lpi2c_config *config = dev->config;
 	LPI2C_Type *base = config->base;
+	const struct device *clock_dev;
 	uint32_t clock_freq;
 	uint32_t baudrate;
 
@@ -66,7 +67,12 @@ static int mcux_lpi2c_configure(const struct device *dev,
 		return -EINVAL;
 	}
 
-	if (clock_control_get_rate(config->clock_dev, config->clock_subsys,
+	clock_dev = device_get_binding(config->clock_name);
+	if (clock_dev == NULL) {
+		return -EINVAL;
+	}
+
+	if (clock_control_get_rate(clock_dev, config->clock_subsys,
 				   &clock_freq)) {
 		return -EINVAL;
 	}
@@ -187,13 +193,19 @@ static int mcux_lpi2c_init(const struct device *dev)
 	const struct mcux_lpi2c_config *config = dev->config;
 	struct mcux_lpi2c_data *data = dev->data;
 	LPI2C_Type *base = config->base;
+	const struct device *clock_dev;
 	uint32_t clock_freq, bitrate_cfg;
 	lpi2c_master_config_t master_config;
 	int error;
 
 	k_sem_init(&data->device_sync_sem, 0, UINT_MAX);
 
-	if (clock_control_get_rate(config->clock_dev, config->clock_subsys,
+	clock_dev = device_get_binding(config->clock_name);
+	if (clock_dev == NULL) {
+		return -EINVAL;
+	}
+
+	if (clock_control_get_rate(clock_dev, config->clock_subsys,
 				   &clock_freq)) {
 		return -EINVAL;
 	}
@@ -227,7 +239,7 @@ static const struct i2c_driver_api mcux_lpi2c_driver_api = {
 									\
 	static const struct mcux_lpi2c_config mcux_lpi2c_config_##n = {	\
 		.base = (LPI2C_Type *)DT_INST_REG_ADDR(n),		\
-		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),	\
+		.clock_name = DT_INST_CLOCKS_LABEL(n),			\
 		.clock_subsys =						\
 			(clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name),\
 		.irq_config_func = mcux_lpi2c_config_func_##n,		\
@@ -239,8 +251,8 @@ static const struct i2c_driver_api mcux_lpi2c_driver_api = {
 									\
 	static struct mcux_lpi2c_data mcux_lpi2c_data_##n;		\
 									\
-	DEVICE_DT_INST_DEFINE(n, &mcux_lpi2c_init, device_pm_control_nop,\
-			    &mcux_lpi2c_data_##n,			\
+	DEVICE_AND_API_INIT(mcux_lpi2c_##n, DT_INST_LABEL(n),		\
+			    &mcux_lpi2c_init, &mcux_lpi2c_data_##n,	\
 			    &mcux_lpi2c_config_##n, POST_KERNEL,	\
 			    CONFIG_KERNEL_INIT_PRIORITY_DEVICE,		\
 			    &mcux_lpi2c_driver_api);			\
@@ -250,7 +262,7 @@ static const struct i2c_driver_api mcux_lpi2c_driver_api = {
 		IRQ_CONNECT(DT_INST_IRQN(n),				\
 			    DT_INST_IRQ(n, priority),			\
 			    mcux_lpi2c_isr,				\
-			    DEVICE_DT_INST_GET(n), 0);			\
+			    DEVICE_GET(mcux_lpi2c_##n), 0);		\
 									\
 		irq_enable(DT_INST_IRQN(n));				\
 	}

@@ -26,6 +26,8 @@
 
 void z_impl_k_thread_abort(k_tid_t thread)
 {
+	z_thread_single_abort(thread);
+
 	if (_current == thread) {
 		if (arch_is_in_isr()) {
 			/* ARM is unlike most arches in that this is true
@@ -41,11 +43,9 @@ void z_impl_k_thread_abort(k_tid_t thread)
 			 */
 			SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
 		} else {
-			z_self_abort(); /* Never returns */
+			z_swap_unlocked();
 		}
 	}
-
-	z_thread_single_abort(thread);
 
 	/* The abort handler might have altered the ready queue. */
 	z_reschedule_unlocked();

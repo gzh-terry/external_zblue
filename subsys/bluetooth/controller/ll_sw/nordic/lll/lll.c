@@ -4,16 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <stdint.h>
-#include <stdbool.h>
 #include <errno.h>
-
-#include <toolchain.h>
+#include <zephyr/types.h>
+#include <device.h>
+#include <drivers/entropy.h>
+#include <drivers/clock_control.h>
+#include <drivers/clock_control/nrf_clock_control.h>
 
 #include <soc.h>
-#include <device.h>
-
-#include <drivers/entropy.h>
 
 #include "hal/swi.h"
 #include "hal/ccm.h"
@@ -30,7 +28,6 @@
 #include "lll_vendor.h"
 #include "lll_clock.h"
 #include "lll_internal.h"
-#include "lll_prof_internal.h"
 
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_HCI_DRIVER)
 #define LOG_MODULE_NAME bt_ctlr_lll
@@ -79,13 +76,9 @@ ISR_DIRECT_DECLARE(radio_nrf5_isr)
 {
 	DEBUG_RADIO_ISR(1);
 
-	lll_prof_enter_radio();
-
 	isr_radio();
 
 	ISR_DIRECT_PM();
-
-	lll_prof_exit_radio();
 
 	DEBUG_RADIO_ISR(0);
 	return 1;
@@ -94,8 +87,6 @@ ISR_DIRECT_DECLARE(radio_nrf5_isr)
 static void rtc0_nrf5_isr(const void *arg)
 {
 	DEBUG_TICKER_ISR(1);
-
-	lll_prof_enter_ull_high();
 
 	/* On compare0 run ticker worker instance0 */
 	if (NRF_RTC0->EVENTS_COMPARE[0]) {
@@ -106,15 +97,9 @@ static void rtc0_nrf5_isr(const void *arg)
 
 	mayfly_run(TICKER_USER_ID_ULL_HIGH);
 
-	lll_prof_exit_ull_high();
-
 #if !defined(CONFIG_BT_CTLR_LOW_LAT) && \
 	(CONFIG_BT_CTLR_ULL_HIGH_PRIO == CONFIG_BT_CTLR_ULL_LOW_PRIO)
-	lll_prof_enter_ull_low();
-
 	mayfly_run(TICKER_USER_ID_ULL_LOW);
-
-	lll_prof_exit_ull_low();
 #endif
 
 	DEBUG_TICKER_ISR(0);
@@ -124,11 +109,7 @@ static void swi_lll_nrf5_isr(const void *arg)
 {
 	DEBUG_RADIO_ISR(1);
 
-	lll_prof_enter_lll();
-
 	mayfly_run(TICKER_USER_ID_LLL);
-
-	lll_prof_exit_lll();
 
 	DEBUG_RADIO_ISR(0);
 }
@@ -139,11 +120,7 @@ static void swi_ull_low_nrf5_isr(const void *arg)
 {
 	DEBUG_TICKER_JOB(1);
 
-	lll_prof_enter_ull_low();
-
 	mayfly_run(TICKER_USER_ID_ULL_LOW);
-
-	lll_prof_exit_ull_low();
 
 	DEBUG_TICKER_JOB(0);
 }
@@ -198,8 +175,6 @@ int lll_init(void)
 	irq_enable(HAL_SWI_JOB_IRQ);
 #endif
 
-	radio_setup();
-
 	return 0;
 }
 
@@ -245,10 +220,9 @@ int lll_prepare(lll_is_abort_cb_t is_abort_cb, lll_abort_cb_t abort_cb,
 
 void lll_resume(void *param)
 {
-	struct lll_event *next;
+	struct lll_event *next = param;
 	int ret;
 
-	next = param;
 	ret = prepare(next->is_abort_cb, next->abort_cb, next->prepare_cb,
 		      next->prio, &next->prepare_param, next->is_resume);
 	LL_ASSERT(!ret || ret == -EINPROGRESS);
@@ -266,9 +240,8 @@ void lll_disable(void *param)
 	}
 	{
 		struct lll_event *next;
-		uint8_t idx;
+		uint8_t idx = UINT8_MAX;
 
-		idx = UINT8_MAX;
 		next = ull_prepare_dequeue_iter(&idx);
 		while (next) {
 			if (!next->is_aborted &&
@@ -305,17 +278,15 @@ int lll_prepare_done(void *param)
 
 int lll_done(void *param)
 {
-	struct lll_event *next;
-	struct ull_hdr *ull;
+	struct lll_event *next = ull_prepare_dequeue_get();
+	struct ull_hdr *ull = NULL;
 	void *evdone;
 	int ret = 0;
 
 	/* Assert if param supplied without a pending prepare to cancel. */
-	next = ull_prepare_dequeue_get();
 	LL_ASSERT(!param || next);
 
 	/* check if current LLL event is done */
-	ull = NULL;
 	if (!param) {
 		/* Reset current event instance */
 		LL_ASSERT(event.curr.abort_cb);
@@ -359,30 +330,6 @@ int lll_is_abort_cb(void *next, int prio, void *curr,
 	return -ECANCELED;
 }
 
-void lll_abort_cb(struct lll_prepare_param *prepare_param, void *param)
-{
-	int err;
-
-	/* NOTE: This is not a prepare being cancelled */
-	if (!prepare_param) {
-		/* Perform event abort here.
-		 * After event has been cleanly aborted, clean up resources
-		 * and dispatch event done.
-		 */
-		radio_isr_set(lll_isr_done, param);
-		radio_disable();
-		return;
-	}
-
-	/* NOTE: Else clean the top half preparations of the aborted event
-	 * currently in preparation pipeline.
-	 */
-	err = lll_hfclock_off();
-	LL_ASSERT(err >= 0);
-
-	lll_done(param);
-}
-
 uint32_t lll_evt_offset_get(struct evt_hdr *evt)
 {
 	if (0) {
@@ -400,10 +347,9 @@ uint32_t lll_evt_offset_get(struct evt_hdr *evt)
 uint32_t lll_preempt_calc(struct evt_hdr *evt, uint8_t ticker_id,
 		       uint32_t ticks_at_event)
 {
-	uint32_t ticks_now;
+	uint32_t ticks_now = ticker_ticks_now_get();
 	uint32_t diff;
 
-	ticks_now = ticker_ticks_now_get();
 	diff = ticker_ticks_diff_get(ticks_now, ticks_at_event);
 	diff += HAL_TICKER_CNTR_CMP_OFFSET_MIN;
 	if (!(diff & BIT(HAL_TICKER_CNTR_MSBIT)) &&
@@ -485,8 +431,8 @@ void lll_isr_tx_status_reset(void)
 	radio_status_reset();
 	radio_tmr_status_reset();
 
-	if (IS_ENABLED(CONFIG_BT_CTLR_GPIO_PA) ||
-	    IS_ENABLED(CONFIG_BT_CTLR_GPIO_LNA)) {
+	if (IS_ENABLED(CONFIG_BT_CTLR_GPIO_PA_PIN) ||
+	    IS_ENABLED(CONFIG_BT_CTLR_GPIO_LNA_PIN)) {
 		radio_gpio_pa_lna_disable();
 	}
 }
@@ -497,8 +443,8 @@ void lll_isr_rx_status_reset(void)
 	radio_tmr_status_reset();
 	radio_rssi_status_reset();
 
-	if (IS_ENABLED(CONFIG_BT_CTLR_GPIO_PA) ||
-	    IS_ENABLED(CONFIG_BT_CTLR_GPIO_LNA)) {
+	if (IS_ENABLED(CONFIG_BT_CTLR_GPIO_PA_PIN) ||
+	    IS_ENABLED(CONFIG_BT_CTLR_GPIO_LNA_PIN)) {
 		radio_gpio_pa_lna_disable();
 	}
 }
@@ -511,8 +457,8 @@ void lll_isr_status_reset(void)
 	radio_ar_status_reset();
 	radio_rssi_status_reset();
 
-	if (IS_ENABLED(CONFIG_BT_CTLR_GPIO_PA) ||
-	    IS_ENABLED(CONFIG_BT_CTLR_GPIO_LNA)) {
+	if (IS_ENABLED(CONFIG_BT_CTLR_GPIO_PA_PIN) ||
+	    IS_ENABLED(CONFIG_BT_CTLR_GPIO_LNA_PIN)) {
 		radio_gpio_pa_lna_disable();
 	}
 }
@@ -554,12 +500,11 @@ static int prepare(lll_is_abort_cb_t is_abort_cb, lll_abort_cb_t abort_cb,
 		   lll_prepare_cb_t prepare_cb, int prio,
 		   struct lll_prepare_param *prepare_param, uint8_t is_resume)
 {
+	uint8_t idx = UINT8_MAX;
 	struct lll_event *p;
-	uint8_t idx;
 	int err;
 
 	/* Find the ready prepare in the pipeline */
-	idx = UINT8_MAX;
 	p = ull_prepare_dequeue_iter(&idx);
 	while (p && (p->is_aborted || p->is_resume)) {
 		p = ull_prepare_dequeue_iter(&idx);
@@ -732,17 +677,16 @@ static void preempt_ticker_cb(uint32_t ticks_at_expire, uint32_t remainder,
 
 static void preempt(void *param)
 {
+	struct lll_event *next = ull_prepare_dequeue_get();
 	lll_prepare_cb_t resume_cb;
-	struct lll_event *next;
+	uint8_t idx = UINT8_MAX;
 	int resume_prio;
-	uint8_t idx;
 	int ret;
 
 	if (!event.curr.abort_cb || !event.curr.param) {
 		return;
 	}
 
-	idx = UINT8_MAX;
 	next = ull_prepare_dequeue_iter(&idx);
 	if (!next) {
 		return;
@@ -771,9 +715,8 @@ static void preempt(void *param)
 
 	if (ret == -EAGAIN) {
 		struct lll_event *iter;
-		uint8_t iter_idx;
+		uint8_t iter_idx = UINT8_MAX;
 
-		iter_idx = UINT8_MAX;
 		iter = ull_prepare_dequeue_iter(&iter_idx);
 		while (iter) {
 			if (!iter->is_aborted &&
