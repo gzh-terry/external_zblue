@@ -6,8 +6,9 @@
  */
 
 #include <sys/dlist.h>
+#include <sys/mempool_base.h>
 
-#include <hal/nrf_rtc.h>
+#include <nrfx/hal/nrf_rtc.h>
 
 #include "hal/cntr.h"
 

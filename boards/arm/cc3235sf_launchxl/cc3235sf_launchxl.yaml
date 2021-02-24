@@ -10,4 +10,3 @@ supported:
   - netif:wifi
   - i2c
   - gpio
-  - adc

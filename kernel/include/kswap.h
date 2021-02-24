@@ -68,11 +68,28 @@ static ALWAYS_INLINE unsigned int do_swap(unsigned int key,
 
 	z_check_stack_sentinel();
 
-	if (is_spinlock && lock != NULL) {
+	if (is_spinlock) {
 		k_spin_release(lock);
 	}
 
+#ifdef CONFIG_SMP
+	/* Null out the switch handle, see wait_for_switch() above.
+	 * Note that we set it back to a non-null value if we are not
+	 * switching!  The value itself doesn't matter, because by
+	 * definition _current is running and has no saved state.
+	 */
+	volatile void **shp = (void *)&old_thread->switch_handle;
+
+	*shp = NULL;
+#endif
+
 	new_thread = z_get_next_ready_thread();
+
+#ifdef CONFIG_SMP
+	if (new_thread == old_thread) {
+		*shp = old_thread;
+	}
+#endif
 
 	if (new_thread != old_thread) {
 #ifdef CONFIG_TIMESLICING
@@ -83,33 +100,19 @@ static ALWAYS_INLINE unsigned int do_swap(unsigned int key,
 
 #ifdef CONFIG_SMP
 		_current_cpu->swap_ok = 0;
+
 		new_thread->base.cpu = arch_curr_cpu()->id;
 
 		if (!is_spinlock) {
 			z_smp_release_global_lock(new_thread);
 		}
 #endif
-		z_thread_mark_switched_out();
-		wait_for_switch(new_thread);
-		arch_cohere_stacks(old_thread, NULL, new_thread);
+		sys_trace_thread_switched_out();
 		_current_cpu->current = new_thread;
+		wait_for_switch(new_thread);
+		arch_switch(new_thread->switch_handle,
+			     &old_thread->switch_handle);
 
-#ifdef CONFIG_SMP
-		/* Add _current back to the run queue HERE. After
-		 * wait_for_switch() we are guaranteed to reach the
-		 * context switch in finite time, avoiding a potential
-		 * deadlock.
-		 */
-		z_requeue_current(old_thread);
-#endif
-
-		void *newsh = new_thread->switch_handle;
-
-		if (IS_ENABLED(CONFIG_SMP)) {
-			/* Active threads MUST have a null here */
-			new_thread->switch_handle = NULL;
-		}
-		arch_switch(newsh, &old_thread->switch_handle);
 	}
 
 	if (is_spinlock) {
@@ -133,7 +136,10 @@ static inline int z_swap(struct k_spinlock *lock, k_spinlock_key_t key)
 
 static inline void z_swap_unlocked(void)
 {
-	(void) do_swap(arch_irq_lock(), NULL, 1);
+	struct k_spinlock lock = {};
+	k_spinlock_key_t key = k_spin_lock(&lock);
+
+	(void) z_swap(&lock, key);
 }
 
 #else /* !CONFIG_USE_SWITCH */

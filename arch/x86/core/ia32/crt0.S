@@ -16,7 +16,6 @@
 #include <kernel_arch_data.h>
 #include <arch/cpu.h>
 #include <arch/x86/multiboot.h>
-#include <x86_mmu.h>
 
 	/* exports (private APIs) */
 
@@ -25,8 +24,6 @@
 
 	/* externs */
 	GTEXT(z_x86_prep_c)
-	GTEXT(z_bss_zero)
-	GTEXT(z_data_copy)
 
 	GDATA(_idt_base_address)
 	GDATA(z_interrupt_stacks)
@@ -36,8 +33,12 @@
 #endif
 
 
-#if defined(CONFIG_X86_SSE)
+#if defined(CONFIG_SSE)
 	GDATA(_sse_mxcsr_default_value)
+#endif
+
+#ifdef CONFIG_SYS_POWER_DEEP_SLEEP_STATES
+	GTEXT(_sys_resume_from_deep_sleep)
 #endif
 
 SECTION_FUNC(TEXT_START, __start)
@@ -103,7 +104,7 @@ __csSet:
 
 	fninit				/* set x87 FPU to its default state */
 
-  #if defined(CONFIG_X86_SSE)
+  #if defined(CONFIG_SSE)
 	/*
 	 * Permit use of SSE instructions
 	 *
@@ -118,7 +119,7 @@ __csSet:
 
 	ldmxcsr _sse_mxcsr_default_value   /* initialize SSE control/status reg */
 
-  #endif /* CONFIG_X86_SSE */
+  #endif /* CONFIG_SSE */
 
 #endif /* !CONFIG_FPU */
 
@@ -132,6 +133,15 @@ __csSet:
 	 * kernel/init.c enforces that the z_interrupt_stacks pointer and
 	 * the ISR stack size are some multiple of ARCH_STACK_PTR_ALIGN, which
 	 * is at least 4.
+	 *
+	 * This is also used to call the _sys_resume_from_deep_sleep()
+	 * routine to avoid memory corruption if the system is resuming from
+	 * deep sleep. It is important that _sys_resume_from_deep_sleep()
+	 * restores the stack pointer to what it was at deep sleep before
+         * enabling interrupts.  This is necessary to avoid
+	 * interfering with interrupt handler use of this stack.
+	 * If it is a cold boot then _sys_resume_from_deep_sleep() should
+	 * not do anything and must return immediately.
 	 */
 #ifdef CONFIG_INIT_STACKS
 	movl $0xAAAAAAAA, %eax
@@ -153,18 +163,60 @@ __csSet:
 #else
 	addl	$CONFIG_ISR_STACK_SIZE, %esp
 #endif
+#if defined(CONFIG_SYS_POWER_DEEP_SLEEP_STATES) && \
+             !defined(CONFIG_BOOTLOADER_CONTEXT_RESTORE)
+	/*
+	 * Invoke _sys_resume_from_deep_sleep() hook to handle resume from
+	 * deep sleep. It should first check whether system is recovering from
+	 * deep sleep state. If it is, then this function should restore
+	 * states and resume at the point system went to deep sleep.
+	 * In this case this function will never return.
+	 *
+	 * If system is not recovering from deep sleep then it is a
+	 * cold boot.  In this case, this function would immediately
+	 * return and execution falls through to cold boot path.
+	 */
 
-	/* Clear BSS */
-	call	z_bss_zero
+	call _sys_resume_from_deep_sleep
+
+#endif
 
 #ifdef CONFIG_XIP
-	/* Copy data from flash to RAM.
-	 *
-	 * This is a must is CONFIG_GDT_DYNAMIC is enabled,
-	 * as _gdt needs to be in RAM.
+	/*
+	 * copy DATA section from ROM to RAM region
+	 *	 DATA is followed by BSS section.
 	 */
-	call	z_data_copy
-#endif
+
+	movl	$__data_ram_start, %edi /* DATA in RAM (dest) */
+	movl	$__data_rom_start, %esi /* DATA in ROM (src) */
+	movl	$__data_num_words, %ecx /* Size of DATA in quad bytes */
+
+	call	_x86_data_copy
+
+#ifdef CONFIG_USERSPACE
+	movl	$_app_smem_start, %edi /* DATA in RAM (dest) */
+	movl	$_app_smem_rom_start, %esi /* DATA in ROM (src) */
+	movl	$_app_smem_num_words, %ecx /* Size of DATA in quad bytes */
+
+	call	_x86_data_copy
+#endif /* CONFIG_USERSPACE */
+#endif /* CONFIG_XIP */
+
+	/*
+	 * Clear BSS: bzero (__bss_start, __bss_num_words*4)
+	 *
+	 * It's assumed that BSS size will be a multiple of a long (4 bytes),
+	 * and aligned on a double word (32-bit) boundary
+	 */
+	movl	$__bss_start, %edi	/* load BSS start address */
+	movl	$__bss_num_words, %ecx	/* number of quad bytes in .bss */
+	call	_x86_bss_zero
+
+#ifdef CONFIG_COVERAGE_GCOV
+	movl	$__gcov_bss_start, %edi	/* load gcov BSS start address */
+	movl	$__gcov_bss_num_words, %ecx	/* number of quad bytes */
+	call	_x86_bss_zero
+#endif /* CONFIG_COVERAGE_GCOV */
 
 #ifdef CONFIG_GDT_DYNAMIC
 	/* activate RAM-based Global Descriptor Table (GDT) */
@@ -179,7 +231,7 @@ __csSet:
 
 #ifdef CONFIG_X86_MMU
 	/* Install page tables */
-	movl $Z_X86_PHYS_ADDR(z_x86_kernel_ptables), %eax
+	movl $z_x86_kernel_ptables, %eax
 	movl %eax, %cr3
 
 #ifdef CONFIG_X86_PAE
@@ -201,17 +253,88 @@ __csSet:
 	movl %eax, %cr0
 #endif /* CONFIG_X86_MMU */
 
+#ifdef CONFIG_LOAPIC
+	/* For BSP, cpu_number is 0 */
+	xorl	%eax, %eax
+	pushl	%eax
+	call	z_loapic_enable
+#endif
+
 	pushl	%ebx		/* pointer to multiboot info, or NULL */
 	call	z_x86_prep_c	/* enter kernel; never returns */
 
-#if defined(CONFIG_X86_SSE)
+_x86_bss_zero:
+	/* ECX = size, EDI = starting address */
+#ifdef CONFIG_SSE
+	/* use XMM register to clear 16 bytes at a time */
+	pxor	%xmm0, %xmm0		/* zero out xmm0 register */
+
+	movl	%ecx, %edx		/* make a copy of # quad bytes */
+	shrl	$2, %ecx		/* How many multiples of 16 byte ? */
+	je	bssWords
+bssDQ:
+	movdqu	%xmm0, (%edi)		/* zero 16 bytes... */
+	addl	$16, %edi
+	loop	bssDQ
+
+	/* fall through to handle the remaining double words (32-bit chunks) */
+
+bssWords:
+	xorl	%eax, %eax		/* fill memory with 0 */
+	movl	%edx, %ecx		/* move # quad bytes into ECX (for rep) */
+	andl	$0x3, %ecx		/* only need to zero at most 3 quad bytes */
+	cld
+	rep
+	stosl				/* zero memory per 4 bytes */
+
+#else /* !CONFIG_SSE */
+
+	/* clear out BSS double words (32-bits at a time) */
+
+	xorl	%eax, %eax		/* fill memory with 0 */
+	cld
+	rep
+	stosl				/* zero memory per 4 bytes */
+
+#endif /* CONFIG_SSE */
+	ret
+
+#ifdef CONFIG_XIP
+_x86_data_copy:
+	/* EDI = dest, ESI = source, ECX = size in 32-bit chunks */
+  #ifdef CONFIG_SSE
+	/* copy 16 bytes at a time using XMM until < 16 bytes remain */
+
+	movl	%ecx ,%edx		/* save number of quad bytes */
+	shrl	$2, %ecx		/* How many 16 bytes? */
+	je	dataWords
+
+dataDQ:
+	movdqu	(%esi), %xmm0
+	movdqu	%xmm0, (%edi)
+	addl	$16, %esi
+	addl	$16, %edi
+	loop	dataDQ
+
+dataWords:
+	movl	%edx, %ecx	/* restore # quad bytes */
+	andl	$0x3, %ecx	/* only need to copy at most 3 quad bytes */
+  #endif /* CONFIG_SSE */
+
+	rep
+	movsl				/* copy data 4 bytes at a time */
+	ret
+#endif /* CONFIG_XIP */
+
+
+#if defined(CONFIG_SSE)
 
 	/* SSE control & status register initial value */
 
 _sse_mxcsr_default_value:
 	.long	0x1f80			/* all SSE exceptions clear & masked */
 
-#endif /* CONFIG_X86_SSE */
+#endif /* CONFIG_SSE */
 
 	 /* Interrupt Descriptor Table (IDT) definition */
 

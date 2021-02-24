@@ -43,9 +43,21 @@ enum clock_control_status {
 	CLOCK_CONTROL_STATUS_STARTING,
 	CLOCK_CONTROL_STATUS_OFF,
 	CLOCK_CONTROL_STATUS_ON,
-	CLOCK_CONTROL_STATUS_UNAVAILABLE,
 	CLOCK_CONTROL_STATUS_UNKNOWN
 };
+
+
+/**
+ * @cond INTERNAL_HIDDEN
+ */
+#define Z_CLOCK_CONTROL_ASYNC_DATA_INITIALIZER(_cb, _user_data) \
+	{ \
+		.cb = cb, \
+		.user_data = _user_data \
+	}
+/**
+ * INTERNAL_HIDDEN @endcond
+ */
 
 /**
  * clock_control_subsys_t is a type to identify a clock controller sub-system.
@@ -64,6 +76,30 @@ typedef void (*clock_control_cb_t)(const struct device *dev,
 				   clock_control_subsys_t subsys,
 				   void *user_data);
 
+/**
+ * Define and initialize clock_control async data.
+ *
+ * @param name		Name of the data.
+ * @param cb		Callback.
+ * @param user_data	User data
+ */
+#define CLOCK_CONTROL_ASYNC_DATA_DEFINE(name, cb, user_data) \
+	struct clock_control_async_data name = \
+		Z_CLOCK_CONTROL_ASYNC_DATA_INITIALIZER(cb, user_data)
+
+/**
+ * @brief Clock control data used for asynchronous clock enabling.
+ *
+ * @param node		Used internally for linking asynchronous requests.
+ * @param cb		Callback called when clock is started.
+ * @param user_data	User data passed as an argument in the callback.
+ */
+struct clock_control_async_data {
+	sys_snode_t node;
+	clock_control_cb_t cb;
+	void *user_data;
+};
+
 typedef int (*clock_control)(const struct device *dev,
 			     clock_control_subsys_t sys);
 
@@ -73,12 +109,10 @@ typedef int (*clock_control_get)(const struct device *dev,
 
 typedef int (*clock_control_async_on_fn)(const struct device *dev,
 					 clock_control_subsys_t sys,
-					 clock_control_cb_t cb,
-					 void *user_data);
+					 struct clock_control_async_data *data);
 
-typedef enum clock_control_status (*clock_control_get_status_fn)(
-						    const struct device *dev,
-						    clock_control_subsys_t sys);
+typedef enum clock_control_status (*clock_control_get_status_fn)(const struct device *dev,
+								 clock_control_subsys_t sys);
 
 struct clock_control_driver_api {
 	clock_control			on;
@@ -104,10 +138,6 @@ struct clock_control_driver_api {
 static inline int clock_control_on(const struct device *dev,
 				   clock_control_subsys_t sys)
 {
-	if (!device_is_ready(dev)) {
-		return -ENODEV;
-	}
-
 	const struct clock_control_driver_api *api =
 		(const struct clock_control_driver_api *)dev->api;
 
@@ -127,10 +157,6 @@ static inline int clock_control_on(const struct device *dev,
 static inline int clock_control_off(const struct device *dev,
 				    clock_control_subsys_t sys)
 {
-	if (!device_is_ready(dev)) {
-		return -ENODEV;
-	}
-
 	const struct clock_control_driver_api *api =
 		(const struct clock_control_driver_api *)dev->api;
 
@@ -140,23 +166,24 @@ static inline int clock_control_off(const struct device *dev,
 /**
  * @brief Request clock to start with notification when clock has been started.
  *
- * Function is non-blocking and can be called from any context. User callback is
- * called when clock is started.
+ * Function is non-blocking and can be called from any context.
+ * When clock is already running user callback will be called from the context
+ * of the function call else it is called from other context (e.g. clock
+ * interrupt).
  *
- * @param dev	    Device.
- * @param sys	    A pointer to an opaque data representing the sub-system.
- * @param cb	    Callback.
- * @param user_data User context passed to the callback.
+ * @param dev 	   Device.
+ * @param sys	   A pointer to an opaque data representing the sub-system.
+ * @param data	   Data structure containing a callback that is called when
+ *		   action is performed. Structure content must be valid until
+ *		   clock is started and user callback is called. Can be NULL.
  *
- * @retval 0 if start is successfully initiated.
- * @retval -EALREADY if clock was already started and is starting or running.
+ * @retval 0 if clock is started or already running.
+ * @retval -EBUSY if same request already scheduled and not yet completed.
  * @retval -ENOTSUP if not supported.
- * @retval other negative errno on vendor specific error.
  */
 static inline int clock_control_async_on(const struct device *dev,
 					 clock_control_subsys_t sys,
-					 clock_control_cb_t cb,
-					 void *user_data)
+					 struct clock_control_async_data *data)
 {
 	const struct clock_control_driver_api *api =
 		(const struct clock_control_driver_api *)dev->api;
@@ -165,11 +192,7 @@ static inline int clock_control_async_on(const struct device *dev,
 		return -ENOTSUP;
 	}
 
-	if (!device_is_ready(dev)) {
-		return -ENODEV;
-	}
-
-	return api->async_on(dev, sys, cb, user_data);
+	return api->async_on(dev, sys, data);
 }
 
 /**
@@ -190,10 +213,6 @@ static inline enum clock_control_status clock_control_get_status(const struct de
 		return CLOCK_CONTROL_STATUS_UNKNOWN;
 	}
 
-	if (!device_is_ready(dev)) {
-		return CLOCK_CONTROL_STATUS_UNAVAILABLE;
-	}
-
 	return api->get_status(dev, sys);
 }
 
@@ -208,10 +227,6 @@ static inline int clock_control_get_rate(const struct device *dev,
 					 clock_control_subsys_t sys,
 					 uint32_t *rate)
 {
-	if (!device_is_ready(dev)) {
-		return -ENODEV;
-	}
-
 	const struct clock_control_driver_api *api =
 		(const struct clock_control_driver_api *)dev->api;
 

@@ -6,11 +6,6 @@
  */
 
 #include <soc.h>
-#include <stm32_ll_lptim.h>
-#include <stm32_ll_bus.h>
-#include <stm32_ll_rcc.h>
-#include <stm32_ll_pwr.h>
-#include <stm32_ll_system.h>
 #include <drivers/clock_control.h>
 #include <drivers/clock_control/stm32_clock_control.h>
 #include <drivers/timer/system_timer.h>
@@ -215,7 +210,7 @@ void z_clock_set_timeout(int32_t ticks, bool idle)
 	 * treated identically: it simply indicates the kernel would like the
 	 * next tick announcement as soon as possible.
 	 */
-	ticks = CLAMP(ticks - 1, 1, (int32_t)LPTIM_TIMEBASE);
+	ticks = MAX(MIN(ticks - 1, (int32_t)LPTIM_TIMEBASE), 1);
 
 	k_spinlock_key_t key = k_spin_lock(&lock);
 
@@ -291,7 +286,7 @@ uint32_t z_clock_elapsed(void)
 	/* gives the value of LPTIM1 counter (ms)
 	 * since the previous 'announce'
 	 */
-	uint64_t ret = ((uint64_t)lp_time * CONFIG_SYS_CLOCK_TICKS_PER_SEC) / LPTIM_CLOCK;
+	uint64_t ret = (lp_time * CONFIG_SYS_CLOCK_TICKS_PER_SEC) / LPTIM_CLOCK;
 
 	return (uint32_t)(ret);
 }
@@ -315,7 +310,7 @@ uint32_t z_timer_cycle_get_32(void)
 	lp_time += accumulated_lptim_cnt;
 
 	/* convert lptim count in a nb of hw cycles with precision */
-	uint64_t ret = ((uint64_t)lp_time * sys_clock_hw_cycles_per_sec()) / LPTIM_CLOCK;
+	uint64_t ret = lp_time * (sys_clock_hw_cycles_per_sec() / LPTIM_CLOCK);
 
 	k_spin_unlock(&lock, key);
 

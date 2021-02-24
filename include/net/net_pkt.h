@@ -900,11 +900,6 @@ static inline uint8_t *net_pkt_ip_data(struct net_pkt *pkt)
 	return pkt->frags->data;
 }
 
-static inline bool net_pkt_is_empty(struct net_pkt *pkt)
-{
-	return !pkt->buffer || !net_pkt_data(pkt) || pkt->buffer->len == 0;
-}
-
 static inline struct net_linkaddr *net_pkt_lladdr_src(struct net_pkt *pkt)
 {
 	return &pkt->lladdr_src;
@@ -1568,9 +1563,6 @@ void net_pkt_append_buffer(struct net_pkt *pkt, struct net_buf *buffer);
 /**
  * @brief Get available buffer space from a pkt
  *
- * @note Reserved bytes (headroom) in any of the fragments are not considered to
- *       be available.
- *
  * @param pkt The net_pkt which buffer availability should be evaluated
  *
  * @return the amount of buffer available
@@ -1579,9 +1571,6 @@ size_t net_pkt_available_buffer(struct net_pkt *pkt);
 
 /**
  * @brief Get available buffer space for payload from a pkt
- *
- * @note Reserved bytes (headroom) in any of the fragments are not considered to
- *       be available.
  *
  * @details Unlike net_pkt_available_buffer(), this will take into account
  *          the headers space.

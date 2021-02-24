@@ -11,7 +11,5 @@ supported:
   - gpio
   - nvs
   - watchdog
-  - i2c
-  - netif:eth
 ram: 256
 flash: 2048

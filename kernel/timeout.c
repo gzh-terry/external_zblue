@@ -12,6 +12,11 @@
 #include <drivers/timer/system_timer.h>
 #include <sys_clock.h>
 
+#define LOCKED(lck) for (k_spinlock_key_t __i = {},			\
+					  __key = k_spin_lock(lck);	\
+			__i.key == 0;					\
+			k_spin_unlock(lck, __key), __i.key = 1)
+
 static uint64_t curr_tick;
 
 static sys_dlist_t timeout_list = SYS_DLIST_STATIC_INIT(&timeout_list);
@@ -61,15 +66,14 @@ static void remove_timeout(struct _timeout *t)
 
 static int32_t elapsed(void)
 {
-	return announce_remaining == 0 ? z_clock_elapsed() : 0U;
+	return announce_remaining == 0 ? z_clock_elapsed() : 0;
 }
 
 static int32_t next_timeout(void)
 {
 	struct _timeout *to = first();
 	int32_t ticks_elapsed = elapsed();
-	int32_t ret = to == NULL ? MAX_WAIT
-		: CLAMP(to->dticks - ticks_elapsed, 0, MAX_WAIT);
+	int32_t ret = to == NULL ? MAX_WAIT : MAX(0, to->dticks - ticks_elapsed);
 
 #ifdef CONFIG_TIMESLICING
 	if (_current_cpu->slice_ticks && _current_cpu->slice_ticks < ret) {
@@ -86,15 +90,15 @@ void z_add_timeout(struct _timeout *to, _timeout_func_t fn,
 		return;
 	}
 
-#ifdef CONFIG_KERNEL_COHERENCE
-	__ASSERT_NO_MSG(arch_mem_coherent(to));
-#endif
-
+#ifdef CONFIG_LEGACY_TIMEOUT_API
+	k_ticks_t ticks = timeout;
+#else
 	k_ticks_t ticks = timeout.ticks + 1;
 
 	if (IS_ENABLED(CONFIG_TIMEOUT_64BIT) && Z_TICK_ABS(ticks) >= 0) {
-		ticks = Z_TICK_ABS(timeout.ticks) - (curr_tick + elapsed());
+		ticks = Z_TICK_ABS(ticks) - (curr_tick + elapsed());
 	}
+#endif
 
 	__ASSERT(!sys_dnode_is_linked(&to->node), "");
 	to->fn = fn;
@@ -118,24 +122,7 @@ void z_add_timeout(struct _timeout *to, _timeout_func_t fn,
 		}
 
 		if (to == first()) {
-#if CONFIG_TIMESLICING
-			/*
-			 * This is not ideal, since it does not
-			 * account the time elapsed since the the
-			 * last announcement, and slice_ticks is based
-			 * on that. It means the that time remaining for
-			 * the next announcement can be lesser than
-			 * slice_ticks.
-			 */
-			int32_t next_time = next_timeout();
-
-			if (next_time == 0 ||
-			    _current_cpu->slice_ticks != next_time) {
-				z_clock_set_timeout(next_time, false);
-			}
-#else
 			z_clock_set_timeout(next_timeout(), false);
-#endif	/* CONFIG_TIMESLICING */
 		}
 	}
 }
@@ -155,7 +142,7 @@ int z_abort_timeout(struct _timeout *to)
 }
 
 /* must be locked */
-static k_ticks_t timeout_rem(const struct _timeout *timeout)
+static k_ticks_t timeout_rem(struct _timeout *timeout)
 {
 	k_ticks_t ticks = 0;
 
@@ -173,7 +160,7 @@ static k_ticks_t timeout_rem(const struct _timeout *timeout)
 	return ticks - elapsed();
 }
 
-k_ticks_t z_timeout_remaining(const struct _timeout *timeout)
+k_ticks_t z_timeout_remaining(struct _timeout *timeout)
 {
 	k_ticks_t ticks = 0;
 
@@ -184,7 +171,7 @@ k_ticks_t z_timeout_remaining(const struct _timeout *timeout)
 	return ticks;
 }
 
-k_ticks_t z_timeout_expires(const struct _timeout *timeout)
+k_ticks_t z_timeout_expires(struct _timeout *timeout)
 {
 	k_ticks_t ticks = 0;
 
@@ -210,7 +197,7 @@ void z_set_timeout_expiry(int32_t ticks, bool is_idle)
 	LOCKED(&timeout_lock) {
 		int next_to = next_timeout();
 		bool sooner = (next_to == K_TICKS_FOREVER)
-			      || (ticks <= next_to);
+			      || (ticks < next_to);
 		bool imminent = next_to <= 1;
 
 		/* Only set new timeouts when they are sooner than
@@ -312,10 +299,14 @@ uint64_t z_timeout_end_calc(k_timeout_t timeout)
 		return z_tick_get();
 	}
 
+#ifdef CONFIG_LEGACY_TIMEOUT_API
+	dt = k_ms_to_ticks_ceil32(timeout);
+#else
 	dt = timeout.ticks;
 
 	if (IS_ENABLED(CONFIG_TIMEOUT_64BIT) && Z_TICK_ABS(dt) >= 0) {
 		return Z_TICK_ABS(dt);
 	}
+#endif
 	return z_tick_get() + MAX(1, dt);
 }

@@ -213,7 +213,11 @@ class CheckPatch(ComplianceTest):
 
         except subprocess.CalledProcessError as ex:
             output = ex.output.decode("utf-8")
-            self.add_failure(output)
+            if re.search("[1-9][0-9]* errors,", output):
+                self.add_failure(output)
+            else:
+                # No errors found, but warnings. Show them.
+                self.add_info(output)
 
 
 class KconfigCheck(ComplianceTest):
@@ -225,14 +229,13 @@ class KconfigCheck(ComplianceTest):
     doc = "See https://docs.zephyrproject.org/latest/guides/kconfig/index.html for more details."
     path_hint = ZEPHYR_BASE
 
-    def run(self, full=True):
+    def run(self):
         kconf = self.parse_kconfig()
 
         self.check_top_menu_not_too_long(kconf)
         self.check_no_pointless_menuconfigs(kconf)
         self.check_no_undef_within_kconfig(kconf)
-        if full:
-            self.check_no_undef_outside_kconfig(kconf)
+        self.check_no_undef_outside_kconfig(kconf)
 
     def get_modules(self, modules_file):
         """
@@ -253,21 +256,6 @@ class KconfigCheck(ComplianceTest):
         except subprocess.CalledProcessError as ex:
             self.error(ex.output)
 
-        modules_dir = ZEPHYR_BASE + '/modules'
-        modules = [name for name in os.listdir(modules_dir) if
-                   os.path.exists(os.path.join(modules_dir, name, 'Kconfig'))]
-
-        with open(modules_file, 'r') as fp_module_file:
-            content = fp_module_file.read()
-
-        with open(modules_file, 'w') as fp_module_file:
-            for module in modules:
-                fp_module_file.write("ZEPHYR_{}_KCONFIG = {}\n".format(
-                    re.sub('[^a-zA-Z0-9]', '_', module).upper(),
-                    modules_dir + '/' + module + '/Kconfig'
-                ))
-            fp_module_file.write(content)
-
     def write_kconfig_soc(self):
         """
         Write KConfig soc files to be sourced during Kconfig parsing
@@ -277,8 +265,6 @@ class KconfigCheck(ComplianceTest):
         soc_defconfig_file = os.path.join(tempfile.gettempdir(), "Kconfig.soc.defconfig")
         soc_file = os.path.join(tempfile.gettempdir(), "Kconfig.soc")
         soc_arch_file = os.path.join(tempfile.gettempdir(), "Kconfig.soc.arch")
-        shield_defconfig_file = os.path.join(tempfile.gettempdir(), "Kconfig.shield.defconfig")
-        shield_file = os.path.join(tempfile.gettempdir(), "Kconfig.shield")
         try:
             with open(soc_defconfig_file, 'w', encoding="utf-8") as fp:
                 fp.write(f'osource "{ZEPHYR_BASE}/soc/$(ARCH)/*/Kconfig.defconfig"\n')
@@ -289,12 +275,6 @@ class KconfigCheck(ComplianceTest):
             with open(soc_arch_file, 'w', encoding="utf-8") as fp:
                 fp.write(f'osource "{ZEPHYR_BASE}/soc/$(ARCH)/Kconfig"\n\
 osource "{ZEPHYR_BASE}/soc/$(ARCH)/*/Kconfig"\n')
-
-            with open(shield_defconfig_file, 'w', encoding="utf-8") as fp:
-                fp.write(f'osource "{ZEPHYR_BASE}/boards/shields/*/Kconfig.defconfig"\n')
-
-            with open(shield_file, 'w', encoding="utf-8") as fp:
-                fp.write(f'osource "{ZEPHYR_BASE}/boards/shields/*/Kconfig.shield"\n')
         except IOError as ex:
             self.error(ex.output)
 
@@ -454,7 +434,7 @@ https://docs.zephyrproject.org/latest/guides/kconfig/tips.html#menuconfig-symbol
         # Skip doc/releases, which often references removed symbols
         grep_stdout = git("grep", "--line-number", "-I", "--null",
                           "--perl-regexp", regex, "--", ":!/doc/releases",
-                          cwd=Path(GIT_TOP))
+                          cwd=ZEPHYR_BASE)
 
         # splitlines() supports various line terminators
         for grep_line in grep_stdout.splitlines():
@@ -562,7 +542,6 @@ UNDEF_KCONFIG_WHITELIST = {
     "SRAM2",  # Referenced in a comment in samples/application_development
     "STACK_SIZE",  # Used as an example in the Kconfig docs
     "STD_CPP",  # Referenced in CMake comment
-    "TAGOIO_HTTP_POST_LOG_LEVEL",  # Used as in samples/net/cloud/tagoio
     "TEST1",
     "TYPE_BOOLEAN",
     "USB_CONSOLE",
@@ -570,19 +549,50 @@ UNDEF_KCONFIG_WHITELIST = {
     "WHATEVER",
 }
 
-class KconfigBasicCheck(KconfigCheck, ComplianceTest):
+
+class DeviceTreeCheck(ComplianceTest):
     """
-    Checks is we are introducing any new warnings/errors with Kconfig,
-    for example using undefiend Kconfig variables.
-    This runs the basic Kconfig test, which is checking only for undefined
-    references inside the Kconfig tree.
+    Runs the dtlib and edtlib test suites in scripts/dts/.
     """
-    name = "KconfigBasic"
-    doc = "See https://docs.zephyrproject.org/latest/guides/kconfig/index.html for more details."
+    name = "Devicetree"
+    doc = "See https://docs.zephyrproject.org/latest/guides/dts/index.html for more details"
     path_hint = ZEPHYR_BASE
 
     def run(self):
-        super().run(full=False)
+        if not ZEPHYR_BASE:
+            self.skip("Not a Zephyr tree (ZEPHYR_BASE unset)")
+
+        scripts_path = os.path.join(ZEPHYR_BASE, "scripts", "dts")
+
+        sys.path.insert(0, scripts_path)
+        import testdtlib
+        import testedtlib
+
+        # Hack: The test suites expect to be run from the scripts/dts
+        # directory, because they compare repr() output that contains relative
+        # paths against an expected string. Temporarily change the working
+        # directory to scripts/dts/.
+        #
+        # Warning: This is not thread-safe, though the test suites run in a
+        # fraction of a second.
+        old_dir = os.getcwd()
+        os.chdir(scripts_path)
+        try:
+            logger.info("cd %s && ./testdtlib.py", scripts_path)
+            testdtlib.run()
+            logger.info("cd %s && ./testedtlib.py", scripts_path)
+            testedtlib.run()
+        except SystemExit as e:
+            # The dtlib and edtlib test suites call sys.exit() on failure,
+            # which raises SystemExit. Let any errors in the test scripts
+            # themselves trickle through and turn into an internal CI error.
+            self.add_failure(str(e))
+        except Exception as e:
+            # Report other exceptions as an internal test failure
+            self.error(str(e))
+        finally:
+            # Restore working directory
+            os.chdir(old_dir)
 
 
 class Codeowners(ComplianceTest):
@@ -602,7 +612,7 @@ class Codeowners(ComplianceTest):
         """
 
         # TODO: filter out files not in "git ls-files" (e.g.,
-        # twister-out) _if_ the overhead isn't too high for a clean tree.
+        # sanity-out) _if_ the overhead isn't too high for a clean tree.
         #
         # pathlib.match() doesn't support **, so it looks like we can't
         # recursively glob the output of ls-files directly, only real
@@ -1112,8 +1122,7 @@ def main():
     except BaseException:
         # Catch BaseException instead of Exception to include stuff like
         # SystemExit (raised by sys.exit())
-        print("Python exception in `{}`:\n\n"
-              "```\n{}\n```".format(__file__, traceback.format_exc()))
+        print(format(__file__, traceback.format_exc()))
 
         raise
 

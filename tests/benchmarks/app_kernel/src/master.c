@@ -61,6 +61,9 @@ K_PIPE_DEFINE(PIPE_NOBUFF, 0, 4);
 K_PIPE_DEFINE(PIPE_SMALLBUFF, 256, 4);
 K_PIPE_DEFINE(PIPE_BIGBUFF, 4096, 4);
 
+K_MEM_POOL_DEFINE(DEMOPOOL, 16, 16, 1, 4);
+
+
 /**
  *
  * @brief Check for keypress
@@ -132,6 +135,7 @@ void main(void)
 		sema_test();
 		mutex_test();
 		memorymap_test();
+		mempool_test();
 		mailbox_test();
 		pipe_test();
 		PRINT_STRING("|         END OF TESTS                     "
