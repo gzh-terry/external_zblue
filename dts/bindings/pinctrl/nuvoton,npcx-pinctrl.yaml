@@ -18,16 +18,11 @@ properties:
 
     "#lvol-cells":
         type: int
-        required: true
+        required: false
+        const: 2
         description: Number of items to expect in a SCFG LV_GPIO_CTL (Low level IO controllers) specifier
 
 alt-cells:
     - group
     - bit
     - inv
-
-lvol-cells:
-    - io_port
-    - io_bit
-    - ctrl
-    - bit

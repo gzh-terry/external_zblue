@@ -32,8 +32,6 @@ LOG_MODULE_REGISTER(net_test, CONFIG_NET_IPV6_LOG_LEVEL);
 #include "icmpv6.h"
 #include "ipv6.h"
 
-#define THREAD_SLEEP 50 /* ms */
-
 #define NET_LOG_ENABLED 1
 #include "net_private.h"
 
@@ -232,8 +230,7 @@ static void test_join_group(void)
 		zassert_equal(ret, 0, "Cannot join IPv6 multicast group");
 	}
 
-	/* Let the network stack to proceed */
-	k_msleep(THREAD_SLEEP);
+	k_yield();
 }
 
 static void test_leave_group(void)
@@ -246,12 +243,7 @@ static void test_leave_group(void)
 
 	zassert_equal(ret, 0, "Cannot leave IPv6 multicast group");
 
-	if (IS_ENABLED(CONFIG_NET_TC_THREAD_PREEMPTIVE)) {
-		/* Let the network stack to proceed */
-		k_msleep(THREAD_SLEEP);
-	} else {
-		k_yield();
-	}
+	k_yield();
 }
 
 static void test_catch_join_group(void)
@@ -409,12 +401,7 @@ static void join_mldv2_capable_routers_group(void)
 	zassert_true(ret == 0 || ret == -EALREADY,
 		     "Cannot join MLDv2-capable routers multicast group");
 
-	if (IS_ENABLED(CONFIG_NET_TC_THREAD_PREEMPTIVE)) {
-		/* Let the network stack to proceed */
-		k_msleep(THREAD_SLEEP);
-	} else {
-		k_yield();
-	}
+	k_yield();
 }
 
 static void leave_mldv2_capable_routers_group(void)
@@ -428,12 +415,7 @@ static void leave_mldv2_capable_routers_group(void)
 	zassert_equal(ret, 0,
 		      "Cannot leave MLDv2-capable routers multicast group");
 
-	if (IS_ENABLED(CONFIG_NET_TC_THREAD_PREEMPTIVE)) {
-		/* Let the network stack to proceed */
-		k_msleep(THREAD_SLEEP);
-	} else {
-		k_yield();
-	}
+	k_yield();
 }
 
 /* We are not really interested to parse the query at this point */
@@ -464,12 +446,7 @@ static void test_catch_query(void)
 
 	send_query(net_if_get_default());
 
-	if (IS_ENABLED(CONFIG_NET_TC_THREAD_PREEMPTIVE)) {
-		/* Let the network stack to proceed */
-		k_msleep(THREAD_SLEEP);
-	} else {
-		k_yield();
-	}
+	k_yield();
 
 	if (k_sem_take(&wait_data, K_MSEC(WAIT_TIME))) {
 		zassert_true(0, "Timeout while waiting query event");

@@ -115,9 +115,10 @@ Push buttons
 Programming and Debugging
 *************************
 
-Applications for the ``bl654_dvk`` board configuration can be built, flashed,
-and debugged in the usual way. See :ref:`build_an_application` and
-:ref:`application_run` for more details on building and running.
+Applications for the ``bl654_dvk`` board configuration can be
+built and flashed in the usual way (see :ref:`build_an_application`
+and :ref:`application_run` for more details); however, the standard
+debugging targets are not currently available.
 
 Flashing
 ========

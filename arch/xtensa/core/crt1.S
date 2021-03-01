@@ -93,21 +93,11 @@ _start:
 	 */
 #if XCHAL_HAVE_EXCEPTIONS
 # ifdef __XTENSA_CALL0_ABI__
-	/*
-	 * PS.WOE = 0
-	 * PS.UM = 1
-	 * PS.EXCM = 0
-	 * PS.INTLEVEL = XCHAL_EXCM_LEVEL
-	 */
-	movi	a3, PS_UM|PS_INTLEVEL(XCHAL_EXCM_LEVEL)
+	/* PS.WOE = 0, PS.UM = 1, PS.EXCM = 0, PS.INTLEVEL = 15 */
+	movi	a3, PS_UM|PS_INTLEVEL(15)
 # else
-	/*
-	 * PS.WOE = 1
-	 * PS.UM = 1
-	 * PS.EXCM = 0
-	 * PS.INTLEVEL = XCHAL_EXCM_LEVEL
-	 */
-	movi	a3, PS_UM|PS_WOE|PS_INTLEVEL(XCHAL_EXCM_LEVEL)
+	/* PS.WOE = 1, PS.UM = 1, PS.EXCM = 0, PS.INTLEVEL = 15 */
+	movi	a3, PS_UM|PS_WOE|PS_INTLEVEL(15)
 # endif
 	wsr	a3, PS
 	rsync
@@ -148,7 +138,7 @@ _start:
 	movi	a0, 0
 # endif
 
-# if CONFIG_MP_NUM_CPUS > 1
+# ifdef CONFIG_SMP
 	/* Only clear BSS when running on core 0 */
 	rsr	a3, PRID
 	extui	a3, a3, 0, 8	/* extract core ID */
@@ -196,7 +186,7 @@ _start:
 
 #endif /* !XCHAL_HAVE_BOOTLOADER */
 
-#if CONFIG_MP_NUM_CPUS > 1
+#ifdef CONFIG_SMP
 	/*
 	 * z_cstart() is only for CPU #0.
 	 * Other CPUs have different entry point.
@@ -207,9 +197,10 @@ _start:
 	CALL    z_mp_entry
 
 2:
-#endif
+#endif /* CONFIG_SMP */
 
 	/* Enter C domain, never returns from here */
 	CALL	z_cstart
 
 	.size	_start, . - _start
+

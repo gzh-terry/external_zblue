@@ -31,7 +31,6 @@ set_compiler_property(PROPERTY warning_base
                       -Wno-main-return-type
                       -Wno-unaligned-pointer-conversion
                       -Wno-incompatible-pointer-types-discards-qualifiers
-                      -Wno-typedef-redefinition
 )
 
 check_set_compiler_property(APPEND PROPERTY warning_base -Wno-pointer-sign)

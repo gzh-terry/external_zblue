@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "waveshare_epaper_common.dtsi"
-
 &arduino_spi {
+	status = "okay";
+	cs-gpios = <&arduino_header 16 GPIO_ACTIVE_LOW>;	/* D10 */
+
 	gd7965@0 {
 		compatible = "gooddisplay,gd7965";
 		label = "GD7965";

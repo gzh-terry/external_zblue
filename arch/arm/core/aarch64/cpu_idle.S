@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/*
- * ARM64 Cortex-A power management
+/**
+ * @file
+ * @brief ARM64 Cortex-A power management
  */
 
 #include <toolchain.h>
@@ -29,9 +30,9 @@ SECTION_FUNC(TEXT, arch_cpu_idle)
 GTEXT(arch_cpu_atomic_idle)
 SECTION_FUNC(TEXT, arch_cpu_atomic_idle)
 #ifdef CONFIG_TRACING
-	stp	x0, x30, [sp, #-16]!
+	stp	xzr, x30, [sp, #-16]!
 	bl	sys_trace_idle
-	ldp	x0, x30, [sp], #16
+	ldp	xzr, x30, [sp], #16
 #endif
 	msr	daifset, #(DAIFSET_IRQ)
 	isb

@@ -24,13 +24,16 @@ LOG_MODULE_REGISTER(qdec_nrfx, CONFIG_SENSOR_LOG_LEVEL);
 struct qdec_nrfx_data {
 	int32_t                    acc;
 	sensor_trigger_handler_t data_ready_handler;
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 	uint32_t                    pm_state;
 #endif
 };
 
 
 static struct qdec_nrfx_data qdec_nrfx_data;
+
+DEVICE_DECLARE(qdec_nrfx);
+
 
 static void accumulate(struct qdec_nrfx_data *data, int16_t acc)
 {
@@ -148,7 +151,7 @@ static void qdec_nrfx_event_handler(nrfx_qdec_event_t event)
 				.chan = SENSOR_CHAN_ROTATION,
 			};
 
-			handler(DEVICE_DT_INST_GET(0), &trig);
+			handler(DEVICE_GET(qdec_nrfx), &trig);
 		}
 		break;
 
@@ -206,7 +209,7 @@ static int qdec_nrfx_init(const struct device *dev)
 	qdec_nrfx_gpio_ctrl(true);
 	nrfx_qdec_enable();
 
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 	struct qdec_nrfx_data *data = &qdec_nrfx_data;
 
 	data->pm_state = DEVICE_PM_ACTIVE_STATE;
@@ -215,7 +218,7 @@ static int qdec_nrfx_init(const struct device *dev)
 	return 0;
 }
 
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 
 static int qdec_nrfx_pm_get_state(struct qdec_nrfx_data *data,
 				  uint32_t                 *state)
@@ -296,7 +299,7 @@ static int qdec_nrfx_pm_control(const struct device *dev,
 	return err;
 }
 
-#endif /* CONFIG_PM_DEVICE */
+#endif /* CONFIG_DEVICE_POWER_MANAGEMENT */
 
 
 static const struct sensor_driver_api qdec_nrfx_driver_api = {
@@ -305,6 +308,6 @@ static const struct sensor_driver_api qdec_nrfx_driver_api = {
 	.trigger_set  = qdec_nrfx_trigger_set,
 };
 
-DEVICE_DT_INST_DEFINE(0, qdec_nrfx_init,
+DEVICE_DEFINE(qdec_nrfx, DT_INST_LABEL(0), qdec_nrfx_init,
 		qdec_nrfx_pm_control, NULL, NULL, POST_KERNEL,
 		CONFIG_SENSOR_INIT_PRIORITY, &qdec_nrfx_driver_api);

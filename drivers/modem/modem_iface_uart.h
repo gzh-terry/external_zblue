@@ -20,8 +20,9 @@ extern "C" {
 #endif
 
 struct modem_iface_uart_data {
-	/* HW flow control */
-	bool hw_flow_control;
+	/* ISR char buffer */
+	char *isr_buf;
+	size_t isr_buf_len;
 
 	/* ring buffer char buffer */
 	char *rx_rb_buf;

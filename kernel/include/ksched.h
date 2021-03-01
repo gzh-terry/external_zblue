@@ -41,7 +41,6 @@ void z_move_thread_to_end_of_prio_q(struct k_thread *thread);
 void z_remove_thread_from_ready_q(struct k_thread *thread);
 int z_is_thread_time_slicing(struct k_thread *thread);
 void z_unpend_thread_no_timeout(struct k_thread *thread);
-struct k_thread *z_unpend1_no_timeout(_wait_q_t *wait_q);
 int z_pend_curr(struct k_spinlock *lock, k_spinlock_key_t key,
 	       _wait_q_t *wait_q, k_timeout_t timeout);
 int z_pend_curr_irqlock(uint32_t key, _wait_q_t *wait_q, k_timeout_t timeout);
@@ -64,9 +63,7 @@ void z_sched_abort(struct k_thread *thread);
 void z_sched_ipi(void);
 void z_sched_start(struct k_thread *thread);
 void z_ready_thread(struct k_thread *thread);
-void z_requeue_current(struct k_thread *curr);
-struct k_thread *z_swap_next_thread(void);
-void z_thread_abort(struct k_thread *thread);
+void z_thread_single_abort(struct k_thread *thread);
 
 static inline void z_pend_curr_unlocked(_wait_q_t *wait_q, k_timeout_t timeout)
 {
@@ -77,6 +74,17 @@ static inline void z_reschedule_unlocked(void)
 {
 	(void) z_reschedule_irqlock(arch_irq_lock());
 }
+
+/* find which one is the next thread to run */
+/* must be called with interrupts locked */
+#ifdef CONFIG_SMP
+extern struct k_thread *z_get_next_ready_thread(void);
+#else
+static ALWAYS_INLINE struct k_thread *z_get_next_ready_thread(void)
+{
+	return _kernel.ready_q.cache;
+}
+#endif
 
 static inline bool z_is_idle_thread_entry(void *entry_point)
 {
@@ -94,11 +102,6 @@ static inline bool z_is_idle_thread_object(struct k_thread *thread)
 #else
 	return false;
 #endif /* CONFIG_MULTITHREADING */
-}
-
-static inline bool z_is_thread_suspended(struct k_thread *thread)
-{
-	return (thread->base.thread_state & _THREAD_SUSPENDED) != 0U;
 }
 
 static inline bool z_is_thread_pending(struct k_thread *thread)
@@ -122,7 +125,7 @@ static inline bool z_is_thread_timeout_active(struct k_thread *thread)
 
 static inline bool z_is_thread_ready(struct k_thread *thread)
 {
-	return !((z_is_thread_prevented_from_running(thread)) != 0U ||
+	return !((z_is_thread_prevented_from_running(thread)) != 0 ||
 		 z_is_thread_timeout_active(thread));
 }
 
@@ -177,6 +180,16 @@ static inline void z_reset_thread_states(struct k_thread *thread,
 					uint32_t states)
 {
 	thread->base.thread_state &= ~states;
+}
+
+static inline void z_mark_thread_as_queued(struct k_thread *thread)
+{
+	z_set_thread_states(thread, _THREAD_QUEUED);
+}
+
+static inline void z_mark_thread_as_not_queued(struct k_thread *thread)
+{
+	z_reset_thread_states(thread, _THREAD_QUEUED);
 }
 
 static inline bool z_is_under_prio_ceiling(int prio)
@@ -281,6 +294,17 @@ static ALWAYS_INLINE bool z_is_thread_timeout_expired(struct k_thread *thread)
 #else
 	return 0;
 #endif
+}
+
+static inline struct k_thread *z_unpend1_no_timeout(_wait_q_t *wait_q)
+{
+	struct k_thread *thread = z_find_first_thread_to_unpend(wait_q, NULL);
+
+	if (thread != NULL) {
+		z_unpend_thread_no_timeout(thread);
+	}
+
+	return thread;
 }
 
 #endif /* ZEPHYR_KERNEL_INCLUDE_KSCHED_H_ */

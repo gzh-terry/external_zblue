@@ -5,7 +5,6 @@
  */
 #include <xtensa-asm2-s.h>
 #include <offsets.h>
-#include <toolchain.h>
 
 /*
  * xtensa_spill_reg_windows
@@ -39,10 +38,10 @@ xtensa_save_high_regs:
 	 * by duplicating the bits twice and shifting down by WINDOWBASE
 	 * bits.  Now the LSB is the register quad at WINDOWBASE.
 	 */
-	rsr a2, WINDOWSTART
+	rsr.WINDOWSTART a2
 	slli a3, a2, (XCHAL_NUM_AREGS / 4)
 	or a2, a2, a3
-	rsr a3, WINDOWBASE
+	rsr.WINDOWBASE a3
 	ssr a3
 	srl a2, a2
 
@@ -146,64 +145,28 @@ _high_restore_done:
  * should test to be able to support hardware with less than 6 levels,
  * though...
  */
-
-/*
- * XCC doesn't like _CONCAT() so we need to spell out
- * every single one.
- */
-#if XCHAL_NUM_INTLEVELS == 1
-# define RCTX_EPC_REG		EPC1
-# define RCTX_EPS_REG		EPS1
-#elif XCHAL_NUM_INTLEVELS == 2
-# define RCTX_EPC_REG		EPC2
-# define RCTX_EPS_REG		EPS2
-#elif XCHAL_NUM_INTLEVELS == 3
-# define RCTX_EPC_REG		EPC3
-# define RCTX_EPS_REG		EPS3
-#elif XCHAL_NUM_INTLEVELS == 4
-# define RCTX_EPC_REG		EPC4
-# define RCTX_EPS_REG		EPS4
-#elif XCHAL_NUM_INTLEVELS == 5
-# define RCTX_EPC_REG		EPC5
-# define RCTX_EPS_REG		EPS5
-#elif XCHAL_NUM_INTLEVELS == 6
-# define RCTX_EPC_REG		EPC6
-# define RCTX_EPS_REG		EPS6
-#elif XCHAL_NUM_INTLEVELS == 7
-# define RCTX_EPC_REG		EPC7
-# define RCTX_EPS_REG		EPS7
-#else
-/* Catch all */
-# define RCTX_EPC_REG		_CONCAT(EPC, XCHAL_NUM_INTLEVELS)
-# define RCTX_EPS_REG		_CONCAT(EPS, XCHAL_NUM_INTLEVELS)
-#endif
-
 .global _restore_context
 _restore_context:
 	call0 xtensa_restore_high_regs
 
 	l32i a0, a1, BSA_PC_OFF
-	wsr a0, RCTX_EPC_REG
+	wsr.EPC6 a0
 	l32i a0, a1, BSA_PS_OFF
-	wsr a0, RCTX_EPS_REG
+	wsr.EPS6 a0
 
 	l32i a0, a1, BSA_SAR_OFF
-	wsr a0, SAR
+	wsr.SAR a0
 #if XCHAL_HAVE_LOOPS
 	l32i a0, a1, BSA_LBEG_OFF
-	wsr a0, LBEG
+	wsr.LBEG a0
 	l32i a0, a1, BSA_LEND_OFF
-	wsr a0, LEND
+	wsr.LEND a0
 	l32i a0, a1, BSA_LCOUNT_OFF
-	wsr a0, LCOUNT
+	wsr.LCOUNT a0
 #endif
 #if XCHAL_HAVE_S32C1I
 	l32i a0, a1, BSA_SCOMPARE1_OFF
-	wsr a0, SCOMPARE1
-#endif
-#if XCHAL_HAVE_THREADPTR && defined(CONFIG_THREAD_LOCAL_STORAGE)
-	l32i a0, a1, BSA_THREADPTR_OFF
-	wur a0, THREADPTR
+	wsr.SCOMPARE1 a0
 #endif
 	rsync
 
@@ -212,7 +175,7 @@ _restore_context:
 	l32i a3, a1, BSA_A3_OFF
 	addi a1, a1, BASE_SAVE_AREA_SIZE
 
-	rfi XCHAL_NUM_INTLEVELS
+	rfi 6
 
 /*
  * void xtensa_switch(void *new, void **old_return);
@@ -239,25 +202,13 @@ xtensa_switch:
 	ODD_REG_SAVE
 
 	/* Stash our PS register contents and a "restore" PC. */
-	rsr a0, PS
+	rsr.PS a0
 	s32i a0, a1, BSA_PS_OFF
 	movi a0, _switch_restore_pc
 	s32i a0, a1, BSA_PC_OFF
 
 	/* Now the high registers */
 	call0 xtensa_save_high_regs
-
-#ifdef CONFIG_KERNEL_COHERENCE
-	/* Flush the stack.  The top of stack was stored for us in
-	 * EXCSAVE3 (FIXME: shouldn't be hardcoded!) by arch_cohere_stacks().
-	 */
-	rsr.EXCSAVE3 a0
-	mov a3, a1
-flushloop:
-	dhwb a3, 0
-	addi a3, a3, XCHAL_DCACHE_LINESIZE
-	blt a3, a0, flushloop
-#endif
 
 	/* Restore the A3 argument we spilled earlier (via the base
 	 * save pointer pushed at the bottom of the stack) and set the
@@ -274,8 +225,8 @@ flushloop:
 	 */
 	l32i a1, a2, BSA_A2_OFF
 
-#ifdef CONFIG_INSTRUMENT_THREAD_SWITCHING
-	call4 z_thread_mark_switched_in
+#ifdef CONFIG_TRACING
+	call4 sys_trace_thread_switched_in
 #endif
 	j _restore_context
 _switch_restore_pc:

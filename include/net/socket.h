@@ -7,7 +7,6 @@
 
 /*
  * Copyright (c) 2017-2018 Linaro Limited
- * Copyright (c) 2021 Nordic Semiconductor
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -120,12 +119,6 @@ struct zsock_pollfd {
  *    - 1 - server
  */
 #define TLS_DTLS_ROLE 6
-/** Socket option for setting the supported Application Layer Protocols.
- *  It accepts and returns a const char array of NULL terminated strings
- *  representing the supported application layer protocols listed during
- *  the TLS handshake.
- */
-#define TLS_ALPN_LIST 7
 
 /** @} */
 
@@ -785,8 +778,6 @@ static inline char *inet_ntop(sa_family_t family, const void *src, char *dst,
 #define EAI_MEMORY DNS_EAI_MEMORY
 #define EAI_SYSTEM DNS_EAI_SYSTEM
 #define EAI_SERVICE DNS_EAI_SERVICE
-#define EAI_SOCKTYPE DNS_EAI_SOCKTYPE
-#define EAI_FAMILY DNS_EAI_FAMILY
 #endif /* defined(CONFIG_NET_SOCKETS_POSIX_NAMES) */
 
 /** sockopt: Socket-level option */
@@ -795,23 +786,11 @@ static inline char *inet_ntop(sa_family_t family, const void *src, char *dst,
 /* Socket options for SOL_SOCKET level */
 /** sockopt: Enable server address reuse (ignored, for compatibility) */
 #define SO_REUSEADDR 2
-/** sockopt: Type of the socket */
-#define SO_TYPE 3
 /** sockopt: Async error (ignored, for compatibility) */
 #define SO_ERROR 4
 
-/**
- * sockopt: Receive timeout
- * Applies to receive functions like recv(), but not to connect()
- */
-#define SO_RCVTIMEO 20
-/** sockopt: Send timeout */
-#define SO_SNDTIMEO 21
-
 /** sockopt: Timestamp TX packets */
 #define SO_TIMESTAMPING 37
-/** sockopt: Protocol used with the socket */
-#define SO_PROTOCOL 38
 
 /* Socket options for IPPROTO_TCP level */
 /** sockopt: Disable TCP buffering (ignored, for compatibility) */
