@@ -34,7 +34,12 @@
 
 #ifdef CONFIG_XIP
 #if DT_NODE_HAS_COMPAT_STATUS(DT_CHOSEN(zephyr_flash), soc_nv_flash, okay)
+#ifdef CONFIG_FLASH_LOAD_OFFSET
+#define ROM_BASE (DT_REG_ADDR(DT_CHOSEN(zephyr_flash)) + \
+				CONFIG_FLASH_LOAD_OFFSET)
+#else /* !CONFIG_FLASH_LOAD_OFFSET */
 #define ROM_BASE DT_REG_ADDR(DT_CHOSEN(zephyr_flash))
+#endif /* CONFIG_FLASH_LOAD_OFFSET */
 #define ROM_SIZE DT_REG_SIZE(DT_CHOSEN(zephyr_flash))
 #elif DT_NODE_HAS_COMPAT_STATUS(DT_CHOSEN(zephyr_flash), jedec_spi_nor, okay)
 /* For jedec,spi-nor we expect the spi controller to memory map the flash
@@ -114,6 +119,15 @@ SECTIONS
 		KEEP(*(.vectors.*))
     } GROUP_LINK_IN(ROMABLE_REGION)
 
+    SECTION_PROLOGUE(rom_start,,)
+    {
+		. = ALIGN(16);
+/* Located in generated directory. This file is populated by calling
+ * zephyr_linker_sources(ROM_START ...).
+ */
+#include <snippets-rom-start.ld>
+    } GROUP_LINK_IN(ROMABLE_REGION)
+
     SECTION_PROLOGUE(_RESET_SECTION_NAME,,)
     {
 		KEEP(*(.reset.*))
@@ -137,6 +151,14 @@ SECTIONS
 		*(".text.*")
 		*(.gnu.linkonce.t.*)
 #include <linker/kobject-text.ld>
+#ifdef CONFIG_SOC_FLASH_RAMCODE_SECTION
+		. = ALIGN(0x1000);
+		_ram_code_start = .;
+		KEEP(*(.__ram_code))
+		__ram_code_size = . - _ram_code_start;
+		ASSERT((__ram_code_size <= 0x1000),
+			"__ram_code_size <= 4k bytes");
+#endif
 	} GROUP_LINK_IN(ROMABLE_REGION)
 
     _image_text_end = .;
@@ -236,6 +258,12 @@ SECTIONS
  * zephyr_linker_sources() Cmake function.
  */
 #include <snippets-ram-sections.ld>
+
+/* Located in generated directory. This file is populated by the
+ * zephyr_linker_sources() Cmake function.
+ */
+#include <snippets-data-sections.ld>
+
     __data_ram_end = .;
 
     MPU_MIN_SIZE_ALIGN

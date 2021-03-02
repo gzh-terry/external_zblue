@@ -34,12 +34,14 @@
 #include "ull_conn_types.h"
 #include "ull_conn_iso_types.h"
 #include "ull_internal.h"
-#include "ull_iso_internal.h"
 #include "ull_sched_internal.h"
 #include "ull_chan_internal.h"
 #include "ull_conn_internal.h"
 #include "ull_slave_internal.h"
 #include "ull_master_internal.h"
+
+#include "ull_iso_internal.h"
+#include "ull_conn_iso_internal.h"
 #include "ull_peripheral_iso_internal.h"
 
 #if defined(CONFIG_BT_CTLR_USER_EXT)
@@ -67,8 +69,6 @@ extern uint16_t ull_conn_interval_min_get(struct ll_conn *conn);
 #define CONN_INTERVAL_MIN(x) (MAX(ull_conn_interval_min_get(x), 1))
 #endif /* CONFIG_BT_CTLR_USER_CPR_INTERVAL_MIN */
 
-inline void ull_conn_upd_curr_reset(void);
-
 static int init_reset(void);
 static void tx_demux(void *param);
 static struct node_tx *tx_ull_dequeue(struct ll_conn *conn, struct node_tx *tx);
@@ -80,6 +80,7 @@ static void ticker_start_conn_op_cb(uint32_t status, void *param);
 static void conn_setup_adv_scan_disabled_cb(void *param);
 static inline void disable(uint16_t handle);
 static void conn_cleanup(struct ll_conn *conn, uint8_t reason);
+static void conn_cleanup_finalize(struct ll_conn *conn);
 static void tx_ull_flush(struct ll_conn *conn);
 static void ticker_op_stop_cb(uint32_t status, void *param);
 static void disabled_cb(void *param);
@@ -110,6 +111,14 @@ static inline bool ctrl_is_unexpected(struct ll_conn *conn, uint8_t opcode);
 #endif /* CONFIG_BT_CTLR_LE_ENC */
 
 #if defined(CONFIG_BT_CTLR_CONN_PARAM_REQ)
+/* NOTE: cpr_active_* functions are inline as they are simple assignment to
+ *       global variable, and if in future get called from more than two caller
+ *       functions, we dont want the caller function branching into these which
+ *       can add to CPU use inside ULL ISR.
+ */
+static inline void cpr_active_check_and_reset(struct ll_conn *conn);
+static inline void cpr_active_reset(void);
+
 static inline void event_conn_param_prep(struct ll_conn *conn,
 					 uint16_t event_counter,
 					 uint32_t ticks_at_expire);
@@ -201,7 +210,6 @@ static uint8_t default_phy_rx;
 #endif /* CONFIG_BT_CTLR_PHY */
 
 static struct ll_conn conn_pool[CONFIG_BT_MAX_CONN];
-static struct ll_conn *conn_upd_curr;
 static void *conn_free;
 
 struct ll_conn *ll_conn_acquire(void)
@@ -759,8 +767,10 @@ int ull_conn_reset(void)
 	/* Re-initialize the Tx Ack mfifo */
 	MFIFO_INIT(conn_ack);
 
-	/* Reset the current conn update conn context pointer */
-	ull_conn_upd_curr_reset();
+#if defined(CONFIG_BT_CTLR_CONN_PARAM_REQ)
+	/* Reset CPR mutex */
+	cpr_active_reset();
+#endif /* CONFIG_BT_CTLR_CONN_PARAM_REQ */
 
 	err = init_reset();
 	if (err) {
@@ -1758,11 +1768,6 @@ uint16_t ull_conn_lll_max_tx_octets_get(struct lll_conn *lll)
 	return max_tx_octets;
 }
 
-inline void ull_conn_upd_curr_reset(void)
-{
-	conn_upd_curr = NULL;
-}
-
 static int init_reset(void)
 {
 	/* Initialize conn pool. */
@@ -1923,27 +1928,27 @@ static inline void disable(uint16_t handle)
 	conn->lll.link_tx_free = NULL;
 }
 
-static void conn_cleanup(struct ll_conn *conn, uint8_t reason)
+#if defined(CONFIG_BT_CTLR_PERIPHERAL_ISO) || defined(CONFIG_BT_CTLR_CENTRAL_ISO)
+static void conn_cleanup_iso_cis_released_cb(struct ll_conn *conn)
+{
+	struct ll_conn_iso_stream *cis;
+
+	cis = ll_conn_iso_stream_get_by_acl(conn, NULL);
+	if (cis) {
+		/* More associated CISes - stop next */
+		ull_conn_iso_cis_stop(cis, conn_cleanup_iso_cis_released_cb);
+	} else {
+		/* No more CISes associated with conn - finalize */
+		conn_cleanup_finalize(conn);
+	}
+}
+#endif /* CONFIG_BT_CTLR_PERIPHERAL_ISO || CONFIG_BT_CTLR_CENTRAL_ISO */
+
+static void conn_cleanup_finalize(struct ll_conn *conn)
 {
 	struct lll_conn *lll = &conn->lll;
 	struct node_rx_pdu *rx;
 	uint32_t ticker_status;
-
-	/* reset mutex */
-	if (conn == conn_upd_curr) {
-		ull_conn_upd_curr_reset();
-	}
-
-	/* Only termination structure is populated here in ULL context
-	 * but the actual enqueue happens in the LLL context in
-	 * tx_lll_flush. The reason being to avoid passing the reason
-	 * value and handle through the mayfly scheduling of the
-	 * tx_lll_flush.
-	 */
-	rx = (void *)&conn->llcp_terminate.node_rx;
-	rx->hdr.handle = conn->lll.handle;
-	rx->hdr.type = NODE_RX_TYPE_TERMINATE;
-	*((uint8_t *)rx->pdu) = reason;
 
 	/* release any llcp reserved rx node */
 	rx = conn->llcp_rx;
@@ -1977,6 +1982,42 @@ static void conn_cleanup(struct ll_conn *conn, uint8_t reason)
 
 	/* Demux and flush Tx PDUs that remain enqueued in thread context */
 	ull_conn_tx_demux(UINT8_MAX);
+}
+
+static void conn_cleanup(struct ll_conn *conn, uint8_t reason)
+{
+	struct node_rx_pdu *rx;
+
+#if defined(CONFIG_BT_CTLR_PERIPHERAL_ISO) || defined(CONFIG_BT_CTLR_CENTRAL_ISO)
+	struct ll_conn_iso_stream *cis;
+#endif /* CONFIG_BT_CTLR_PERIPHERAL_ISO || CONFIG_BT_CTLR_CENTRAL_ISO */
+
+#if defined(CONFIG_BT_CTLR_CONN_PARAM_REQ)
+	/* Reset CPR mutex */
+	cpr_active_check_and_reset(conn);
+#endif /* CONFIG_BT_CTLR_CONN_PARAM_REQ */
+
+	/* Only termination structure is populated here in ULL context
+	 * but the actual enqueue happens in the LLL context in
+	 * tx_lll_flush. The reason being to avoid passing the reason
+	 * value and handle through the mayfly scheduling of the
+	 * tx_lll_flush.
+	 */
+	rx = (void *)&conn->llcp_terminate.node_rx;
+	rx->hdr.handle = conn->lll.handle;
+	rx->hdr.type = NODE_RX_TYPE_TERMINATE;
+	*((uint8_t *)rx->pdu) = reason;
+
+#if defined(CONFIG_BT_CTLR_PERIPHERAL_ISO) || defined(CONFIG_BT_CTLR_CENTRAL_ISO)
+	cis = ll_conn_iso_stream_get_by_acl(conn, NULL);
+	if (cis) {
+		/* Stop CIS and defer cleanup to after teardown. */
+		ull_conn_iso_cis_stop(cis, conn_cleanup_iso_cis_released_cb);
+		return;
+	}
+#endif /* CONFIG_BT_CTLR_PERIPHERAL_ISO || CONFIG_BT_CTLR_CENTRAL_ISO */
+
+	conn_cleanup_finalize(conn);
 }
 
 static void tx_ull_flush(struct ll_conn *conn)
@@ -2398,6 +2439,43 @@ static bool is_enc_req_pause_tx(struct ll_conn *conn)
 }
 #endif /* CONFIG_BT_CTLR_LE_ENC */
 
+#if defined(CONFIG_BT_CTLR_CONN_PARAM_REQ)
+/* Connection context pointer used as CPR mutex to serialize connection
+ * parameter requests procedures across simulataneous connections so that
+ * offsets exchanged to the peer do not get changed.
+ */
+static struct ll_conn *conn_upd_curr;
+
+static inline void cpr_active_check_and_set(struct ll_conn *conn)
+{
+	if (!conn_upd_curr) {
+		conn_upd_curr = conn;
+	}
+}
+
+static inline void cpr_active_set(struct ll_conn *conn)
+{
+	conn_upd_curr = conn;
+}
+
+static inline bool cpr_active_is_set(struct ll_conn *conn)
+{
+	return conn_upd_curr && (conn_upd_curr != conn);
+}
+
+static inline void cpr_active_check_and_reset(struct ll_conn *conn)
+{
+	if (conn == conn_upd_curr) {
+		conn_upd_curr = NULL;
+	}
+}
+
+static inline void cpr_active_reset(void)
+{
+	conn_upd_curr = NULL;
+}
+#endif /* CONFIG_BT_CTLR_CONN_PARAM_REQ */
+
 static inline void event_conn_upd_init(struct ll_conn *conn,
 				       uint16_t event_counter,
 				       uint32_t ticks_at_expire,
@@ -2470,16 +2548,8 @@ static inline int event_conn_upd_prep(struct ll_conn *conn, uint16_t lazy,
 				      uint32_t ticks_at_expire)
 {
 	struct lll_conn *lll = &conn->lll;
-	struct ll_conn *conn_upd;
 	uint16_t instant_latency;
 	uint16_t event_counter;
-
-	conn_upd = conn_upd_curr;
-
-	/* set mutex */
-	if (!conn_upd) {
-		conn_upd_curr = conn;
-	}
 
 	/* Calculate current event counter */
 	event_counter = lll->event_counter + lll->latency_prepare + lazy;
@@ -2512,8 +2582,8 @@ static inline int event_conn_upd_prep(struct ll_conn *conn, uint16_t lazy,
 			conn->llcp_cu.ack = conn->llcp_cu.req;
 			conn->llcp_conn_param.ack = conn->llcp_conn_param.req;
 
-			/* reset mutex */
-			ull_conn_upd_curr_reset();
+			/* Reset CPR mutex */
+			cpr_active_reset();
 
 			/* enqueue control PDU */
 			pdu_ctrl_tx =
@@ -2560,6 +2630,11 @@ static inline int event_conn_upd_prep(struct ll_conn *conn, uint16_t lazy,
 		if (!tx) {
 			return -ENOBUFS;
 		}
+
+#if defined(CONFIG_BT_CTLR_CONN_PARAM_REQ)
+		/* Set CPR mutex */
+		cpr_active_check_and_set(conn);
+#endif /* CONFIG_BT_CTLR_CONN_PARAM_REQ */
 
 		(void)ll_pdu_rx_alloc();
 		rx->hdr.link->mem = conn->llcp_rx;
@@ -2619,12 +2694,10 @@ static inline int event_conn_upd_prep(struct ll_conn *conn, uint16_t lazy,
 			/* Stop procedure timeout */
 			conn->procedure_expire = 0U;
 		}
-#endif /* CONFIG_BT_CTLR_CONN_PARAM_REQ */
 
-		/* reset mutex */
-		if (conn_upd_curr == conn) {
-			ull_conn_upd_curr_reset();
-		}
+		/* Reset CPR mutex */
+		cpr_active_check_and_reset(conn);
+#endif /* CONFIG_BT_CTLR_CONN_PARAM_REQ */
 
 		lll = &conn->lll;
 
@@ -3300,8 +3373,8 @@ static inline void event_conn_param_req(struct ll_conn *conn,
 	p->offset4 = sys_cpu_to_le16(0xffff);
 	p->offset5 = sys_cpu_to_le16(0xffff);
 
-	/* set CUI/CPR mutex */
-	conn_upd_curr = conn;
+	/* Set CPR mutex */
+	cpr_active_set(conn);
 
 	/* Start Procedure Timeout (TODO: this shall not replace
 	 * terminate procedure).
@@ -3384,8 +3457,8 @@ static inline void event_conn_param_rsp(struct ll_conn *conn)
 		/* procedure request acked */
 		conn->llcp_conn_param.ack = conn->llcp_conn_param.req;
 
-		/* reset mutex */
-		ull_conn_upd_curr_reset();
+		/* Reset CPR mutex */
+		cpr_active_reset();
 
 		return;
 	}
@@ -3465,9 +3538,6 @@ static inline void event_conn_param_rsp(struct ll_conn *conn)
 
 	/* procedure request acked */
 	conn->llcp_conn_param.ack = conn->llcp_conn_param.req;
-
-	/* reset mutex */
-	ull_conn_upd_curr_reset();
 }
 
 static inline void event_conn_param_app_req(struct ll_conn *conn)
@@ -3517,10 +3587,8 @@ static inline void event_conn_param_prep(struct ll_conn *conn,
 					 uint16_t event_counter,
 					 uint32_t ticks_at_expire)
 {
-	struct ll_conn *conn_upd;
-
-	conn_upd = conn_upd_curr;
-	if (conn_upd && (conn_upd != conn)) {
+	/* Defer new CPR if another in progress across active connections */
+	if (cpr_active_is_set(conn)) {
 		return;
 	}
 
@@ -3961,6 +4029,17 @@ static inline void event_phy_upd_ind_prep(struct ll_conn *conn,
 		struct node_rx_pdu *rx;
 		struct node_tx *tx;
 
+		/* Delay until all pending Tx in LLL is acknowledged,
+		 * conn->llcp_phy.pause_tx is true, new Tx PDUs will not be
+		 * enqueued until we proceed to initiate PHY update.
+		 * This is required to ensure PDU with instant can be
+		 * transmitted before instant expires.
+		 */
+		if (memq_peek(conn->lll.memq_tx.head, conn->lll.memq_tx.tail,
+			      NULL)) {
+			return;
+		}
+
 #if defined(CONFIG_BT_CTLR_DATA_LENGTH)
 		rx = ll_pdu_rx_alloc_peek(2);
 #else /* !CONFIG_BT_CTLR_DATA_LENGTH */
@@ -4226,14 +4305,12 @@ static uint8_t conn_upd_recv(struct ll_conn *conn, memq_link_t *link,
 		return BT_HCI_ERR_DIFF_TRANS_COLLISION;
 	}
 
-	/* set mutex, if only not already set. As a master the mutex shall
+#if defined(CONFIG_BT_CTLR_CONN_PARAM_REQ)
+	/* Set CPR mutex, if only not already set. As a master the mutex shall
 	 * be set, but a slave we accept it as new 'set' of mutex.
 	 */
-	if (!conn_upd_curr) {
-		LL_ASSERT(conn->lll.role);
-
-		conn_upd_curr = conn;
-	}
+	cpr_active_check_and_set(conn);
+#endif /* CONFIG_BT_CTLR_CONN_PARAM_REQ */
 
 	conn->llcp_cu.win_size = pdu->llctrl.conn_update_ind.win_size;
 	conn->llcp_cu.win_offset_us =
@@ -4775,10 +4852,8 @@ static inline int reject_ind_conn_upd_recv(struct ll_conn *conn,
 	}
 
 	if (conn->llcp_conn_param.state == LLCP_CPR_STATE_RSP_WAIT) {
-		LL_ASSERT(conn_upd_curr == conn);
-
-		/* reset mutex */
-		ull_conn_upd_curr_reset();
+		/* Reset CPR mutex */
+		cpr_active_reset();
 
 		/* Procedure complete */
 		conn->llcp_conn_param.ack = conn->llcp_conn_param.req;
@@ -5399,6 +5474,7 @@ static inline uint8_t phy_upd_ind_recv(struct ll_conn *conn, memq_link_t *link,
 {
 	struct pdu_data_llctrl_phy_upd_ind *ind = &pdu_rx->llctrl.phy_upd_ind;
 	uint16_t instant;
+	uint8_t phy;
 
 	/* Both tx and rx PHY unchanged */
 	if (!((ind->m_to_s_phy | ind->s_to_m_phy) & 0x07)) {
@@ -5438,6 +5514,22 @@ static inline uint8_t phy_upd_ind_recv(struct ll_conn *conn, memq_link_t *link,
 		p->rx = conn->lll.phy_rx;
 
 		return 0;
+	}
+
+	/* Fail on multiple PHY specified */
+	phy = ind->m_to_s_phy;
+	if (util_ones_count_get(&phy, sizeof(phy)) > 1U) {
+		/* Mark for buffer for release */
+		(*rx)->hdr.type = NODE_RX_TYPE_RELEASE;
+
+		return BT_HCI_ERR_INVALID_LL_PARAM;
+	}
+	phy = ind->s_to_m_phy;
+	if (util_ones_count_get(&phy, sizeof(phy)) > 1U) {
+		/* Mark for buffer for release */
+		(*rx)->hdr.type = NODE_RX_TYPE_RELEASE;
+
+		return BT_HCI_ERR_INVALID_LL_PARAM;
 	}
 
 	/* instant passed */
@@ -6189,7 +6281,7 @@ static inline int ctrl_rx(memq_link_t *link, struct node_rx_pdu **rx,
 		/* check CUI/CPR mutex for other connections having CPR in
 		 * progress.
 		 */
-		if (conn_upd_curr && (conn_upd_curr != conn)) {
+		if (cpr_active_is_set(conn)) {
 			/* Unsupported LL Parameter Value */
 			nack = reject_ext_ind_send(conn, *rx,
 					PDU_DATA_LLCTRL_TYPE_CONN_PARAM_REQ,
@@ -6335,10 +6427,8 @@ static inline int ctrl_rx(memq_link_t *link, struct node_rx_pdu **rx,
 
 				conn->llcp_conn_param.ack--;
 
-				/* set mutex */
-				if (!conn_upd_curr) {
-					conn_upd_curr = conn;
-				}
+				/* Set CPR mutex */
+				cpr_active_check_and_set(conn);
 			}
 		} else if ((conn->llcp_conn_param.req ==
 			    conn->llcp_conn_param.ack) ||
@@ -6422,10 +6512,8 @@ static inline int ctrl_rx(memq_link_t *link, struct node_rx_pdu **rx,
 
 			conn->llcp_conn_param.ack--;
 
-			/* set mutex */
-			if (!conn_upd_curr) {
-				conn_upd_curr = conn;
-			}
+			/* Set CPR mutex */
+			cpr_active_check_and_set(conn);
 		} else {
 			/* Ignore duplicate request as peripheral is busy
 			 * processing the previously initiated connection
@@ -6587,10 +6675,8 @@ static inline int ctrl_rx(memq_link_t *link, struct node_rx_pdu **rx,
 				break;
 			}
 
-			LL_ASSERT(conn_upd_curr == conn);
-
-			/* reset mutex */
-			ull_conn_upd_curr_reset();
+			/* Reset CPR mutex */
+			cpr_active_reset();
 
 			/* Procedure complete */
 			conn->llcp_conn_param.ack = conn->llcp_conn_param.req;

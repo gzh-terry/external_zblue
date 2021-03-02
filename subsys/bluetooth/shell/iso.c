@@ -13,7 +13,6 @@
 #include <ctype.h>
 #include <zephyr.h>
 #include <shell/shell.h>
-#include <sys/printk.h>
 #include <sys/byteorder.h>
 #include <sys/util.h>
 
@@ -24,21 +23,24 @@
 
 #include "bt.h"
 
+#define DATA_MTU CONFIG_BT_ISO_TX_MTU
+
 static void iso_recv(struct bt_iso_chan *chan, const struct bt_iso_recv_info *info,
 		struct net_buf *buf)
 {
-	printk("Incoming data channel %p len %u, seq: %d, ts: %d\n", chan, buf->len,
-			info->sn, info->ts);
+	shell_print(ctx_shell, "Incoming data channel %p len %u, seq: %d, ts: %d",
+		    chan, buf->len, info->sn, info->ts);
 }
 
 static void iso_connected(struct bt_iso_chan *chan)
 {
-	printk("ISO Channel %p connected\n", chan);
+	shell_print(ctx_shell, "ISO Channel %p connected", chan);
 }
 
 static void iso_disconnected(struct bt_iso_chan *chan, uint8_t reason)
 {
-	printk("ISO Channel %p disconnected with reason 0x%02x\n", chan, reason);
+	shell_print(ctx_shell, "ISO Channel %p disconnected with reason 0x%02x",
+		    chan, reason);
 }
 
 static struct bt_iso_chan_ops iso_ops = {
@@ -70,12 +72,15 @@ struct bt_iso_chan iso_chan = {
 	.qos = &iso_qos,
 };
 
+#if defined(CONFIG_BT_ISO_UNICAST)
+NET_BUF_POOL_FIXED_DEFINE(tx_pool, 1, DATA_MTU, NULL);
+
 static int iso_accept(struct bt_conn *conn, struct bt_iso_chan **chan)
 {
-	printk("Incoming conn %p\n", conn);
+	shell_print(ctx_shell, "Incoming conn %p", conn);
 
 	if (iso_chan.conn) {
-		printk("No channels available\n");
+		shell_print(ctx_shell, "No channels available");
 		return -ENOMEM;
 	}
 
@@ -249,8 +254,6 @@ static int cmd_connect(const struct shell *shell, size_t argc, char *argv[])
 	return 0;
 }
 
-#define DATA_MTU CONFIG_BT_ISO_TX_MTU
-NET_BUF_POOL_FIXED_DEFINE(tx_pool, 1, DATA_MTU, NULL);
 
 static int cmd_send(const struct shell *shell, size_t argc, char *argv[])
 {
@@ -308,6 +311,7 @@ static int cmd_disconnect(const struct shell *shell, size_t argc,
 
 	return 0;
 }
+#endif /* CONFIG_BT_ISO_UNICAST */
 
 #if defined(CONFIG_BT_ISO_BROADCAST)
 #define BIS_ISO_CHAN_COUNT 1
@@ -493,6 +497,7 @@ static int cmd_big_term(const struct shell *shell, size_t argc, char *argv[])
 #endif /* CONFIG_BT_ISO_BROADCAST */
 
 SHELL_STATIC_SUBCMD_SET_CREATE(iso_cmds,
+#if defined(CONFIG_BT_ISO_UNICAST)
 	SHELL_CMD_ARG(bind, NULL, "[dir=tx,rx,txrx] [interval] [packing] [framing] "
 		      "[latency] [sdu] [phy] [rtn]", cmd_bind, 1, 8),
 	SHELL_CMD_ARG(connect, NULL, "Connect ISO Channel", cmd_connect, 1, 0),
@@ -501,6 +506,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(iso_cmds,
 		      cmd_send, 1, 1),
 	SHELL_CMD_ARG(disconnect, NULL, "Disconnect ISO Channel",
 		      cmd_disconnect, 1, 0),
+#endif /* CONFIG_BT_ISO_UNICAST */
 #if defined(CONFIG_BT_ISO_BROADCAST)
 	SHELL_CMD_ARG(create-big, NULL, "Create a BIG as a broadcaster [enc <broadcast code>]",
 		      cmd_big_create, 1, 2),

@@ -3,9 +3,10 @@
 #if defined(CONFIG_NETWORKING)
 #ifndef NETWORK_RAM_SECTIONS
 #define NETWORK_RAM_SECTIONS \
-	Z_ITERABLE_SECTION_RAM(net_if, 4) \
-	Z_ITERABLE_SECTION_RAM(net_if_dev, 4) \
-	Z_ITERABLE_SECTION_RAM(net_l2, 4)
+	ITERABLE_SECTION_RAM(net_if, 4) \
+	ITERABLE_SECTION_RAM(net_if_dev, 4) \
+	ITERABLE_SECTION_RAM(net_l2, 4) \
+	ITERABLE_SECTION_RAM(eth_bridge, 4)
 #endif
 #endif /* NETWORKING */
 
@@ -21,21 +22,6 @@
 		*(_SW_ISR_TABLE_SECTION_SYMS)
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
 #endif
-
-	SECTION_DATA_PROLOGUE(devices,,)
-	{
-		/* link in devices objects, which are tied to the init ones;
-		 * the objects are thus sorted the same way as their init
-		 * object parent see include/device.h
-		 */
-		__device_start = .;
-		CREATE_OBJ_LEVEL(device, PRE_KERNEL_1)
-		CREATE_OBJ_LEVEL(device, PRE_KERNEL_2)
-		CREATE_OBJ_LEVEL(device, POST_KERNEL)
-		CREATE_OBJ_LEVEL(device, APPLICATION)
-		CREATE_OBJ_LEVEL(device, SMP)
-		__device_end = .;
-	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
 
 #if CONFIG_PM_DEVICE
 	SECTION_DATA_PROLOGUE(pm_device_slots, (NOLOAD),)
@@ -67,7 +53,7 @@
 		__log_dynamic_end = .;
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
 
-	Z_ITERABLE_SECTION_RAM(_static_thread_data, 4)
+	ITERABLE_SECTION_RAM(_static_thread_data, 4)
 
 #ifdef CONFIG_USERSPACE
 	/* All kernel objects within are assumed to be either completely
@@ -80,18 +66,18 @@
 	_static_kernel_objects_begin = .;
 #endif /* CONFIG_USERSPACE */
 
-	Z_ITERABLE_SECTION_RAM_GC_ALLOWED(k_timer, 4)
-	Z_ITERABLE_SECTION_RAM_GC_ALLOWED(k_mem_slab, 4)
-	Z_ITERABLE_SECTION_RAM_GC_ALLOWED(k_mem_pool, 4)
-	Z_ITERABLE_SECTION_RAM_GC_ALLOWED(k_heap, 4)
-	Z_ITERABLE_SECTION_RAM_GC_ALLOWED(k_mutex, 4)
-	Z_ITERABLE_SECTION_RAM_GC_ALLOWED(k_stack, 4)
-	Z_ITERABLE_SECTION_RAM_GC_ALLOWED(k_msgq, 4)
-	Z_ITERABLE_SECTION_RAM_GC_ALLOWED(k_mbox, 4)
-	Z_ITERABLE_SECTION_RAM_GC_ALLOWED(k_pipe, 4)
-	Z_ITERABLE_SECTION_RAM_GC_ALLOWED(k_sem, 4)
-	Z_ITERABLE_SECTION_RAM_GC_ALLOWED(k_queue, 4)
-	Z_ITERABLE_SECTION_RAM_GC_ALLOWED(k_condvar, 4)
+	ITERABLE_SECTION_RAM_GC_ALLOWED(k_timer, 4)
+	ITERABLE_SECTION_RAM_GC_ALLOWED(k_mem_slab, 4)
+	ITERABLE_SECTION_RAM_GC_ALLOWED(k_mem_pool, 4)
+	ITERABLE_SECTION_RAM_GC_ALLOWED(k_heap, 4)
+	ITERABLE_SECTION_RAM_GC_ALLOWED(k_mutex, 4)
+	ITERABLE_SECTION_RAM_GC_ALLOWED(k_stack, 4)
+	ITERABLE_SECTION_RAM_GC_ALLOWED(k_msgq, 4)
+	ITERABLE_SECTION_RAM_GC_ALLOWED(k_mbox, 4)
+	ITERABLE_SECTION_RAM_GC_ALLOWED(k_pipe, 4)
+	ITERABLE_SECTION_RAM_GC_ALLOWED(k_sem, 4)
+	ITERABLE_SECTION_RAM_GC_ALLOWED(k_queue, 4)
+	ITERABLE_SECTION_RAM_GC_ALLOWED(k_condvar, 4)
 
 	SECTION_DATA_PROLOGUE(_net_buf_pool_area,,SUBALIGN(4))
 	{

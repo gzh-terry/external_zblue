@@ -95,31 +95,6 @@ typedef int16_t device_handle_t;
 		      NULL, NULL, level, prio, NULL)
 
 /**
- * @def DEVICE_INIT
- *
- * @brief Invoke DEVICE_DEFINE() with no power management support (@p
- * pm_control_fn) and no API (@p api_ptr).
- */
-#define DEVICE_INIT(dev_name, drv_name, init_fn,			\
-		    data_ptr, cfg_ptr, level, prio)			\
-	__DEPRECATED_MACRO						\
-	DEVICE_DEFINE(dev_name, drv_name, init_fn, NULL,		\
-		      data_ptr, cfg_ptr, level, prio, NULL)
-
-/**
- * @def DEVICE_AND_API_INIT
- *
- * @brief Invoke DEVICE_DEFINE() with no power management support (@p
- * pm_control_fn).
- */
-#define DEVICE_AND_API_INIT(dev_name, drv_name, init_fn,		\
-			    data_ptr, cfg_ptr, level, prio, api_ptr)	\
-	__DEPRECATED_MACRO						\
-	DEVICE_DEFINE(dev_name, drv_name, init_fn,			\
-		      NULL,						\
-		      data_ptr, cfg_ptr, level, prio, api_ptr)
-
-/**
  * @def DEVICE_DEFINE
  *
  * @brief Create device object and set it up for boot time initialization,
@@ -303,6 +278,29 @@ typedef int16_t device_handle_t;
 		    (NULL))
 
 /**
+ * @def DEVICE_DT_GET_ONE
+ *
+ * @brief Obtain a pointer to a device object by devicetree compatible
+ *
+ * If any enabled devicetree node has the given compatible and a
+ * device object was created from it, this returns that device.
+ *
+ * If there no such devices, this throws a compilation error.
+ *
+ * If there are multiple, this returns an arbitrary one.
+ *
+ * If this returns non-NULL, the device must be checked for readiness
+ * before use, e.g. with device_is_ready().
+ *
+ * @param compat lowercase-and-underscores devicetree compatible
+ * @return a pointer to a device
+ */
+#define DEVICE_DT_GET_ONE(compat)					    \
+	COND_CODE_1(DT_HAS_COMPAT_STATUS_OKAY(compat),			    \
+		    (DEVICE_DT_GET(DT_COMPAT_GET_ANY_STATUS_OKAY(compat))), \
+		    (ZERO_OR_COMPILE_ERROR(0)))
+
+/**
  * @def DEVICE_GET
  *
  * @brief Obtain a pointer to a device object by name
@@ -386,8 +384,7 @@ struct device {
 	const device_handle_t *const handles;
 #ifdef CONFIG_PM_DEVICE
 	/** Power Management function */
-	int (*pm_control)(const struct device *dev, uint32_t command,
-				 uint32_t *state, pm_device_cb cb, void *arg);
+	pm_device_control_callback_t pm_control;
 	/** Pointer to device instance power management data */
 	struct pm_device * const pm;
 #endif
@@ -615,52 +612,6 @@ static inline bool device_is_ready(const struct device *dev)
 }
 
 /**
- * @brief Indicate that the device is in the middle of a transaction
- *
- * Called by a device driver to indicate that it is in the middle of a
- * transaction.
- *
- * @param dev Pointer to device structure of the driver instance.
- */
-void device_busy_set(const struct device *dev);
-
-/**
- * @brief Indicate that the device has completed its transaction
- *
- * Called by a device driver to indicate the end of a transaction.
- *
- * @param dev Pointer to device structure of the driver instance.
- */
-void device_busy_clear(const struct device *dev);
-
-#ifdef CONFIG_PM_DEVICE
-/**
- * @brief Check if any device is in the middle of a transaction
- *
- * Called by an application to see if any device is in the middle
- * of a critical transaction that cannot be interrupted.
- *
- * @retval 0 if no device is busy
- * @retval -EBUSY if any device is busy
- */
-int device_any_busy_check(void);
-
-/**
- * @brief Check if a specific device is in the middle of a transaction
- *
- * Called by an application to see if a particular device is in the
- * middle of a critical transaction that cannot be interrupted.
- *
- * @param chk_dev Pointer to device structure of the specific device driver
- * the caller is interested in.
- * @retval 0 if the device is not busy
- * @retval -EBUSY if the device is busy
- */
-int device_busy_check(const struct device *chk_dev);
-
-#endif
-
-/**
  * @}
  */
 
@@ -712,6 +663,7 @@ int device_busy_check(const struct device *chk_dev);
  */
 #define Z_DEVICE_DEFINE_PRE(node_id, dev_name, ...)			\
 	Z_DEVICE_DEFINE_HANDLES(node_id, dev_name, __VA_ARGS__)		\
+	Z_DEVICE_STATE_DEFINE(node_id, dev_name)			\
 	Z_DEVICE_DEFINE_PM_SLOT(dev_name)
 
 
@@ -762,7 +714,6 @@ BUILD_ASSERT(sizeof(device_handle_t) == 2, "fix the linker scripts");
  */
 #define Z_DEVICE_DEFINE(node_id, dev_name, drv_name, init_fn, pm_control_fn, \
 			data_ptr, cfg_ptr, level, prio, api_ptr, ...)	\
-	static struct device_state Z_DEVICE_STATE_NAME(dev_name);	\
 	Z_DEVICE_DEFINE_PRE(node_id, dev_name, __VA_ARGS__)		\
 	COND_CODE_1(DT_NODE_EXISTS(node_id), (), (static))		\
 		const Z_DECL_ALIGN(struct device)			\
@@ -781,10 +732,24 @@ BUILD_ASSERT(sizeof(device_handle_t) == 2, "fix the linker scripts");
 		(&DEVICE_NAME_GET(dev_name)), level, prio)
 
 #ifdef CONFIG_PM_DEVICE
-#define Z_DEVICE_DEFINE_PM_INIT(dev_name, pm_control_fn)		\
+#define Z_DEVICE_STATE_DEFINE(node_id, dev_name)			\
+	static struct device_state Z_DEVICE_STATE_NAME(dev_name) = {	\
+		.pm = {						        \
+			.flags = ATOMIC_INIT(COND_CODE_1(		\
+					DT_NODE_EXISTS(node_id),	\
+					(DT_PROP(			\
+					node_id, wakeup_source)),	\
+					(0)) <<			        \
+				PM_DEVICE_FLAGS_WS_CAPABLE),		\
+		},                                                      \
+	};
+
+#define Z_DEVICE_DEFINE_PM_INIT(dev_name, pm_control_fn)	\
 	.pm_control = (pm_control_fn),				\
 	.pm = &Z_DEVICE_STATE_NAME(dev_name).pm,
 #else
+#define Z_DEVICE_STATE_DEFINE(node_id, dev_name) \
+	static struct device_state Z_DEVICE_STATE_NAME(dev_name);
 #define Z_DEVICE_DEFINE_PM_INIT(dev_name, pm_control_fn)
 #endif
 
