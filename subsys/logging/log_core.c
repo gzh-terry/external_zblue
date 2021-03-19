@@ -11,7 +11,7 @@
 #include <logging/log_output.h>
 #include <sys/printk.h>
 #include <init.h>
-#include <assert.h>
+#include <sys/__assert.h>
 #include <sys/atomic.h>
 #include <ctype.h>
 #include <logging/log_frontend.h>
@@ -36,7 +36,11 @@ LOG_MODULE_REGISTER(log);
 #endif
 
 #ifndef CONFIG_LOG_STRDUP_MAX_STRING
-#define CONFIG_LOG_STRDUP_MAX_STRING 0
+/* Required to suppress compiler warnings related to array subscript above array bounds.
+ * log_strdup explicitly accesses element with index of (sizeof(log_strdup_buf.buf) - 2).
+ * Set to 2 because some compilers generate warning on strncpy(dst, src, 0).
+ */
+#define CONFIG_LOG_STRDUP_MAX_STRING 2
 #endif
 
 #ifndef CONFIG_LOG_STRDUP_BUF_COUNT
@@ -99,6 +103,7 @@ uint32_t z_log_get_s_mask(const char *str, uint32_t nargs)
 			}
 			arm = false;
 			arg++;
+		} else {
 		}
 	}
 
@@ -119,7 +124,7 @@ static bool is_rodata(const void *addr)
 	extern const char *_image_rodata_end[];
 	#define RO_START _image_rodata_start
 	#define RO_END _image_rodata_end
-#elif defined(CONFIG_NIOS2) || defined(CONFIG_RISCV)
+#elif defined(CONFIG_NIOS2) || defined(CONFIG_RISCV) || defined(CONFIG_SPARC)
 	extern const char *_image_rom_start[];
 	extern const char *_image_rom_end[];
 	#define RO_START _image_rom_start
@@ -181,24 +186,11 @@ static void detect_missed_strdup(struct log_msg *msg)
 #undef ERR_MSG
 }
 
-static inline void msg_finalize(struct log_msg *msg,
-				struct log_msg_ids src_level)
+static void z_log_msg_post_finalize(void)
 {
-	unsigned int key;
-
-	msg->hdr.ids = src_level;
-	msg->hdr.timestamp = timestamp_func();
-
 	atomic_inc(&buffered_cnt);
-
-	key = irq_lock();
-
-	log_list_add_tail(&list, msg);
-
-	irq_unlock(key);
-
 	if (panic_mode) {
-		key = irq_lock();
+		unsigned int key = irq_lock();
 		(void)log_process(false);
 		irq_unlock(key);
 	} else if (proc_tid != NULL && buffered_cnt == 1) {
@@ -210,7 +202,25 @@ static inline void msg_finalize(struct log_msg *msg,
 			k_timer_stop(&log_process_thread_timer);
 			k_sem_give(&log_process_thread_sem);
 		}
+	} else {
 	}
+}
+
+static inline void msg_finalize(struct log_msg *msg,
+				struct log_msg_ids src_level)
+{
+	unsigned int key;
+
+	msg->hdr.ids = src_level;
+	msg->hdr.timestamp = timestamp_func();
+
+	key = irq_lock();
+
+	log_list_add_tail(&list, msg);
+
+	irq_unlock(key);
+
+	z_log_msg_post_finalize();
 }
 
 void log_0(const char *str, struct log_msg_ids src_level)
@@ -370,6 +380,7 @@ uint32_t log_count_args(const char *fmt)
 		} else if (prev) {
 			args++;
 			prev = false;
+		} else {
 		}
 		fmt++;
 	}
@@ -520,7 +531,7 @@ void log_core_init(void)
 
 void log_init(void)
 {
-	assert(log_backend_count_get() < LOG_FILTERS_NUM_OF_SLOTS);
+	__ASSERT_NO_MSG(log_backend_count_get() < LOG_FILTERS_NUM_OF_SLOTS);
 	int i;
 
 	if (IS_ENABLED(CONFIG_LOG_FRONTEND)) {
@@ -537,7 +548,7 @@ void log_init(void)
 
 		if (backend->autostart) {
 			if (backend->api->init != NULL) {
-				backend->api->init();
+				backend->api->init(backend);
 			}
 
 			log_backend_enable(backend, NULL, CONFIG_LOG_MAX_LEVEL);
@@ -563,7 +574,7 @@ static void thread_set(k_tid_t process_tid)
 void log_thread_set(k_tid_t process_tid)
 {
 	if (IS_ENABLED(CONFIG_LOG_PROCESS_THREAD)) {
-		assert(0);
+		__ASSERT_NO_MSG(0);
 	} else {
 		thread_set(process_tid);
 	}
@@ -756,7 +767,7 @@ uint32_t z_impl_log_filter_set(struct log_backend const *const backend,
 			    uint32_t src_id,
 			    uint32_t level)
 {
-	assert(src_id < log_sources_count());
+	__ASSERT_NO_MSG(src_id < log_sources_count());
 
 	if (IS_ENABLED(CONFIG_LOG_RUNTIME_FILTERING)) {
 		uint32_t new_aggr_filter;
@@ -866,7 +877,7 @@ uint32_t log_filter_get(struct log_backend const *const backend,
 		     uint32_t src_id,
 		     bool runtime)
 {
-	assert(src_id < log_sources_count());
+	__ASSERT_NO_MSG(src_id < log_sources_count());
 
 	if (IS_ENABLED(CONFIG_LOG_RUNTIME_FILTERING) && runtime) {
 		uint32_t *filters = log_dynamic_filters_get(src_id);
@@ -896,7 +907,7 @@ char *log_strdup(const char *str)
 
 	if (IS_ENABLED(CONFIG_LOG_STRDUP_POOL_PROFILING)) {
 		size_t slen = strlen(str);
-		struct k_spinlock lock;
+		static struct k_spinlock lock;
 		k_spinlock_key_t key;
 
 		key = k_spin_lock(&lock);
@@ -1060,8 +1071,8 @@ void z_vrfy_z_log_hexdump_from_user(uint32_t src_level_val, const char *metadata
 		struct log_msg_ids structure;
 		uint32_t value;
 	} src_level_union;
-	size_t mlen;
 	int err;
+	char kmeta[CONFIG_LOG_STRDUP_MAX_STRING];
 
 	src_level_union.value = src_level_val;
 
@@ -1089,16 +1100,15 @@ void z_vrfy_z_log_hexdump_from_user(uint32_t src_level_val, const char *metadata
 	 * need the log subsystem to eventually free it, we're going
 	 * to use log_strdup().
 	 */
-	mlen = z_user_string_nlen(metadata, CONFIG_LOG_STRDUP_MAX_STRING, &err);
-	Z_OOPS(Z_SYSCALL_VERIFY_MSG(err == 0, "invalid string passed in"));
-	Z_OOPS(Z_SYSCALL_MEMORY_READ(metadata, mlen));
+	err = z_user_string_copy(kmeta, metadata, sizeof(kmeta));
+	Z_OOPS(Z_SYSCALL_VERIFY_MSG(err == 0, "invalid meta passed in"));
 	Z_OOPS(Z_SYSCALL_MEMORY_READ(data, len));
 
 	if (IS_ENABLED(CONFIG_LOG_IMMEDIATE)) {
 		log_hexdump_sync(src_level_union.structure,
-				 metadata, data, len);
+				 kmeta, data, len);
 	} else {
-		metadata = log_strdup(metadata);
+		metadata = log_strdup(kmeta);
 		log_hexdump(metadata, data, len, src_level_union.structure);
 	}
 }

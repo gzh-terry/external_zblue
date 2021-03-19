@@ -8,7 +8,7 @@
 LOG_MODULE_REGISTER(net_gptp, CONFIG_NET_GPTP_LOG_LEVEL);
 
 #include <net/net_pkt.h>
-#include <ptp_clock.h>
+#include <drivers/ptp_clock.h>
 #include <net/ethernet_mgmt.h>
 #include <random/rand32.h>
 
@@ -382,7 +382,15 @@ static void gptp_init_clock_ds(void)
 		GPTP_OFFSET_SCALED_LOG_VAR_UNKNOWN;
 
 	if (default_ds->gm_capable) {
-		default_ds->priority1 = GPTP_PRIORITY1_GM_CAPABLE;
+		/* The priority1 value cannot be 255 for GM capable
+		 * system.
+		 */
+		if (CONFIG_NET_GPTP_BMCA_PRIORITY1 ==
+		    GPTP_PRIORITY1_NON_GM_CAPABLE) {
+			default_ds->priority1 = GPTP_PRIORITY1_GM_CAPABLE;
+		} else {
+			default_ds->priority1 = CONFIG_NET_GPTP_BMCA_PRIORITY1;
+		}
 	} else {
 		default_ds->priority1 = GPTP_PRIORITY1_NON_GM_CAPABLE;
 	}
