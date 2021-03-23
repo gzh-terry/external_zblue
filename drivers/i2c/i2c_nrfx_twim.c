@@ -9,6 +9,7 @@
 #include <dt-bindings/i2c/i2c.h>
 #include <nrfx_twim.h>
 #include <sys/util.h>
+#include <soc.h>
 
 #include <logging/log.h>
 LOG_MODULE_REGISTER(i2c_nrfx_twim, CONFIG_I2C_LOG_LEVEL);
@@ -22,7 +23,7 @@ struct i2c_nrfx_twim_data {
 	uint32_t dev_config;
 	uint16_t concat_buf_size;
 	uint8_t *concat_buf;
-#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
+#ifdef CONFIG_PM_DEVICE
 	uint32_t pm_state;
 #endif
 };
@@ -244,14 +245,14 @@ static int init_twim(const struct device *dev)
 		return -EBUSY;
 	}
 
-#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
+#ifdef CONFIG_PM_DEVICE
 	get_dev_data(dev)->pm_state = DEVICE_PM_ACTIVE_STATE;
 #endif
 
 	return 0;
 }
 
-#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
+#ifdef CONFIG_PM_DEVICE
 static int twim_nrfx_pm_control(const struct device *dev,
 				uint32_t ctrl_command,
 				void *context, device_pm_cb cb, void *arg)
@@ -300,7 +301,7 @@ static int twim_nrfx_pm_control(const struct device *dev,
 
 	return ret;
 }
-#endif /* CONFIG_DEVICE_POWER_MANAGEMENT */
+#endif /* CONFIG_PM_DEVICE */
 
 #define I2C_NRFX_TWIM_INVALID_FREQUENCY  ((nrf_twim_frequency_t)-1)
 #define I2C_NRFX_TWIM_FREQUENCY(bitrate)				       \
@@ -324,6 +325,14 @@ static int twim_nrfx_pm_control(const struct device *dev,
 	BUILD_ASSERT(I2C_FREQUENCY(idx) !=				       \
 		     I2C_NRFX_TWIM_INVALID_FREQUENCY,			       \
 		     "Wrong I2C " #idx " frequency setting in dts");	       \
+	NRF_DT_PSEL_CHECK_EXACTLY_ONE(I2C(idx),				       \
+				      sda_pin, "sda-pin",		       \
+				      sda_gpios, "sda-gpios");		       \
+	NRF_DT_PSEL_CHECK_EXACTLY_ONE(I2C(idx),				       \
+				      scl_pin, "scl-pin",		       \
+				      scl_gpios, "scl-gpios");		       \
+	NRF_DT_CHECK_GPIO_CTLR_IS_SOC(I2C(idx), sda_gpios, "sda-gpios");       \
+	NRF_DT_CHECK_GPIO_CTLR_IS_SOC(I2C(idx), scl_gpios, "scl-gpios");       \
 	static int twim_##idx##_init(const struct device *dev)		       \
 	{								       \
 		IRQ_CONNECT(DT_IRQN(I2C(idx)), DT_IRQ(I2C(idx), priority),     \
@@ -344,13 +353,12 @@ static int twim_nrfx_pm_control(const struct device *dev,
 	static const struct i2c_nrfx_twim_config twim_##idx##z_config = {      \
 		.twim = NRFX_TWIM_INSTANCE(idx),			       \
 		.config = {						       \
-			.scl       = DT_PROP(I2C(idx), scl_pin),	       \
-			.sda       = DT_PROP(I2C(idx), sda_pin),	       \
+			.scl = NRF_DT_PSEL(I2C(idx), scl_pin, scl_gpios, 0),   \
+			.sda = NRF_DT_PSEL(I2C(idx), sda_pin, sda_gpios, 0),   \
 			.frequency = I2C_FREQUENCY(idx),		       \
 		}							       \
 	};								       \
-	DEVICE_DEFINE(twim_##idx,					       \
-		      DT_LABEL(I2C(idx)),				       \
+	DEVICE_DT_DEFINE(I2C(idx),					       \
 		      twim_##idx##_init,				       \
 		      twim_nrfx_pm_control,				       \
 		      &twim_##idx##_data,				       \

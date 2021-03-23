@@ -82,9 +82,9 @@ void z_timer_expiration_handler(struct _timeout *t)
 	 */
 	z_unpend_thread_no_timeout(thread);
 
-	z_ready_thread(thread);
-
 	arch_thread_return_value_set(thread, 0);
+
+	z_ready_thread(thread);
 }
 
 
@@ -113,10 +113,6 @@ void z_impl_k_timer_start(struct k_timer *timer, k_timeout_t duration,
 		return;
 	}
 
-#ifdef CONFIG_LEGACY_TIMEOUT_API
-	duration = k_ms_to_ticks_ceil32(duration);
-	period = k_ms_to_ticks_ceil32(period);
-#else
 	/* z_add_timeout() always adds one to the incoming tick count
 	 * to round up to the next tick (by convention it waits for
 	 * "at least as long as the specified timeout"), but the
@@ -130,13 +126,13 @@ void z_impl_k_timer_start(struct k_timer *timer, k_timeout_t duration,
 	 * argument the same way k_sleep() does), but historical.  The
 	 * timer_api test relies on this behavior.
 	 */
-	if (period.ticks != 0 && Z_TICK_ABS(period.ticks) < 0) {
+	if (!K_TIMEOUT_EQ(period, K_FOREVER) && period.ticks != 0 &&
+	    Z_TICK_ABS(period.ticks) < 0) {
 		period.ticks = MAX(period.ticks - 1, 1);
 	}
 	if (Z_TICK_ABS(duration.ticks) < 0) {
 		duration.ticks = MAX(duration.ticks - 1, 0);
 	}
-#endif
 
 	(void)z_abort_timeout(&timer->timeout);
 	timer->period = period;
@@ -242,21 +238,23 @@ static inline uint32_t z_vrfy_k_timer_status_sync(struct k_timer *timer)
 }
 #include <syscalls/k_timer_status_sync_mrsh.c>
 
-static inline k_ticks_t z_vrfy_k_timer_remaining_ticks(struct k_timer *timer)
+static inline k_ticks_t z_vrfy_k_timer_remaining_ticks(
+						const struct k_timer *timer)
 {
 	Z_OOPS(Z_SYSCALL_OBJ(timer, K_OBJ_TIMER));
 	return z_impl_k_timer_remaining_ticks(timer);
 }
 #include <syscalls/k_timer_remaining_ticks_mrsh.c>
 
-static inline k_ticks_t z_vrfy_k_timer_expires_ticks(struct k_timer *timer)
+static inline k_ticks_t z_vrfy_k_timer_expires_ticks(
+						const struct k_timer *timer)
 {
 	Z_OOPS(Z_SYSCALL_OBJ(timer, K_OBJ_TIMER));
 	return z_impl_k_timer_expires_ticks(timer);
 }
 #include <syscalls/k_timer_expires_ticks_mrsh.c>
 
-static inline void *z_vrfy_k_timer_user_data_get(struct k_timer *timer)
+static inline void *z_vrfy_k_timer_user_data_get(const struct k_timer *timer)
 {
 	Z_OOPS(Z_SYSCALL_OBJ(timer, K_OBJ_TIMER));
 	return z_impl_k_timer_user_data_get(timer);

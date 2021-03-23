@@ -19,7 +19,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include <sys/ring_buffer.h>
 #include <sys/atomic.h>
 
-#ifdef CONFIG_OPENTHREAD_NCP_SPINEL_ON_UART_ACM
+#ifdef CONFIG_OPENTHREAD_COPROCESSOR_SPINEL_ON_UART_ACM
 #include <usb/usb_device.h>
 #endif
 
@@ -41,7 +41,7 @@ struct openthread_uart {
 		.rx_ringbuf = &_name##_rx_ringbuf, \
 	}
 
-OT_UART_DEFINE(ot_uart, CONFIG_OPENTHREAD_NCP_UART_RING_BUFFER_SIZE);
+OT_UART_DEFINE(ot_uart, CONFIG_OPENTHREAD_COPROCESSOR_UART_RING_BUFFER_SIZE);
 
 #define RX_FIFO_SIZE 128
 
@@ -111,7 +111,8 @@ static void uart_callback(const struct device *dev, void *user_data)
 			uart_rx_handle(dev);
 		}
 
-		if (uart_irq_tx_ready(dev)) {
+		if (uart_irq_tx_ready(dev) &&
+		    atomic_get(&ot_uart.tx_busy) == 1) {
 			uart_tx_handle(dev);
 		}
 	}
@@ -143,12 +144,12 @@ void platformUartProcess(otInstance *aInstance)
 		otPlatUartSendDone();
 		ot_uart.tx_finished = 0;
 	}
-};
+}
 
 otError otPlatUartEnable(void)
 {
 	ot_uart.dev = device_get_binding(
-		CONFIG_OPENTHREAD_NCP_SPINEL_ON_UART_DEV_NAME);
+		CONFIG_OPENTHREAD_COPROCESSOR_SPINEL_ON_UART_DEV_NAME);
 
 	if ((&ot_uart)->dev == NULL) {
 		LOG_ERR("UART device not found");
@@ -161,11 +162,11 @@ otError otPlatUartEnable(void)
 	uart_irq_rx_enable(ot_uart.dev);
 
 	return OT_ERROR_NONE;
-};
+}
 
 otError otPlatUartDisable(void)
 {
-#ifdef CONFIG_OPENTHREAD_NCP_SPINEL_ON_UART_ACM
+#ifdef CONFIG_OPENTHREAD_COPROCESSOR_SPINEL_ON_UART_ACM
 	int ret = usb_disable();
 
 	if (ret) {
@@ -176,8 +177,7 @@ otError otPlatUartDisable(void)
 	uart_irq_tx_disable(ot_uart.dev);
 	uart_irq_rx_disable(ot_uart.dev);
 	return OT_ERROR_NONE;
-};
-
+}
 
 otError otPlatUartSend(const uint8_t *aBuf, uint16_t aBufLength)
 {
@@ -185,10 +185,10 @@ otError otPlatUartSend(const uint8_t *aBuf, uint16_t aBufLength)
 		return OT_ERROR_FAILED;
 	}
 
-	write_buffer = aBuf;
-	write_length = aBufLength;
+	if (atomic_cas(&(ot_uart.tx_busy), 0, 1)) {
+		write_buffer = aBuf;
+		write_length = aBufLength;
 
-	if (atomic_set(&(ot_uart.tx_busy), 1) == 0) {
 		if (is_panic_mode) {
 			/* In panic mode all data have to be send immediately
 			 * without using interrupts
@@ -197,10 +197,11 @@ otError otPlatUartSend(const uint8_t *aBuf, uint16_t aBufLength)
 		} else {
 			uart_irq_tx_enable(ot_uart.dev);
 		}
+		return OT_ERROR_NONE;
 	}
 
-	return OT_ERROR_NONE;
-};
+	return OT_ERROR_BUSY;
+}
 
 otError otPlatUartFlush(void)
 {

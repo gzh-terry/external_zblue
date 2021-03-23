@@ -9,8 +9,6 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU")
 endif()
 
 zephyr_library_sources(
-  ia32/cache.c
-  ia32/cache_s.S
   ia32/crt0.S
   ia32/excstub.S
   ia32/intstub.S
@@ -26,5 +24,15 @@ zephyr_library_sources_ifdef(CONFIG_GDBSTUB		ia32/gdbstub.c)
 
 zephyr_library_sources_ifdef(CONFIG_DEBUG_COREDUMP	ia32/coredump.c)
 
+zephyr_library_sources_ifdef(
+  CONFIG_X86_USE_THREAD_LOCAL_STORAGE
+  ia32/tls.c
+)
+
 # Last since we declare default exception handlers here
 zephyr_library_sources(ia32/fatal.c)
+
+zephyr_library_sources_ifdef(
+  CONFIG_X86_FP_USE_SOFT_FLOAT
+  ia32/soft_float_stubs.c
+)
