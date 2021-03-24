@@ -27,6 +27,21 @@
 extern "C" {
 #endif
 
+#ifdef CONFIG_PCIE_MSI
+
+struct x86_msi_vector {
+	unsigned int irq;
+	uint8_t vector;
+#ifdef CONFIG_INTEL_VTD_ICTL
+	bool remap;
+	uint8_t irte;
+#endif
+};
+
+typedef struct x86_msi_vector arch_msi_vector_t;
+
+#endif /* CONFIG_PCIE_MSI */
+
 static ALWAYS_INLINE void arch_irq_unlock(unsigned int key)
 {
 	if ((key & 0x00000200U) != 0U) { /* 'IF' bit */
@@ -231,11 +246,11 @@ extern "C" {
 extern void arch_irq_enable(unsigned int irq);
 extern void arch_irq_disable(unsigned int irq);
 
-extern uint32_t z_timer_cycle_get_32(void);
+extern uint32_t sys_clock_cycle_get_32(void);
 
 static inline uint32_t arch_k_cycle_get_32(void)
 {
-	return z_timer_cycle_get_32();
+	return sys_clock_cycle_get_32();
 }
 
 static ALWAYS_INLINE bool arch_irq_unlocked(unsigned int key)

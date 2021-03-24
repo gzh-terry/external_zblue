@@ -35,8 +35,8 @@
 #define NOTIFY_OBSERVER(o, i, r)	lwm2m_notify_observer(o, i, r)
 #define NOTIFY_OBSERVER_PATH(path)	lwm2m_notify_observer_path(path)
 
-/* Use this value to skip token generation */
-#define LWM2M_MSG_TOKEN_LEN_SKIP	0xFF
+/* Use this value to generate new token */
+#define LWM2M_MSG_TOKEN_GENERATE_NEW 0xFFU
 
 /* length of time in milliseconds to wait for buffer allocations */
 #define BUF_ALLOC_TIMEOUT K_SECONDS(1)
@@ -65,6 +65,13 @@ int  lwm2m_get_or_create_engine_obj(struct lwm2m_message *msg,
 				    struct lwm2m_engine_obj_inst **obj_inst,
 				    uint8_t *created);
 
+struct lwm2m_engine_obj *lwm2m_engine_get_obj(
+					const struct lwm2m_obj_path *path);
+struct lwm2m_engine_obj_inst *lwm2m_engine_get_obj_inst(
+					const struct lwm2m_obj_path *path);
+struct lwm2m_engine_res *lwm2m_engine_get_res(
+					const struct lwm2m_obj_path *path);
+
 /* LwM2M context functions */
 int lwm2m_engine_context_close(struct lwm2m_ctx *client_ctx);
 void lwm2m_engine_context_init(struct lwm2m_ctx *client_ctx);
@@ -78,8 +85,9 @@ struct lwm2m_message *lwm2m_get_message(struct lwm2m_ctx *client_ctx);
 void lwm2m_reset_message(struct lwm2m_message *msg, bool release);
 int lwm2m_init_message(struct lwm2m_message *msg);
 int lwm2m_send_message(struct lwm2m_message *msg);
+int lwm2m_send_empty_ack(struct lwm2m_ctx *client_ctx, uint16_t mid);
 
-uint16_t lwm2m_get_rd_data(uint8_t *client_data, uint16_t size);
+int lwm2m_register_payload_handler(struct lwm2m_message *msg);
 
 int lwm2m_perform_read_op(struct lwm2m_message *msg, uint16_t content_format);
 
@@ -88,6 +96,8 @@ int lwm2m_write_handler(struct lwm2m_engine_obj_inst *obj_inst,
 			struct lwm2m_engine_res_inst *res_inst,
 			struct lwm2m_engine_obj_field *obj_field,
 			struct lwm2m_message *msg);
+
+int lwm2m_discover_handler(struct lwm2m_message *msg, bool is_bootstrap);
 
 enum coap_block_size lwm2m_default_block_size(void);
 
@@ -99,7 +109,9 @@ int lwm2m_engine_get_resource(char *pathstr,
 void lwm2m_engine_get_binding(char *binding);
 
 size_t lwm2m_engine_get_opaque_more(struct lwm2m_input_context *in,
-				    uint8_t *buf, size_t buflen, bool *last_block);
+				    uint8_t *buf, size_t buflen,
+				    struct lwm2m_opaque_context *opaque,
+				    bool *last_block);
 
 int lwm2m_security_inst_id_to_index(uint16_t obj_inst_id);
 int lwm2m_security_index_to_inst_id(int index);
@@ -114,6 +126,12 @@ void lwm2m_firmware_set_update_state(uint8_t state);
 void lwm2m_firmware_set_update_result(uint8_t result);
 uint8_t lwm2m_firmware_get_update_result(void);
 #endif
+
+/* Attribute handling. */
+
+struct lwm2m_attr *lwm2m_engine_get_next_attr(const void *ref,
+					      struct lwm2m_attr *prev);
+const char *lwm2m_engine_get_attr_name(const struct lwm2m_attr *attr);
 
 /* Network Layer */
 int  lwm2m_socket_add(struct lwm2m_ctx *ctx);

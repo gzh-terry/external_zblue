@@ -42,13 +42,13 @@ int iis3dhhc_trigger_set(const struct device *dev,
 			 sensor_trigger_handler_t handler)
 {
 	struct iis3dhhc_data *iis3dhhc = dev->data;
-	union axis3bit16_t raw;
+	int16_t raw[3];
 
 	if (trig->chan == SENSOR_CHAN_ACCEL_XYZ) {
 		iis3dhhc->handler_drdy = handler;
 		if (handler) {
 			/* dummy read: re-trigger interrupt */
-			iis3dhhc_acceleration_raw_get(iis3dhhc->ctx, raw.u8bit);
+			iis3dhhc_acceleration_raw_get(iis3dhhc->ctx, raw);
 			return iis3dhhc_enable_int(dev, PROPERTY_ENABLE);
 		} else {
 			return iis3dhhc_enable_int(dev, PROPERTY_DISABLE);
@@ -132,7 +132,7 @@ int iis3dhhc_init_interrupt(const struct device *dev)
 	iis3dhhc->dev = dev;
 
 #if defined(CONFIG_IIS3DHHC_TRIGGER_OWN_THREAD)
-	k_sem_init(&iis3dhhc->gpio_sem, 0, UINT_MAX);
+	k_sem_init(&iis3dhhc->gpio_sem, 0, K_SEM_MAX_LIMIT);
 
 	k_thread_create(&iis3dhhc->thread, iis3dhhc->thread_stack,
 		       CONFIG_IIS3DHHC_THREAD_STACK_SIZE,

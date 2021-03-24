@@ -80,6 +80,7 @@
 		sw1 = &button1;
 		sw2 = &button2;
 		sw3 = &button3;
+		bootloader-led0 = &led0;
 	};
 };
 
@@ -96,7 +97,7 @@
 };
 
 &uart0 {
-	compatible = "nordic,nrf-uart";
+	compatible = "nordic,nrf-uarte";
 	status = "okay";
 	current-speed = <115200>;
 	tx-pin = <6>;
@@ -109,8 +110,8 @@
 	compatible = "nordic,nrf-twi";
 	status = "okay";
 	/* Arduino compatible PINs */
-	sda-pin = <26>;
-	scl-pin = <27>;
+	sda-gpios = <&gpio0 26 0>;
+	scl-gpios = <&gpio0 27 0>;
 };
 
 &pwm0 {
@@ -136,10 +137,7 @@
 };
 
 &flash0 {
-	/*
-	 * For more information, see:
-	 * https://docs.zephyrproject.org/latest/guides/dts/legacy-macros.html#legacy-flash-partitions
-	 */
+
 	partitions {
 		compatible = "fixed-partitions";
 		#address-cells = <1>;
