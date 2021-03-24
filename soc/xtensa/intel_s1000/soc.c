@@ -5,6 +5,7 @@
  */
 
 #include <device.h>
+#include <arch/xtensa/xtensa_api.h>
 #include <xtensa/xtruntime.h>
 #include <irq_nextlevel.h>
 #include <xtensa/hal.h>

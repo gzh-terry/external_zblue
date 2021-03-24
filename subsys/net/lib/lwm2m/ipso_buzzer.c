@@ -213,10 +213,10 @@ static struct lwm2m_engine_obj_inst *buzzer_create(uint16_t obj_inst_id)
 
 	/* initialize instance resource data */
 	INIT_OBJ_RES(BUZZER_ON_OFF_ID, res[avail], i,
-		     res_inst[avail], j, 1, false, true,
+		     res_inst[avail], j, 1, true,
 		     &buzzer_data[avail].onoff,
 		     sizeof(buzzer_data[avail].onoff),
-		     NULL, NULL, NULL, onoff_post_write_cb, NULL);
+		     NULL, NULL, onoff_post_write_cb, NULL);
 	INIT_OBJ_RES_DATA(BUZZER_LEVEL_ID, res[avail], i, res_inst[avail], j,
 			  &buzzer_data[avail].level,
 			  sizeof(buzzer_data[avail].level));

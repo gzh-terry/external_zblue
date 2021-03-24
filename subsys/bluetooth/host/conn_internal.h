@@ -99,23 +99,10 @@ struct bt_conn_sco {
 struct bt_conn_iso {
 	/* Reference to ACL Connection */
 	struct bt_conn          *acl;
-	union {
-		/* CIG ID */
-		uint8_t			cig_id;
-		/* BIG handle */
-		uint8_t			big_handle;
-	};
-
-	union {
-		/* CIS ID */
-		uint8_t			cis_id;
-
-		/* BIS ID */
-		uint8_t			bis_id;
-	};
-
-	/** If true, this is a ISO for a BIS, else it is a ISO for a CIS */
-	bool is_bis;
+	/* CIG ID */
+	uint8_t			cig_id;
+	/* CIS ID */
+	uint8_t			cis_id;
 };
 
 typedef void (*bt_conn_tx_cb_t)(struct bt_conn *conn, void *user_data);
@@ -128,17 +115,6 @@ struct bt_conn_tx {
 
 	/* Number of pending packets without a callback after this one */
 	uint32_t pending_no_cb;
-};
-
-struct acl_data {
-	/* Extend the bt_buf user data */
-	struct bt_buf_data buf_data;
-
-	/* Index into the bt_conn storage array */
-	uint8_t  index;
-
-	/** ACL connection handle */
-	uint16_t handle;
 };
 
 struct bt_conn {
@@ -161,7 +137,8 @@ struct bt_conn {
 	uint8_t			err;
 
 	bt_conn_state_t		state;
-	uint16_t rx_len;
+
+	uint16_t		        rx_len;
 	struct net_buf		*rx;
 
 	/* Sent but not acknowledged TX packets with a callback */
@@ -182,12 +159,10 @@ struct bt_conn {
 	/* Active L2CAP/ISO channels */
 	sys_slist_t		channels;
 
-	/* Delayed work deferred tasks:
-	 * - Peripheral delayed connection update.
-	 * - Initiator connect create cancel.
-	 * - Connection cleanup.
-	 */
-	struct k_delayed_work	deferred_work;
+	atomic_t		ref;
+
+	/* Delayed work for connection update and other deferred tasks */
+	struct k_delayed_work	update_work;
 
 	union {
 		struct bt_conn_le	le;
@@ -195,7 +170,7 @@ struct bt_conn {
 		struct bt_conn_br	br;
 		struct bt_conn_sco	sco;
 #endif
-#if defined(CONFIG_BT_ISO)
+#if defined(CONFIG_BT_AUDIO)
 		struct bt_conn_iso	iso;
 #endif
 	};
@@ -207,10 +182,6 @@ struct bt_conn {
 		uint16_t subversion;
 	} rv;
 #endif
-	/* Must be at the end so that everything else in the structure can be
-	 * memset to zero without affecting the ref.
-	 */
-	atomic_t		ref;
 };
 
 void bt_conn_reset_rx_state(struct bt_conn *conn);

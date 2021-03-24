@@ -8,69 +8,60 @@
 #include <soc.h>
 #include <init.h>
 
-#include <stm32l4xx_ll_utils.h>
 #include <stm32l4xx_ll_bus.h>
 #include <stm32l4xx_ll_cortex.h>
 #include <stm32l4xx_ll_pwr.h>
 #include <stm32l4xx_ll_rcc.h>
-#include <stm32l4xx_ll_system.h>
-#include <clock_control/clock_stm32_ll_common.h>
 
 #include <logging/log.h>
 LOG_MODULE_DECLARE(soc, CONFIG_SOC_LOG_LEVEL);
 
-/* select MSI as wake-up system clock if configured, HSI otherwise */
-#if defined(CONFIG_CLOCK_STM32_SYSCLK_SRC_MSI)
-#define RCC_STOP_WAKEUPCLOCK_SELECTED LL_RCC_STOP_WAKEUPCLOCK_MSI
-#else
-#define RCC_STOP_WAKEUPCLOCK_SELECTED LL_RCC_STOP_WAKEUPCLOCK_HSI
-#endif
-
 /* Invoke Low Power/System Off specific Tasks */
-void pm_power_state_set(struct pm_state_info info)
+void sys_set_power_state(enum power_states state)
 {
-	if (info.state != PM_STATE_SUSPEND_TO_IDLE) {
-		LOG_DBG("Unsupported power state %u", info.state);
-		return;
-	}
-
-	switch (info.substate_id) {
-	case 0:
+	switch (state) {
+#ifdef CONFIG_SYS_POWER_SLEEP_STATES
+#ifdef CONFIG_HAS_SYS_POWER_STATE_SLEEP_1
+	case SYS_POWER_STATE_SLEEP_1:
 
 		/* this corresponds to the STOP0 mode: */
 #ifdef CONFIG_DEBUG
 		/* Enable the Debug Module during STOP mode */
 		LL_DBGMCU_EnableDBGStopMode();
 #endif /* CONFIG_DEBUG */
-		/* ensure the proper wake-up system clock */
-		LL_RCC_SetClkAfterWakeFromStop(RCC_STOP_WAKEUPCLOCK_SELECTED);
+		/* ensure HSI is the wake-up system clock */
+		LL_RCC_SetClkAfterWakeFromStop(LL_RCC_STOP_WAKEUPCLOCK_HSI);
 		/* enter STOP0 mode */
 		LL_PWR_SetPowerMode(LL_PWR_MODE_STOP0);
 		LL_LPM_EnableDeepSleep();
 		/* enter SLEEP mode : WFE or WFI */
 		k_cpu_idle();
 		break;
-	case 1:
+#endif /* CONFIG_HAS_SYS_POWER_STATE_SLEEP_1 */
+#ifdef CONFIG_HAS_SYS_POWER_STATE_SLEEP_2
+	case SYS_POWER_STATE_SLEEP_2:
 		/* this corresponds to the STOP1 mode: */
 #ifdef CONFIG_DEBUG
 		/* Enable the Debug Module during STOP mode */
 		LL_DBGMCU_EnableDBGStopMode();
 #endif /* CONFIG_DEBUG */
-		/* ensure the proper wake-up system clock */
-		LL_RCC_SetClkAfterWakeFromStop(RCC_STOP_WAKEUPCLOCK_SELECTED);
+		/* ensure HSI is the wake-up system clock */
+		LL_RCC_SetClkAfterWakeFromStop(LL_RCC_STOP_WAKEUPCLOCK_HSI);
 		/* enter STOP1 mode */
 		LL_PWR_SetPowerMode(LL_PWR_MODE_STOP1);
 		LL_LPM_EnableDeepSleep();
 		k_cpu_idle();
 		break;
-	case 2:
+#endif /* CONFIG_HAS_SYS_POWER_STATE_SLEEP_2 */
+#ifdef CONFIG_HAS_SYS_POWER_STATE_SLEEP_3
+	case SYS_POWER_STATE_SLEEP_3:
 		/* this corresponds to the STOP2 mode: */
 #ifdef CONFIG_DEBUG
 		/* Enable the Debug Module during STOP mode */
 		LL_DBGMCU_EnableDBGStopMode();
 #endif /* CONFIG_DEBUG */
-		/* ensure the proper wake-up system clock */
-		LL_RCC_SetClkAfterWakeFromStop(RCC_STOP_WAKEUPCLOCK_SELECTED);
+		/* ensure HSI is the wake-up system clock */
+		LL_RCC_SetClkAfterWakeFromStop(LL_RCC_STOP_WAKEUPCLOCK_HSI);
 #ifdef PWR_CR1_RRSTP
 		LL_PWR_DisableSRAM3Retention();
 #endif /* PWR_CR1_RRSTP */
@@ -79,35 +70,34 @@ void pm_power_state_set(struct pm_state_info info)
 		LL_LPM_EnableDeepSleep();
 		k_cpu_idle();
 		break;
+#endif /* CONFIG_HAS_SYS_POWER_STATE_SLEEP_3 */
+#endif /* CONFIG_SYS_POWER_SLEEP_STATES */
 	default:
-		LOG_DBG("Unsupported power state substate-id %u",
-			info.substate_id);
+		LOG_DBG("Unsupported power state %u", state);
 		break;
 	}
 }
 
 /* Handle SOC specific activity after Low Power Mode Exit */
-void pm_power_state_exit_post_ops(struct pm_state_info info)
+void _sys_pm_power_state_exit_post_ops(enum power_states state)
 {
-	if (info.state != PM_STATE_SUSPEND_TO_IDLE) {
-		LOG_DBG("Unsupported power substate-id %u", info.state);
-	} else {
-		switch (info.substate_id) {
-		case 0:	/* STOP0 */
-			__fallthrough;
-		case 1:	/* STOP1 */
-			__fallthrough;
-		case 2:	/* STOP2 */
-			LL_LPM_DisableSleepOnExit();
-			LL_LPM_EnableSleep();
-			break;
-		default:
-			LOG_DBG("Unsupported power substate-id %u",
-				info.substate_id);
-			break;
-		}
-		/* need to restore the clock */
-		stm32_clock_control_init(NULL);
+	switch (state) {
+#ifdef CONFIG_SYS_POWER_SLEEP_STATES
+#ifdef CONFIG_HAS_SYS_POWER_STATE_SLEEP_1
+	case SYS_POWER_STATE_SLEEP_1:
+#endif /* CONFIG_HAS_SYS_POWER_STATE_SLEEP_1 */
+#ifdef CONFIG_HAS_SYS_POWER_STATE_SLEEP_2
+	case SYS_POWER_STATE_SLEEP_2:
+#endif /* CONFIG_HAS_SYS_POWER_STATE_SLEEP_2 */
+#ifdef CONFIG_HAS_SYS_POWER_STATE_SLEEP_3
+	case SYS_POWER_STATE_SLEEP_3:
+#endif /* CONFIG_HAS_SYS_POWER_STATE_SLEEP_3 */
+		LL_LPM_DisableSleepOnExit();
+		break;
+#endif /* CONFIG_SYS_POWER_SLEEP_STATES */
+	default:
+		LOG_DBG("Unsupported power state %u", state);
+		break;
 	}
 
 	/*

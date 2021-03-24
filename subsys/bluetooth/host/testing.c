@@ -12,7 +12,6 @@
 #if defined(CONFIG_BT_MESH)
 #include "mesh/net.h"
 #include "mesh/lpn.h"
-#include "mesh/rpl.h"
 #include "mesh/transport.h"
 #endif /* CONFIG_BT_MESH */
 

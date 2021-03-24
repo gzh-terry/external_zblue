@@ -14,8 +14,8 @@
 #define ZEPHYR_INCLUDE_DRIVERS_FLASH_H_
 
 /**
- * @brief FLASH internal Interface
- * @defgroup flash_internal_interface FLASH internal Interface
+ * @brief FLASH Interface
+ * @defgroup flash_interface FLASH Interface
  * @ingroup io_interfaces
  * @{
  */
@@ -37,17 +37,6 @@ struct flash_pages_layout {
 #endif /* CONFIG_FLASH_PAGE_LAYOUT */
 
 /**
- * @}
- */
-
-/**
- * @brief FLASH Interface
- * @defgroup flash_interface FLASH Interface
- * @ingroup io_interfaces
- * @{
- */
-
-/**
  * Flash memory parameters. Contents of this structure suppose to be
  * filled in during flash device initialization and stay constant
  * through a runtime.
@@ -56,15 +45,6 @@ struct flash_parameters {
 	const size_t write_block_size;
 	uint8_t erase_value; /* Byte value of erased flash */
 };
-
-/**
- * @}
- */
-
-/**
- * @addtogroup flash_internal_interface
- * @{
- */
 
 typedef int (*flash_api_read)(const struct device *dev, off_t offset,
 			      void *data,
@@ -124,15 +104,6 @@ __subsystem struct flash_driver_api {
 };
 
 /**
- * @}
- */
-
-/**
- * @addtogroup flash_interface
- * @{
- */
-
-/**
  *  @brief  Read data from flash
  *
  *  All flash drivers support reads without alignment restrictions on
@@ -162,9 +133,8 @@ static inline int z_impl_flash_read(const struct device *dev, off_t offset,
  *  @brief  Write buffer into flash memory.
  *
  *  All flash drivers support a source buffer located either in RAM or
- *  SoC flash, without alignment restrictions on the source address.
- *  Write size and offset must be multiples of the minimum write block size
- *  supported by the driver.
+ *  SoC flash, without alignment restrictions on the source address, or
+ *  write size or offset.
  *
  *  Prior to the invocation of this API, the flash_write_protection_set needs
  *  to be called first to disable the write protection.

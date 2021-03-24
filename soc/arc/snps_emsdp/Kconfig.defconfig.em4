@@ -21,7 +21,7 @@ config HARVARD
 config ARC_FIRQ
 	default y
 
-config CACHE_MANAGEMENT
+config CACHE_FLUSHING
 	default n
 
 config FP_FPU_DA

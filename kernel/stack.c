@@ -97,34 +97,29 @@ int k_stack_cleanup(struct k_stack *stack)
 int z_impl_k_stack_push(struct k_stack *stack, stack_data_t data)
 {
 	struct k_thread *first_pending_thread;
-	int ret = 0;
-	k_spinlock_key_t key = k_spin_lock(&stack->lock);
+	k_spinlock_key_t key;
 
 	CHECKIF(stack->next == stack->top) {
-		ret = -ENOMEM;
-		goto out;
+		return -ENOMEM;
 	}
+
+	key = k_spin_lock(&stack->lock);
 
 	first_pending_thread = z_unpend_first_thread(&stack->wait_q);
 
 	if (first_pending_thread != NULL) {
+		z_ready_thread(first_pending_thread);
+
 		z_thread_return_value_set_with_data(first_pending_thread,
 						   0, (void *)data);
-
-		z_ready_thread(first_pending_thread);
 		z_reschedule(&stack->lock, key);
-		goto end;
 	} else {
 		*(stack->next) = data;
 		stack->next++;
-		goto out;
+		k_spin_unlock(&stack->lock, key);
 	}
 
-out:
-	k_spin_unlock(&stack->lock, key);
-
-end:
-	return ret;
+	return 0;
 }
 
 #ifdef CONFIG_USERSPACE

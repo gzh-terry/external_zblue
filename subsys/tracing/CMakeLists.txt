@@ -36,12 +36,6 @@ zephyr_sources_ifdef(
   CONFIG_TRACING_BACKEND_POSIX
   tracing_backend_posix.c
   )
-
-zephyr_sources_ifdef(
-  CONFIG_TRACING_BACKEND_RAM
-  tracing_backend_ram.c
-  )
-
 endif()
 
 zephyr_include_directories_ifdef(

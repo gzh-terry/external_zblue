@@ -6,51 +6,10 @@
 #ifndef ZEPHYR_INCLUDE_ARCH_XTENSA_XTENSA_IRQ_H_
 #define ZEPHYR_INCLUDE_ARCH_XTENSA_XTENSA_IRQ_H_
 
-#include <toolchain.h>
-#include <xtensa/config/core-isa.h>
+#include <arch/xtensa/xtensa_api.h>
+#include <xtensa/xtruntime.h>
 
 #define CONFIG_GEN_IRQ_START_VECTOR 0
-
-/*
- * Call this function to enable the specified interrupts.
- *
- * mask     - Bit mask of interrupts to be enabled.
- */
-static inline void z_xt_ints_on(unsigned int mask)
-{
-	int val;
-
-	__asm__ volatile("rsr.intenable %0" : "=r"(val));
-	val |= mask;
-	__asm__ volatile("wsr.intenable %0; rsync" : : "r"(val));
-}
-
-
-/*
- * Call this function to disable the specified interrupts.
- *
- * mask     - Bit mask of interrupts to be disabled.
- */
-static inline void z_xt_ints_off(unsigned int mask)
-{
-	int val;
-
-	__asm__ volatile("rsr.intenable %0" : "=r"(val));
-	val &= ~mask;
-	__asm__ volatile("wsr.intenable %0; rsync" : : "r"(val));
-}
-
-/*
- * Call this function to set the specified (s/w) interrupt.
- */
-static inline void z_xt_set_intset(unsigned int arg)
-{
-#if XCHAL_HAVE_INTERRUPTS
-	__asm__ volatile("wsr.intset %0; rsync" : : "r"(arg));
-#else
-	ARG_UNUSED(arg);
-#endif
-}
 
 #ifdef CONFIG_MULTI_LEVEL_INTERRUPTS
 
@@ -106,17 +65,13 @@ static ALWAYS_INLINE void z_xtensa_irq_disable(uint32_t irq)
 
 static ALWAYS_INLINE unsigned int arch_irq_lock(void)
 {
-	unsigned int key;
-
-	__asm__ volatile("rsil %0, %1"
-			 : "=r"(key) : "i"(XCHAL_EXCM_LEVEL) : "memory");
+	unsigned int key = XTOS_SET_INTLEVEL(XCHAL_EXCM_LEVEL);
 	return key;
 }
 
 static ALWAYS_INLINE void arch_irq_unlock(unsigned int key)
 {
-	__asm__ volatile("wsr.ps %0; rsync"
-			 :: "r"(key) : "memory");
+	XTOS_RESTORE_INTLEVEL(key);
 }
 
 static ALWAYS_INLINE bool arch_irq_unlocked(unsigned int key)
