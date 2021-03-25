@@ -10,9 +10,12 @@ toolchain:
   - xtools
 supported:
   - arduino_gpio
+  - arduino_spi
+  - spi
   - gpio
   - usb_device
   - watchdog
   - counter
   - adc
   - dac
+  - backup_sram

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <assert.h>
+#include <sys/__assert.h>
 #include <sw_isr_table.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <drivers/interrupt_controller/gic.h>
@@ -12,8 +12,13 @@
 #include "intc_gicv3_priv.h"
 
 /* Redistributor base addresses for each core */
-mem_addr_t gic_rdists[GIC_NUM_CPU_IF];
+mem_addr_t gic_rdists[CONFIG_MP_NUM_CPUS];
 
+#ifdef CONFIG_ARMV8_A_NS
+#define IGROUPR_VAL	0xFFFFFFFFU
+#else
+#define IGROUPR_VAL	0x0U
+#endif
 /*
  * Wait for register write pending
  * TODO: add timed wait
@@ -24,7 +29,7 @@ static int gic_wait_rwp(uint32_t intid)
 	mem_addr_t base;
 
 	if (intid < GIC_SPI_INT_BASE) {
-		base = (GIC_GET_RDIST(GET_CPUID) + GICR_CTLR);
+		base = (GIC_GET_RDIST(GET_CPUID()) + GICR_CTLR);
 		rwp_mask = BIT(GICR_CTLR_RWP);
 	} else {
 		base = GICD_CTLR;
@@ -131,7 +136,7 @@ void gic_raise_sgi(unsigned int sgi_id, uint64_t target_aff,
 	uint32_t aff3, aff2, aff1;
 	uint64_t sgi_val;
 
-	assert(GIC_IS_SGI(sgi_id));
+	__ASSERT_NO_MSG(GIC_IS_SGI(sgi_id));
 
 	/* Extract affinity fields from target */
 	aff1 = MPIDR_AFFLVL(target_aff, 1);
@@ -170,7 +175,7 @@ static void gicv3_cpuif_init(void)
 	uint32_t icc_sre;
 	uint32_t intid;
 
-	mem_addr_t base = gic_rdists[GET_CPUID] + GICR_SGI_BASE_OFF;
+	mem_addr_t base = gic_rdists[GET_CPUID()] + GICR_SGI_BASE_OFF;
 
 	/* Disable all sgi ppi */
 	sys_write32(BIT_MASK(GIC_NUM_INTR_PER_REG), ICENABLER(base, 0));
@@ -180,12 +185,11 @@ static void gicv3_cpuif_init(void)
 	/* Clear pending */
 	sys_write32(BIT_MASK(GIC_NUM_INTR_PER_REG), ICPENDR(base, 0));
 
-	/* Configure all SGIs/PPIs as G1S.
-	 * TODO: G1S or G1NS dependending on Zephyr is run in EL1S
-	 * or EL1NS respectively.
+	/* Configure all SGIs/PPIs as G1S or G1NS depending on Zephyr
+	 * is run in EL1S or EL1NS respectively.
 	 * All interrupts will be delivered as irq
 	 */
-	sys_write32(0, IGROUPR(base, 0));
+	sys_write32(IGROUPR_VAL, IGROUPR(base, 0));
 	sys_write32(BIT_MASK(GIC_NUM_INTR_PER_REG), IGROUPMODR(base, 0));
 
 	/*
@@ -207,13 +211,13 @@ static void gicv3_cpuif_init(void)
 	 */
 	icc_sre = read_sysreg(ICC_SRE_EL1);
 
-	if (!(icc_sre & ICC_SRE_ELx_SRE)) {
-		icc_sre = (icc_sre | ICC_SRE_ELx_SRE |
-			   ICC_SRE_ELx_DIB | ICC_SRE_ELx_DFB);
+	if (!(icc_sre & ICC_SRE_ELx_SRE_BIT)) {
+		icc_sre = (icc_sre | ICC_SRE_ELx_SRE_BIT |
+			   ICC_SRE_ELx_DIB_BIT | ICC_SRE_ELx_DFB_BIT);
 		write_sysreg(icc_sre, ICC_SRE_EL1);
 		icc_sre = read_sysreg(ICC_SRE_EL1);
 
-		assert(icc_sre & ICC_SRE_ELx_SRE);
+		__ASSERT_NO_MSG(icc_sre & ICC_SRE_ELx_SRE_BIT);
 	}
 
 	write_sysreg(GIC_IDLE_PRIO, ICC_PMR_EL1);
@@ -236,6 +240,10 @@ static void gicv3_dist_init(void)
 	num_ints &= GICD_TYPER_ITLINESNUM_MASK;
 	num_ints = (num_ints + 1) << 5;
 
+	/* Disable the distributor */
+	sys_write32(0, GICD_CTLR);
+	gic_wait_rwp(GIC_SPI_INT_BASE);
+
 	/*
 	 * Default configuration of all SPIs
 	 */
@@ -248,8 +256,7 @@ static void gicv3_dist_init(void)
 		/* Clear pending */
 		sys_write32(BIT_MASK(GIC_NUM_INTR_PER_REG),
 			    ICPENDR(base, idx));
-		/* All SPIs are G1S and owned by Zephyr */
-		sys_write32(0, IGROUPR(base, idx));
+		sys_write32(IGROUPR_VAL, IGROUPR(base, idx));
 		sys_write32(BIT_MASK(GIC_NUM_INTR_PER_REG),
 			    IGROUPMODR(base, idx));
 
@@ -270,21 +277,41 @@ static void gicv3_dist_init(void)
 		sys_write32(0, ICFGR(base, idx));
 	}
 
+#ifdef CONFIG_ARMV8_A_NS
+	/* Enable distributor with ARE */
+	sys_write32(BIT(GICD_CTRL_ARE_NS) | BIT(GICD_CTLR_ENABLE_G1NS),
+		    GICD_CTLR);
+#else
 	/* enable Group 1 secure interrupts */
 	sys_set_bit(GICD_CTLR, GICD_CTLR_ENABLE_G1S);
+#endif
 }
 
-/* TODO: add arm_gic_secondary_init() for multicore support */
-int arm_gic_init(void)
+int arm_gic_init(const struct device *unused)
 {
+	int i;
+
+	ARG_UNUSED(unused);
+
 	gicv3_dist_init();
 
 	/* Fixme: populate each redistributor */
-	gic_rdists[0] = GIC_RDIST_BASE;
+	for (i = 0; i < GIC_NUM_CPU_IF; i++)
+		gic_rdists[i] = GIC_RDIST_BASE + i * 0x20000;
 
-	gicv3_rdist_enable(GIC_GET_RDIST(GET_CPUID));
+	gicv3_rdist_enable(GIC_GET_RDIST(GET_CPUID()));
 
 	gicv3_cpuif_init();
 
 	return 0;
 }
+SYS_INIT(arm_gic_init, PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
+
+#ifdef CONFIG_SMP
+void arm_gic_secondary_init(void)
+{
+	gicv3_rdist_enable(GIC_GET_RDIST(GET_CPUID()));
+
+	gicv3_cpuif_init();
+}
+#endif

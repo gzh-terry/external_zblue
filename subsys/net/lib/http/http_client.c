@@ -98,7 +98,7 @@ static int http_send_data(int sock, char *send_buf,
 		} while (remaining_len > 0);
 
 		data = va_arg(va, const char *);
-	};
+	}
 
 	va_end(va);
 
@@ -310,12 +310,6 @@ static int on_headers_complete(struct http_parser *parser)
 
 	if ((req->method == HTTP_HEAD || req->method == HTTP_OPTIONS) &&
 	    req->internal.response.content_length > 0) {
-		NET_DBG("No body expected");
-		return 1;
-	}
-
-	if ((req->method == HTTP_PUT || req->method == HTTP_POST) &&
-	    req->internal.response.content_length == 0) {
 		NET_DBG("No body expected");
 		return 1;
 	}

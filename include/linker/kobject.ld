@@ -5,6 +5,7 @@
  */
 
 #ifdef CONFIG_USERSPACE
+	z_kobject_data_begin = .;
 	/* Constraints:
          *
          * - changes to the size of this section between build phases
@@ -25,7 +26,7 @@
 	{
 	*(".kobject_data.data*")
 
-#ifndef LINKER_PASS2
+#ifndef LINKER_ZEPHYR_FINAL
 #ifdef CONFIG_DYNAMIC_OBJECTS
 	PROVIDE(_thread_idx_map = .);
 	. += CONFIG_MAX_THREAD_BYTES;

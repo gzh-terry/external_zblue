@@ -7,6 +7,19 @@
 #include <st/h7/stm32h7.dtsi>
 
 / {
+	soc {
+		flash-controller@52002000 {
+			flash0: flash@8000000 {
+				write-block-size = <32>;
+				erase-block-size = <DT_SIZE_K(128)>;
+			};
+		};
+
+		dmamux1: dmamux@40020800 {
+			dma-requests= <107>;
+		};
+	};
+
 	/* system data RAM accessible over over AXI bus */
 	sram0: memory@24000000 {
 		compatible = "mmio-sram";

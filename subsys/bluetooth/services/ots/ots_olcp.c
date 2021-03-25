@@ -16,6 +16,7 @@
 #include <bluetooth/services/ots.h>
 #include "ots_internal.h"
 #include "ots_obj_manager_internal.h"
+#include "ots_dir_list_internal.h"
 
 #include <logging/log.h>
 
@@ -206,7 +207,7 @@ static bool olcp_command_len_verify(enum bt_gatt_ots_olcp_proc_type type,
 }
 
 static void olcp_ind_cb(struct bt_conn *conn,
-		const struct bt_gatt_attr *attr,
+		struct bt_gatt_indicate_params *params,
 		uint8_t err)
 {
 	LOG_DBG("Received OLCP Indication ACK with status: 0x%04X", err);
@@ -282,6 +283,10 @@ ssize_t bt_gatt_ots_olcp_write(struct bt_conn *conn,
 					      sizeof(id));
 		LOG_DBG("Selecting a new Current Object with id: %s",
 			log_strdup(id));
+
+		if (IS_ENABLED(CONFIG_BT_OTS_DIR_LIST_OBJ)) {
+			bt_ots_dir_list_selected(ots->dir_list, ots->obj_manager, ots->cur_obj);
+		}
 
 		if (ots->cb->obj_selected) {
 			ots->cb->obj_selected(ots, conn, ots->cur_obj->id);

@@ -109,6 +109,25 @@ static struct init_stack_frame *get_iframe(struct k_thread *thread,
 }
 
 /*
+ * Pre-populate values in the registers inside _callee_saved_stack struct
+ * so these registers have pre-defined values when new thread begins
+ * execution. For example, setting up the thread pointer for thread local
+ * storage here so the thread starts with thread pointer already set up.
+ */
+static inline void arch_setup_callee_saved_regs(struct k_thread *thread,
+						uintptr_t stack_ptr)
+{
+	_callee_saved_stack_t *regs = UINT_TO_POINTER(stack_ptr);
+
+	ARG_UNUSED(regs);
+
+#ifdef CONFIG_THREAD_LOCAL_STORAGE
+	/* R26 is used for thread pointer */
+	regs->r26 = thread->tls;
+#endif
+}
+
+/*
  * The initial context is a basic stack frame that contains arguments for
  * z_thread_entry() return address, that points at z_thread_entry()
  * and status register.
@@ -131,14 +150,14 @@ void arch_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
 	 * level/mask can't be set from user space that's not worse than
 	 * executing a loop without yielding.
 	 */
-	iframe->status32 = _ARC_V2_STATUS32_US;
+	iframe->status32 = _ARC_V2_STATUS32_US | _ARC_V2_STATUS32_DZ;
 	if (is_user(thread)) {
 		iframe->pc = (uint32_t)z_user_thread_entry_wrapper;
 	} else {
 		iframe->pc = (uint32_t)z_thread_entry_wrapper;
 	}
 #else
-	iframe->status32 = 0;
+	iframe->status32 = _ARC_V2_STATUS32_DZ;
 	iframe->pc = ((uint32_t)z_thread_entry_wrapper);
 #endif /* CONFIG_USERSPACE */
 #ifdef CONFIG_ARC_SECURE_FIRMWARE
@@ -164,6 +183,9 @@ void arch_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
 	thread->arch.relinquish_cause = _CAUSE_COOP;
 	thread->callee_saved.sp =
 		(uint32_t)iframe - ___callee_saved_stack_t_SIZEOF;
+
+	arch_setup_callee_saved_regs(thread, thread->callee_saved.sp);
+
 	/* initial values in all other regs/k_thread entries are irrelevant */
 }
 
@@ -210,7 +232,7 @@ int arch_float_disable(struct k_thread *thread)
 }
 
 
-int arch_float_enable(struct k_thread *thread)
+int arch_float_enable(struct k_thread *thread, unsigned int options)
 {
 	unsigned int key;
 
