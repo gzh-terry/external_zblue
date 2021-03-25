@@ -7,7 +7,6 @@
 
 #include <zephyr.h>
 #include <stats/stats.h>
-#include <usb/usb_device.h>
 
 #ifdef CONFIG_MCUMGR_CMD_FS_MGMT
 #include <device.h>
@@ -23,12 +22,6 @@
 #endif
 #ifdef CONFIG_MCUMGR_CMD_STAT_MGMT
 #include "stat_mgmt/stat_mgmt.h"
-#endif
-#ifdef CONFIG_MCUMGR_CMD_SHELL_MGMT
-#include "shell_mgmt/shell_mgmt.h"
-#endif
-#ifdef CONFIG_MCUMGR_CMD_FS_MGMT
-#include "fs_mgmt/fs_mgmt.h"
 #endif
 
 #define LOG_LEVEL LOG_LEVEL_DBG
@@ -56,7 +49,7 @@ static struct fs_mount_t littlefs_mnt = {
 	.type = FS_LITTLEFS,
 	.fs_data = &cstorage,
 	.storage_dev = (void *)FLASH_AREA_ID(storage),
-	.mnt_point = "/lfs1"
+	.mnt_point = "/lfs"
 };
 #endif
 
@@ -87,12 +80,6 @@ void main(void)
 #ifdef CONFIG_MCUMGR_CMD_STAT_MGMT
 	stat_mgmt_register_group();
 #endif
-#ifdef CONFIG_MCUMGR_CMD_SHELL_MGMT
-	shell_mgmt_register_group();
-#endif
-#ifdef CONFIG_MCUMGR_CMD_FS_MGMT
-	fs_mgmt_register_group();
-#endif
 #ifdef CONFIG_MCUMGR_SMP_BT
 	start_smp_bluetooth();
 #endif
@@ -100,13 +87,6 @@ void main(void)
 	start_smp_udp();
 #endif
 
-	if (IS_ENABLED(CONFIG_USB)) {
-		rc = usb_enable(NULL);
-		if (rc) {
-			LOG_ERR("Failed to enable USB");
-			return;
-		}
-	}
 	/* using __TIME__ ensure that a new binary will be built on every
 	 * compile which is convient when testing firmware upgrade.
 	 */

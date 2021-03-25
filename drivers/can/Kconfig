@@ -24,11 +24,6 @@ config CAN_SHELL
 	help
 	  Enable CAN Shell for testing.
 
-config CAN_FD_MODE
-	bool
-	help
-	  Enable CAN-FD compatible API
-
 config CAN_INIT_PRIORITY
 	int "CAN driver init priority"
 	default 80

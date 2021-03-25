@@ -8,7 +8,6 @@ User and Developer Guides
 
    getting-help.rst
    beyond-GSG.rst
-   arch/index.rst
    bluetooth/index.rst
    build/index
    coding_guidelines/index
@@ -19,11 +18,10 @@ User and Developer Guides
    coccinelle.rst
    code-relocation.rst
    crypto/index
-   flash_debug/index
+   debugging/index
    device_mgmt/index
    device_mgmt/dfu
    dts/index
-   emulator/index.rst
    env_vars.rst
    coverage.rst
    kconfig/index
@@ -37,4 +35,3 @@ User and Developer Guides
    west/index
    optimizations/index
    zephyr_cmake_package.rst
-   thread_local_storage.rst

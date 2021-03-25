@@ -1,7 +1,0 @@
-&wwdg {
-	status = "okay";
-};
-
-&iwdg {
-	status = "disabled";
-};

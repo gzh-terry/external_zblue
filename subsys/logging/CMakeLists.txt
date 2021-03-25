@@ -15,13 +15,6 @@ if(NOT CONFIG_LOG_MINIMAL)
   )
 
   zephyr_sources_ifdef(
-    CONFIG_LOG_BACKEND_FS
-    log_backend_fs.c
-  )
-
-  zephyr_link_libraries_ifdef(CONFIG_LOG_BACKEND_FS LITTLEFS)
-
-  zephyr_sources_ifdef(
     CONFIG_LOG_CMDS
     log_cmds.c
   )
@@ -57,8 +50,8 @@ if(NOT CONFIG_LOG_MINIMAL)
   )
 
   zephyr_sources_ifdef(
-    CONFIG_LOG_BACKEND_ADSP
-    log_backend_adsp.c
+    CONFIG_LOG_BACKEND_RB
+    log_backend_rb.c
   )
 
   if(CONFIG_LOG_BACKEND_SPINEL)

@@ -20,16 +20,11 @@ static struct k_pipe pipe = {
 
 static struct k_pipe bufferless;
 
-static struct k_pipe bufferless1 = {
-	.buffer = data,
-	.size = 0,
-};
-
 /**
- * @brief Pipes with no buffer or size 0 should return 0 bytes available
+ * @brief Ensure that bufferless pipes return 0 bytes available
  *
  * Pipes can be created to be bufferless (i.e. @ref k_pipe.buffer is `NULL`
- * or @ref k_pipe.size is 0).
+ * and @ref k_pipe.size is 0).
  *
  * If either of those conditions is true, then @ref k_pipe_read_avail and
  * @ref k_pipe_write_avail should return 0.
@@ -49,12 +44,6 @@ void test_pipe_avail_no_buffer(void)
 	zassert_equal(r_avail, 0, "read: expected: 0 actual: %u", r_avail);
 
 	w_avail = k_pipe_write_avail(&bufferless);
-	zassert_equal(w_avail, 0, "write: expected: 0 actual: %u", w_avail);
-
-	r_avail = k_pipe_read_avail(&bufferless1);
-	zassert_equal(r_avail, 0, "read: expected: 0 actual: %u", r_avail);
-
-	w_avail = k_pipe_write_avail(&bufferless1);
 	zassert_equal(w_avail, 0, "write: expected: 0 actual: %u", w_avail);
 }
 

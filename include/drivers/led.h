@@ -22,10 +22,6 @@
 #include <zephyr/types.h>
 #include <device.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @brief LED information structure
  *
@@ -326,10 +322,6 @@ static inline int z_impl_led_off(const struct device *dev, uint32_t led)
 /**
  * @}
  */
-
-#ifdef __cplusplus
-}
-#endif
 
 #include <syscalls/led.h>
 

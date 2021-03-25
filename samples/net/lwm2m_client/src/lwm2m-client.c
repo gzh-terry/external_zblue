@@ -144,8 +144,7 @@ static int init_led_device(void)
 	return 0;
 }
 
-static int device_reboot_cb(uint16_t obj_inst_id,
-			    uint8_t *args, uint16_t args_len)
+static int device_reboot_cb(uint16_t obj_inst_id)
 {
 	LOG_INF("DEVICE: REBOOT");
 	/* Add an error for testing */
@@ -156,8 +155,7 @@ static int device_reboot_cb(uint16_t obj_inst_id,
 	return 0;
 }
 
-static int device_factory_default_cb(uint16_t obj_inst_id,
-				     uint8_t *args, uint16_t args_len)
+static int device_factory_default_cb(uint16_t obj_inst_id)
 {
 	LOG_INF("DEVICE: FACTORY DEFAULT");
 	/* Add an error for testing */
@@ -169,8 +167,7 @@ static int device_factory_default_cb(uint16_t obj_inst_id,
 }
 
 #if defined(CONFIG_LWM2M_FIRMWARE_UPDATE_PULL_SUPPORT)
-static int firmware_update_cb(uint16_t obj_inst_id,
-			      uint8_t *args, uint16_t args_len)
+static int firmware_update_cb(uint16_t obj_inst_id)
 {
 	LOG_DBG("UPDATE");
 
@@ -232,25 +229,6 @@ static int firmware_block_received_cb(uint16_t obj_inst_id,
 	return 0;
 }
 #endif
-
-/* An example data validation callback. */
-static int timer_on_off_validate_cb(uint16_t obj_inst_id, uint16_t res_id,
-				    uint16_t res_inst_id, uint8_t *data,
-				    uint16_t data_len, bool last_block,
-				    size_t total_size)
-{
-	LOG_INF("Validating On/Off data");
-
-	if (data_len != 1) {
-		return -EINVAL;
-	}
-
-	if (*data > 1) {
-		return -EINVAL;
-	}
-
-	return 0;
-}
 
 static int timer_digital_state_cb(uint16_t obj_inst_id,
 				  uint16_t res_id, uint16_t res_inst_id,
@@ -384,8 +362,6 @@ static int lwm2m_setup(void)
 
 	/* IPSO: Timer object */
 	lwm2m_engine_create_obj_inst("3340/0");
-	lwm2m_engine_register_validate_callback("3340/0/5850",
-			timer_on_off_validate_cb);
 	lwm2m_engine_register_post_write_callback("3340/0/5543",
 			timer_digital_state_cb);
 	lwm2m_engine_set_res_data("3340/0/5750", TIMER_NAME, sizeof(TIMER_NAME),
@@ -442,23 +418,16 @@ static void rd_client_event(struct lwm2m_ctx *client,
 	case LWM2M_RD_CLIENT_EVENT_QUEUE_MODE_RX_OFF:
 		LOG_DBG("Queue mode RX window closed");
 		break;
-
-	case LWM2M_RD_CLIENT_EVENT_NETWORK_ERROR:
-		LOG_ERR("LwM2M engine reported a network erorr.");
-		lwm2m_rd_client_stop(client, rd_client_event);
-		break;
 	}
 }
 
 void main(void)
 {
-	uint32_t flags = IS_ENABLED(CONFIG_LWM2M_RD_CLIENT_SUPPORT_BOOTSTRAP) ?
-				LWM2M_RD_CLIENT_FLAG_BOOTSTRAP : 0;
 	int ret;
 
 	LOG_INF(APP_BANNER);
 
-	k_sem_init(&quit_lock, 0, K_SEM_MAX_LIMIT);
+	k_sem_init(&quit_lock, 0, UINT_MAX);
 
 	ret = lwm2m_setup();
 	if (ret < 0) {
@@ -492,10 +461,10 @@ void main(void)
 		sprintf(&dev_str[i*2], "%02x", dev_id[i]);
 	}
 
-	lwm2m_rd_client_start(&client, dev_str, flags, rd_client_event);
+	lwm2m_rd_client_start(&client, dev_str, rd_client_event);
 #else
 	/* client.sec_obj_inst is 0 as a starting point */
-	lwm2m_rd_client_start(&client, CONFIG_BOARD, flags, rd_client_event);
+	lwm2m_rd_client_start(&client, CONFIG_BOARD, rd_client_event);
 #endif
 
 	k_sem_take(&quit_lock, K_FOREVER);

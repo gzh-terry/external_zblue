@@ -366,27 +366,23 @@ struct ipv6cp_options {
 
 #define IPV6CP_NUM_MY_OPTIONS	1
 
-enum ppp_flags {
-	PPP_CARRIER_UP,
-};
-
 /** PPP L2 context specific to certain network interface */
 struct ppp_context {
-	/** Flags representing PPP state, which are accessed from multiple
-	 * threads.
-	 */
-	atomic_t flags;
-
 	/** PPP startup worker. */
 	struct k_delayed_work startup;
 
-	/** Carrier ON/OFF handler worker. This is used to create
-	 * network interface UP/DOWN event when PPP L2 driver
-	 * notices carrier ON/OFF situation. We must not create another
-	 * network management event from inside management handler thus
-	 * we use worker thread to trigger the UP/DOWN event.
-	 */
-	struct k_work carrier_work;
+	struct {
+		/** Carrier ON/OFF handler worker. This is used to create
+		 * network interface UP/DOWN event when PPP L2 driver
+		 * notices carrier ON/OFF situation. We must not create another
+		 * network management event from inside management handler thus
+		 * we use worker thread to trigger the UP/DOWN event.
+		 */
+		struct k_work work;
+
+		/** Is the carrier enabled already */
+		bool enabled;
+	} carrier_mgmt;
 
 	struct {
 		/** Finite state machine for LCP */
@@ -481,9 +477,6 @@ struct ppp_context {
 	/** This tells how many network protocols are up */
 	int network_protos_up;
 
-	/** Is network carrier up */
-	uint16_t is_net_carrier_up : 1;
-
 	/** Is PPP ready to receive packets */
 	uint16_t is_ready_to_serve : 1;
 
@@ -554,8 +547,6 @@ void net_ppp_init(struct net_if *iface);
 enum net_event_ppp_cmd {
 	NET_EVENT_PPP_CMD_CARRIER_ON = 1,
 	NET_EVENT_PPP_CMD_CARRIER_OFF,
-	NET_EVENT_PPP_CMD_PHASE_RUNNING,
-	NET_EVENT_PPP_CMD_PHASE_DEAD,
 };
 
 #define NET_EVENT_PPP_CARRIER_ON					\
@@ -563,12 +554,6 @@ enum net_event_ppp_cmd {
 
 #define NET_EVENT_PPP_CARRIER_OFF					\
 	(_NET_PPP_EVENT | NET_EVENT_PPP_CMD_CARRIER_OFF)
-
-#define NET_EVENT_PPP_PHASE_RUNNING					\
-	(_NET_PPP_EVENT | NET_EVENT_PPP_CMD_PHASE_RUNNING)
-
-#define NET_EVENT_PPP_PHASE_DEAD					\
-	(_NET_PPP_EVENT | NET_EVENT_PPP_CMD_PHASE_DEAD)
 
 struct net_if;
 
@@ -597,34 +582,6 @@ static inline void ppp_mgmt_raise_carrier_on_event(struct net_if *iface)
 void ppp_mgmt_raise_carrier_off_event(struct net_if *iface);
 #else
 static inline void ppp_mgmt_raise_carrier_off_event(struct net_if *iface)
-{
-	ARG_UNUSED(iface);
-}
-#endif
-
-/**
- * @brief Raise PHASE_RUNNING event when PPP reaching RUNNING phase
- *
- * @param iface PPP network interface.
- */
-#if defined(CONFIG_NET_L2_PPP_MGMT)
-void ppp_mgmt_raise_phase_running_event(struct net_if *iface);
-#else
-static inline void ppp_mgmt_raise_phase_running_event(struct net_if *iface)
-{
-	ARG_UNUSED(iface);
-}
-#endif
-
-/**
- * @brief Raise PHASE_DEAD event when PPP reaching DEAD phase
- *
- * @param iface PPP network interface.
- */
-#if defined(CONFIG_NET_L2_PPP_MGMT)
-void ppp_mgmt_raise_phase_dead_event(struct net_if *iface);
-#else
-static inline void ppp_mgmt_raise_phase_dead_event(struct net_if *iface)
 {
 	ARG_UNUSED(iface);
 }

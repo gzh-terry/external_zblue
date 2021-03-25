@@ -27,13 +27,10 @@
 #include <irq_offload.h>
 #include <sys/check.h>
 #include <random/rand32.h>
-#include <sys/atomic.h>
-#include <logging/log.h>
-LOG_MODULE_DECLARE(os, CONFIG_KERNEL_LOG_LEVEL);
 
-#ifdef CONFIG_THREAD_RUNTIME_STATS
-k_thread_runtime_stats_t threads_runtime_stats;
-#endif
+#define LOG_LEVEL CONFIG_KERNEL_LOG_LEVEL
+#include <logging/log.h>
+LOG_MODULE_DECLARE(os);
 
 #ifdef CONFIG_THREAD_MONITOR
 /* This lock protects the linked list of active threads; i.e. the
@@ -123,19 +120,14 @@ bool z_is_thread_essential(void)
 #ifdef CONFIG_SYS_CLOCK_EXISTS
 void z_impl_k_busy_wait(uint32_t usec_to_wait)
 {
-	if (usec_to_wait == 0) {
-		return;
-	}
-
 #if !defined(CONFIG_ARCH_HAS_CUSTOM_BUSY_WAIT)
-	uint32_t start_cycles = k_cycle_get_32();
-
 	/* use 64-bit math to prevent overflow when multiplying */
 	uint32_t cycles_to_wait = (uint32_t)(
 		(uint64_t)usec_to_wait *
 		(uint64_t)sys_clock_hw_cycles_per_sec() /
 		(uint64_t)USEC_PER_SEC
 	);
+	uint32_t start_cycles = k_cycle_get_32();
 
 	for (;;) {
 		uint32_t current_cycles = k_cycle_get_32();
@@ -237,7 +229,8 @@ int z_impl_k_thread_name_set(struct k_thread *thread, const char *value)
 static inline int z_vrfy_k_thread_name_set(struct k_thread *t, const char *str)
 {
 #ifdef CONFIG_THREAD_NAME
-	char name[CONFIG_THREAD_MAX_NAME_LEN];
+	size_t len;
+	int err;
 
 	if (t != NULL) {
 		if (Z_SYSCALL_OBJ(t, K_OBJ_THREAD) != 0) {
@@ -245,15 +238,15 @@ static inline int z_vrfy_k_thread_name_set(struct k_thread *t, const char *str)
 		}
 	}
 
-	/* In theory we could copy directly into thread->name, but
-	 * the current z_vrfy / z_impl split does not provide a
-	 * means of doing so.
-	 */
-	if (z_user_string_copy(name, (char *)str, sizeof(name)) != 0) {
+	len = z_user_string_nlen(str, CONFIG_THREAD_MAX_NAME_LEN, &err);
+	if (err != 0) {
+		return -EFAULT;
+	}
+	if (Z_SYSCALL_MEMORY_READ(str, len) != 0) {
 		return -EFAULT;
 	}
 
-	return z_impl_k_thread_name_set(t, name);
+	return z_impl_k_thread_name_set(t, str);
 #else
 	return -ENOSYS;
 #endif /* CONFIG_THREAD_NAME */
@@ -406,6 +399,10 @@ static void schedule_new_thread(struct k_thread *thread, k_timeout_t delay)
 	if (K_TIMEOUT_EQ(delay, K_NO_WAIT)) {
 		k_thread_start(thread);
 	} else {
+#ifdef CONFIG_LEGACY_TIMEOUT_API
+		delay = _TICK_ALIGN + k_ms_to_ticks_ceil32(delay);
+#endif
+
 		z_add_thread_timeout(thread, delay);
 	}
 #else
@@ -489,10 +486,6 @@ static char *setup_thread_stack(struct k_thread *new_thread,
 	 */
 	*((uint32_t *)stack_buf_start) = STACK_SENTINEL;
 #endif /* CONFIG_STACK_SENTINEL */
-#ifdef CONFIG_THREAD_LOCAL_STORAGE
-	/* TLS is always last within the stack buffer */
-	delta += arch_tls_stack_setup(new_thread, stack_ptr);
-#endif /* CONFIG_THREAD_LOCAL_STORAGE */
 #ifdef CONFIG_THREAD_USERSPACE_LOCAL_DATA
 	size_t tls_size = sizeof(struct _thread_userspace_local_data);
 
@@ -522,8 +515,6 @@ static char *setup_thread_stack(struct k_thread *new_thread,
 	return stack_ptr;
 }
 
-#define THREAD_COOKIE	0x1337C0D3
-
 /*
  * The provided stack_size value is presumed to be either the result of
  * K_THREAD_STACK_SIZEOF(stack), or the size value passed to the instance
@@ -551,24 +542,17 @@ char *z_setup_new_thread(struct k_thread *new_thread,
 	/* Any given thread has access to itself */
 	k_object_access_grant(new_thread, new_thread);
 #endif
-	z_waitq_init(&new_thread->join_queue);
+	z_waitq_init(&new_thread->base.join_waiters);
 
 	/* Initialize various struct k_thread members */
 	z_init_thread_base(&new_thread->base, prio, _THREAD_PRESTART, options);
 	stack_ptr = setup_thread_stack(new_thread, stack, stack_size);
 
-#ifdef CONFIG_KERNEL_COHERENCE
-	/* Check that the thread object is safe, but that the stack is
-	 * still cached!
-	 */
-	__ASSERT_NO_MSG(arch_mem_coherent(new_thread));
-	__ASSERT_NO_MSG(!arch_mem_coherent(stack));
-#endif
-
 	arch_new_thread(new_thread, stack, stack_ptr, entry, p1, p2, p3);
 
 	/* static threads overwrite it afterwards with real value */
 	new_thread->init_data = NULL;
+	new_thread->fn_abort = NULL;
 
 #ifdef CONFIG_USE_SWITCH
 	/* switch_handle must be non-null except when inside z_swap()
@@ -615,7 +599,10 @@ char *z_setup_new_thread(struct k_thread *new_thread,
 	}
 #endif
 #ifdef CONFIG_USERSPACE
-	z_mem_domain_init_thread(new_thread);
+	/* New threads inherit any memory domain membership by the parent */
+	new_thread->mem_domain_info.mem_domain = NULL;
+	k_mem_domain_add_thread(_current->mem_domain_info.mem_domain,
+				new_thread);
 
 	if ((options & K_INHERIT_PERMS) != 0U) {
 		z_thread_perms_inherit(_current, new_thread);
@@ -626,10 +613,6 @@ char *z_setup_new_thread(struct k_thread *new_thread,
 #endif
 	new_thread->resource_pool = _current->resource_pool;
 	sys_trace_thread_create(new_thread);
-
-#ifdef CONFIG_THREAD_RUNTIME_STATS
-	memset(&new_thread->rt_stats, 0, sizeof(new_thread->rt_stats));
-#endif
 
 	return stack_ptr;
 }
@@ -642,6 +625,13 @@ k_tid_t z_impl_k_thread_create(struct k_thread *new_thread,
 			      int prio, uint32_t options, k_timeout_t delay)
 {
 	__ASSERT(!arch_is_in_isr(), "Threads may not be created in ISRs");
+
+	/* Special case, only for unit tests */
+#if defined(CONFIG_TEST) && defined(CONFIG_ARCH_HAS_USERSPACE) && !defined(CONFIG_USERSPACE)
+	__ASSERT((options & K_USER) == 0,
+		 "Platform is capable of user mode, and test thread created with K_USER option,"
+		 " but neither CONFIG_TEST_USERSPACE nor CONFIG_USERSPACE is set\n");
+#endif
 
 	z_setup_new_thread(new_thread, stack, stack_size, entry, p1, p2, p3,
 			  prio, options, NULL);
@@ -789,7 +779,7 @@ void z_init_thread_base(struct _thread_base *thread_base, int priority,
 		       uint32_t initial_state, unsigned int options)
 {
 	/* k_q_node is initialized upon first insertion in a list */
-	thread_base->pended_on = NULL;
+
 	thread_base->user_options = (uint8_t)options;
 	thread_base->thread_state = (uint8_t)initial_state;
 
@@ -820,15 +810,8 @@ FUNC_NORETURN void k_thread_user_mode_enter(k_thread_entry_t entry,
 #ifdef CONFIG_USERSPACE
 	__ASSERT(z_stack_is_user_capable(_current->stack_obj),
 		 "dropping to user mode with kernel-only stack object");
-#ifdef CONFIG_THREAD_USERSPACE_LOCAL_DATA
 	memset(_current->userspace_local_data, 0,
 	       sizeof(struct _thread_userspace_local_data));
-#endif
-#ifdef CONFIG_THREAD_LOCAL_STORAGE
-	arch_tls_stack_setup(_current,
-			     (char *)(_current->stack_info.start +
-				      _current->stack_info.size));
-#endif
 	arch_user_mode_enter(entry, p1, p2, p3);
 #else
 	/* XXX In this case we do not reset the stack */
@@ -845,7 +828,7 @@ bool z_spin_lock_valid(struct k_spinlock *l)
 	uintptr_t thread_cpu = l->thread_cpu;
 
 	if (thread_cpu) {
-		if ((thread_cpu & 3U) == _current_cpu->id) {
+		if ((thread_cpu & 3) == _current_cpu->id) {
 			return false;
 		}
 	}
@@ -865,14 +848,6 @@ void z_spin_lock_set_owner(struct k_spinlock *l)
 {
 	l->thread_cpu = _current_cpu->id | (uintptr_t)_current;
 }
-
-#ifdef CONFIG_KERNEL_COHERENCE
-bool z_spin_lock_mem_coherent(struct k_spinlock *l)
-{
-	return arch_mem_coherent((void *)l);
-}
-#endif /* CONFIG_KERNEL_COHERENCE */
-
 #endif /* CONFIG_SPIN_VALIDATE */
 
 int z_impl_k_float_disable(struct k_thread *thread)
@@ -894,10 +869,7 @@ static inline int z_vrfy_k_float_disable(struct k_thread *thread)
 #endif /* CONFIG_USERSPACE */
 
 #ifdef CONFIG_IRQ_OFFLOAD
-/* Make offload_sem visible outside under testing, in order to release
- * it outside when error happened.
- */
-K_SEM_DEFINE(offload_sem, 1, 1);
+static K_SEM_DEFINE(offload_sem, 1, 1);
 
 void irq_offload(irq_offload_routine_t routine, const void *parameter)
 {
@@ -996,7 +968,7 @@ int z_vrfy_k_thread_stack_space_get(const struct k_thread *thread,
 
 #ifdef CONFIG_USERSPACE
 static inline k_ticks_t z_vrfy_k_thread_timeout_remaining_ticks(
-						    const struct k_thread *t)
+						    struct k_thread *t)
 {
 	Z_OOPS(Z_SYSCALL_OBJ(t, K_OBJ_THREAD));
 	return z_impl_k_thread_timeout_remaining_ticks(t);
@@ -1004,102 +976,10 @@ static inline k_ticks_t z_vrfy_k_thread_timeout_remaining_ticks(
 #include <syscalls/k_thread_timeout_remaining_ticks_mrsh.c>
 
 static inline k_ticks_t z_vrfy_k_thread_timeout_expires_ticks(
-						  const struct k_thread *t)
+						  struct k_thread *t)
 {
 	Z_OOPS(Z_SYSCALL_OBJ(t, K_OBJ_THREAD));
 	return z_impl_k_thread_timeout_expires_ticks(t);
 }
 #include <syscalls/k_thread_timeout_expires_ticks_mrsh.c>
 #endif
-
-#ifdef CONFIG_INSTRUMENT_THREAD_SWITCHING
-void z_thread_mark_switched_in(void)
-{
-#ifdef CONFIG_TRACING
-	sys_trace_thread_switched_in();
-#endif
-
-#ifdef CONFIG_THREAD_RUNTIME_STATS
-	struct k_thread *thread;
-
-	thread = k_current_get();
-#ifdef CONFIG_THREAD_RUNTIME_STATS_USE_TIMING_FUNCTIONS
-	thread->rt_stats.last_switched_in = timing_counter_get();
-#else
-	thread->rt_stats.last_switched_in = k_cycle_get_32();
-#endif /* CONFIG_THREAD_RUNTIME_STATS_USE_TIMING_FUNCTIONS */
-
-#endif /* CONFIG_THREAD_RUNTIME_STATS */
-}
-
-void z_thread_mark_switched_out(void)
-{
-#ifdef CONFIG_THREAD_RUNTIME_STATS
-#ifdef CONFIG_THREAD_RUNTIME_STATS_USE_TIMING_FUNCTIONS
-	timing_t now;
-#else
-	uint32_t now;
-#endif /* CONFIG_THREAD_RUNTIME_STATS_USE_TIMING_FUNCTIONS */
-
-	uint64_t diff;
-	struct k_thread *thread;
-
-	thread = k_current_get();
-
-	if (unlikely(thread->rt_stats.last_switched_in == 0)) {
-		/* Has not run before */
-		return;
-	}
-
-	if (unlikely(thread->base.thread_state == _THREAD_DUMMY)) {
-		/* dummy thread has no stat struct */
-		return;
-	}
-
-#ifdef CONFIG_THREAD_RUNTIME_STATS_USE_TIMING_FUNCTIONS
-	now = timing_counter_get();
-	diff = timing_cycles_get(&thread->rt_stats.last_switched_in, &now);
-#else
-	now = k_cycle_get_32();
-	diff = (uint64_t)now - thread->rt_stats.last_switched_in;
-	thread->rt_stats.last_switched_in = 0;
-#endif /* CONFIG_THREAD_RUNTIME_STATS_USE_TIMING_FUNCTIONS */
-
-	thread->rt_stats.stats.execution_cycles += diff;
-
-	threads_runtime_stats.execution_cycles += diff;
-#endif /* CONFIG_THREAD_RUNTIME_STATS */
-
-#ifdef CONFIG_TRACING
-	sys_trace_thread_switched_out();
-#endif
-}
-
-#ifdef CONFIG_THREAD_RUNTIME_STATS
-int k_thread_runtime_stats_get(k_tid_t thread,
-			       k_thread_runtime_stats_t *stats)
-{
-	if ((thread == NULL) || (stats == NULL)) {
-		return -EINVAL;
-	}
-
-	(void)memcpy(stats, &thread->rt_stats.stats,
-		     sizeof(thread->rt_stats.stats));
-
-	return 0;
-}
-
-int k_thread_runtime_stats_all_get(k_thread_runtime_stats_t *stats)
-{
-	if (stats == NULL) {
-		return -EINVAL;
-	}
-
-	(void)memcpy(stats, &threads_runtime_stats,
-		     sizeof(threads_runtime_stats));
-
-	return 0;
-}
-#endif /* CONFIG_THREAD_RUNTIME_STATS */
-
-#endif /* CONFIG_INSTRUMENT_THREAD_SWITCHING */

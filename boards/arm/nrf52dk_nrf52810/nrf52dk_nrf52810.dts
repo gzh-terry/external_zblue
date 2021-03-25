@@ -74,7 +74,6 @@
 		sw1 = &button1;
 		sw2 = &button2;
 		sw3 = &button3;
-		bootloader-led0 = &led0;
 	};
 };
 
@@ -103,8 +102,8 @@
 &i2c0 {
 	compatible = "nordic,nrf-twi";
 	status = "okay";
-	sda-gpios = <&gpio0 26 0>;
-	scl-gpios = <&gpio0 27 0>;
+	sda-pin = <26>;
+	scl-pin = <27>;
 };
 
 &spi0 {
@@ -116,7 +115,10 @@
 };
 
 &flash0 {
-
+	/*
+	 * For more information, see:
+	 * https://docs.zephyrproject.org/latest/guides/dts/legacy-macros.html#legacy-flash-partitions
+	 */
 	partitions {
 		compatible = "fixed-partitions";
 		#address-cells = <1>;

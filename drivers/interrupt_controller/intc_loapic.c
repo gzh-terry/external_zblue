@@ -20,7 +20,6 @@
 #include <drivers/interrupt_controller/loapic.h> /* public API declarations */
 #include <device.h>
 #include <drivers/interrupt_controller/sysapic.h>
-#include <drivers/interrupt_controller/ioapic.h>
 
 /* Local APIC Version Register Bits */
 
@@ -60,7 +59,7 @@
 
 #define LOPIC_SSPND_BITS_PER_IRQ  1  /* Just the one for enable disable*/
 #define LOPIC_SUSPEND_BITS_REQD (ROUND_UP((LOAPIC_IRQ_COUNT * LOPIC_SSPND_BITS_PER_IRQ), 32))
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 #include <power/power.h>
 uint32_t loapic_suspend_buf[LOPIC_SUSPEND_BITS_REQD / 32] = {0};
 static uint32_t loapic_device_power_state = DEVICE_PM_ACTIVE_STATE;
@@ -191,12 +190,6 @@ static int loapic_init(const struct device *unused)
 {
 	ARG_UNUSED(unused);
 	return 0;
-}
-
-
-uint32_t z_loapic_irq_base(void)
-{
-	return z_ioapic_num_rtes();
 }
 
 /**
@@ -339,7 +332,7 @@ int z_irq_controller_isr_vector_get(void)
 	return -1;
 }
 
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 static int loapic_suspend(const struct device *port)
 {
 	volatile uint32_t lvt; /* local vector table entry value */
@@ -351,7 +344,7 @@ static int loapic_suspend(const struct device *port)
 
 	for (loapic_irq = 0; loapic_irq < LOAPIC_IRQ_COUNT; loapic_irq++) {
 
-		if (_irq_to_interrupt_vector[z_loapic_irq_base() + loapic_irq]) {
+		if (_irq_to_interrupt_vector[LOAPIC_IRQ_BASE + loapic_irq]) {
 
 			/* Since vector numbers are already present in RAM/ROM,
 			 * We save only the mask bits here.
@@ -381,11 +374,10 @@ int loapic_resume(const struct device *port)
 
 	for (loapic_irq = 0; loapic_irq < LOAPIC_IRQ_COUNT; loapic_irq++) {
 
-		if (_irq_to_interrupt_vector[z_loapic_irq_base() + loapic_irq]) {
+		if (_irq_to_interrupt_vector[LOAPIC_IRQ_BASE + loapic_irq]) {
 			/* Configure vector and enable the required ones*/
 			z_loapic_int_vec_set(loapic_irq,
-				_irq_to_interrupt_vector[z_loapic_irq_base() +
-							 loapic_irq]);
+				_irq_to_interrupt_vector[LOAPIC_IRQ_BASE + loapic_irq]);
 
 			if (sys_bitfield_test_bit((mem_addr_t) loapic_suspend_buf,
 							loapic_irq)) {
@@ -429,7 +421,7 @@ SYS_DEVICE_DEFINE("loapic", loapic_init, loapic_device_ctrl, PRE_KERNEL_1,
 		  CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
 #else
 SYS_INIT(loapic_init, PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
-#endif   /* CONFIG_PM_DEVICE */
+#endif   /* CONFIG_DEVICE_POWER_MANAGEMENT */
 
 
 #if CONFIG_LOAPIC_SPURIOUS_VECTOR

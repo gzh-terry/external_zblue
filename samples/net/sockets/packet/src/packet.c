@@ -15,11 +15,7 @@ LOG_MODULE_REGISTER(net_pkt_sock_sample, LOG_LEVEL_DBG);
 #include <net/ethernet.h>
 
 #define STACK_SIZE 1024
-#if IS_ENABLED(CONFIG_NET_TC_THREAD_COOPERATIVE)
-#define THREAD_PRIORITY K_PRIO_COOP(CONFIG_NUM_COOP_PRIORITIES - 1)
-#else
-#define THREAD_PRIORITY K_PRIO_PREEMPT(8)
-#endif
+#define THREAD_PRIORITY K_PRIO_COOP(8)
 #define RECV_BUFFER_SIZE 1280
 #define WAIT_TIME CONFIG_NET_SAMPLE_SEND_WAIT_TIME
 
@@ -215,7 +211,7 @@ static void send_packet(void)
 
 void main(void)
 {
-	k_sem_init(&quit_lock, 0, K_SEM_MAX_LIMIT);
+	k_sem_init(&quit_lock, 0, UINT_MAX);
 
 	LOG_INF("Packet socket sample is running");
 

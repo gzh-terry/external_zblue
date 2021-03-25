@@ -142,27 +142,6 @@ static void relay_status(struct bt_mesh_model *model,
 	k_sem_give(&cli->op_sync);
 }
 
-static void net_transmit_status(struct bt_mesh_model *model,
-				struct bt_mesh_msg_ctx *ctx,
-				struct net_buf_simple *buf)
-{
-	uint8_t *status;
-
-	BT_DBG("net_idx 0x%04x app_idx 0x%04x src 0x%04x len %u: %s",
-	       ctx->net_idx, ctx->app_idx, ctx->addr, buf->len,
-	       bt_hex(buf->data, buf->len));
-
-	if (cli->op_pending != OP_NET_TRANSMIT_STATUS) {
-		BT_WARN("Unexpected Net Transmit Status message");
-		return;
-	}
-
-	status = cli->op_param;
-	*status = net_buf_simple_pull_u8(buf);
-
-	k_sem_give(&cli->op_sync);
-}
-
 struct net_key_param {
 	uint8_t *status;
 	uint16_t net_idx;
@@ -720,21 +699,20 @@ const struct bt_mesh_model_op bt_mesh_cfg_cli_op[] = {
 	{ OP_FRIEND_STATUS,          1,   friend_status },
 	{ OP_GATT_PROXY_STATUS,      1,   gatt_proxy_status },
 	{ OP_RELAY_STATUS,           2,   relay_status },
-	{ OP_NET_TRANSMIT_STATUS,    1,   net_transmit_status },
 	{ OP_NET_KEY_STATUS,         3,   net_key_status },
 	{ OP_NET_KEY_LIST,           0,   net_key_list },
 	{ OP_APP_KEY_STATUS,         4,   app_key_status },
 	{ OP_APP_KEY_LIST,           3,   app_key_list },
 	{ OP_MOD_APP_STATUS,         7,   mod_app_status },
-	{ OP_SIG_MOD_APP_LIST,       5,   mod_app_list },
-	{ OP_VND_MOD_APP_LIST,       7,   mod_app_list_vnd },
+	{ OP_SIG_MOD_APP_LIST,       5,   mod_app_list},
+	{ OP_VND_MOD_APP_LIST,       7,   mod_app_list_vnd},
 	{ OP_MOD_PUB_STATUS,         12,  mod_pub_status },
 	{ OP_MOD_SUB_STATUS,         7,   mod_sub_status },
-	{ OP_MOD_SUB_LIST,           5,   mod_sub_list },
-	{ OP_MOD_SUB_LIST_VND,       7,   mod_sub_list_vnd },
+	{ OP_MOD_SUB_LIST,           5,   mod_sub_list},
+	{ OP_MOD_SUB_LIST_VND,       7,   mod_sub_list_vnd},
 	{ OP_HEARTBEAT_SUB_STATUS,   9,   hb_sub_status },
 	{ OP_HEARTBEAT_PUB_STATUS,   10,  hb_pub_status },
-	{ OP_NODE_RESET_STATUS,      0,   node_reset_status },
+	{ OP_NODE_RESET_STATUS,      0,   node_reset_status},
 	BT_MESH_MODEL_OP_END,
 };
 
@@ -1549,11 +1527,6 @@ static int mod_sub(uint32_t op, uint16_t net_idx, uint16_t addr, uint16_t elem_a
 		return err;
 	}
 
-	if (!status) {
-		cli_reset();
-		return 0;
-	}
-
 	return cli_wait();
 }
 
@@ -1584,8 +1557,8 @@ int bt_mesh_cfg_mod_sub_del(uint16_t net_idx, uint16_t addr, uint16_t elem_addr,
 }
 
 int bt_mesh_cfg_mod_sub_del_vnd(uint16_t net_idx, uint16_t addr, uint16_t elem_addr,
-				uint16_t sub_addr, uint16_t mod_id, uint16_t cid,
-				uint8_t *status)
+				 uint16_t sub_addr, uint16_t mod_id, uint16_t cid,
+				 uint8_t *status)
 {
 	if (cid == CID_NVAL) {
 		return -EINVAL;
@@ -1640,7 +1613,7 @@ static int mod_sub_va(uint32_t op, uint16_t net_idx, uint16_t addr, uint16_t ele
 	}
 
 	BT_DBG("net_idx 0x%04x addr 0x%04x elem_addr 0x%04x label %s",
-	       net_idx, addr, elem_addr, log_strdup(label));
+	       net_idx, addr, elem_addr, label);
 	BT_DBG("mod_id 0x%04x cid 0x%04x", mod_id, cid);
 
 	bt_mesh_model_msg_init(&msg, op);

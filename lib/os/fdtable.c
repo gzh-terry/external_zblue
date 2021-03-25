@@ -63,19 +63,7 @@ static int z_fd_ref(int fd)
 
 static int z_fd_unref(int fd)
 {
-	atomic_val_t old_rc;
-
-	/* Reference counter must be checked to avoid decrement refcount below
-	 * zero causing file descriptor leak. Loop statement below executes
-	 * atomic decrement if refcount value is grater than zero. Otherwise,
-	 * refcount is not going to be written.
-	 */
-	do {
-		old_rc = atomic_get(&fdtable[fd].refcount);
-		if (!old_rc) {
-			return 0;
-		}
-	} while (!atomic_cas(&fdtable[fd].refcount, old_rc, old_rc - 1));
+	int old_rc = atomic_dec(&fdtable[fd].refcount);
 
 	if (old_rc != 1) {
 		return old_rc - 1;
@@ -120,34 +108,34 @@ static int _check_fd(int fd)
 
 void *z_get_fd_obj(int fd, const struct fd_op_vtable *vtable, int err)
 {
-	struct fd_entry *entry;
+	struct fd_entry *fd_entry;
 
 	if (_check_fd(fd) < 0) {
 		return NULL;
 	}
 
-	entry = &fdtable[fd];
+	fd_entry = &fdtable[fd];
 
-	if (vtable != NULL && entry->vtable != vtable) {
+	if (vtable != NULL && fd_entry->vtable != vtable) {
 		errno = err;
 		return NULL;
 	}
 
-	return entry->obj;
+	return fd_entry->obj;
 }
 
 void *z_get_fd_obj_and_vtable(int fd, const struct fd_op_vtable **vtable)
 {
-	struct fd_entry *entry;
+	struct fd_entry *fd_entry;
 
 	if (_check_fd(fd) < 0) {
 		return NULL;
 	}
 
-	entry = &fdtable[fd];
-	*vtable = entry->vtable;
+	fd_entry = &fdtable[fd];
+	*vtable = fd_entry->vtable;
 
-	return entry->obj;
+	return fd_entry->obj;
 }
 
 int z_reserve_fd(void)

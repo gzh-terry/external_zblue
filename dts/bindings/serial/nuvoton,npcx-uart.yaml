@@ -12,15 +12,18 @@ properties:
         required: true
     clocks:
         required: true
-    pinctrl-0:
+    pinctrl:
         type: phandles
         required: true
         description: configurations of pinmux controllers
-    uart_rx:
+    wui_map:
         type: phandle
         required: true
+        description: mapping item between wui and source device
         description: |
-            Mapping table between Wake-Up Input (WUI) and uart rx START signal.
+            Mapping table between Wake-Up Input (WUI) and its source device.
 
             For example the WUI mapping on NPCX7 UART1 would be
-               uart_rx = <&wui_cr_sin1>;
+               wui_map = <&wui_cr_sin1>;
+
+        required: true

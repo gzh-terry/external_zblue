@@ -287,8 +287,7 @@ static void timer_work_cb(struct k_work *work)
 	stop_timer(timer, false);
 }
 
-static int timer_trigger_cb(uint16_t obj_inst_id,
-			    uint8_t *args, uint16_t args_len)
+static int timer_trigger_cb(uint16_t obj_inst_id)
 {
 	int i;
 
@@ -341,34 +340,34 @@ static struct lwm2m_engine_obj_inst *timer_create(uint16_t obj_inst_id)
 			  res_inst[avail], j, &timer_data[avail].delay_duration,
 			  sizeof(timer_data[avail].delay_duration));
 	INIT_OBJ_RES(TIMER_REMAINING_TIME_ID, res[avail], i,
-		     res_inst[avail], j, 1, false, true,
+		     res_inst[avail], j, 1, true,
 		     &timer_data[avail].remaining_time,
 		     sizeof(timer_data[avail].remaining_time),
-		     remaining_time_read_cb, NULL, NULL, NULL, NULL);
+		     remaining_time_read_cb, NULL, NULL, NULL);
 	INIT_OBJ_RES_DATA(TIMER_MINIMUM_OFF_TIME_ID, res[avail], i,
 			  res_inst[avail], j, &timer_data[avail].min_off_time,
 			  sizeof(timer_data[avail].min_off_time));
 	INIT_OBJ_RES_EXECUTE(TIMER_TRIGGER_ID, res[avail], i,
 			     timer_trigger_cb);
 	INIT_OBJ_RES(TIMER_ON_OFF_ID, res[avail], i,
-		     res_inst[avail], j, 1, false, true,
+		     res_inst[avail], j, 1, true,
 		     &timer_data[avail].enabled,
 		     sizeof(timer_data[avail].enabled),
-		     NULL, NULL, NULL, enabled_post_write_cb, NULL);
+		     NULL, NULL, enabled_post_write_cb, NULL);
 	INIT_OBJ_RES(TIMER_CUMULATIVE_TIME_ID, res[avail], i,
-		     res_inst[avail], j, 1, false, true,
+		     res_inst[avail], j, 1, true,
 		     &timer_data[avail].cumulative_time,
 		     sizeof(timer_data[avail].cumulative_time),
-		     cumulative_time_read_cb, NULL, NULL,
+		     cumulative_time_read_cb, NULL,
 		     cumulative_time_post_write_cb, NULL);
 	INIT_OBJ_RES_DATA(TIMER_DIGITAL_STATE_ID, res[avail], i,
 			  res_inst[avail], j, &timer_data[avail].active,
 			  sizeof(timer_data[avail].active));
 	INIT_OBJ_RES(TIMER_COUNTER_ID, res[avail], i,
-		     res_inst[avail], j, 1, false, true,
+		     res_inst[avail], j, 1, true,
 		     &timer_data[avail].trigger_counter,
 		     sizeof(timer_data[avail].trigger_counter),
-		     NULL, NULL, NULL, trigger_counter_post_write_cb, NULL);
+		     NULL, NULL, trigger_counter_post_write_cb, NULL);
 	INIT_OBJ_RES_DATA(TIMER_MODE_ID, res[avail], i, res_inst[avail], j,
 			  &timer_data[avail].timer_mode,
 			  sizeof(timer_data[avail].timer_mode));
