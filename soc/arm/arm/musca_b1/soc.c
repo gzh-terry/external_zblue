@@ -7,7 +7,6 @@
 #include <arch/cpu.h>
 #include <init.h>
 #include <soc.h>
-#include <linker/linker-defs.h>
 
 /* (Secure System Control) Base Address */
 #define SSE_200_SYSTEM_CTRL_S_BASE	(0x50021000UL)
@@ -27,7 +26,8 @@ void wakeup_cpu1(void)
 {
 	/* Set the Initial Secure Reset Vector Register for CPU 1 */
 	*(uint32_t *)(SSE_200_SYSTEM_CTRL_INITSVTOR1) =
-					(uint32_t)_vector_start +
+					CONFIG_FLASH_BASE_ADDRESS +
+					BL2_HEADER_SIZE +
 					NON_SECURE_FLASH_ADDRESS -
 					NON_SECURE_FLASH_OFFSET;
 

@@ -17,7 +17,6 @@ menuconfig THREAD_ANALYZER
 	select INIT_STACKS
 	select THREAD_MONITOR
 	select THREAD_STACK_INFO
-	select THREAD_RUNTIME_STATS
 	help
 	  Enable thread analyzer functionality and all the required modules.
 	  This module may be used to debug thread configuration issues, e.g.
@@ -222,7 +221,7 @@ config ASSERT_LEVEL
 config SPIN_VALIDATE
 	bool "Enable spinlock validation"
 	depends on ASSERT
-	depends on MP_NUM_CPUS <= 4
+	depends on MP_NUM_CPUS < 4
 	default y if !FLASH || FLASH_SIZE > 32
 	help
 	  There's a spinlock validation framework available when asserts are
@@ -233,7 +232,7 @@ config FORCE_NO_ASSERT
 	bool "Force-disable no assertions"
 	help
 	  This boolean option disables Zephyr assertion testing even
-	  in circumstances (twister) where it is enabled via
+	  in circumstances (sanitycheck) where it is enabled via
 	  CFLAGS and not Kconfig.  Added solely to be able to work
 	  around compiler bugs for specific tests.
 
@@ -332,20 +331,16 @@ config EXCEPTION_STACK_TRACE
 #
 # Miscellaneous debugging options
 #
-config OPENOCD_SUPPORT
-	bool "OpenOCD support (DEPRECATED)"
-	select DEBUG_THREAD_INFO
-	help
-	  This is deprecated, please use DEBUG_THREAD_INFO instead.
 
-config DEBUG_THREAD_INFO
-	bool "Thread awareness support"
+config OPENOCD_SUPPORT
+	bool "OpenOCD support [EXPERIMENTAL]"
 	depends on !SMP
 	select THREAD_MONITOR
 	select THREAD_NAME
 	help
-	  This option exports an array of offsets to kernel structs to allow
-	  for debugger RTOS plugins to determine the state of running threads.
+	  This option exports an array of offsets to kernel structs, used by
+	  OpenOCD to determine the state of running threads.  (This option
+	  selects CONFIG_THREAD_MONITOR, so all of its caveats are implied.)
 
 rsource "coredump/Kconfig"
 endmenu

@@ -718,14 +718,6 @@ static void test_v6_addr_add(void)
 	zassert_true(ret, "Cannot add IPv6 address");
 }
 
-static void test_v6_addr_add_mcast_twice(void)
-{
-	struct net_if_mcast_addr *maddr;
-
-	maddr = net_if_ipv6_maddr_add(iface1, &in6addr_mcast);
-	zassert_equal(maddr, NULL, "Address was added twice");
-}
-
 static void test_v6_addr_lookup(void)
 {
 	int ret;
@@ -867,7 +859,6 @@ void test_main(void)
 			 ztest_user_unit_test(test_v4_addr_lookup_user),
 			 ztest_unit_test(test_v4_addr_rm_user_from_userspace),
 			 ztest_unit_test(test_v6_addr_add),
-			 ztest_unit_test(test_v6_addr_add_mcast_twice),
 			 ztest_unit_test(test_v6_addr_lookup),
 			 ztest_unit_test(test_v6_addr_rm),
 			 ztest_unit_test(test_v6_addr_add_user_from_userspace),

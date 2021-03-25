@@ -175,9 +175,6 @@ struct dns_resolve_context {
 		uint8_t is_llmnr : 1;
 	} servers[CONFIG_DNS_RESOLVER_MAX_SERVERS + DNS_MAX_MCAST_SERVERS];
 
-	/** Prevent concurrent access */
-	struct k_mutex lock;
-
 	/** This timeout is also used when a buffer is required from the
 	 * buffer pools.
 	 */
@@ -185,21 +182,15 @@ struct dns_resolve_context {
 
 	/** Result callbacks. We have multiple callbacks here so that it is
 	 * possible to do multiple queries at the same time.
-	 *
-	 * Contents of this structure can be inspected and changed only when
-	 * the lock is held.
 	 */
 	struct dns_pending_query {
 		/** Timeout timer */
-		struct k_work_delayable timer;
+		struct k_delayed_work timer;
 
 		/** Back pointer to ctx, needed in timeout handler */
 		struct dns_resolve_context *ctx;
 
-		/** Result callback.
-		 *
-		 * A null value indicates the slot is not in use.
-		 */
+		/** Result callback */
 		dns_resolve_cb_t cb;
 
 		/** User data */
@@ -209,15 +200,6 @@ struct dns_resolve_context {
 		k_timeout_t timeout;
 
 		/** String containing the thing to resolve like www.example.com
-		 *
-		 * This is set to a non-null value when the query is started,
-		 * and is not used thereafter.
-		 *
-		 * If the query completed at a point where the work item was
-		 * still pending the pointer is cleared to indicate that the
-		 * query is complete, but release of the query slot will be
-		 * deferred until a request for a slot determines that the
-		 * work item has been released.
 		 */
 		const char *query;
 

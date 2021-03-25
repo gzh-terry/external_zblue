@@ -24,7 +24,6 @@ extern "C" {
 void posix_irq_handler(void);
 void posix_exit(int exit_code);
 uint64_t posix_get_hw_cycle(void);
-void posix_cpu_hold(uint32_t usec_to_waste);
 
 #ifdef __cplusplus
 }

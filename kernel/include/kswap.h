@@ -16,8 +16,6 @@ extern void z_check_stack_sentinel(void);
 #define z_check_stack_sentinel() /**/
 #endif
 
-extern struct k_spinlock sched_spinlock;
-
 /* In SMP, the irq_lock() is a spinlock which is implicitly released
  * and reacquired on context switch to preserve the existing
  * semantics.  This means that whenever we are about to return to a
@@ -25,6 +23,7 @@ extern struct k_spinlock sched_spinlock;
  * to restore the lock state to whatever the thread's counter
  * expects.
  */
+void z_smp_reacquire_global_lock(struct k_thread *thread);
 void z_smp_release_global_lock(struct k_thread *thread);
 
 /* context switching and scheduling-related routines */
@@ -69,18 +68,28 @@ static ALWAYS_INLINE unsigned int do_swap(unsigned int key,
 
 	z_check_stack_sentinel();
 
-	/* We always take the scheduler spinlock if we don't already
-	 * have it.  We "release" other spinlocks here.  But we never
-	 * drop the interrupt lock.
-	 */
-	if (is_spinlock && lock != NULL && lock != &sched_spinlock) {
+	if (is_spinlock) {
 		k_spin_release(lock);
 	}
-	if (!is_spinlock || lock != &sched_spinlock) {
-		(void) k_spin_lock(&sched_spinlock);
-	}
 
-	new_thread = z_swap_next_thread();
+#ifdef CONFIG_SMP
+	/* Null out the switch handle, see wait_for_switch() above.
+	 * Note that we set it back to a non-null value if we are not
+	 * switching!  The value itself doesn't matter, because by
+	 * definition _current is running and has no saved state.
+	 */
+	volatile void **shp = (void *)&old_thread->switch_handle;
+
+	*shp = NULL;
+#endif
+
+	new_thread = z_get_next_ready_thread();
+
+#ifdef CONFIG_SMP
+	if (new_thread == old_thread) {
+		*shp = old_thread;
+	}
+#endif
 
 	if (new_thread != old_thread) {
 #ifdef CONFIG_TIMESLICING
@@ -91,40 +100,19 @@ static ALWAYS_INLINE unsigned int do_swap(unsigned int key,
 
 #ifdef CONFIG_SMP
 		_current_cpu->swap_ok = 0;
+
 		new_thread->base.cpu = arch_curr_cpu()->id;
 
 		if (!is_spinlock) {
 			z_smp_release_global_lock(new_thread);
 		}
 #endif
-		z_thread_mark_switched_out();
-		wait_for_switch(new_thread);
+		sys_trace_thread_switched_out();
 		_current_cpu->current = new_thread;
+		wait_for_switch(new_thread);
+		arch_switch(new_thread->switch_handle,
+			     &old_thread->switch_handle);
 
-#ifdef CONFIG_SPIN_VALIDATE
-		z_spin_lock_set_owner(&sched_spinlock);
-#endif
-
-		arch_cohere_stacks(old_thread, NULL, new_thread);
-
-#ifdef CONFIG_SMP
-		/* Add _current back to the run queue HERE. After
-		 * wait_for_switch() we are guaranteed to reach the
-		 * context switch in finite time, avoiding a potential
-		 * deadlock.
-		 */
-		z_requeue_current(old_thread);
-#endif
-		void *newsh = new_thread->switch_handle;
-
-		if (IS_ENABLED(CONFIG_SMP)) {
-			/* Active threads MUST have a null here */
-			new_thread->switch_handle = NULL;
-		}
-		k_spin_release(&sched_spinlock);
-		arch_switch(newsh, &old_thread->switch_handle);
-	} else {
-		k_spin_release(&sched_spinlock);
 	}
 
 	if (is_spinlock) {
@@ -148,7 +136,10 @@ static inline int z_swap(struct k_spinlock *lock, k_spinlock_key_t key)
 
 static inline void z_swap_unlocked(void)
 {
-	(void) do_swap(arch_irq_lock(), NULL, 1);
+	struct k_spinlock lock = {};
+	k_spinlock_key_t key = k_spin_lock(&lock);
+
+	(void) z_swap(&lock, key);
 }
 
 #else /* !CONFIG_USE_SWITCH */

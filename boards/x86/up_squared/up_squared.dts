@@ -14,7 +14,7 @@
 
 / {
 	model = "up_squared";
-	compatible = "up_board,up_squared";
+	compatible = "intel,apollo_lake";
 
 	chosen {
 		zephyr,sram = &dram0;

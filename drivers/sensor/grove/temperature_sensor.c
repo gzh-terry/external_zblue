@@ -27,12 +27,13 @@ LOG_MODULE_REGISTER(grove_temp, CONFIG_SENSOR_LOG_LEVEL);
 #endif
 
 struct gts_data {
+	const struct device *adc;
 	struct adc_channel_cfg ch_cfg;
 	uint16_t raw;
 };
 
 struct gts_config {
-	const struct device *adc;
+	const char *adc_label;
 	int16_t b_const;
 	uint8_t adc_channel;
 };
@@ -49,9 +50,9 @@ static struct adc_sequence adc_table = {
 static int gts_sample_fetch(const struct device *dev,
 			    enum sensor_channel chan)
 {
-	const struct gts_config *cfg = dev->config;
+	struct gts_data *drv_data = dev->data;
 
-	return adc_read(cfg->adc, &adc_table);
+	return adc_read(drv_data->adc, &adc_table);
 }
 
 static int gts_channel_get(const struct device *dev,
@@ -89,8 +90,9 @@ static int gts_init(const struct device *dev)
 	struct gts_data *drv_data = dev->data;
 	const struct gts_config *cfg = dev->config;
 
-	if (!device_is_ready(cfg->adc)) {
-		LOG_ERR("ADC device is not ready.");
+	drv_data->adc = device_get_binding(cfg->adc_label);
+	if (drv_data->adc == NULL) {
+		LOG_ERR("Failed to get ADC device.");
 		return -EINVAL;
 	}
 
@@ -109,20 +111,20 @@ static int gts_init(const struct device *dev)
 	adc_table.resolution = GROVE_RESOLUTION;
 	adc_table.channels = BIT(cfg->adc_channel);
 
-	adc_channel_setup(cfg->adc, &drv_data->ch_cfg);
+	adc_channel_setup(drv_data->adc, &drv_data->ch_cfg);
 
 	return 0;
 }
 
 static struct gts_data gts_data;
 static const struct gts_config gts_cfg = {
-	.adc = DEVICE_DT_GET(DT_INST_IO_CHANNELS_CTLR(0)),
+	.adc_label = DT_INST_IO_CHANNELS_LABEL(0),
 	.b_const = (IS_ENABLED(DT_INST_PROP(0, v1p0))
 		    ? 3975
 		    : 4250),
 	.adc_channel = DT_INST_IO_CHANNELS_INPUT(0),
 };
 
-DEVICE_DT_INST_DEFINE(0, &gts_init, device_pm_control_nop,
+DEVICE_AND_API_INIT(gts_dev, DT_INST_LABEL(0), &gts_init,
 		&gts_data, &gts_cfg, POST_KERNEL, CONFIG_SENSOR_INIT_PRIORITY,
 		&gts_api);

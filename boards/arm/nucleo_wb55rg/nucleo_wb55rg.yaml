@@ -12,7 +12,6 @@ supported:
   - gpio
   - i2c
   - counter
-  - dma
   - spi
   - pwm
   - adc

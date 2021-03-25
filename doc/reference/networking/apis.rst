@@ -18,4 +18,3 @@ Network APIs
    socks5.rst
    trickle.rst
    websocket.rst
-   capture.rst

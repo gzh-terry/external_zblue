@@ -150,8 +150,9 @@ do_recv_cb:
 	next_timeout_ms = 0;
 
 done:
-	err = k_work_reschedule_for_queue(&eswifi->work_q, &socket->read_work,
-					  K_MSEC(next_timeout_ms));
+	err = k_delayed_work_submit_to_queue(&eswifi->work_q,
+					     &socket->read_work,
+					     K_MSEC(next_timeout_ms));
 	if (err) {
 		LOG_ERR("Rescheduling socket read error");
 	}
@@ -236,7 +237,7 @@ int __eswifi_socket_free(struct eswifi_dev *eswifi,
 			 struct eswifi_off_socket *socket)
 {
 	__select_socket(eswifi, socket->index);
-	k_work_cancel_delayable(&socket->read_work);
+	k_delayed_work_cancel(&socket->read_work);
 
 	__select_socket(eswifi, socket->index);
 	__stop_socket(eswifi, socket);
@@ -297,7 +298,7 @@ int __eswifi_socket_new(struct eswifi_dev *eswifi, int family, int type,
 		return -EIO;
 	}
 
-	k_work_init_delayable(&socket->read_work, eswifi_off_read_work);
+	k_delayed_work_init(&socket->read_work, eswifi_off_read_work);
 	socket->usage = 1;
 	LOG_DBG("Socket index %d", socket->index);
 

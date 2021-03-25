@@ -194,19 +194,9 @@ static void ppp_change_state(struct ppp_driver_context *ctx,
 
 static int ppp_send_flush(struct ppp_driver_context *ppp, int off)
 {
-	if (IS_ENABLED(CONFIG_NET_TEST)) {
-		return 0;
-	}
-	uint8_t *buf = ppp->send_buf;
+	if (!IS_ENABLED(CONFIG_NET_TEST)) {
+		uint8_t *buf = ppp->send_buf;
 
-	/* If we're using gsm_mux, We don't want to use poll_out because sending
-	 * one byte at a time causes each byte to get wrapped in muxing headers.
-	 * But we can safely call uart_fifo_fill outside of ISR context when
-	 * muxing because uart_mux implements it in software.
-	 */
-	if (IS_ENABLED(CONFIG_GSM_MUX)) {
-		(void)uart_fifo_fill(ppp->dev, buf, off);
-	} else {
 		while (off--) {
 			uart_poll_out(ppp->dev, *buf++);
 		}
@@ -576,20 +566,6 @@ static int ppp_send(const struct device *dev, struct net_pkt *pkt)
 			protocol = htons(PPP_IP);
 		} else if (net_pkt_family(pkt) == AF_INET6) {
 			protocol = htons(PPP_IPV6);
-		} else if (IS_ENABLED(CONFIG_NET_SOCKETS_PACKET) &&
-			   net_pkt_family(pkt) == AF_PACKET) {
-			char type = (NET_IPV6_HDR(pkt)->vtc & 0xf0);
-
-			switch (type) {
-			case 0x60:
-				protocol = htons(PPP_IPV6);
-				break;
-			case 0x40:
-				protocol = htons(PPP_IP);
-				break;
-			default:
-				return -EPROTONOSUPPORT;
-			}
 		} else {
 			return -EPROTONOSUPPORT;
 		}
@@ -716,9 +692,9 @@ static int ppp_driver_init(const struct device *dev)
 	ring_buf_init(&ppp->rx_ringbuf, sizeof(ppp->rx_buf), ppp->rx_buf);
 	k_work_init(&ppp->cb_work, ppp_isr_cb_work);
 
-	k_work_queue_start(&ppp->cb_workq, ppp_workq,
-			   K_KERNEL_STACK_SIZEOF(ppp_workq),
-			   K_PRIO_COOP(PPP_WORKQ_PRIORITY), NULL);
+	k_work_q_start(&ppp->cb_workq, ppp_workq,
+		       K_KERNEL_STACK_SIZEOF(ppp_workq),
+		       K_PRIO_COOP(PPP_WORKQ_PRIORITY));
 	k_thread_name_set(&ppp->cb_workq.thread, "ppp_workq");
 #endif
 
@@ -871,7 +847,7 @@ static int ppp_start(const struct device *dev)
 			return -EINVAL;
 		}
 
-		LOG_INF("Initializing PPP to use %s", dev_name);
+		LOG_DBG("Initializing PPP to use %s", dev_name);
 
 		context->dev = device_get_binding(dev_name);
 		if (!context->dev) {
@@ -898,7 +874,7 @@ static int ppp_stop(const struct device *dev)
 	struct ppp_driver_context *context = dev->data;
 
 	net_ppp_carrier_off(context->iface);
-	context->modem_init_done = false;
+
 	return 0;
 }
 
