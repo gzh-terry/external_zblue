@@ -22,12 +22,6 @@ from west.commands import CommandError
 from west.configuration import config
 import yaml
 
-from zephyr_ext_common import ZEPHYR_SCRIPTS
-
-# Runners depend on edtlib. Make sure the copy in the tree is
-# available to them before trying to import any.
-sys.path.append(str(ZEPHYR_SCRIPTS / 'dts'))
-
 from runners import get_runner_cls, ZephyrBinaryRunner, MissingProgram
 from runners.core import RunnerConfig
 import zcmake
@@ -88,8 +82,11 @@ def add_parser_common(command, parser_adder=None, parser=None):
             help=command.help,
             description=command.description)
 
-    # Remember to update west-completion.bash if you add or remove
+    # Remember to update scripts/west-completion.bash if you add or remove
     # flags
+
+    parser.add_argument('-H', '--context', action='store_true',
+                        help='print build directory specific help')
 
     group = parser.add_argument_group('general options',
                                       FIND_BUILD_DIR_DESCRIPTION)
@@ -106,27 +103,12 @@ def add_parser_common(command, parser_adder=None, parser=None):
                        help='do not refresh cmake dependencies first')
 
     group = parser.add_argument_group(
-        'runner configuration',
+        'runner configuration overrides',
         textwrap.dedent(f'''\
-        ===================================================================
-          IMPORTANT:
-          Individual runners support additional options not printed here.
-        ===================================================================
+        Run "west {command.name} --context" for --build-dir specific options.
+        Not all runners respect --elf-file / --hex-file / --bin-file, nor use
+        gdb or openocd.'''))
 
-        Run "west {command.name} --context" for runner-specific options.
-
-        If a build directory is found, --context also prints per-runner
-        settings found in that build directory's runners.yaml file.
-
-        Use "west {command.name} --context -r RUNNER" to limit output to a
-        specific RUNNER.
-
-        Some runner settings also can be overridden with options like
-        --hex-file. However, this depends on the runner: not all runners
-        respect --elf-file / --hex-file / --bin-file, nor use gdb or openocd,
-        etc.'''))
-    group.add_argument('-H', '--context', action='store_true',
-                       help='print runner- and build-specific help')
     # Options used to override RunnerConfig values in runners.yaml.
     # TODO: is this actually useful?
     group.add_argument('--board-dir', metavar='DIR', help='board directory')
@@ -326,10 +308,7 @@ def use_runner_cls(command, board, args, runners_yaml, cache):
                 fatal=True)
         log.inf(f'To fix, configure this runner in {board_cmake} and rebuild.')
         sys.exit(1)
-    try:
-        runner_cls = get_runner_cls(runner)
-    except ValueError as e:
-        log.die(e)
+    runner_cls = get_runner_cls(runner)
     if command.name not in runner_cls.capabilities().commands:
         log.die(f'runner {runner} does not support command {command.name}')
 
@@ -355,7 +334,9 @@ def get_runner_config(build_dir, yaml_path, runners_yaml, args=None):
             # directory containing the runners.yaml file.
             return fspath(yaml_dir / from_yaml)
 
-        return None
+        # FIXME these RunnerConfig values really ought to be
+        # Optional[str], but some runners rely on them being str.
+        return ''
 
     def config(attr):
         return getattr(args, attr, None) or yaml_config.get(attr)

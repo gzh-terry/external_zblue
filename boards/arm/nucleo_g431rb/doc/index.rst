@@ -117,8 +117,6 @@ The Zephyr nucleo_g431rb board configuration supports the following hardware fea
 +-----------+------------+-------------------------------------+
 | DAC       | on-chip    | dac                                 |
 +-----------+------------+-------------------------------------+
-| COUNTER   | on-chip    | rtc                                 |
-+-----------+------------+-------------------------------------+
 
 Other hardware features are not yet supported on this Zephyr port.
 
@@ -160,6 +158,8 @@ Default Zephyr Peripheral Mapping:
 - PWM_3_CH1 : PB4
 - USER_PB : PC13
 - LD2 : PA5
+- USB DM : PA11
+- USB DP : PA12
 - DAC1_OUT1 : PA4
 
 System Clock

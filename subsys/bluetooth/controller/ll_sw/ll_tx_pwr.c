@@ -19,22 +19,20 @@
 
 #include "pdu.h"
 
-#include "lll.h"
-#include "lll/lll_adv_types.h"
-#include "lll_adv.h"
-#include "lll/lll_adv_pdu.h"
-#include "lll_scan.h"
-#include "lll_conn.h"
-
-#include "ull_adv_types.h"
-#include "ull_scan_types.h"
-#include "ull_conn_types.h"
-
-#include "ull_adv_internal.h"
-#include "ull_scan_internal.h"
-#include "ull_conn_internal.h"
-
 #include "ll.h"
+#include "lll.h"
+
+#include "lll_scan.h"
+#include "ull_scan_types.h"
+#include "ull_scan_internal.h"
+
+#include "lll_adv.h"
+#include "ull_adv_types.h"
+#include "ull_adv_internal.h"
+
+#include "lll_conn.h"
+#include "ull_conn_types.h"
+#include "ull_conn_internal.h"
 
 uint8_t ll_tx_pwr_lvl_get(uint8_t handle_type,
 		       uint16_t handle, uint8_t type, int8_t *tx_pwr_lvl)

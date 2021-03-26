@@ -8,10 +8,11 @@
  */
 #include <bluetooth/mesh.h>
 #include <bluetooth/conn.h>
+#include "prov.h"
 #include "net.h"
 #include "proxy.h"
 #include "adv.h"
-#include "prov.h"
+#include "prov_bearer.h"
 
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_MESH_DEBUG_PROV)
 #define LOG_MODULE_NAME bt_mesh_pb_gatt
@@ -109,7 +110,7 @@ int bt_mesh_pb_gatt_close(struct bt_conn *conn)
 
 static int link_accept(const struct prov_bearer_cb *cb, void *cb_data)
 {
-	(void)bt_mesh_proxy_prov_enable();
+	bt_mesh_proxy_prov_enable();
 	bt_mesh_adv_update();
 
 	link.cb = cb;

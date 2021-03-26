@@ -35,24 +35,10 @@ static inline void exit(int status)
 {
 	_exit(status);
 }
-void abort(void);
 
 int rand(void);
 
-static inline int abs(int __n)
-{
-	return (__n < 0) ? -__n : __n;
-}
-
-static inline long labs(long __n)
-{
-	return (__n < 0L) ? -__n : __n;
-}
-
-static inline long long llabs(long long __n)
-{
-	return (__n < 0LL) ? -__n : __n;
-}
+#define abs(x) ((x) < 0 ? -(x) : (x))
 
 #ifdef __cplusplus
 }

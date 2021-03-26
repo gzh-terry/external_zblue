@@ -206,9 +206,7 @@ void main(void)
 	uint16_t timeout;
 	uint32_t elapsed;
 	int64_t timestamp;
-#ifdef CONFIG_CANOPEN_STORAGE
 	int ret;
-#endif /* CONFIG_CANOPEN_STORAGE */
 
 	can.dev = device_get_binding(CAN_INTERFACE);
 	if (!can.dev) {
@@ -216,7 +214,6 @@ void main(void)
 		return;
 	}
 
-#ifdef CONFIG_CANOPEN_STORAGE
 	ret = settings_subsys_init();
 	if (ret) {
 		LOG_ERR("failed to initialize settings subsystem (err = %d)",
@@ -229,7 +226,6 @@ void main(void)
 		LOG_ERR("failed to load settings (err = %d)", ret);
 		return;
 	}
-#endif /* CONFIG_CANOPEN_STORAGE */
 
 	OD_powerOnCounter++;
 
@@ -246,10 +242,7 @@ void main(void)
 
 		LOG_INF("CANopen stack initialized");
 
-#ifdef CONFIG_CANOPEN_STORAGE
 		canopen_storage_attach(CO->SDO[0], CO->em);
-#endif /* CONFIG_CANOPEN_STORAGE */
-
 		config_leds(CO->NMT);
 		CO_OD_configure(CO->SDO[0], OD_2102_buttonPressCounter,
 				odf_2102, NULL, 0U, 0U);
@@ -275,13 +268,11 @@ void main(void)
 				OD_buttonPressCounter = counter;
 				CO_UNLOCK_OD();
 
-#ifdef CONFIG_CANOPEN_STORAGE
 				ret = canopen_storage_save(
 					CANOPEN_STORAGE_EEPROM);
 				if (ret) {
 					LOG_ERR("failed to save EEPROM");
 				}
-#endif /* CONFIG_CANOPEN_STORAGE */
 				/*
 				 * Try to sleep for as long as the
 				 * stack requested and calculate the
@@ -305,6 +296,6 @@ void main(void)
 
 	LOG_INF("Resetting device");
 
-	CO_delete(&can);
+	CO_delete(CAN_INTERFACE);
 	sys_reboot(SYS_REBOOT_COLD);
 }

@@ -24,7 +24,10 @@
  */
 void z_arm64_interrupt_init(void)
 {
-#ifdef CONFIG_ARM_CUSTOM_INTERRUPT_CONTROLLER
+#if !defined(CONFIG_ARM_CUSTOM_INTERRUPT_CONTROLLER)
+	/* Initialise the Generic Interrupt Controller (GIC) driver */
+	arm_gic_init();
+#else
 	/* Invoke SoC-specific interrupt controller initialisation */
 	z_soc_irq_init();
 #endif

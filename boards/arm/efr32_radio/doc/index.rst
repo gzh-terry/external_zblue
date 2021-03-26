@@ -9,7 +9,6 @@ EFR32 Radio Boards
    brd4104a.rst
    brd4250b.rst
    brd4180a.rst
-   brd4255a.rst
 
 Overview
 ********

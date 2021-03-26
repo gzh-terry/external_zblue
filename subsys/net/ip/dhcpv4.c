@@ -32,10 +32,8 @@ LOG_MODULE_REGISTER(net_dhcpv4, CONFIG_NET_DHCPV4_LOG_LEVEL);
 
 #define PKT_WAIT_TIME K_SECONDS(1)
 
-static K_MUTEX_DEFINE(lock);
-
 static sys_slist_t dhcpv4_ifaces;
-static struct k_work_delayable timeout_work;
+static struct k_delayed_work timeout_work;
 
 static struct net_mgmt_event_callback mgmt4_cb;
 
@@ -217,7 +215,7 @@ static struct net_pkt *dhcpv4_create_message(struct net_if *iface, uint8_t type,
 
 	msg->op    = DHCPV4_MSG_BOOT_REQUEST;
 	msg->htype = HARDWARE_ETHERNET_TYPE;
-	msg->hlen  = net_if_get_link_addr(iface)->len;
+	msg->hlen  = HARDWARE_ETHERNET_LEN;
 	msg->xid   = htonl(iface->config.dhcpv4.xid);
 	msg->flags = htons(DHCPV4_MSG_BROADCAST);
 
@@ -278,56 +276,7 @@ fail:
 	return NULL;
 }
 
-/* Must be invoked with lock held. */
-static void dhcpv4_immediate_timeout(struct net_if_dhcpv4 *dhcpv4)
-{
-	NET_DBG("force timeout dhcpv4=%p", dhcpv4);
-	dhcpv4->timer_start = k_uptime_get() - 1;
-	dhcpv4->request_time = 0U;
-	k_work_reschedule(&timeout_work, K_NO_WAIT);
-}
-
-/* Must be invoked with lock held. */
-static void dhcpv4_set_timeout(struct net_if_dhcpv4 *dhcpv4,
-			       uint32_t timeout)
-{
-	NET_DBG("sched timeout dhcvp4=%p timeout=%us", dhcpv4, timeout);
-	dhcpv4->timer_start = k_uptime_get();
-	dhcpv4->request_time = timeout;
-
-	/* NB: This interface may not be providing the next timeout
-	 * event; also this timeout may replace the current timeout
-	 * event.  Delegate scheduling to the timeout manager.
-	 */
-	k_work_reschedule(&timeout_work, K_NO_WAIT);
-}
-
-/* Must be invoked with lock held */
-static uint32_t dhcpv4_update_message_timeout(struct net_if_dhcpv4 *dhcpv4)
-{
-	uint32_t timeout;
-
-	timeout = DHCPV4_INITIAL_RETRY_TIMEOUT << dhcpv4->attempts;
-
-	/* Max 64 seconds, see RFC 2131 chapter 4.1 */
-	if (timeout < DHCPV4_INITIAL_RETRY_TIMEOUT || timeout > 64) {
-		timeout = 64;
-	}
-
-	/* +1/-1 second randomization */
-	timeout += (sys_rand32_get() % 3U) - 1;
-
-	dhcpv4->attempts++;
-	dhcpv4_set_timeout(dhcpv4, timeout);
-
-	return timeout;
-}
-
-/* Prepare DHCPv4 Message request and send it to peer.
- *
- * Returns the number of seconds until the next time-triggered event,
- * or UINT32_MAX if the client is in an invalid state.
- */
+/* Prepare DHCPv4 Message request and send it to peer */
 static uint32_t dhcpv4_send_request(struct net_if *iface)
 {
 	const struct in_addr *server_addr = net_ipv4_broadcast_address();
@@ -335,8 +284,8 @@ static uint32_t dhcpv4_send_request(struct net_if *iface)
 	const struct in_addr *src_addr = NULL;
 	bool with_server_id = false;
 	bool with_requested_ip = false;
-	struct net_pkt *pkt = NULL;
-	uint32_t timeout = UINT32_MAX;
+	struct net_pkt *pkt;
+	uint32_t timeout;
 
 	iface->config.dhcpv4.xid++;
 
@@ -348,7 +297,6 @@ static uint32_t dhcpv4_send_request(struct net_if *iface)
 		/* Not possible */
 		NET_ASSERT(0, "Invalid state %s",
 			   net_dhcpv4_state_name(iface->config.dhcpv4.state));
-		goto fail;
 		break;
 	case NET_DHCPV4_REQUESTING:
 		with_server_id = true;
@@ -376,8 +324,6 @@ static uint32_t dhcpv4_send_request(struct net_if *iface)
 		break;
 	}
 
-	timeout = dhcpv4_update_message_timeout(&iface->config.dhcpv4);
-
 	pkt = dhcpv4_create_message(iface, DHCPV4_MSG_TYPE_REQUEST,
 				    ciaddr, src_addr, server_addr,
 				    with_server_id, with_requested_ip);
@@ -389,6 +335,10 @@ static uint32_t dhcpv4_send_request(struct net_if *iface)
 		goto fail;
 	}
 
+	timeout = DHCPV4_INITIAL_RETRY_TIMEOUT << iface->config.dhcpv4.attempts;
+
+	iface->config.dhcpv4.attempts++;
+
 	NET_DBG("send request dst=%s xid=0x%x ciaddr=%s%s%s timeout=%us",
 		log_strdup(net_sprint_ipv4_addr(server_addr)),
 		iface->config.dhcpv4.xid,
@@ -398,6 +348,9 @@ static uint32_t dhcpv4_send_request(struct net_if *iface)
 		with_requested_ip ? " +requested-ip" : "",
 		timeout);
 
+	iface->config.dhcpv4.timer_start = k_uptime_get();
+	iface->config.dhcpv4.request_time = timeout;
+
 	return timeout;
 
 fail:
@@ -405,7 +358,7 @@ fail:
 		net_pkt_unref(pkt);
 	}
 
-	return timeout;
+	return UINT32_MAX;
 }
 
 /* Prepare DHCPv4 Discover message and broadcast it */
@@ -427,10 +380,15 @@ static uint32_t dhcpv4_send_discover(struct net_if *iface)
 		goto fail;
 	}
 
-	timeout = dhcpv4_update_message_timeout(&iface->config.dhcpv4);
+	timeout = DHCPV4_INITIAL_RETRY_TIMEOUT << iface->config.dhcpv4.attempts;
+
+	iface->config.dhcpv4.attempts++;
 
 	NET_DBG("send discover xid=0x%x timeout=%us",
 		iface->config.dhcpv4.xid, timeout);
+
+	iface->config.dhcpv4.timer_start = k_uptime_get();
+	iface->config.dhcpv4.request_time = timeout;
 
 	return timeout;
 
@@ -445,78 +403,80 @@ fail:
 			DHCPV4_INITIAL_DELAY_MIN;
 }
 
+static void dhcpv4_update_timeout_work(uint32_t timeout)
+{
+	if (!k_delayed_work_remaining_get(&timeout_work) ||
+	    (MSEC_PER_SEC * timeout) <
+	    k_delayed_work_remaining_get(&timeout_work)) {
+		k_delayed_work_cancel(&timeout_work);
+		k_delayed_work_submit(&timeout_work, K_SECONDS(timeout));
+	}
+}
+
 static void dhcpv4_enter_selecting(struct net_if *iface)
 {
-	struct in_addr any = INADDR_ANY_INIT;
-
 	iface->config.dhcpv4.attempts = 0U;
 
 	iface->config.dhcpv4.lease_time = 0U;
 	iface->config.dhcpv4.renewal_time = 0U;
 	iface->config.dhcpv4.rebinding_time = 0U;
 
-	iface->config.dhcpv4.server_id.s_addr = INADDR_ANY;
-	iface->config.dhcpv4.requested_ip.s_addr = INADDR_ANY;
-
-	net_if_ipv4_set_gw(iface, &any);
-
 	iface->config.dhcpv4.state = NET_DHCPV4_SELECTING;
 	NET_DBG("enter state=%s",
 		net_dhcpv4_state_name(iface->config.dhcpv4.state));
 }
 
-static uint32_t dhcpv4_get_timeleft(int64_t start, uint32_t time, int64_t now)
+static bool dhcpv4_check_timeout(int64_t start, uint32_t time, int64_t timeout)
 {
-	int64_t deadline = start + MSEC_PER_SEC * time;
-	uint32_t ret = 0U;
-
-	/* If we haven't reached the deadline, calculate the
-	 * rounded-up whole seconds until the deadline.
-	 */
-	if (deadline > now) {
-		ret = (uint32_t)ceiling_fraction(deadline - now, MSEC_PER_SEC);
+	start += MSEC_PER_SEC * time;
+	if (start < 0) {
+		start = -start;
 	}
 
-	return ret;
-}
-
-static uint32_t dhcpv4_request_timeleft(struct net_if *iface, int64_t now)
-{
-	uint32_t request_time = iface->config.dhcpv4.request_time;
-
-	return dhcpv4_get_timeleft(iface->config.dhcpv4.timer_start,
-				   request_time, now);
-}
-
-static uint32_t dhcpv4_renewal_timeleft(struct net_if *iface, int64_t now)
-{
-	uint32_t rem = dhcpv4_get_timeleft(iface->config.dhcpv4.timer_start,
-					   iface->config.dhcpv4.renewal_time,
-					   now);
-
-	if (rem == 0U) {
-		iface->config.dhcpv4.state = NET_DHCPV4_RENEWING;
-		NET_DBG("enter state=%s",
-			net_dhcpv4_state_name(iface->config.dhcpv4.state));
-		iface->config.dhcpv4.attempts = 0U;
+	if (start > timeout) {
+		return false;
 	}
 
-	return rem;
+	return true;
 }
 
-static uint32_t dhcpv4_rebinding_timeleft(struct net_if *iface, int64_t now)
+static bool dhcpv4_request_timedout(struct net_if *iface, int64_t timeout)
 {
-	uint32_t rem = dhcpv4_get_timeleft(iface->config.dhcpv4.timer_start,
-					   iface->config.dhcpv4.rebinding_time,
-					   now);
-	if (rem == 0U) {
-		iface->config.dhcpv4.state = NET_DHCPV4_REBINDING;
-		NET_DBG("enter state=%s",
-			net_dhcpv4_state_name(iface->config.dhcpv4.state));
-		iface->config.dhcpv4.attempts = 0U;
+	return dhcpv4_check_timeout(iface->config.dhcpv4.timer_start,
+				    iface->config.dhcpv4.request_time,
+				    timeout);
+}
+
+static bool dhcpv4_renewal_timedout(struct net_if *iface, int64_t timeout)
+{
+	if (!dhcpv4_check_timeout(iface->config.dhcpv4.timer_start,
+				  iface->config.dhcpv4.renewal_time,
+				  timeout)) {
+		return false;
 	}
 
-	return rem;
+	iface->config.dhcpv4.state = NET_DHCPV4_RENEWING;
+	NET_DBG("enter state=%s",
+		net_dhcpv4_state_name(iface->config.dhcpv4.state));
+	iface->config.dhcpv4.attempts = 0U;
+
+	return true;
+}
+
+static bool dhcpv4_rebinding_timedout(struct net_if *iface, int64_t timeout)
+{
+	if (!dhcpv4_check_timeout(iface->config.dhcpv4.timer_start,
+				  iface->config.dhcpv4.rebinding_time,
+				  timeout)) {
+		return false;
+	}
+
+	iface->config.dhcpv4.state = NET_DHCPV4_REBINDING;
+	NET_DBG("enter state=%s",
+		net_dhcpv4_state_name(iface->config.dhcpv4.state));
+	iface->config.dhcpv4.attempts = 0U;
+
+	return true;
 }
 
 static void dhcpv4_enter_requesting(struct net_if *iface)
@@ -526,10 +486,9 @@ static void dhcpv4_enter_requesting(struct net_if *iface)
 	NET_DBG("enter state=%s",
 		net_dhcpv4_state_name(iface->config.dhcpv4.state));
 
-	dhcpv4_send_request(iface);
+	dhcpv4_update_timeout_work(dhcpv4_send_request(iface));
 }
 
-/* Must be invoked with lock held */
 static void dhcpv4_enter_bound(struct net_if *iface)
 {
 	uint32_t renewal_time;
@@ -554,24 +513,19 @@ static void dhcpv4_enter_bound(struct net_if *iface)
 		net_dhcpv4_state_name(iface->config.dhcpv4.state),
 		renewal_time, rebinding_time);
 
-	dhcpv4_set_timeout(&iface->config.dhcpv4,
-			   MIN(renewal_time, rebinding_time));
+	iface->config.dhcpv4.timer_start = k_uptime_get();
+	iface->config.dhcpv4.request_time = MIN(renewal_time, rebinding_time);
 
-	net_mgmt_event_notify_with_info(NET_EVENT_IPV4_DHCP_BOUND, iface,
-					&iface->config.dhcpv4,
-					sizeof(iface->config.dhcpv4));
+	dhcpv4_update_timeout_work(iface->config.dhcpv4.request_time);
 }
 
-static uint32_t dhcpv4_manage_timers(struct net_if *iface, int64_t now)
+static uint32_t dhcph4_manage_timers(struct net_if *iface, int64_t timeout)
 {
-	uint32_t timeleft = dhcpv4_request_timeleft(iface, now);
+	NET_DBG("iface %p state=%s", iface,
+		net_dhcpv4_state_name(iface->config.dhcpv4.state));
 
-	NET_DBG("iface %p dhcpv4=%p state=%s timeleft=%u", iface,
-		&iface->config.dhcpv4,
-		net_dhcpv4_state_name(iface->config.dhcpv4.state), timeleft);
-
-	if (timeleft != 0U) {
-		return timeleft;
+	if (!dhcpv4_request_timedout(iface, timeout)) {
+		return iface->config.dhcpv4.request_time;
 	}
 
 	switch (iface->config.dhcpv4.state) {
@@ -596,16 +550,13 @@ static uint32_t dhcpv4_manage_timers(struct net_if *iface, int64_t now)
 
 		return dhcpv4_send_request(iface);
 	case NET_DHCPV4_BOUND:
-		timeleft = dhcpv4_renewal_timeleft(iface, now);
-		if (timeleft != 0U) {
-			timeleft = MIN(timeleft,
-				       dhcpv4_rebinding_timeleft(iface, now));
-		}
-		if (timeleft == 0U) {
+		if (dhcpv4_renewal_timedout(iface, timeout) ||
+		    dhcpv4_rebinding_timedout(iface, timeout)) {
 			return dhcpv4_send_request(iface);
 		}
 
-		return timeleft;
+		return MIN(iface->config.dhcpv4.renewal_time,
+			   iface->config.dhcpv4.rebinding_time);
 	case NET_DHCPV4_RENEWING:
 	case NET_DHCPV4_REBINDING:
 		if (iface->config.dhcpv4.attempts >=
@@ -632,13 +583,11 @@ static uint32_t dhcpv4_manage_timers(struct net_if *iface, int64_t now)
 
 static void dhcpv4_timeout(struct k_work *work)
 {
-	uint32_t timeout_update = UINT32_MAX;
-	int64_t now = k_uptime_get();
+	uint32_t timeout_update = UINT32_MAX - 1;
+	int64_t timeout = k_uptime_get();
 	struct net_if_dhcpv4 *current, *next;
 
 	ARG_UNUSED(work);
-
-	k_mutex_lock(&lock, K_FOREVER);
 
 	SYS_SLIST_FOR_EACH_CONTAINER_SAFE(&dhcpv4_ifaces, current, next, node) {
 		struct net_if *iface = CONTAINER_OF(
@@ -646,19 +595,17 @@ static void dhcpv4_timeout(struct k_work *work)
 			struct net_if, config);
 		uint32_t next_timeout;
 
-		next_timeout = dhcpv4_manage_timers(iface, now);
+		next_timeout = dhcph4_manage_timers(iface, timeout);
 		if (next_timeout < timeout_update) {
 			timeout_update = next_timeout;
 		}
 	}
 
-	k_mutex_unlock(&lock);
-
 	if (timeout_update != UINT32_MAX) {
 		NET_DBG("Waiting for %us", timeout_update);
 
-		k_work_reschedule(&timeout_work,
-				  K_SECONDS(timeout_update));
+		k_delayed_work_submit(&timeout_work,
+				      K_SECONDS(timeout_update));
 	}
 }
 
@@ -860,14 +807,9 @@ static bool dhcpv4_parse_options(struct net_pkt *pkt,
 				return false;
 			}
 
-			{
-				uint8_t val = 0U;
-
-				if (net_pkt_read_u8(pkt, &val)) {
-					NET_DBG("options_msg_type, read err");
-					return false;
-				}
-				*msg_type = val;
+			if (net_pkt_read_u8(pkt, (uint8_t *)msg_type)) {
+				NET_DBG("options_msg_type, read err");
+				return false;
 			}
 
 			break;
@@ -904,7 +846,6 @@ static inline void dhcpv4_handle_msg_offer(struct net_if *iface)
 	}
 }
 
-/* Must be invoked with lock held */
 static void dhcpv4_handle_msg_ack(struct net_if *iface)
 {
 	switch (iface->config.dhcpv4.state) {
@@ -956,7 +897,6 @@ static void dhcpv4_handle_msg_nak(struct net_if *iface)
 	}
 }
 
-/* Takes and releases lock */
 static void dhcpv4_handle_reply(struct net_if *iface,
 				enum dhcpv4_msg_type msg_type)
 {
@@ -987,7 +927,6 @@ static enum net_verdict net_dhcpv4_input(struct net_conn *conn,
 					 void *user_data)
 {
 	NET_PKT_DATA_ACCESS_DEFINE(dhcp_access, struct dhcp_msg);
-	enum net_verdict verdict = NET_DROP;
 	enum dhcpv4_msg_type msg_type = 0;
 	struct dhcp_msg *msg;
 	struct net_if *iface;
@@ -1042,8 +981,6 @@ static enum net_verdict net_dhcpv4_input(struct net_conn *conn,
 	NET_DBG("  giaddr=%d.%d.%d.%d]",
 		msg->giaddr[0], msg->giaddr[1], msg->giaddr[2], msg->giaddr[3]);
 
-	k_mutex_lock(&lock, K_FOREVER);
-
 	if (!(msg->op == DHCPV4_MSG_BOOT_REPLY &&
 	      iface->config.dhcpv4.xid == ntohl(msg->xid) &&
 	      !memcmp(msg->chaddr, net_if_get_link_addr(iface)->addr,
@@ -1051,12 +988,7 @@ static enum net_verdict net_dhcpv4_input(struct net_conn *conn,
 
 		NET_DBG("Unexpected op (%d), xid (%x vs %x) or chaddr",
 			msg->op, iface->config.dhcpv4.xid, ntohl(msg->xid));
-		goto drop;
-	}
-
-	if (msg->hlen != net_if_get_link_addr(iface)->len) {
-		NET_DBG("Unexpected hlen (%d)", msg->hlen);
-		goto drop;
+		return NET_DROP;
 	}
 
 	memcpy(iface->config.dhcpv4.requested_ip.s4_addr,
@@ -1067,31 +999,24 @@ static enum net_verdict net_dhcpv4_input(struct net_conn *conn,
 	/* SNAME, FILE are not used at the moment, skip it */
 	if (net_pkt_skip(pkt, SIZE_OF_SNAME + SIZE_OF_FILE)) {
 		NET_DBG("short packet while skipping sname");
-		goto drop;
+		return NET_DROP;
 	}
 
 	if (!dhcpv4_parse_options(pkt, iface, &msg_type)) {
-		goto drop;
+		return NET_DROP;
 	}
 
 	net_pkt_unref(pkt);
 
 	dhcpv4_handle_reply(iface, msg_type);
 
-	verdict = NET_OK;
-
-drop:
-	k_mutex_unlock(&lock);
-
-	return verdict;
+	return NET_OK;
 }
 
 static void dhcpv4_iface_event_handler(struct net_mgmt_event_callback *cb,
 				       uint32_t mgmt_event, struct net_if *iface)
 {
 	sys_snode_t *node = NULL;
-
-	k_mutex_lock(&lock, K_FOREVER);
 
 	SYS_SLIST_FOR_EACH_NODE(&dhcpv4_ifaces, node) {
 		if (node == &iface->config.dhcpv4.node) {
@@ -1100,7 +1025,7 @@ static void dhcpv4_iface_event_handler(struct net_mgmt_event_callback *cb,
 	}
 
 	if (node == NULL) {
-		goto out;
+		return;
 	}
 
 	if (mgmt_event == NET_EVENT_IF_DOWN) {
@@ -1120,11 +1045,12 @@ static void dhcpv4_iface_event_handler(struct net_mgmt_event_callback *cb,
 		 * enough. Instead we can force a request timeout
 		 * which will then call dhcpv4_send_request() automatically.
 		 */
-		dhcpv4_immediate_timeout(&iface->config.dhcpv4);
-	}
+		iface->config.dhcpv4.timer_start = k_uptime_get() - 1;
+		iface->config.dhcpv4.request_time = 0U;
 
-out:
-	k_mutex_unlock(&lock);
+		k_delayed_work_cancel(&timeout_work);
+		k_delayed_work_submit(&timeout_work, K_NO_WAIT);
+	}
 }
 
 const char *net_dhcpv4_state_name(enum net_dhcpv4_state state)
@@ -1148,15 +1074,18 @@ void net_dhcpv4_start(struct net_if *iface)
 	uint32_t timeout;
 	uint32_t entropy;
 
-	net_mgmt_event_notify(NET_EVENT_IPV4_DHCP_START, iface);
-
-	k_mutex_lock(&lock, K_FOREVER);
-
 	switch (iface->config.dhcpv4.state) {
 	case NET_DHCPV4_DISABLED:
 		iface->config.dhcpv4.state = NET_DHCPV4_INIT;
 		NET_DBG("iface %p state=%s", iface,
 			net_dhcpv4_state_name(iface->config.dhcpv4.state));
+
+		iface->config.dhcpv4.attempts = 0U;
+		iface->config.dhcpv4.lease_time = 0U;
+		iface->config.dhcpv4.renewal_time = 0U;
+
+		iface->config.dhcpv4.server_id.s_addr = 0U;
+		iface->config.dhcpv4.requested_ip.s_addr = 0U;
 
 		/* We need entropy for both an XID and a random delay
 		 * before sending the initial discover message.
@@ -1189,7 +1118,10 @@ void net_dhcpv4_start(struct net_if *iface)
 		sys_slist_append(&dhcpv4_ifaces,
 				 &iface->config.dhcpv4.node);
 
-		dhcpv4_set_timeout(&iface->config.dhcpv4, timeout);
+		iface->config.dhcpv4.timer_start = k_uptime_get();
+		iface->config.dhcpv4.request_time = timeout;
+
+		dhcpv4_update_timeout_work(timeout);
 
 		break;
 	case NET_DHCPV4_INIT:
@@ -1200,14 +1132,10 @@ void net_dhcpv4_start(struct net_if *iface)
 	case NET_DHCPV4_BOUND:
 		break;
 	}
-
-	k_mutex_unlock(&lock);
 }
 
 void net_dhcpv4_stop(struct net_if *iface)
 {
-	k_mutex_lock(&lock, K_FOREVER);
-
 	switch (iface->config.dhcpv4.state) {
 	case NET_DHCPV4_DISABLED:
 		break;
@@ -1232,19 +1160,12 @@ void net_dhcpv4_stop(struct net_if *iface)
 					  &iface->config.dhcpv4.node);
 
 		if (sys_slist_is_empty(&dhcpv4_ifaces)) {
-			/* Best effort cancel.  Handler is safe to invoke if
-			 * cancellation is unsuccessful.
-			 */
-			(void)k_work_cancel_delayable(&timeout_work);
+			k_delayed_work_cancel(&timeout_work);
 			net_mgmt_del_event_callback(&mgmt4_cb);
 		}
 
 		break;
 	}
-
-	net_mgmt_event_notify(NET_EVENT_IPV4_DHCP_STOP, iface);
-
-	k_mutex_unlock(&lock);
 }
 
 int net_dhcpv4_init(void)
@@ -1271,7 +1192,7 @@ int net_dhcpv4_init(void)
 		return ret;
 	}
 
-	k_work_init_delayable(&timeout_work, dhcpv4_timeout);
+	k_delayed_work_init(&timeout_work, dhcpv4_timeout);
 
 	/* Catch network interface UP or DOWN events and renew the address
 	 * if interface is coming back up again.

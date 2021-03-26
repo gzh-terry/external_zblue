@@ -10,7 +10,6 @@
 #include <soc.h>
 #include "arm_core_mpu_dev.h"
 #include <linker/linker-defs.h>
-#include <kernel_arch_data.h>
 
 #define LOG_LEVEL CONFIG_MPU_LOG_LEVEL
 #include <logging/log.h>
@@ -71,8 +70,7 @@ static inline uint8_t get_num_regions(void)
 	defined(CONFIG_CPU_CORTEX_M7)
 #include "arm_mpu_v7_internal.h"
 #elif defined(CONFIG_CPU_CORTEX_M23) || \
-	defined(CONFIG_CPU_CORTEX_M33) || \
-	defined(CONFIG_CPU_CORTEX_M55)
+	defined(CONFIG_CPU_CORTEX_M33)
 #include "arm_mpu_v8_internal.h"
 #else
 #error "Unsupported ARM CPU"
@@ -82,7 +80,7 @@ static int region_allocate_and_init(const uint8_t index,
 	const struct arm_mpu_region *region_conf)
 {
 	/* Attempt to allocate new region index. */
-	if (index > (get_num_regions() - 1U)) {
+	if (index > (get_num_regions() - 1)) {
 
 		/* No available MPU region index. */
 		LOG_ERR("Failed to allocate new MPU region %u\n", index);
@@ -101,7 +99,7 @@ static int region_allocate_and_init(const uint8_t index,
  * of a given configuration at a given MPU index.
  */
 static int mpu_configure_region(const uint8_t index,
-	const struct z_arm_mpu_partition *new_region)
+	const struct k_mem_partition *new_region)
 {
 	struct arm_mpu_region region_conf;
 
@@ -109,7 +107,7 @@ static int mpu_configure_region(const uint8_t index,
 
 	/* Populate internal ARM MPU region configuration structure. */
 	region_conf.base = new_region->start;
-	get_region_attr_from_mpu_partition_info(&region_conf.attr,
+	get_region_attr_from_k_mem_partition_info(&region_conf.attr,
 		&new_region->attr, new_region->start, new_region->size);
 
 	/* Allocate and program region */
@@ -123,26 +121,26 @@ static int mpu_configure_region(const uint8_t index,
  * over a background memory area, optionally performing a
  * sanity check of the memory regions to be programmed.
  */
-static int mpu_configure_regions(const struct z_arm_mpu_partition
-	regions[], uint8_t regions_num, uint8_t start_reg_index,
+static int mpu_configure_regions(const struct k_mem_partition
+	*regions[], uint8_t regions_num, uint8_t start_reg_index,
 	bool do_sanity_check)
 {
 	int i;
 	int reg_index = start_reg_index;
 
 	for (i = 0; i < regions_num; i++) {
-		if (regions[i].size == 0U) {
+		if (regions[i]->size == 0U) {
 			continue;
 		}
 		/* Non-empty region. */
 
 		if (do_sanity_check &&
-				(!mpu_partition_is_valid(&regions[i]))) {
+				(!mpu_partition_is_valid(regions[i]))) {
 			LOG_ERR("Partition %u: sanity check failed.", i);
 			return -EINVAL;
 		}
 
-		reg_index = mpu_configure_region(reg_index, &regions[i]);
+		reg_index = mpu_configure_region(reg_index, regions[i]);
 
 		if (reg_index == -EINVAL) {
 			return reg_index;
@@ -190,7 +188,7 @@ void arm_core_mpu_disable(void)
  * @brief update configuration of an active memory partition
  */
 void arm_core_mpu_mem_partition_config_update(
-	struct z_arm_mpu_partition *partition,
+	struct k_mem_partition *partition,
 	k_mem_partition_attr_t *new_attr)
 {
 	/* Find the partition. ASSERT if not found. */
@@ -251,8 +249,8 @@ int arm_core_mpu_buffer_validate(void *addr, size_t size, int write)
 /**
  * @brief configure fixed (static) MPU regions.
  */
-void arm_core_mpu_configure_static_mpu_regions(const struct z_arm_mpu_partition
-	static_regions[], const uint8_t regions_num,
+void arm_core_mpu_configure_static_mpu_regions(const struct k_mem_partition
+	*static_regions[], const uint8_t regions_num,
 	const uint32_t background_area_start, const uint32_t background_area_end)
 {
 	if (mpu_configure_static_mpu_regions(static_regions, regions_num,
@@ -268,7 +266,7 @@ void arm_core_mpu_configure_static_mpu_regions(const struct z_arm_mpu_partition
  * @brief mark memory areas for dynamic region configuration
  */
 void arm_core_mpu_mark_areas_for_dynamic_regions(
-	const struct z_arm_mpu_partition dyn_region_areas[],
+	const struct k_mem_partition dyn_region_areas[],
 	const uint8_t dyn_region_areas_num)
 {
 	if (mpu_mark_areas_for_dynamic_regions(dyn_region_areas,
@@ -283,8 +281,8 @@ void arm_core_mpu_mark_areas_for_dynamic_regions(
 /**
  * @brief configure dynamic MPU regions.
  */
-void arm_core_mpu_configure_dynamic_mpu_regions(const struct z_arm_mpu_partition
-	dynamic_regions[], uint8_t regions_num)
+void arm_core_mpu_configure_dynamic_mpu_regions(const struct k_mem_partition
+	*dynamic_regions[], uint8_t regions_num)
 {
 	if (mpu_configure_dynamic_mpu_regions(dynamic_regions, regions_num)
 		== -EINVAL) {
@@ -325,15 +323,6 @@ static int arm_mpu_init(const struct device *arg)
 
 	arm_core_mpu_disable();
 
-#if defined(CONFIG_NOCACHE_MEMORY)
-	/* Clean and invalidate data cache if
-	 * that was not already done at boot
-	 */
-#if !defined(CONFIG_INIT_ARCH_HW_AT_BOOT)
-	SCB_CleanInvalidateDCache();
-#endif
-#endif /* CONFIG_NOCACHE_MEMORY */
-
 	/* Architecture-specific configuration */
 	mpu_init();
 
@@ -347,61 +336,6 @@ static int arm_mpu_init(const struct device *arg)
 
 
 	arm_core_mpu_enable();
-
-	/* Program additional fixed flash region for null-pointer
-	 * dereferencing detection (debug feature)
-	 */
-#if defined(CONFIG_CORTEX_M_DEBUG_NULL_POINTER_EXCEPTION_DETECTION_MPU)
-#if (defined(CONFIG_ARMV8_M_BASELINE) || defined(CONFIG_ARMV8_M_MAINLINE)) && \
-	(CONFIG_FLASH_BASE_ADDRESS > CONFIG_CORTEX_M_DEBUG_NULL_POINTER_EXCEPTION_PAGE_SIZE)
-#pragma message "Null-Pointer exception detection cannot be configured on un-mapped flash areas"
-#else
-	const struct z_arm_mpu_partition unmap_region =	{
-		.start = 0x0,
-		.size = CONFIG_CORTEX_M_DEBUG_NULL_POINTER_EXCEPTION_PAGE_SIZE,
-#if defined(CONFIG_ARMV8_M_BASELINE) || defined(CONFIG_ARMV8_M_MAINLINE)
-		/* Overlapping region (with any permissions)
-		 * will result in fault generation
-		 */
-		.attr = K_MEM_PARTITION_P_RO_U_NA,
-#else
-		/* Explicit no-access policy */
-		.attr = K_MEM_PARTITION_P_NA_U_NA,
-#endif
-	};
-
-	/* The flash region for null pointer dereferencing detection shall
-	 * comply with the regular MPU partition definition restrictions
-	 * (size and alignment).
-	 */
-	_ARCH_MEM_PARTITION_ALIGN_CHECK(0x0,
-		CONFIG_CORTEX_M_DEBUG_NULL_POINTER_EXCEPTION_PAGE_SIZE);
-
-#if defined(CONFIG_ARMV8_M_BASELINE) || defined(CONFIG_ARMV8_M_MAINLINE)
-	/* ARMv8-M requires that the area:
-	 * 0x0 - CORTEX_M_DEBUG_NULL_POINTER_EXCEPTION_PAGE_SIZE
-	 * is not unmapped (belongs to a valid MPU region already).
-	 */
-	if ((arm_cmse_mpu_region_get(0x0) == -EINVAL) ||
-		(arm_cmse_mpu_region_get(
-			CONFIG_CORTEX_M_DEBUG_NULL_POINTER_EXCEPTION_PAGE_SIZE - 1)
-		== -EINVAL)) {
-		__ASSERT(0,
-			"Null pointer detection page unmapped\n");
-		}
-#endif
-
-	if (mpu_configure_region(static_regions_num, &unmap_region) == -EINVAL) {
-
-		__ASSERT(0,
-			"Programming null-pointer detection region failed\n");
-		return -EINVAL;
-	}
-
-	static_regions_num++;
-
-#endif
-#endif /* CONFIG_CORTEX_M_DEBUG_NULL_POINTER_EXCEPTION_DETECTION_MPU */
 
 	/* Sanity check for number of regions in Cortex-M0+, M3, and M4. */
 #if defined(CONFIG_CPU_CORTEX_M0PLUS) || \

@@ -8,7 +8,9 @@
 if SOC_FAMILY_STM32
 
 config CORTEX_M_SYSTICK
-	default n if STM32_LPTIM_TIMER
+	bool
+	default y
+	depends on !STM32_LPTIM_TIMER
 
 # set the tick per sec as a divider of the LPTIM clock source
 config SYS_CLOCK_TICKS_PER_SEC
@@ -33,6 +35,16 @@ endif # GPIO
 config PINMUX_STM32
 	default y
 	depends on PINMUX
+
+if WATCHDOG
+
+config IWDG_STM32
+	default y
+
+config WWDG_STM32
+	default n
+
+endif # WATCHDOG
 
 config PWM_STM32
 	default y
@@ -63,10 +75,10 @@ if DMA
 config DMA_STM32
 	default y
 
-endif # DMA
+config HEAP_MEM_POOL_SIZE
+	default 1024
+	depends on DMAMUX_STM32
 
-config MEMC_STM32
-	default y
-	depends on MEMC
+endif # DMA
 
 endif # SOC_FAMILY_STM32

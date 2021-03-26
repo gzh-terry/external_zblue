@@ -35,5 +35,4 @@
 	};
 };
 
-arduino_spi: &spi1 {};
 arduino_serial: &usart6 {};

@@ -90,7 +90,7 @@ static bool remote_lost;
 static bool started;
 static int64_t ended;
 
-static struct k_work_delayable refresh;
+static struct k_delayed_work refresh;
 
 /* Semaphore to indicate that there was an update to the display */
 static K_SEM_DEFINE(disp_update, 0, 1);
@@ -214,7 +214,7 @@ static void mode_selected(int val)
 	default:
 		printk("Unknown state %d\n", state);
 		return;
-	}
+	};
 }
 
 static const struct pong_selection mode_selection = {
@@ -262,7 +262,7 @@ static void check_start(void)
 
 	started = true;
 	remote_lost = false;
-	k_work_reschedule(&refresh, K_NO_WAIT);
+	k_delayed_work_submit(&refresh, K_NO_WAIT);
 }
 
 static void game_ended(bool won)
@@ -297,7 +297,7 @@ static void game_ended(bool won)
 		printk("You lost!\n");
 	}
 
-	k_work_reschedule(&refresh, K_MSEC(RESTART_THRESHOLD));
+	k_delayed_work_submit(&refresh, K_MSEC(RESTART_THRESHOLD));
 }
 
 static void game_stack_dump(const struct k_thread *thread, void *user_data)
@@ -376,7 +376,7 @@ static void game_refresh(struct k_work *work)
 		sound_set(SOUND_PADDLE);
 	}
 
-	k_work_reschedule(&refresh, GAME_REFRESH);
+	k_delayed_work_submit(&refresh, GAME_REFRESH);
 	k_sem_give(&disp_update);
 }
 
@@ -389,7 +389,7 @@ void pong_ball_received(int8_t x_pos, int8_t y_pos, int8_t x_vel, int8_t y_vel)
 	ball_vel.x = x_vel;
 	ball_vel.y = y_vel;
 
-	k_work_reschedule(&refresh, K_NO_WAIT);
+	k_delayed_work_submit(&refresh, K_NO_WAIT);
 }
 
 static void button_pressed(const struct device *dev, struct gpio_callback *cb,
@@ -411,12 +411,7 @@ static void button_pressed(const struct device *dev, struct gpio_callback *cb,
 	}
 
 	if (ended && (k_uptime_get() - ended) > RESTART_THRESHOLD) {
-		int busy = k_work_cancel_delayable(&refresh);
-
-		if (busy != 0) {
-			printk("WARNING: Data-race (work and event)\n");
-		}
-
+		k_delayed_work_cancel(&refresh);
 		game_init(state == SINGLE || remote_lost);
 		k_sem_give(&disp_update);
 		return;
@@ -478,7 +473,7 @@ void pong_conn_ready(bool initiator)
 void pong_remote_disconnected(void)
 {
 	state = INIT;
-	k_work_reschedule(&refresh, K_SECONDS(1));
+	k_delayed_work_submit(&refresh, K_SECONDS(1));
 }
 
 void pong_remote_lost(void)
@@ -518,7 +513,7 @@ void main(void)
 
 	configure_buttons();
 
-	k_work_init_delayable(&refresh, game_refresh);
+	k_delayed_work_init(&refresh, game_refresh);
 
 	pwm = device_get_binding(DT_LABEL(DT_INST(0, nordic_nrf_sw_pwm)));
 

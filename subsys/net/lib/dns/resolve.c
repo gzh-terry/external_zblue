@@ -76,7 +76,6 @@ NET_BUF_POOL_DEFINE(dns_qname_pool, DNS_RESOLVER_BUF_CTR, DNS_MAX_NAME_LEN,
 
 static struct dns_resolve_context dns_default_ctx;
 
-/* Must be invoked with context lock held */
 static int dns_write(struct dns_resolve_context *ctx,
 		     int server_idx,
 		     int query_idx,
@@ -209,13 +208,10 @@ int dns_resolve_init(struct dns_resolve_context *ctx, const char *servers[],
 	}
 
 	if (ctx->is_used) {
-		ret = -ENOTEMPTY;
-		goto fail;
+		return -ENOTEMPTY;
 	}
 
 	(void)memset(ctx, 0, sizeof(*ctx));
-
-	(void)k_mutex_init(&ctx->lock);
 
 	if (servers) {
 		for (i = 0; idx < SERVER_COUNT && servers[i]; i++) {
@@ -283,8 +279,7 @@ int dns_resolve_init(struct dns_resolve_context *ctx, const char *servers[],
 
 		if (!local_addr) {
 			NET_DBG("Local address not set");
-			ret = -EAFNOSUPPORT;
-			goto fail;
+			return -EAFNOSUPPORT;
 		}
 
 		ret = net_context_get(ctx->servers[i].dns_server.sa_family,
@@ -292,14 +287,14 @@ int dns_resolve_init(struct dns_resolve_context *ctx, const char *servers[],
 				      &ctx->servers[i].net_ctx);
 		if (ret < 0) {
 			NET_DBG("Cannot get net_context (%d)", ret);
-			goto fail;
+			return ret;
 		}
 
 		ret = net_context_bind(ctx->servers[i].net_ctx,
 				       local_addr, addr_len);
 		if (ret < 0) {
 			NET_DBG("Cannot bind DNS context (%d)", ret);
-			goto fail;
+			return ret;
 		}
 
 		iface = net_context_get_iface(ctx->servers[i].net_ctx);
@@ -327,54 +322,21 @@ int dns_resolve_init(struct dns_resolve_context *ctx, const char *servers[],
 	if (count == 0) {
 		/* No servers defined */
 		NET_DBG("No DNS servers defined.");
-		ret = -EINVAL;
-		goto fail;
+		return -EINVAL;
 	}
 
 	ctx->is_used = true;
 	ctx->buf_timeout = DNS_BUF_TIMEOUT;
-	ret = 0;
 
-fail:
-	return ret;
+	return 0;
 }
 
-/* Check whether a slot is available for use, or optionally whether it can be
- * reclaimed.
- *
- * @param pending_query the query slot in question
- *
- * @param reclaim_if_available if the slot is marked in use, but the query has
- * been completed and the work item is no longer pending, complete the release
- * of the slot.
- *
- * @return true if and only if the slot can be used for a new query.
- */
-static inline bool check_query_active(struct dns_pending_query *pending_query,
-				      bool reclaim_if_available)
-{
-	int ret = false;
-
-	if (pending_query->cb != NULL) {
-		ret = true;
-		if (reclaim_if_available
-		    && pending_query->query == NULL
-		    && k_work_delayable_busy_get(&pending_query->timer) == 0) {
-			pending_query->cb = NULL;
-			ret = false;
-		}
-	}
-
-	return ret;
-}
-
-/* Must be invoked with context lock held */
 static inline int get_cb_slot(struct dns_resolve_context *ctx)
 {
 	int i;
 
 	for (i = 0; i < CONFIG_DNS_NUM_CONCUR_QUERIES; i++) {
-		if (!check_query_active(&ctx->queries[i], true)) {
+		if (!ctx->queries[i].cb) {
 			return i;
 		}
 	}
@@ -382,50 +344,6 @@ static inline int get_cb_slot(struct dns_resolve_context *ctx)
 	return -ENOENT;
 }
 
-/* Invoke the callback associated with a query slot, if still relevant.
- *
- * Must be invoked with context lock held.
- *
- * @param status the query status value
- * @param info the query result structure
- * @param pending_query the query slot that will provide the callback
- **/
-static inline void invoke_query_callback(int status,
-					 struct dns_addrinfo *info,
-					 struct dns_pending_query *pending_query)
-{
-	/* Only notify if the slot is neither released nor in the process of
-	 * being released.
-	 */
-	if (pending_query->query != NULL)  {
-		pending_query->cb(status, info, pending_query->user_data);
-	}
-}
-
-/* Release a query slot reserved by get_cb_slot().
- *
- * Must be invoked with context lock held.
- *
- * @param pending_query the query slot to be released
- */
-static void release_query(struct dns_pending_query *pending_query)
-{
-	int busy = k_work_cancel_delayable(&pending_query->timer);
-
-	/* If the work item is no longer pending we're done. */
-	if (busy == 0) {
-		/* All done. */
-		pending_query->cb = NULL;
-	} else {
-		/* Work item is still pending.  Set a secondary condition that
-		 * can be checked by get_cb_slot() to complete release of the
-		 * slot once the work item has been confirmed to be completed.
-		 */
-		pending_query->query = NULL;
-	}
-}
-
-/* Must be invoked with context lock held */
 static inline int get_slot_by_id(struct dns_resolve_context *ctx,
 				 uint16_t dns_id,
 				 uint16_t query_hash)
@@ -433,8 +351,7 @@ static inline int get_slot_by_id(struct dns_resolve_context *ctx,
 	int i;
 
 	for (i = 0; i < CONFIG_DNS_NUM_CONCUR_QUERIES; i++) {
-		if (check_query_active(&ctx->queries[i], false) &&
-		    ctx->queries[i].id == dns_id &&
+		if (ctx->queries[i].cb && ctx->queries[i].id == dns_id &&
 		    (query_hash == 0 ||
 		     ctx->queries[i].query_hash == query_hash)) {
 			return i;
@@ -444,10 +361,6 @@ static inline int get_slot_by_id(struct dns_resolve_context *ctx,
 	return -ENOENT;
 }
 
-/* Unit test needs to be able to call this function */
-#if !defined(CONFIG_NET_TEST)
-static
-#endif
 int dns_validate_msg(struct dns_resolve_context *ctx,
 		     struct dns_msg_t *dns_msg,
 		     uint16_t *dns_id,
@@ -616,8 +529,8 @@ int dns_validate_msg(struct dns_resolve_context *ctx,
 			memcpy(addr, src, address_size);
 
 		query_known:
-			invoke_query_callback(DNS_EAI_INPROGRESS, &info,
-					      &ctx->queries[*query_idx]);
+			ctx->queries[*query_idx].cb(DNS_EAI_INPROGRESS, &info,
+					ctx->queries[*query_idx].user_data);
 			items++;
 			break;
 
@@ -693,7 +606,6 @@ quit:
 	return ret;
 }
 
-/* Must be invoked with context lock held */
 static int dns_read(struct dns_resolve_context *ctx,
 		    struct net_pkt *pkt,
 		    struct net_buf *dns_data,
@@ -730,10 +642,14 @@ static int dns_read(struct dns_resolve_context *ctx,
 		goto quit;
 	}
 
-	invoke_query_callback(ret, NULL, &ctx->queries[query_idx]);
+	if (k_delayed_work_remaining_get(&ctx->queries[query_idx].timer) > 0) {
+		k_delayed_work_cancel(&ctx->queries[query_idx].timer);
+	}
 
 	/* Marks the end of the results */
-	release_query(&ctx->queries[query_idx]);
+	ctx->queries[query_idx].cb(ret, NULL,
+				   ctx->queries[query_idx].user_data);
+	ctx->queries[query_idx].cb = NULL;
 
 	net_pkt_unref(pkt);
 
@@ -764,8 +680,6 @@ static void cb_recv(struct net_context *net_ctx,
 	int ret, i;
 
 	ARG_UNUSED(net_ctx);
-
-	k_mutex_lock(&ctx->lock, K_FOREVER);
 
 	if (status) {
 		ret = DNS_EAI_SYSTEM;
@@ -831,10 +745,13 @@ quit:
 		goto free_buf;
 	}
 
-	invoke_query_callback(ret, NULL, &ctx->queries[i]);
+	if (k_delayed_work_remaining_get(&ctx->queries[i].timer) > 0) {
+		k_delayed_work_cancel(&ctx->queries[i].timer);
+	}
 
 	/* Marks the end of the results */
-	release_query(&ctx->queries[i]);
+	ctx->queries[i].cb(ret, NULL, ctx->queries[i].user_data);
+	ctx->queries[i].cb = NULL;
 
 free_buf:
 	if (dns_data) {
@@ -844,11 +761,8 @@ free_buf:
 	if (dns_cname) {
 		net_buf_unref(dns_cname);
 	}
-
-	k_mutex_unlock(&ctx->lock);
 }
 
-/* Must be invoked with context lock held */
 static int dns_write(struct dns_resolve_context *ctx,
 		     int server_idx,
 		     int query_idx,
@@ -902,8 +816,8 @@ static int dns_write(struct dns_resolve_context *ctx,
 		server_addr_len = sizeof(struct sockaddr_in6);
 	}
 
-	ret = k_work_reschedule(&ctx->queries[query_idx].timer,
-				ctx->queries[query_idx].timeout);
+	ret = k_delayed_work_submit(&ctx->queries[query_idx].timer,
+				    ctx->queries[query_idx].timeout);
 	if (ret < 0) {
 		NET_DBG("[%u] cannot submit work to server idx %d for id %u "
 			"ret %d", query_idx, server_idx, dns_id, ret);
@@ -930,27 +844,23 @@ static int dns_resolve_cancel_with_hash(struct dns_resolve_context *ctx,
 					uint16_t query_hash,
 					const char *query_name)
 {
-	int ret;
 	int i;
 
-	k_mutex_lock(&ctx->lock, K_FOREVER);
-
 	i = get_slot_by_id(ctx, dns_id, query_hash);
-	if (i < 0) {
-		ret = -ENOENT;
-		goto fail;
+	if (i < 0 || !ctx->queries[i].cb) {
+		return -ENOENT;
 	}
 
 	NET_DBG("Cancelling DNS req %u (name %s type %d hash %u)", dns_id,
 		log_strdup(query_name), ctx->queries[i].query_type,
 		query_hash);
 
-	invoke_query_callback(DNS_EAI_CANCELED, NULL, &ctx->queries[i]);
+	if (k_delayed_work_remaining_get(&ctx->queries[i].timer) > 0) {
+		k_delayed_work_cancel(&ctx->queries[i].timer);
+	}
 
-	release_query(&ctx->queries[i]);
-
-fail:
-	k_mutex_unlock(&ctx->lock);
+	ctx->queries[i].cb(DNS_EAI_CANCELED, NULL, ctx->queries[i].user_data);
+	ctx->queries[i].cb = NULL;
 
 	return 0;
 }
@@ -1012,39 +922,14 @@ static void query_timeout(struct k_work *work)
 {
 	struct dns_pending_query *pending_query =
 		CONTAINER_OF(work, struct dns_pending_query, timer);
-	int ret;
-
-	/* We have to take the lock as we're inspecting protected content
-	 * associated with the query.  But don't block the system work queue:
-	 * if the lock can't be taken immediately, reschedule the work item to
-	 * be run again after everything else has had a chance.
-	 *
-	 * Note that it's OK to use the k_work API on the delayable work
-	 * without holding the lock: it's only the associated state in the
-	 * containing structure that must be protected.
-	 */
-	ret = k_mutex_lock(&pending_query->ctx->lock, K_NO_WAIT);
-	if (ret != 0) {
-		struct k_work_delayable *dwork = k_work_delayable_from_work(work);
-
-		k_work_reschedule(dwork, K_NO_WAIT);
-		return;
-	}
 
 	NET_DBG("Query timeout DNS req %u type %d hash %u", pending_query->id,
 		pending_query->query_type, pending_query->query_hash);
 
-	/* The resolve cancel will invoke release_query(), but release will
-	 * not be completed because the work item is still pending.  Instead
-	 * the release will be completed when check_query_active() confirms
-	 * the work item is no longer active.
-	 */
 	(void)dns_resolve_cancel_with_hash(pending_query->ctx,
 					   pending_query->id,
 					   pending_query->query_hash,
 					   pending_query->query);
-
-	k_mutex_unlock(&pending_query->ctx->lock);
 }
 
 int dns_resolve_name(struct dns_resolve_context *ctx,
@@ -1085,7 +970,8 @@ int dns_resolve_name(struct dns_resolve_context *ctx,
 
 		if (type == DNS_QUERY_TYPE_A) {
 			if (net_sin(&addr)->sin_family == AF_INET6) {
-				return -EPFNOSUPPORT;
+				ret = -EPFNOSUPPORT;
+				goto quit;
 			}
 
 			memcpy(net_sin(&info.ai_addr), net_sin(&addr),
@@ -1101,7 +987,8 @@ int dns_resolve_name(struct dns_resolve_context *ctx,
 			 * here so that we can find it easily.
 			 */
 			if (net_sin(&addr)->sin_family == AF_INET) {
-				return -EPFNOSUPPORT;
+				ret = -EPFNOSUPPORT;
+				goto quit;
 			}
 
 #if defined(CONFIG_NET_IPV6)
@@ -1111,7 +998,8 @@ int dns_resolve_name(struct dns_resolve_context *ctx,
 			info.ai_addr.sa_family = AF_INET6;
 			info.ai_addrlen = sizeof(struct sockaddr_in6);
 #else
-			return -EAFNOSUPPORT;
+			ret = -EAFNOSUPPORT;
+			goto quit;
 #endif
 		} else {
 			goto try_resolve;
@@ -1124,12 +1012,9 @@ int dns_resolve_name(struct dns_resolve_context *ctx,
 	}
 
 try_resolve:
-	k_mutex_lock(&ctx->lock, K_FOREVER);
-
 	i = get_cb_slot(ctx);
 	if (i < 0) {
-		ret = -EAGAIN;
-		goto fail;
+		return -EAGAIN;
 	}
 
 	ctx->queries[i].cb = cb;
@@ -1140,7 +1025,7 @@ try_resolve:
 	ctx->queries[i].ctx = ctx;
 	ctx->queries[i].query_hash = 0;
 
-	k_work_init_delayable(&ctx->queries[i].timer, query_timeout);
+	k_delayed_work_init(&ctx->queries[i].timer, query_timeout);
 
 	dns_data = net_buf_alloc(&dns_msg_pool, ctx->buf_timeout);
 	if (!dns_data) {
@@ -1239,7 +1124,12 @@ try_resolve:
 quit:
 	if (ret < 0) {
 		if (i >= 0) {
-			release_query(&ctx->queries[i]);
+			if (k_delayed_work_remaining_get(
+				    &ctx->queries[i].timer) > 0) {
+				k_delayed_work_cancel(&ctx->queries[i].timer);
+			}
+
+			ctx->queries[i].cb = NULL;
 		}
 
 		if (dns_id) {
@@ -1255,9 +1145,6 @@ quit:
 		net_buf_unref(dns_qname);
 	}
 
-fail:
-	k_mutex_unlock(&ctx->lock);
-
 	return ret;
 }
 
@@ -1268,8 +1155,6 @@ int dns_resolve_close(struct dns_resolve_context *ctx)
 	if (!ctx->is_used) {
 		return -ENOENT;
 	}
-
-	k_mutex_lock(&ctx->lock, K_FOREVER);
 
 	for (i = 0; i < SERVER_COUNT; i++) {
 		if (ctx->servers[i].net_ctx) {
@@ -1293,8 +1178,6 @@ int dns_resolve_close(struct dns_resolve_context *ctx)
 	}
 
 	ctx->is_used = false;
-
-	k_mutex_unlock(&ctx->lock);
 
 	return 0;
 }

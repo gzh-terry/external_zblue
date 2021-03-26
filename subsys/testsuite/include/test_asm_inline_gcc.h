@@ -42,7 +42,7 @@ static inline void timestamp_serialize(void)
 {
 	__ISB();
 }
-#elif defined(CONFIG_ARC)
+#elif defined(CONFIG_CPU_ARCV2)
 #define timestamp_serialize()
 #elif defined(CONFIG_ARCH_POSIX)
 #define timestamp_serialize()
@@ -51,8 +51,6 @@ static inline void timestamp_serialize(void)
 #elif defined(CONFIG_NIOS2)
 #define timestamp_serialize()
 #elif defined(CONFIG_RISCV)
-#define timestamp_serialize()
-#elif defined(CONFIG_SPARC)
 #define timestamp_serialize()
 #else
 #error implementation of timestamp_serialize() not provided for your CPU target

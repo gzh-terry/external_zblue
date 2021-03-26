@@ -47,7 +47,7 @@ struct sys_notify;
  */
 #define SYS_NOTIFY_METHOD_CALLBACK 3
 
-#define SYS_NOTIFY_METHOD_MASK 0x03U
+#define SYS_NOTIFY_METHOD_MASK 0x03
 #define SYS_NOTIFY_METHOD_POS 0
 
 /**
@@ -280,8 +280,10 @@ static inline void sys_notify_init_spinwait(struct sys_notify *notify)
  * reinitialized before it can be re-used.
  *
  * @note
- *   This capability is available only when @option{CONFIG_POLL} is
+ *   @rst
+ *   This capability is available only when :option:`CONFIG_POLL` is
  *   selected.
+ *   @endrst
  *
  * @param notify pointer to the notification configuration object.
  *

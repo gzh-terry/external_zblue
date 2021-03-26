@@ -12,4 +12,3 @@ add_dependencies(settings_test_fs
 
 FILE(GLOB fssources *.c )
 zephyr_library_sources(${fssources})
-zephyr_library_link_libraries(kernel)
