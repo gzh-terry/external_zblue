@@ -45,10 +45,6 @@ config CAVS_ISR_TBL_OFFSET
 config DW_ISR_TBL_OFFSET
 	default 3RD_LVL_ISR_TBL_OFFSET
 
-config HEAP_MEM_POOL_SIZE
-	default 1024
-	depends on DMA_DW
-
 config ROM_START_OFFSET
 	default 0x100
 	depends on BOOTLOADER_MCUBOOT
@@ -155,9 +151,6 @@ endif
 if SPI
 
 config SPI_DW
-	default y
-
-config SPI_0
 	default y
 
 endif

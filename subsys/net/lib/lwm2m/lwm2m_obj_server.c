@@ -20,6 +20,9 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include "lwm2m_rd_client.h"
 #endif
 
+#define SERVER_VERSION_MAJOR 1
+#define SERVER_VERSION_MINOR 0
+
 /* Server resource IDs */
 #define SERVER_SHORT_SERVER_ID		0
 #define SERVER_LIFETIME_ID		1
@@ -82,7 +85,7 @@ static struct lwm2m_engine_res res[MAX_INSTANCE_COUNT][SERVER_MAX_ID];
 static struct lwm2m_engine_res_inst
 			res_inst[MAX_INSTANCE_COUNT][RESOURCE_INSTANCE_COUNT];
 
-static int disable_cb(uint16_t obj_inst_id)
+static int disable_cb(uint16_t obj_inst_id, uint8_t *args, uint16_t args_len)
 {
 	int i;
 
@@ -97,10 +100,32 @@ static int disable_cb(uint16_t obj_inst_id)
 	return -ENOENT;
 }
 
-static int update_trigger_cb(uint16_t obj_inst_id)
+static int update_trigger_cb(uint16_t obj_inst_id,
+			     uint8_t *args, uint16_t args_len)
 {
 #ifdef CONFIG_LWM2M_RD_CLIENT_SUPPORT
-	engine_trigger_update();
+	engine_trigger_update(false);
+	return 0;
+#else
+	return -EPERM;
+#endif
+}
+
+static int lifetime_write_cb(uint16_t obj_inst_id, uint16_t res_id,
+			     uint16_t res_inst_id, uint8_t *data,
+			     uint16_t data_len, bool last_block,
+			     size_t total_size)
+{
+	ARG_UNUSED(obj_inst_id);
+	ARG_UNUSED(res_id);
+	ARG_UNUSED(res_inst_id);
+	ARG_UNUSED(data);
+	ARG_UNUSED(data_len);
+	ARG_UNUSED(last_block);
+	ARG_UNUSED(total_size);
+
+#ifdef CONFIG_LWM2M_RD_CLIENT_SUPPORT
+	engine_trigger_update(false);
 	return 0;
 #else
 	return -EPERM;
@@ -189,9 +214,9 @@ static struct lwm2m_engine_obj_inst *server_create(uint16_t obj_inst_id)
 	INIT_OBJ_RES_DATA(SERVER_SHORT_SERVER_ID, res[index], i,
 			  res_inst[index], j,
 			  &server_id[index], sizeof(*server_id));
-	INIT_OBJ_RES_DATA(SERVER_LIFETIME_ID, res[index], i,
-			  res_inst[index], j,
-			  &lifetime[index], sizeof(*lifetime));
+	INIT_OBJ_RES(SERVER_LIFETIME_ID, res[index], i, res_inst[index], j,
+		     1U, false, true, &lifetime[index], sizeof(*lifetime),
+		     NULL, NULL, NULL, lifetime_write_cb, NULL);
 	INIT_OBJ_RES_DATA(SERVER_DEFAULT_MIN_PERIOD_ID, res[index], i,
 			  res_inst[index], j,
 			  &default_min_period[index],
@@ -228,6 +253,9 @@ static int lwm2m_server_init(const struct device *dev)
 	int ret = 0;
 
 	server.obj_id = LWM2M_OBJECT_SERVER_ID;
+	server.version_major = SERVER_VERSION_MAJOR;
+	server.version_minor = SERVER_VERSION_MINOR;
+	server.is_core = true;
 	server.fields = fields;
 	server.field_count = ARRAY_SIZE(fields);
 	server.max_instance_count = MAX_INSTANCE_COUNT;

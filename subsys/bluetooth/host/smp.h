@@ -123,6 +123,13 @@ struct bt_smp_dhkey_check {
 	uint8_t e[16];
 } __packed;
 
+#define BT_SMP_KEYPRESS_NOTIFICATION		0x0e
+struct bt_smp_keypress_notif {
+	uint8_t type;
+} __packed;
+
+#define BT_SMP_NUM_CMDS                         0x0f
+
 int bt_smp_start_security(struct bt_conn *conn);
 bool bt_smp_request_ltk(struct bt_conn *conn, uint64_t rand, uint16_t ediv,
 			uint8_t *ltk);

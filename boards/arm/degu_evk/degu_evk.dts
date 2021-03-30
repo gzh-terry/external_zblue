@@ -94,21 +94,21 @@
 &i2c0 {
 	compatible = "nordic,nrf-twim";
 	status = "okay";
-	sda-pin = <20>;
-	scl-pin = <22>;
+	sda-gpios = <&gpio0 20 0>;
+	scl-gpios = <&gpio0 22 0>;
 };
 
 &i2c1 {
 	compatible = "nordic,nrf-twim";
 	status = "okay";
-	sda-pin = <41>;
-	scl-pin = <11>;
+	sda-gpios = <&gpio1 9 0>;
+	scl-gpios = <&gpio0 11 0>;
 };
 
 &flash0 {
 	/*
 	 * For more information, see:
-	 * http://docs.zephyrproject.org/latest/devices/dts/flash_partitions.html
+	 * https://docs.zephyrproject.org/latest/reference/devicetree/index.html#fixed-flash-partitions
 	 */
 	partitions {
 		compatible = "fixed-partitions";

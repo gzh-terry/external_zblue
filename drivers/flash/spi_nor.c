@@ -149,6 +149,9 @@ static const struct jesd216_erase_type minimal_erase_types[JESD216_NUM_ERASE_TYP
 };
 #endif /* CONFIG_SPI_NOR_SFDP_MINIMAL */
 
+static int spi_nor_write_protection_set(const struct device *dev,
+					bool write_protect);
+
 /* Get pointer to array of supported erase types.  Static const for
  * minimal, data for runtime and devicetree.
  */
@@ -480,36 +483,43 @@ static int spi_nor_write(const struct device *dev, off_t addr,
 	}
 
 	acquire_device(dev);
+	ret = spi_nor_write_protection_set(dev, false);
+	if (ret == 0) {
+		while (size > 0) {
+			size_t to_write = size;
 
-	while (size > 0) {
-		size_t to_write = size;
+			/* Don't write more than a page. */
+			if (to_write >= page_size) {
+				to_write = page_size;
+			}
 
-		/* Don't write more than a page. */
-		if (to_write >= page_size) {
-			to_write = page_size;
+			/* Don't write across a page boundary */
+			if (((addr + to_write - 1U) / page_size)
+			!= (addr / page_size)) {
+				to_write = page_size - (addr % page_size);
+			}
+
+			spi_nor_cmd_write(dev, SPI_NOR_CMD_WREN);
+			ret = spi_nor_cmd_addr_write(dev, SPI_NOR_CMD_PP, addr,
+						src, to_write);
+			if (ret != 0) {
+				break;
+			}
+
+			size -= to_write;
+			src = (const uint8_t *)src + to_write;
+			addr += to_write;
+
+			spi_nor_wait_until_ready(dev);
 		}
-
-		/* Don't write across a page boundary */
-		if (((addr + to_write - 1U) / page_size)
-		    != (addr / page_size)) {
-			to_write = page_size - (addr % page_size);
-		}
-
-		spi_nor_cmd_write(dev, SPI_NOR_CMD_WREN);
-		ret = spi_nor_cmd_addr_write(dev, SPI_NOR_CMD_PP, addr,
-					     src, to_write);
-		if (ret != 0) {
-			goto out;
-		}
-
-		size -= to_write;
-		src = (const uint8_t *)src + to_write;
-		addr += to_write;
-
-		spi_nor_wait_until_ready(dev);
 	}
 
-out:
+	int ret2 = spi_nor_write_protection_set(dev, false);
+
+	if (!ret) {
+		ret = ret2;
+	}
+
 	release_device(dev);
 	return ret;
 }
@@ -535,6 +545,7 @@ static int spi_nor_erase(const struct device *dev, off_t addr, size_t size)
 	}
 
 	acquire_device(dev);
+	ret = spi_nor_write_protection_set(dev, false);
 
 	while ((size > 0) && (ret == 0)) {
 		spi_nor_cmd_write(dev, SPI_NOR_CMD_WREN);
@@ -573,6 +584,12 @@ static int spi_nor_erase(const struct device *dev, off_t addr, size_t size)
 		spi_nor_wait_until_ready(dev);
 	}
 
+	int ret2 = spi_nor_write_protection_set(dev, true);
+
+	if (!ret) {
+		ret = ret2;
+	}
+
 	release_device(dev);
 
 	return ret;
@@ -582,8 +599,6 @@ static int spi_nor_write_protection_set(const struct device *dev,
 					bool write_protect)
 {
 	int ret;
-
-	acquire_device(dev);
 
 	spi_nor_wait_until_ready(dev);
 
@@ -595,8 +610,6 @@ static int spi_nor_write_protection_set(const struct device *dev,
 	    && !write_protect) {
 		ret = spi_nor_cmd_write(dev, SPI_NOR_CMD_ULBPR);
 	}
-
-	release_device(dev);
 
 	return ret;
 }
@@ -647,7 +660,7 @@ static int spi_nor_process_bfp(const struct device *dev,
 	struct jesd216_erase_type *etp = data->erase_types;
 	const size_t flash_size = jesd216_bfp_density(bfp) / 8U;
 
-	LOG_INF("%s: %u MiBy flash", dev->name, (uint32_t)(flash_size >> 23));
+	LOG_INF("%s: %u MiBy flash", dev->name, (uint32_t)(flash_size >> 20));
 
 	/* Copy over the erase types, preserving their order.  (The
 	 * Sector Map Parameter table references them by index.)
@@ -704,10 +717,10 @@ static int spi_nor_process_sfdp(const struct device *dev)
 	}
 
 	LOG_INF("%s: SFDP v %u.%u AP %x with %u PH", dev->name,
-		hp->rev_major, hp->rev_minor, hp->access, hp->nph);
+		hp->rev_major, hp->rev_minor, hp->access, 1 + hp->nph);
 
 	const struct jesd216_param_header *php = hp->phdr;
-	const struct jesd216_param_header *phpe = php + MIN(decl_nph, hp->nph);
+	const struct jesd216_param_header *phpe = php + MIN(decl_nph, 1 + hp->nph);
 
 	while (php != phpe) {
 		uint16_t id = jesd216_param_id(php);
@@ -923,7 +936,7 @@ static int spi_nor_init(const struct device *dev)
 	if (IS_ENABLED(CONFIG_MULTITHREADING)) {
 		struct spi_nor_data *const driver_data = dev->data;
 
-		k_sem_init(&driver_data->sem, 1, UINT_MAX);
+		k_sem_init(&driver_data->sem, 1, K_SEM_MAX_LIMIT);
 	}
 
 	return spi_nor_configure(dev);
@@ -963,7 +976,6 @@ static const struct flash_driver_api spi_nor_api = {
 	.read = spi_nor_read,
 	.write = spi_nor_write,
 	.erase = spi_nor_erase,
-	.write_protection = spi_nor_write_protection_set,
 	.get_parameters = flash_nor_get_parameters,
 #if defined(CONFIG_FLASH_PAGE_LAYOUT)
 	.page_layout = spi_nor_pages_layout,
@@ -1039,7 +1051,7 @@ static const struct spi_nor_config spi_nor_config_0 = {
 
 static struct spi_nor_data spi_nor_data_0;
 
-DEVICE_AND_API_INIT(spi_flash_memory, DT_INST_LABEL(0),
-		    &spi_nor_init, &spi_nor_data_0, &spi_nor_config_0,
-		    POST_KERNEL, CONFIG_SPI_NOR_INIT_PRIORITY,
-		    &spi_nor_api);
+DEVICE_DT_INST_DEFINE(0, &spi_nor_init, device_pm_control_nop,
+		 &spi_nor_data_0, &spi_nor_config_0,
+		 POST_KERNEL, CONFIG_SPI_NOR_INIT_PRIORITY,
+		 &spi_nor_api);

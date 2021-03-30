@@ -34,14 +34,8 @@ void test_flash_area_get_sectors(void)
 	flash_dev =
 		device_get_binding(DT_CHOSEN_ZEPHYR_FLASH_CONTROLLER_LABEL);
 
-	rc = flash_write_protection_set(flash_dev, false);
-	zassert_false(rc, "failed to disable flash write protection");
-
 	rc = flash_erase(flash_dev, fa->fa_off, fa->fa_size);
 	zassert_true(rc == 0, "flash area erase fail");
-
-	rc = flash_write_protection_set(flash_dev, true);
-	zassert_false(rc, "failed to enable flash write protection");
 
 	(void)memset(wd, 0xa5, sizeof(wd));
 
@@ -63,7 +57,6 @@ void test_flash_area_get_sectors(void)
 		rc = memcmp(wd, rd, sizeof(wd));
 		zassert_true(rc == 0, "read data != write data");
 
-		(void) flash_write_protection_set(flash_dev, false);
 		/* write stuff to end of area */
 		rc = flash_write(flash_dev, fa->fa_off + off +
 					    fs_sectors[i].fs_size - sizeof(wd),
@@ -158,9 +151,28 @@ void test_flash_area_check_int_sha256(void)
 	flash_area_close(fa);
 }
 
+void test_flash_area_erased_val(void)
+{
+	const struct flash_parameters *param;
+	const struct flash_area *fa;
+	uint8_t val;
+	int rc;
+
+	rc = flash_area_open(FLASH_AREA_ID(image_1), &fa);
+	zassert_true(rc == 0, "flash_area_open() fail");
+
+	val = flash_area_erased_val(fa);
+
+	param = flash_get_parameters(device_get_binding(fa->fa_dev_name));
+
+	zassert_equal(param->erase_value, val,
+		      "value different than the flash erase value");
+}
+
 void test_main(void)
 {
 	ztest_test_suite(test_flash_map,
+			 ztest_unit_test(test_flash_area_erased_val),
 			 ztest_unit_test(test_flash_area_get_sectors),
 			 ztest_unit_test(test_flash_area_check_int_sha256)
 			);

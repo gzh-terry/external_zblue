@@ -6,7 +6,7 @@
 
 /dts-v1/;
 
-#include <nxp/nxp_ke18f512vlx16.dtsi>
+#include <nxp/MKE18F512VLL16.dtsi>
 #include <dt-bindings/clock/kinetis_scg.h>
 #include <dt-bindings/pwm/pwm.h>
 
@@ -238,10 +238,7 @@
 };
 
 &flash0 {
-	/*
-	 * For more information, see:
-	 * https://docs.zephyrproject.org/latest/guides/dts/legacy-macros.html#legacy-flash-partitions
-	 */
+
 	partitions {
 		compatible = "fixed-partitions";
 		#address-cells = <1>;

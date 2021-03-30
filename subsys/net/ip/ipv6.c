@@ -23,6 +23,7 @@ LOG_MODULE_REGISTER(net_ipv6, CONFIG_NET_IPV6_LOG_LEVEL);
 #include <net/net_stats.h>
 #include <net/net_context.h>
 #include <net/net_mgmt.h>
+#include <net/virtual.h>
 #include "net_private.h"
 #include "connection.h"
 #include "icmpv6.h"
@@ -172,11 +173,15 @@ static inline int ipv6_handle_ext_hdr_options(struct net_pkt *pkt,
 	uint16_t exthdr_len = 0U;
 	uint16_t length = 0U;
 
-	if (net_pkt_read_u8(pkt, (uint8_t *)&exthdr_len)) {
-		return -ENOBUFS;
+	{
+		uint8_t val = 0U;
+
+		if (net_pkt_read_u8(pkt, &val)) {
+			return -ENOBUFS;
+		}
+		exthdr_len = val * 8U + 8;
 	}
 
-	exthdr_len = exthdr_len * 8U + 8;
 	if (exthdr_len > pkt_len) {
 		NET_DBG("Corrupted packet, extension header %d too long "
 			"(max %d bytes)", exthdr_len, pkt_len);
@@ -404,6 +409,12 @@ enum net_verdict net_ipv6_input(struct net_pkt *pkt, bool is_loopback)
 	union net_ip_header ip;
 	int pkt_len;
 
+#if defined(CONFIG_NET_L2_VIRTUAL)
+	struct net_pkt_cursor hdr_start;
+
+	net_pkt_cursor_backup(pkt, &hdr_start);
+#endif
+
 	net_stats_update_ipv6_recv(pkt_iface);
 
 	hdr = (struct net_ipv6_hdr *)net_pkt_get_data(pkt, &ipv6_access);
@@ -614,6 +625,22 @@ enum net_verdict net_ipv6_input(struct net_pkt *pkt, bool is_loopback)
 			verdict = NET_OK;
 		}
 		break;
+#if defined(CONFIG_NET_L2_VIRTUAL)
+	case IPPROTO_IPV6:
+	case IPPROTO_IPIP: {
+		struct net_addr remote_addr;
+
+		remote_addr.family = AF_INET6;
+		net_ipaddr_copy(&remote_addr.in6_addr, &hdr->src);
+
+		/* Get rid of the old IP header */
+		net_pkt_cursor_restore(pkt, &hdr_start);
+		net_pkt_pull(pkt, net_pkt_ip_hdr_len(pkt) +
+			     net_pkt_ipv6_ext_len(pkt));
+
+		return net_virtual_input(pkt_iface, &remote_addr, pkt);
+	}
+#endif
 	}
 
 	if (verdict == NET_DROP) {
