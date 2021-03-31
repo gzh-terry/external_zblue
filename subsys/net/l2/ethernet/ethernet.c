@@ -174,20 +174,9 @@ static enum net_verdict ethernet_recv(struct net_if *iface,
 	struct ethernet_context *ctx = net_if_l2_data(iface);
 	struct net_eth_hdr *hdr = NET_ETH_HDR(pkt);
 	uint8_t hdr_len = sizeof(struct net_eth_hdr);
-	uint16_t type;
+	uint16_t type = ntohs(hdr->type);
 	struct net_linkaddr *lladdr;
 	sa_family_t family;
-
-	/* This expects that the Ethernet header is in the first net_buf
-	 * fragment. This is a safe expectation here as it would not make
-	 * any sense to split the Ethernet header to two net_buf's by the
-	 * Ethernet driver.
-	 */
-	if (hdr == NULL || pkt->buffer->len < hdr_len) {
-		goto drop;
-	}
-
-	type = ntohs(hdr->type);
 
 	if (net_eth_is_vlan_enabled(ctx, iface) &&
 	    type == NET_ETH_PTYPE_VLAN &&
@@ -321,7 +310,7 @@ static inline bool ethernet_ipv4_dst_is_broadcast_or_mcast(struct net_pkt *pkt)
 {
 	if (net_ipv4_is_addr_bcast(net_pkt_iface(pkt),
 				   &NET_IPV4_HDR(pkt)->dst) ||
-	    net_ipv4_is_addr_mcast(&NET_IPV4_HDR(pkt)->dst)) {
+	    NET_IPV4_HDR(pkt)->dst.s4_addr[0] == 224U) {
 		return true;
 	}
 
@@ -332,7 +321,7 @@ static bool ethernet_fill_in_dst_on_ipv4_mcast(struct net_pkt *pkt,
 					       struct net_eth_addr *dst)
 {
 	if (net_pkt_family(pkt) == AF_INET &&
-	    net_ipv4_is_addr_mcast(&NET_IPV4_HDR(pkt)->dst)) {
+	    NET_IPV4_HDR(pkt)->dst.s4_addr[0] == 224U) {
 		/* Multicast address */
 		dst->addr[0] = 0x01;
 		dst->addr[1] = 0x00;
@@ -1002,52 +991,55 @@ int net_eth_vlan_disable(struct net_if *iface, uint16_t tag)
 NET_L2_INIT(ETHERNET_L2, ethernet_recv, ethernet_send, ethernet_enable,
 	    ethernet_flags);
 
-static void carrier_on_off(struct k_work *work)
+static void carrier_on(struct k_work *work)
 {
-	struct ethernet_context *ctx = CONTAINER_OF(work, struct ethernet_context,
-						    carrier_work);
-	bool eth_carrier_up;
+	struct ethernet_context *ctx = CONTAINER_OF(work,
+						    struct ethernet_context,
+						    carrier_mgmt.work);
 
-	if (ctx->iface == NULL) {
-		return;
-	}
+	NET_DBG("Carrier ON for interface %p", ctx->carrier_mgmt.iface);
 
-	eth_carrier_up = atomic_test_bit(&ctx->flags, ETH_CARRIER_UP);
+	ethernet_mgmt_raise_carrier_on_event(ctx->carrier_mgmt.iface);
 
-	if (eth_carrier_up == ctx->is_net_carrier_up) {
-		return;
-	}
+	net_if_up(ctx->carrier_mgmt.iface);
+}
 
-	ctx->is_net_carrier_up = eth_carrier_up;
+static void carrier_off(struct k_work *work)
+{
+	struct ethernet_context *ctx = CONTAINER_OF(work,
+						    struct ethernet_context,
+						    carrier_mgmt.work);
 
-	NET_DBG("Carrier %s for interface %p", eth_carrier_up ? "ON" : "OFF",
-		ctx->iface);
+	NET_DBG("Carrier OFF for interface %p", ctx->carrier_mgmt.iface);
 
-	if (eth_carrier_up) {
-		ethernet_mgmt_raise_carrier_on_event(ctx->iface);
-		net_if_up(ctx->iface);
-	} else {
-		ethernet_mgmt_raise_carrier_off_event(ctx->iface);
-		net_if_carrier_down(ctx->iface);
-	}
+	ethernet_mgmt_raise_carrier_off_event(ctx->carrier_mgmt.iface);
+
+	net_if_carrier_down(ctx->carrier_mgmt.iface);
+}
+
+static void handle_carrier(struct ethernet_context *ctx,
+			   struct net_if *iface,
+			   k_work_handler_t handler)
+{
+	k_work_init(&ctx->carrier_mgmt.work, handler);
+
+	ctx->carrier_mgmt.iface = iface;
+
+	k_work_submit(&ctx->carrier_mgmt.work);
 }
 
 void net_eth_carrier_on(struct net_if *iface)
 {
 	struct ethernet_context *ctx = net_if_l2_data(iface);
 
-	if (!atomic_test_and_set_bit(&ctx->flags, ETH_CARRIER_UP)) {
-		k_work_submit(&ctx->carrier_work);
-	}
+	handle_carrier(ctx, iface, carrier_on);
 }
 
 void net_eth_carrier_off(struct net_if *iface)
 {
 	struct ethernet_context *ctx = net_if_l2_data(iface);
 
-	if (atomic_test_and_clear_bit(&ctx->flags, ETH_CARRIER_UP)) {
-		k_work_submit(&ctx->carrier_work);
-	}
+	handle_carrier(ctx, iface, carrier_off);
 }
 
 #if defined(CONFIG_PTP_CLOCK)
@@ -1146,8 +1138,6 @@ void ethernet_init(struct net_if *iface)
 	NET_DBG("Initializing Ethernet L2 %p for iface %p", ctx, iface);
 
 	ctx->ethernet_l2_flags = NET_L2_MULTICAST;
-	ctx->iface = iface;
-	k_work_init(&ctx->carrier_work, carrier_on_off);
 
 	if (net_eth_get_hw_capabilities(iface) & ETHERNET_PROMISC_MODE) {
 		ctx->ethernet_l2_flags |= NET_L2_PROMISC_MODE;

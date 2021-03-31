@@ -35,9 +35,10 @@ extern "C" {
  * @brief Keyboard scan callback called when user press/release
  * a key on a matrix keyboard.
  *
- * @param dev Pointer to the device structure for the driver instance.
- * @param row Describes row change.
- * @param column Describes column change.
+ * @param dev   Pointer to the device structure for the driver instance.
+ * @param data  Data byte passed pack to the user.
+ * @param col	Describes column change.
+ * @param row	Describes row change.
  * @param pressed Describes the kind of key event.
  */
 typedef void (*kscan_callback_t)(const struct device *dev, uint32_t row,
@@ -101,7 +102,7 @@ static inline int z_impl_kscan_enable_callback(const struct device *dev)
 			(const struct kscan_driver_api *)dev->api;
 
 	if (api->enable_callback == NULL) {
-		return -ENOSYS;
+		return -ENOTSUP;
 	}
 
 	return api->enable_callback(dev);
@@ -122,7 +123,7 @@ static inline int z_impl_kscan_disable_callback(const struct device *dev)
 			(const struct kscan_driver_api *)dev->api;
 
 	if (api->disable_callback == NULL) {
-		return -ENOSYS;
+		return -ENOTSUP;
 	}
 
 	return api->disable_callback(dev);

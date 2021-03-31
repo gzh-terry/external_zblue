@@ -55,67 +55,64 @@ Installing the documentation processors
 Our documentation processing has been tested to run with:
 
 * Doxygen version 1.8.13
+* Sphinx version 3.2.0
+* Breathe version 4.20.0
+* docutils version 0.16
+* sphinx_rtd_theme version 0.4.0
+* sphinxcontrib-svg2pdfconverter version 0.1.0
 * Latexmk version 4.56
-* All Python dependencies listed in the repository file
-  ``scripts/requirements-doc.txt``
 
 In order to install the documentation tools, first install Zephyr as
 described in :ref:`getting_started`. Then install additional tools
 that are only required to generate the documentation,
 as described below:
 
-.. tabs::
+On Ubuntu Linux:
 
-   .. group-tab:: Linux
+.. code-block:: console
 
-      On Ubuntu Linux:
+   sudo apt-get install --no-install-recommends doxygen librsvg2-bin \
+     texlive-latex-base texlive-latex-extra latexmk texlive-fonts-recommended
 
-      .. code-block:: console
+On Fedora Linux:
 
-         sudo apt-get install --no-install-recommends doxygen librsvg2-bin \
-         texlive-latex-base texlive-latex-extra latexmk texlive-fonts-recommended
+.. code-block:: console
 
-      On Fedora Linux:
+   sudo dnf install doxygen texlive-latex latexmk \
+     texlive-collection-fontsrecommended librsvg2-tools
 
-      .. code-block:: console
+On Clear Linux:
 
-         sudo dnf install doxygen texlive-latex latexmk \
-         texlive-collection-fontsrecommended librsvg2-tools
+.. code-block:: console
 
-      On Clear Linux:
+  sudo swupd bundle-add texlive
 
-      .. code-block:: console
+On Arch Linux:
 
-         sudo swupd bundle-add texlive
+.. code-block:: console
 
-      On Arch Linux:
+   sudo pacman -S doxygen librsvg texlive-core texlive-bin
 
-      .. code-block:: console
+On macOS:
 
-         sudo pacman -S doxygen librsvg texlive-core texlive-bin
+.. code-block:: console
 
-   .. group-tab:: macOS
+   brew install doxygen mactex librsvg
+   tlmgr install latexmk
+   tlmgr install collection-fontsrecommended
 
-      .. code-block:: console
+On Windows in an Administrator ``cmd.exe`` prompt:
 
-         brew install doxygen mactex librsvg
-         tlmgr install latexmk
-         tlmgr install collection-fontsrecommended
+.. code-block:: console
 
-   .. group-tab:: Windows
+   choco install doxygen.install strawberryperl miktex rsvg-convert
 
-      Run in an Administrator ``cmd.exe`` prompt:
-
-      .. code-block:: console
-
-         choco install doxygen.install strawberryperl miktex rsvg-convert
-
-      .. note::
-         On Windows, the Sphinx executable ``sphinx-build.exe`` is placed in
-         the ``Scripts`` folder of your Python installation path.
-         Dependending on how you have installed Python, you may need to
-         add this folder to your ``PATH`` environment variable. Follow
-         the instructions in `Windows Python Path`_ to add those if needed.
+.. note::
+   On Windows, the Sphinx executable ``sphinx-build.exe`` is placed in
+   the ``Scripts`` folder of your Python installation path.
+   Dependending on how you have installed Python, you may need to
+   add this folder to your ``PATH`` environment variable. Follow
+   the instructions in `Windows Python Path`_ to add those if needed.
 
 Documentation presentation theme
 ********************************
@@ -180,13 +177,13 @@ of the build folder and run ``cmake`` and then ``ninja`` again.
 
    If you add or remove a file from the documentation, you need to re-run CMake.
 
-On Unix platforms a convenience :zephyr_file:`Makefile` at the ``doc`` folder
+On Unix platforms a convenience :zephyr_file:`Makefile` at the root folder
 of the Zephyr repository can be used to build the documentation directly from
 there:
 
 .. code-block:: console
 
-   cd ~/zephyr/doc
+   cd ~/zephyr
 
    # To generate HTML output
    make htmldocs

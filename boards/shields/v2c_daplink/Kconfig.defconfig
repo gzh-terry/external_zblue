@@ -10,7 +10,10 @@ if DISK_ACCESS
 config SPI
 	default y
 
-config DISK_DRIVER_SDMMC
+config DISK_ACCESS_SDHC
+	default y
+
+config DISK_ACCESS_SPI_SDHC
 	default y
 
 endif # DISK_ACCESS

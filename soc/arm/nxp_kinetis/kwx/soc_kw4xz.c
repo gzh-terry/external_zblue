@@ -13,14 +13,14 @@
 #include <fsl_clock.h>
 #include <arch/cpu.h>
 
+#define ER32KSEL_OSC32KCLK	(0)
+#define ER32KSEL_RTC		(2)
+#define ER32KSEL_LPO1KHZ	(3)
+
 #define LPUART0SRC_OSCERCLK	(1)
 #define TPMSRC_MCGPLLCLK	(1)
 
-#define CLOCK_NODEID(clk) \
-	DT_CHILD(DT_INST(0, nxp_kinetis_sim), clk)
-
-#define CLOCK_DIVIDER(clk) \
-	DT_PROP_OR(CLOCK_NODEID(clk), clock_div, 1) - 1
+#define CLKDIV1_DIVBY2		(1)
 
 static const osc_config_t oscConfig = {
 	.freq = CONFIG_OSC_XTAL0_FREQ,
@@ -37,9 +37,8 @@ static const osc_config_t oscConfig = {
 };
 
 static const sim_clock_config_t simConfig = {
-	.er32kSrc = DT_PROP(DT_INST(0, nxp_kinetis_sim), er32k_select),
-	.clkdiv1 = SIM_CLKDIV1_OUTDIV1(CLOCK_DIVIDER(core_clk)) |
-		   SIM_CLKDIV1_OUTDIV4(CLOCK_DIVIDER(flash_clk)),
+	.er32kSrc = ER32KSEL_OSC32KCLK,
+	.clkdiv1 = SIM_CLKDIV1_OUTDIV4(CLKDIV1_DIVBY2),
 };
 
 /* This function comes from the MCUX SDK:

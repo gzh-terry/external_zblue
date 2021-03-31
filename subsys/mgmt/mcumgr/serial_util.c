@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <sys/__assert.h>
+#include <assert.h>
 #include <string.h>
 #include <stdbool.h>
 #include <errno.h>
@@ -167,8 +167,8 @@ static int mcumgr_serial_tx_small(const void *data, int len,
 	int rc;
 
 	rc = base64_encode(b64, sizeof(b64), &dst_len, data, len);
-	__ASSERT_NO_MSG(rc == 0);
-	__ASSERT_NO_MSG(dst_len == 4);
+	assert(rc == 0);
+	assert(dst_len == 4);
 
 	return cb(b64, 4, arg);
 }

@@ -53,6 +53,7 @@ void main(void)
 	}
 
 	printf("\nTest 1: Flash erase page at 0x%x\n", FLASH_TEST_OFFSET);
+	flash_write_protection_set(flash_dev, false);
 	if (flash_erase(flash_dev, FLASH_TEST_OFFSET, FLASH_PAGE_SIZE) != 0) {
 		printf("   Flash erase failed!\n");
 	} else {
@@ -60,6 +61,7 @@ void main(void)
 	}
 
 	printf("\nTest 2: Flash write (word array 1)\n");
+	flash_write_protection_set(flash_dev, false);
 	for (i = 0U; i < ARRAY_SIZE(buf_array_1); i++) {
 		offset = FLASH_TEST_OFFSET + (i << 2);
 		printf("   Attempted to write %x at 0x%x\n", buf_array_1[i],
@@ -92,6 +94,7 @@ void main(void)
 	}
 
 	printf("\nTest 4: Flash write (word array 2)\n");
+	flash_write_protection_set(flash_dev, false);
 	for (i = 0U; i < ARRAY_SIZE(buf_array_2); i++) {
 		offset = FLASH_TEST_OFFSET + (i << 2);
 		printf("   Attempted to write %x at 0x%x\n", buf_array_2[i],
@@ -123,6 +126,7 @@ void main(void)
 	}
 
 	printf("\nTest 6: Non-word aligned write (word array 3)\n");
+	flash_write_protection_set(flash_dev, false);
 	for (i = 0U; i < ARRAY_SIZE(buf_array_3); i++) {
 		offset = FLASH_TEST_OFFSET + (i << 2) + 1;
 		printf("   Attempted to write %x at 0x%x\n", buf_array_3[i],
@@ -145,6 +149,7 @@ void main(void)
 			printf("   Data read does not match data written!\n");
 		}
 	}
+	flash_write_protection_set(flash_dev, true);
 
 #if defined(CONFIG_FLASH_PAGE_LAYOUT)
 	struct flash_pages_info info;

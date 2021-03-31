@@ -37,7 +37,6 @@ static const struct flash_parameters flash_gecko_parameters = {
 static bool write_range_is_valid(off_t offset, uint32_t size);
 static bool read_range_is_valid(off_t offset, uint32_t size);
 static int erase_flash_block(off_t offset, size_t size);
-static void flash_gecko_write_protection(bool enable);
 
 static int flash_gecko_read(const struct device *dev, off_t offset,
 			    void *data,
@@ -73,7 +72,6 @@ static int flash_gecko_write(const struct device *dev, off_t offset,
 	}
 
 	k_sem_take(&dev_data->mutex, K_FOREVER);
-	flash_gecko_write_protection(false);
 
 	address = (uint8_t *)CONFIG_FLASH_BASE_ADDRESS + offset;
 	msc_ret = MSC_WriteWord(address, data, size);
@@ -81,7 +79,6 @@ static int flash_gecko_write(const struct device *dev, off_t offset,
 		ret = -EIO;
 	}
 
-	flash_gecko_write_protection(true);
 	k_sem_give(&dev_data->mutex);
 
 	return ret;
@@ -112,18 +109,20 @@ static int flash_gecko_erase(const struct device *dev, off_t offset,
 	}
 
 	k_sem_take(&dev_data->mutex, K_FOREVER);
-	flash_gecko_write_protection(false);
 
 	ret = erase_flash_block(offset, size);
 
-	flash_gecko_write_protection(true);
 	k_sem_give(&dev_data->mutex);
 
 	return ret;
 }
 
-static void flash_gecko_write_protection(bool enable)
+static int flash_gecko_write_protection(const struct device *dev, bool enable)
 {
+	struct flash_gecko_data *const dev_data = DEV_DATA(dev);
+
+	k_sem_take(&dev_data->mutex, K_FOREVER);
+
 	if (enable) {
 		/* Lock the MSC module. */
 		MSC->LOCK = 0;
@@ -135,6 +134,10 @@ static void flash_gecko_write_protection(bool enable)
 		MSC->LOCK = MSC_UNLOCK_CODE;
 	#endif
 	}
+
+	k_sem_give(&dev_data->mutex);
+
+	return 0;
 }
 
 /* Note:
@@ -215,6 +218,7 @@ static const struct flash_driver_api flash_gecko_driver_api = {
 	.read = flash_gecko_read,
 	.write = flash_gecko_write,
 	.erase = flash_gecko_erase,
+	.write_protection = flash_gecko_write_protection,
 	.get_parameters = flash_gecko_get_parameters,
 #ifdef CONFIG_FLASH_PAGE_LAYOUT
 	.page_layout = flash_gecko_page_layout,
@@ -223,6 +227,6 @@ static const struct flash_driver_api flash_gecko_driver_api = {
 
 static struct flash_gecko_data flash_gecko_0_data;
 
-DEVICE_DT_INST_DEFINE(0, flash_gecko_init, device_pm_control_nop,
-		    &flash_gecko_0_data, NULL, POST_KERNEL,
+DEVICE_AND_API_INIT(flash_gecko_0, DT_INST_LABEL(0),
+		    flash_gecko_init, &flash_gecko_0_data, NULL, POST_KERNEL,
 		    CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &flash_gecko_driver_api);

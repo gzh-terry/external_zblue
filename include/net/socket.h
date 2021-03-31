@@ -7,7 +7,6 @@
 
 /*
  * Copyright (c) 2017-2018 Linaro Limited
- * Copyright (c) 2021 Nordic Semiconductor
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -55,14 +54,8 @@ struct zsock_pollfd {
 
 /** zsock_recv: Read data without removing it from socket input queue */
 #define ZSOCK_MSG_PEEK 0x02
-/** zsock_recv: return the real length of the datagram, even when it was longer
- *  than the passed buffer
- */
-#define ZSOCK_MSG_TRUNC 0x20
 /** zsock_recv/zsock_send: Override operation to non-blocking */
 #define ZSOCK_MSG_DONTWAIT 0x40
-/** zsock_recv: block until the full amount of data can be returned */
-#define ZSOCK_MSG_WAITALL 0x100
 
 /* Well-known values, e.g. from Linux man 2 shutdown:
  * "The constants SHUT_RD, SHUT_WR, SHUT_RDWR have the value 0, 1, 2,
@@ -126,12 +119,6 @@ struct zsock_pollfd {
  *    - 1 - server
  */
 #define TLS_DTLS_ROLE 6
-/** Socket option for setting the supported Application Layer Protocols.
- *  It accepts and returns a const char array of NULL terminated strings
- *  representing the supported application layer protocols listed during
- *  the TLS handshake.
- */
-#define TLS_ALPN_LIST 7
 
 /** @} */
 
@@ -777,9 +764,7 @@ static inline char *inet_ntop(sa_family_t family, const void *src, char *dst,
 #define POLLNVAL ZSOCK_POLLNVAL
 
 #define MSG_PEEK ZSOCK_MSG_PEEK
-#define MSG_TRUNC ZSOCK_MSG_TRUNC
 #define MSG_DONTWAIT ZSOCK_MSG_DONTWAIT
-#define MSG_WAITALL ZSOCK_MSG_WAITALL
 
 #define SHUT_RD ZSOCK_SHUT_RD
 #define SHUT_WR ZSOCK_SHUT_WR
@@ -793,8 +778,6 @@ static inline char *inet_ntop(sa_family_t family, const void *src, char *dst,
 #define EAI_MEMORY DNS_EAI_MEMORY
 #define EAI_SYSTEM DNS_EAI_SYSTEM
 #define EAI_SERVICE DNS_EAI_SERVICE
-#define EAI_SOCKTYPE DNS_EAI_SOCKTYPE
-#define EAI_FAMILY DNS_EAI_FAMILY
 #endif /* defined(CONFIG_NET_SOCKETS_POSIX_NAMES) */
 
 /** sockopt: Socket-level option */
@@ -803,23 +786,11 @@ static inline char *inet_ntop(sa_family_t family, const void *src, char *dst,
 /* Socket options for SOL_SOCKET level */
 /** sockopt: Enable server address reuse (ignored, for compatibility) */
 #define SO_REUSEADDR 2
-/** sockopt: Type of the socket */
-#define SO_TYPE 3
 /** sockopt: Async error (ignored, for compatibility) */
 #define SO_ERROR 4
 
-/**
- * sockopt: Receive timeout
- * Applies to receive functions like recv(), but not to connect()
- */
-#define SO_RCVTIMEO 20
-/** sockopt: Send timeout */
-#define SO_SNDTIMEO 21
-
 /** sockopt: Timestamp TX packets */
 #define SO_TIMESTAMPING 37
-/** sockopt: Protocol used with the socket */
-#define SO_PROTOCOL 38
 
 /* Socket options for IPPROTO_TCP level */
 /** sockopt: Disable TCP buffering (ignored, for compatibility) */

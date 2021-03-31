@@ -153,8 +153,6 @@ void set_regs_with_known_pattern(void)
 
 void test_arm_esf_collection(void)
 {
-	int test_validation_rv;
-
 	/* if the check in the fault handler succeeds,
 	 * this will be set to TC_PASS
 	 */
@@ -180,25 +178,13 @@ void test_arm_esf_collection(void)
 			(k_thread_entry_t)set_regs_with_known_pattern,
 			NULL, NULL, NULL, K_PRIO_COOP(PRIORITY), 0,
 			K_NO_WAIT);
-
-	test_validation_rv = esf_validation_rv;
-
-	zassert_not_equal(test_validation_rv, TC_FAIL,
+	zassert_not_equal(esf_validation_rv, TC_FAIL,
 		"ESF fault collection failed");
 }
 
 void arm_isr_handler(const void *args)
 {
 	ARG_UNUSED(args);
-
-#if defined(CONFIG_CPU_CORTEX_M) && defined(CONFIG_FPU) && \
-	defined(CONFIG_FPU_SHARING)
-	/* Clear Floating Point Status and Control Register (FPSCR),
-	 * to prevent from having the interrupt line set to pending again,
-	 * in case FPU IRQ is selected by the test as "Available IRQ line"
-	 */
-	__set_FPSCR(0);
-#endif
 
 	test_flag++;
 
@@ -467,37 +453,6 @@ void test_arm_user_interrupt(void)
 }
 #endif /* CONFIG_USERSPACE */
 
-#if defined(CONFIG_CORTEX_M_DEBUG_NULL_POINTER_EXCEPTION)
-#pragma GCC push_options
-#pragma GCC optimize("O0")
-/* Avoid compiler optimizing null pointer de-referencing. */
-void test_arm_null_pointer_exception(void)
-{
-	int reason;
-
-	struct test_struct {
-		uint32_t val[2];
-	};
-
-	struct test_struct *test_struct_null_pointer = 0x0;
-
-	expected_reason = K_ERR_CPU_EXCEPTION;
-
-	printk("Reading a null pointer value: 0x%0x\n",
-		test_struct_null_pointer->val[1]);
-
-	reason = expected_reason;
-	zassert_equal(reason, -1,
-		"expected_reason has not been reset (%d)\n", reason);
-}
-#pragma GCC pop_options
-#else
-void test_arm_null_pointer_exception(void)
-{
-	TC_PRINT("Skipped\n");
-}
-
-#endif /* CONFIG_CORTEX_M_DEBUG_NULL_POINTER_EXCEPTION */
 
 /**
  * @}

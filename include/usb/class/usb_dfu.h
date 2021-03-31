@@ -1,5 +1,3 @@
-/* SPDX-License-Identifier: BSD-3-Clause */
-
 /***************************************************************************
  *
  * Copyright(c) 2015,2016 Intel Corporation.
@@ -43,8 +41,6 @@
 
 #ifndef ZEPHYR_INCLUDE_USB_CLASS_USB_DFU_H_
 #define ZEPHYR_INCLUDE_USB_CLASS_USB_DFU_H_
-
-#include <sys_clock.h>
 
 /** DFU Class Subclass */
 #define DFU_SUBCLASS			0x01
@@ -123,6 +119,6 @@ enum dfu_state {
 	dfuERROR,
 };
 
-void wait_for_usb_dfu(k_timeout_t delay);
+void wait_for_usb_dfu(void);
 
 #endif /* ZEPHYR_INCLUDE_USB_CLASS_USB_DFU_H_ */

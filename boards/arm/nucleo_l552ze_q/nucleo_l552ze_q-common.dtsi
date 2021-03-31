@@ -5,7 +5,6 @@
  */
 
 #include <st/l5/stm32l552Xe.dtsi>
-#include <st/l5/stm32l552z(c-e)txq-pinctrl.dtsi>
 #include "arduino_r3_connector.dtsi"
 
 / {
@@ -32,8 +31,4 @@
 			gpios = <&gpioc 13 GPIO_ACTIVE_HIGH>;
 		};
 	};
-};
-
-&rng {
-	status = "okay";
 };

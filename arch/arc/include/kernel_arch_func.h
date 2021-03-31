@@ -24,7 +24,8 @@
 
 #include <kernel_arch_data.h>
 
-#ifdef CONFIG_ISA_ARCV2
+#ifdef CONFIG_CPU_ARCV2
+#include <v2/cache.h>
 #include <v2/irq.h>
 #endif
 

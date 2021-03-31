@@ -27,7 +27,7 @@ void __stdout_hook_install(int (*hook)(int))
 
 int z_impl_zephyr_fputc(int c, FILE *stream)
 {
-	return (stream == stdout || stream == stderr) ? _stdout_hook(c) : EOF;
+	return (stdout == stream) ? _stdout_hook(c) : EOF;
 }
 
 #ifdef CONFIG_USERSPACE
@@ -43,12 +43,12 @@ int fputc(int c, FILE *stream)
 	return zephyr_fputc(c, stream);
 }
 
-int fputs(const char *_MLIBC_RESTRICT s, FILE *_MLIBC_RESTRICT stream)
+int fputs(const char *_MLIBC_RESTRICT string, FILE *_MLIBC_RESTRICT stream)
 {
-	int len = strlen(s);
+	int len = strlen(string);
 	int ret;
 
-	ret = fwrite(s, 1, len, stream);
+	ret = fwrite(string, len, 1, stream);
 
 	return len == ret ? 0 : EOF;
 }
@@ -60,8 +60,7 @@ size_t z_impl_zephyr_fwrite(const void *_MLIBC_RESTRICT ptr, size_t size,
 	size_t j;
 	const unsigned char *p;
 
-	if ((stream != stdout && stream != stderr) ||
-	    (nitems == 0) || (size == 0)) {
+	if ((stream != stdout) || (nitems == 0) || (size == 0)) {
 		return 0;
 	}
 
@@ -103,9 +102,9 @@ size_t fwrite(const void *_MLIBC_RESTRICT ptr, size_t size, size_t nitems,
 }
 
 
-int puts(const char *s)
+int puts(const char *string)
 {
-	if (fputs(s, stdout) == EOF) {
+	if (fputs(string, stdout) == EOF) {
 		return EOF;
 	}
 

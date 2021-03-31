@@ -494,7 +494,7 @@ are an allowed exception.
 zephyr-app-commands Directive
 *****************************
 
-.. include:: ../../_extensions/zephyr/application.py
+.. include:: ../../extensions/zephyr/application.py
    :start-line: 10
    :start-after: '''
    :end-before: '''

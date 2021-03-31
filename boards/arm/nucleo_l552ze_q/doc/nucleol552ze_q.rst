@@ -154,8 +154,6 @@ The Zephyr nucleo_l552ze_q board configuration supports the following hardware f
 +-----------+------------+-------------------------------------+
 | TrustZone | on-chip    | Trusted Firmware-M                  |
 +-----------+------------+-------------------------------------+
-| RNG       | on-chip    | True Random Number Generator        |
-+-----------+------------+-------------------------------------+
 
 Other hardware features are not yet supported on this Zephyr port.
 
@@ -171,16 +169,16 @@ input/output, pull-up, etc.
 
 Available pins:
 ---------------
-.. image:: img/nucleo_l552ze_q_zio_left_2020_2_11.png
+.. image:: img/nucleo_l552ze_q_arduino.png
    :width: 720px
    :align: center
    :height: 540px
-   :alt: Nucleo L552ZE Q Zio left connector
-.. image:: img/nucleo_l552ze_q_zio_right_2020_2_11.png
+   :alt: Nucleo L552ZE Q Arduino connectors
+.. image:: img/nucleo_l552ze_q_morpho.png
    :width: 720px
    :align: center
    :height: 540px
-   :alt: Nucleo L552ZE Q Zio right connector
+   :alt: Nucleo L552ZE Q Morpho connectors
 
 For mode details please refer to `STM32 Nucleo-144 board User Manual`_.
 
@@ -278,16 +276,7 @@ You should see the following message on the console:
 Building a secure/non-secure with Arm |reg| TrustZone |reg|
 -----------------------------------------------------------
 
-The TF-M integration sample :ref:`tfm_ipc` can be run by a Nucleo L552ZE Q,
-using the ``nucleo_l552ze_q_ns`` target. When building a ``*_ns`` image with TF-M,
-a ``build/tfm/install/postbuild.sh`` bash script will be run as a post-build step
-to make some required flash layout changes. The ``build/tfm/regression.sh`` script
-will need to be run to perform device initialization, and then run ``west flash --hex-file build/tfm_merged.hex``
-to flash the board.
-
-Check the ``build/tfm/`` directory to ensure that the commands required by these scripts
-(``readlink``, etc.) are available on your system. Please also check ``STM32_Programmer_CLI``
-used for initialization is available in the PATH.
+The TF-M integration sample :ref:`tfm_ipc` can be run by a Nucleo L552ZE Q, using the ``nucleo_l552ze_q_ns`` target. When building a ``*_ns`` image with TF-M, a ``build/tfm/install/postbuild.sh`` bash script will be run as a post-build step to make some required flash layout changes. The ``build/tfm/install/postbuild.sh`` script will also be used to flash the board. Check the ``build/tfm/install`` directory to ensure that the commands required by these scripts (``readlink``, etc.) are available on your system.
 
 Debugging
 =========

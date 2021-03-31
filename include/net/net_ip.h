@@ -62,7 +62,6 @@ extern "C" {
 enum net_ip_protocol {
 	IPPROTO_IP = 0,            /**< IP protocol (pseudo-val for setsockopt() */
 	IPPROTO_ICMP = 1,          /**< ICMP protocol   */
-	IPPROTO_IPIP = 4,          /**< IPIP tunnels    */
 	IPPROTO_TCP = 6,           /**< TCP protocol    */
 	IPPROTO_UDP = 17,          /**< UDP protocol    */
 	IPPROTO_IPV6 = 41,         /**< IPv6 protocol   */
@@ -239,18 +238,17 @@ struct cmsghdr {
 	socklen_t cmsg_len;    /* Number of bytes, including header */
 	int       cmsg_level;  /* Originating protocol */
 	int       cmsg_type;   /* Protocol-specific type */
-	/* Flexible array member to force alignment of cmsghdr */
-	z_max_align_t cmsg_data[];
+	/* Followed by unsigned char cmsg_data[]; */
 };
 
 /* Alignment for headers and data. These are arch specific but define
  * them here atm if not found alredy.
  */
 #if !defined(ALIGN_H)
-#define ALIGN_H(x) ROUND_UP(x, __alignof__(struct cmsghdr))
+#define ALIGN_H(x) WB_UP(x)
 #endif
 #if !defined(ALIGN_D)
-#define ALIGN_D(x) ROUND_UP(x, __alignof__(z_max_align_t))
+#define ALIGN_D(x) WB_UP(x)
 #endif
 
 #if !defined(CMSG_FIRSTHDR)
@@ -697,7 +695,7 @@ static inline bool net_ipv4_is_addr_unspecified(const struct in_addr *addr)
  */
 static inline bool net_ipv4_is_addr_mcast(const struct in_addr *addr)
 {
-	return (ntohl(UNALIGNED_GET(&addr->s_addr)) & 0xF0000000) == 0xE0000000;
+	return (ntohl(UNALIGNED_GET(&addr->s_addr)) & 0xE0000000) == 0xE0000000;
 }
 
 /**
@@ -762,18 +760,6 @@ static inline bool net_ipv6_addr_cmp(const struct in6_addr *addr1,
 static inline bool net_ipv6_is_ll_addr(const struct in6_addr *addr)
 {
 	return UNALIGNED_GET(&addr->s6_addr16[0]) == htons(0xFE80);
-}
-
-/**
- * @brief Check if the given IPv6 address is a unique local address.
- *
- * @param addr A valid pointer on an IPv6 address
- *
- * @return True if it is, false otherwise.
- */
-static inline bool net_ipv6_is_ula_addr(const struct in6_addr *addr)
-{
-	return addr->s6_addr[0] == 0xFD;
 }
 
 /**
@@ -1171,7 +1157,9 @@ static inline void net_ipv6_addr_create_ll_allrouters_mcast(struct in6_addr *add
 static inline void net_ipv6_addr_create_iid(struct in6_addr *addr,
 					    struct net_linkaddr *lladdr)
 {
-	UNALIGNED_PUT(htonl(0xfe800000), &addr->s6_addr32[0]);
+	addr->s6_addr[0] = 0xfe;
+	addr->s6_addr[1] = 0x80;
+	UNALIGNED_PUT(0, &addr->s6_addr16[1]);
 	UNALIGNED_PUT(0, &addr->s6_addr32[1]);
 
 	switch (lladdr->len) {

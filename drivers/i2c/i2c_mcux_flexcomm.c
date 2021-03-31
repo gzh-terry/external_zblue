@@ -19,8 +19,6 @@ LOG_MODULE_REGISTER(mcux_flexcomm);
 
 struct mcux_flexcomm_config {
 	I2C_Type *base;
-	const struct device *clock_dev;
-	clock_control_subsys_t clock_subsys;
 	void (*irq_config_func)(const struct device *dev);
 	uint32_t bitrate;
 };
@@ -61,11 +59,7 @@ static int mcux_flexcomm_configure(const struct device *dev,
 		return -EINVAL;
 	}
 
-	/* Get the clock frequency */
-	if (clock_control_get_rate(config->clock_dev, config->clock_subsys,
-				   &clock_freq)) {
-		return -EINVAL;
-	}
+	clock_freq = MHZ(12);
 
 	I2C_MasterSetBaudRate(base, baudrate, clock_freq);
 
@@ -183,13 +177,9 @@ static int mcux_flexcomm_init(const struct device *dev)
 	i2c_master_config_t master_config;
 	int error;
 
-	k_sem_init(&data->device_sync_sem, 0, K_SEM_MAX_LIMIT);
+	k_sem_init(&data->device_sync_sem, 0, UINT_MAX);
 
-	/* Get the clock frequency */
-	if (clock_control_get_rate(config->clock_dev, config->clock_subsys,
-				   &clock_freq)) {
-		return -EINVAL;
-	}
+	clock_freq = MHZ(12);
 
 	I2C_MasterGetDefaultConfig(&master_config);
 	I2C_MasterInit(base, &master_config, clock_freq);
@@ -218,16 +208,13 @@ static const struct i2c_driver_api mcux_flexcomm_driver_api = {
 	static void mcux_flexcomm_config_func_##id(const struct device *dev); \
 	static const struct mcux_flexcomm_config mcux_flexcomm_config_##id = {	\
 		.base = (I2C_Type *) DT_INST_REG_ADDR(id),		\
-		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(id)),	\
-		.clock_subsys =				\
-		(clock_control_subsys_t)DT_INST_CLOCKS_CELL(id, name),\
 		.irq_config_func = mcux_flexcomm_config_func_##id,	\
 		.bitrate = DT_INST_PROP(id, clock_frequency),		\
 	};								\
 	static struct mcux_flexcomm_data mcux_flexcomm_data_##id;	\
-	DEVICE_DT_INST_DEFINE(id,					\
+	DEVICE_AND_API_INIT(mcux_flexcomm_##id,				\
+			    DT_INST_LABEL(id),				\
 			    &mcux_flexcomm_init,			\
-			    device_pm_control_nop,			\
 			    &mcux_flexcomm_data_##id,			\
 			    &mcux_flexcomm_config_##id,			\
 			    POST_KERNEL,				\
@@ -238,7 +225,7 @@ static const struct i2c_driver_api mcux_flexcomm_driver_api = {
 		IRQ_CONNECT(DT_INST_IRQN(id),				\
 			    DT_INST_IRQ(id, priority),			\
 			    mcux_flexcomm_isr,				\
-			    DEVICE_DT_INST_GET(id),			\
+			    DEVICE_GET(mcux_flexcomm_##id),		\
 			    0);						\
 		irq_enable(DT_INST_IRQN(id));				\
 	}								\

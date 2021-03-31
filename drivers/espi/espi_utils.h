@@ -20,7 +20,7 @@
  *
  * @return 0 on success, negative errno otherwise.
  */
-static inline int espi_manage_callback(sys_slist_t *callbacks,
+static int espi_manage_callback(sys_slist_t *callbacks,
 				struct espi_callback *callback, bool set)
 {
 	__ASSERT(callback, "No callback!");
@@ -45,11 +45,11 @@ static inline int espi_manage_callback(sys_slist_t *callbacks,
  * @brief Generic function to go through and fire callback from a callback list.
  *
  * @param list A pointer on the espi callback list.
- * @param dev A pointer on the espi driver instance.
+ * @param device A pointer on the espi driver instance.
  * @param pins The details on the event that triggered the callback.
  */
 static inline void espi_send_callbacks(sys_slist_t *list,
-				       const struct device *dev,
+				       const struct device *device,
 				       struct espi_event evt)
 {
 	struct espi_callback *cb, *tmp;
@@ -57,7 +57,7 @@ static inline void espi_send_callbacks(sys_slist_t *list,
 	SYS_SLIST_FOR_EACH_CONTAINER_SAFE(list, cb, tmp, node) {
 		if (cb->evt_type & evt.evt_type) {
 			__ASSERT(cb->handler, "No callback handler!");
-			cb->handler(dev, cb, evt);
+			cb->handler(device, cb, evt);
 		}
 	}
 }

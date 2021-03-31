@@ -2,7 +2,7 @@
 
 /dts-v1/;
 
-#include <nxp/MK64FN1M0VDC12.dtsi>
+#include <nxp/nxp_k6x.dtsi>
 #include <dt-bindings/pwm/pwm.h>
 
 / {
@@ -57,11 +57,6 @@
 			pwms = <&ftm3 5 15625000 PWM_POLARITY_INVERTED>;
 		};
 	};
-};
-
-&sim {
-	pllfll-select = <KINETIS_SIM_PLLFLLSEL_MCGPLLCLK>;
-	er32k-select = <KINETIS_SIM_ER32KSEL_RTC>;
 };
 
 &cpu0 {
@@ -140,7 +135,10 @@
 };
 
 &flash0 {
-
+	/*
+	 * For more information, see:
+	 * https://docs.zephyrproject.org/latest/guides/dts/legacy-macros.html#legacy-flash-partitions
+	 */
 	partitions {
 		compatible = "fixed-partitions";
 		#address-cells = <1>;

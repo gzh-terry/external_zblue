@@ -10,3 +10,7 @@ child-binding:
        ph-reg:
           type: phandle
           required: true
+       label:
+          required: true
+          type: string
+          description: Human readable string describing the device (used as device_get_binding() argument)

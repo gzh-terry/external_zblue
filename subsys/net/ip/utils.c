@@ -88,10 +88,6 @@ char *net_sprint_ll_addr_buf(const uint8_t *ll, uint8_t ll_len,
 	uint8_t i, len, blen;
 	char *ptr = buf;
 
-	if (ll == NULL) {
-		return "<unknown>";
-	}
-
 	switch (ll_len) {
 	case 8:
 		len = 8U;
@@ -452,11 +448,12 @@ int z_impl_net_addr_pton(sa_family_t family, const char *src,
 int z_vrfy_net_addr_pton(sa_family_t family, const char *src,
 			 void *dst)
 {
-	char str[MAX(INET_ADDRSTRLEN, INET6_ADDRSTRLEN)] = {};
+	char str[INET6_ADDRSTRLEN];
 	struct in6_addr addr6;
 	struct in_addr addr4;
 	void *addr;
 	size_t size;
+	size_t nlen;
 	int err;
 
 	if (family == AF_INET) {
@@ -469,11 +466,16 @@ int z_vrfy_net_addr_pton(sa_family_t family, const char *src,
 		return -EINVAL;
 	}
 
-	if (z_user_string_copy(str, (char *)src, sizeof(str)) != 0) {
+	memset(str, 0, sizeof(str));
+
+	nlen = z_user_string_nlen((const char *)src, sizeof(str), &err);
+	if (err) {
 		return -EINVAL;
 	}
 
 	Z_OOPS(Z_SYSCALL_MEMORY_WRITE(dst, size));
+	Z_OOPS(Z_SYSCALL_MEMORY_READ(src, nlen));
+	Z_OOPS(z_user_from_copy(str, (const void *)src, nlen));
 
 	err = z_impl_net_addr_pton(family, str, addr);
 	if (err) {

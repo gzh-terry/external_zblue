@@ -2,7 +2,7 @@
 
 /dts-v1/;
 
-#include <nxp/MKW40Z160VHT4.dtsi>
+#include <nxp/nxp_kw40z.dtsi>
 
 / {
 	model = "Hexiwear KW40 board";
@@ -12,11 +12,6 @@
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
 	};
-};
-
-&sim {
-	pllfll-select = <KINETIS_SIM_PLLFLLSEL_MCGPLLCLK>;
-	er32k-select = <KINETIS_SIM_ER32KSEL_OSC32KCLK>;
 };
 
 &adc0 {

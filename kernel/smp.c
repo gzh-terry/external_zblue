@@ -41,6 +41,17 @@ void z_smp_global_unlock(unsigned int key)
 	arch_irq_unlock(key);
 }
 
+void z_smp_reacquire_global_lock(struct k_thread *thread)
+{
+	if (thread->base.global_lock_count) {
+		arch_irq_lock();
+
+		while (!atomic_cas(&global_lock, 0, 1)) {
+		}
+	}
+}
+
+
 /* Called from within z_swap(), so assumes lock already held */
 void z_smp_release_global_lock(struct k_thread *thread)
 {
@@ -63,7 +74,7 @@ static FUNC_NORETURN void smp_init_top(void *arg)
 	smp_timer_init();
 	z_swap_unlocked();
 
-	CODE_UNREACHABLE; /* LCOV_EXCL_LINE */
+	CODE_UNREACHABLE;
 }
 #endif
 

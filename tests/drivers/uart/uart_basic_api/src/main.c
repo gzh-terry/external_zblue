@@ -20,7 +20,6 @@ TC_CMD_DEFINE(test_uart_fifo_read)
 TC_CMD_DEFINE(test_uart_fifo_fill)
 TC_CMD_DEFINE(test_uart_poll_in)
 TC_CMD_DEFINE(test_uart_poll_out)
-TC_CMD_DEFINE(test_uart_pending)
 
 SHELL_CMD_REGISTER(test_uart_configure, NULL, NULL,
 			TC_CMD_ITEM(test_uart_configure));
@@ -34,8 +33,6 @@ SHELL_CMD_REGISTER(test_uart_poll_in, NULL, NULL,
 			TC_CMD_ITEM(test_uart_poll_in));
 SHELL_CMD_REGISTER(test_uart_poll_out, NULL, NULL,
 			TC_CMD_ITEM(test_uart_poll_out));
-SHELL_CMD_REGISTER(test_uart_pending, NULL, NULL,
-			TC_CMD_ITEM(test_uart_pending));
 #endif
 
 #ifndef CONFIG_UART_INTERRUPT_DRIVEN
@@ -45,11 +42,6 @@ void test_uart_fifo_fill(void)
 }
 
 void test_uart_fifo_read(void)
-{
-	ztest_test_skip();
-}
-
-void test_uart_pending(void)
 {
 	ztest_test_skip();
 }
@@ -64,8 +56,7 @@ void test_main(void)
 			 ztest_unit_test(test_uart_fifo_fill),
 			 ztest_unit_test(test_uart_fifo_read),
 			 ztest_unit_test(test_uart_poll_in),
-			 ztest_unit_test(test_uart_poll_out),
-			 ztest_unit_test(test_uart_pending));
+			 ztest_unit_test(test_uart_poll_out));
 	ztest_run_test_suite(uart_basic_test);
 #endif
 }

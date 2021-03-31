@@ -22,10 +22,6 @@
 #include <zephyr/types.h>
 #include <device.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @brief LED information structure
  *
@@ -141,8 +137,8 @@ static inline int z_impl_led_blink(const struct device *dev, uint32_t led,
 	const struct led_driver_api *api =
 		(const struct led_driver_api *)dev->api;
 
-	if (api->blink == NULL) {
-		return -ENOSYS;
+	if (!api->blink) {
+		return -ENOTSUP;
 	}
 	return api->blink(dev, led, delay_on, delay_off);
 }
@@ -166,9 +162,9 @@ static inline int z_impl_led_get_info(const struct device *dev, uint32_t led,
 	const struct led_driver_api *api =
 		(const struct led_driver_api *)dev->api;
 
-	if (api->get_info == NULL) {
+	if (!api->get_info) {
 		*info = NULL;
-		return -ENOSYS;
+		return -ENOTSUP;
 	}
 	return api->get_info(dev, led, info);
 }
@@ -194,8 +190,8 @@ static inline int z_impl_led_set_brightness(const struct device *dev,
 	const struct led_driver_api *api =
 		(const struct led_driver_api *)dev->api;
 
-	if (api->set_brightness == NULL) {
-		return -ENOSYS;
+	if (!api->set_brightness) {
+		return -ENOTSUP;
 	}
 	return api->set_brightness(dev, led, value);
 }
@@ -227,8 +223,8 @@ z_impl_led_write_channels(const struct device *dev, uint32_t start_channel,
 	const struct led_driver_api *api =
 		(const struct led_driver_api *)dev->api;
 
-	if (api->write_channels == NULL) {
-		return -ENOSYS;
+	if (!api->write_channels) {
+		return -ENOTSUP;
 	}
 	return api->write_channels(dev, start_channel, num_channels, buf);
 }
@@ -279,8 +275,8 @@ static inline int z_impl_led_set_color(const struct device *dev, uint32_t led,
 	const struct led_driver_api *api =
 		(const struct led_driver_api *)dev->api;
 
-	if (api->set_color == NULL) {
-		return -ENOSYS;
+	if (!api->set_color) {
+		return -ENOTSUP;
 	}
 	return api->set_color(dev, led, num_colors, color);
 }
@@ -326,10 +322,6 @@ static inline int z_impl_led_off(const struct device *dev, uint32_t led)
 /**
  * @}
  */
-
-#ifdef __cplusplus
-}
-#endif
 
 #include <syscalls/led.h>
 

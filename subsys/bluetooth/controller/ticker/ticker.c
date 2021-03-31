@@ -146,14 +146,6 @@ struct ticker_user_op_update {
 					 * >1: latency = lazy - 1
 					 */
 	uint8_t  force;			/* Force update */
-#if defined(CONFIG_BT_TICKER_EXT)
-	uint8_t must_expire;		/* Node must expire, even if it
-					 * collides with other nodes:
-					 *  0x00: Do nothing
-					 *  0x01: Disable must_expire
-					 *  0x02: Enable must_expire
-					 */
-#endif
 };
 
 /* User operation data structure for stop opcode. Used for passing stop
@@ -170,9 +162,6 @@ struct ticker_user_op_slot_get {
 	uint8_t  *ticker_id;
 	uint32_t *ticks_current;
 	uint32_t *ticks_to_expire;
-#if defined(CONFIG_BT_TICKER_LAZY_GET)
-	uint16_t *lazy;
-#endif /* CONFIG_BT_TICKER_LAZY_GET */
 };
 
 /* User operation data structure for priority_set opcode. Used for passing
@@ -354,11 +343,7 @@ static uint8_t ticker_by_slot_get(struct ticker_node *node, uint8_t ticker_id_he
  */
 static void ticker_by_next_slot_get(struct ticker_instance *instance,
 				    uint8_t *ticker_id_head, uint32_t *ticks_current,
-#if defined(CONFIG_BT_TICKER_LAZY_GET)
-				    uint32_t *ticks_to_expire, uint16_t *lazy)
-#else /* !CONFIG_BT_TICKER_LAZY_GET */
 				    uint32_t *ticks_to_expire)
-#endif /* !CONFIG_BT_TICKER_LAZY_GET */
 {
 	struct ticker_node *ticker;
 	struct ticker_node *node;
@@ -392,11 +377,6 @@ static void ticker_by_next_slot_get(struct ticker_instance *instance,
 	if (_ticker_id_head != TICKER_NULL) {
 		/* Add ticks for found ticker */
 		_ticks_to_expire += ticker->ticks_to_expire;
-#if defined(CONFIG_BT_TICKER_LAZY_GET)
-		if (lazy) {
-			*lazy = ticker->lazy_current;
-		}
-#endif /* CONFIG_BT_TICKER_LAZY_GET */
 	}
 
 	*ticker_id_head = _ticker_id_head;
@@ -873,20 +853,15 @@ void ticker_worker(void *param)
 					TICKER_RESCHEDULE_STATE_NONE;
 			}
 #endif /* CONFIG_BT_TICKER_EXT */
-			/* Increment lazy_current to indicate skipped event. In case
-			 * of re-scheduled node, the lazy count will be decremented in
-			 * ticker_job_reschedule_in_window when completed.
-			 */
 			ticker->lazy_current++;
 
 			if ((ticker->must_expire == 0U) ||
 			    (ticker->lazy_periodic >= ticker->lazy_current) ||
 			    TICKER_RESCHEDULE_PENDING(ticker)) {
-				/* Not a must-expire node or this is periodic
+				/* Not a must-expire case, this is programmed
 				 * latency or pending re-schedule. Skip this
-				 * ticker node. Mark it as elapsed.
+				 * ticker node.
 				 */
-				ticker->ack--;
 				continue;
 			}
 			/* Continue but perform shallow expiry */
@@ -1177,14 +1152,6 @@ static inline void ticker_job_node_update(struct ticker_node *ticker,
 		ticker->force = user_op->params.update.force;
 	}
 
-#if defined(CONFIG_BT_TICKER_EXT)
-	/* Update must_expire parameter */
-	if (user_op->params.update.must_expire) {
-		/* 1: disable, 2: enable */
-		ticker->must_expire = (user_op->params.update.must_expire - 1);
-	}
-#endif /* CONFIG_BT_TICKER_EXT */
-
 	ticker->next = *insert_head;
 	*insert_head = user_op->id;
 }
@@ -1415,11 +1382,10 @@ static inline void ticker_job_worker_bh(struct ticker_instance *instance,
 	node = &instance->nodes[0];
 	ticks_expired = 0U;
 	while (instance->ticker_id_head != TICKER_NULL) {
-		uint8_t skip_collision = 0U;
+		uint8_t is_must_expire_skip = 0U;
 		struct ticker_node *ticker;
 		uint32_t ticks_to_expire;
 		uint8_t id_expired;
-		uint8_t state;
 
 		/* auto variable for current ticker node */
 		id_expired = instance->ticker_id_head;
@@ -1439,11 +1405,8 @@ static inline void ticker_job_worker_bh(struct ticker_instance *instance,
 #if !defined(CONFIG_BT_TICKER_COMPATIBILITY_MODE)
 		ticks_latency -= ticks_to_expire;
 
-		/* Node with lazy count did not expire with callback, but
-		 * was either a collision or re-scheduled. This node should
-		 * not define the active slot reservation (slot_previous).
-		 */
-		skip_collision = (ticker->lazy_current != 0U);
+		is_must_expire_skip = (ticker->must_expire &&
+				       (ticker->lazy_current != 0U));
 #endif /* !CONFIG_BT_TICKER_COMPATIBILITY_MODE */
 
 		/* decrement ticks_slot_previous */
@@ -1457,8 +1420,9 @@ static inline void ticker_job_worker_bh(struct ticker_instance *instance,
 		/* If a reschedule is set pending, we will need to keep
 		 * the slot_previous information
 		 */
-		state = (ticker->req - ticker->ack) & 0xff;
-		if (ticker->ticks_slot && (state == 2U) && !skip_collision &&
+		if ((ticker->ticks_slot != 0U) &&
+		    (((ticker->req - ticker->ack) & 0xff) == 2U) &&
+		    !is_must_expire_skip &&
 		    !TICKER_RESCHEDULE_PENDING(ticker)) {
 			instance->ticker_id_slot_previous = id_expired;
 			instance->ticks_slot_previous = ticker->ticks_slot;
@@ -1567,11 +1531,7 @@ static inline void ticker_job_worker_bh(struct ticker_instance *instance,
 			ticker->req++;
 		} else {
 #if !defined(CONFIG_BT_TICKER_COMPATIBILITY_MODE)
-			/* A single-shot ticker in requested or skipped due to
-			 * collision shall generate a operation function
-			 * callback with failure status.
-			 */
-			if (state && ((state == 1U) || skip_collision) &&
+			if ((((ticker->req - ticker->ack) & 0xff) == 1U) &&
 			    ticker->fp_op_func) {
 				ticker->fp_op_func(TICKER_STATUS_FAILURE,
 						   ticker->op_context);
@@ -1603,13 +1563,10 @@ static inline void ticker_job_op_start(struct ticker_node *ticker,
 
 #if defined(CONFIG_BT_TICKER_COMPATIBILITY_MODE)
 	/* Must expire is not supported in compatibility mode */
-	LL_ASSERT(start->lazy < TICKER_LAZY_MUST_EXPIRE_KEEP);
+	LL_ASSERT(start->lazy != TICKER_LAZY_MUST_EXPIRE);
 #else
-	if (start->lazy != TICKER_LAZY_MUST_EXPIRE_KEEP) {
-		/* Update the must_expire state */
-		ticker->must_expire =
-			(start->lazy == TICKER_LAZY_MUST_EXPIRE) ? 1U : 0U;
-	}
+	ticker->must_expire = (start->lazy == TICKER_LAZY_MUST_EXPIRE) ? 1U :
+			       0U;
 #if defined(CONFIG_BT_TICKER_EXT)
 	ticker->ext_data = start->ext_data;
 #endif /* CONFIG_BT_TICKER_EXT */
@@ -1617,9 +1574,8 @@ static inline void ticker_job_op_start(struct ticker_node *ticker,
 
 	ticker->ticks_periodic = start->ticks_periodic;
 	ticker->remainder_periodic = start->remainder_periodic;
-	ticker->lazy_periodic =
-		(start->lazy < TICKER_LAZY_MUST_EXPIRE_KEEP) ? start->lazy :
-							       0U;
+	ticker->lazy_periodic = (start->lazy == TICKER_LAZY_MUST_EXPIRE) ? 0U :
+				 start->lazy;
 	ticker->ticks_slot = start->ticks_slot;
 	ticker->timeout_func = start->fp_timeout_func;
 	ticker->context = start->context;
@@ -1743,6 +1699,7 @@ static uint8_t ticker_job_reschedule_in_window(struct ticker_instance *instance,
 		}
 
 		ticker_id_iter = nodes[ticker_id_head].next;
+		ticker_id_prev = TICKER_NULL;
 
 		/* If drift was applied to this node, this must be
 		 * taken into consideration. Reduce the window with
@@ -1825,6 +1782,7 @@ static uint8_t ticker_job_reschedule_in_window(struct ticker_instance *instance,
 			ticks_to_expire     = ticks_slot_window -
 					      ticker->ticks_slot;
 
+			ticker_id_prev = ticker_id_iter;
 			ticker_id_iter = node->next;
 		}
 
@@ -2115,12 +2073,7 @@ static inline void ticker_job_op_inquire(struct ticker_instance *instance,
 		ticker_by_next_slot_get(instance,
 					uop->params.slot_get.ticker_id,
 					uop->params.slot_get.ticks_current,
-#if defined(CONFIG_BT_TICKER_LAZY_GET)
-					uop->params.slot_get.ticks_to_expire,
-					uop->params.slot_get.lazy);
-#else /* !CONFIG_BT_TICKER_LAZY_GET */
 					uop->params.slot_get.ticks_to_expire);
-#endif /* !CONFIG_BT_TICKER_LAZY_GET */
 		__fallthrough;
 	case TICKER_USER_OP_TYPE_IDLE_GET:
 		uop->status = TICKER_STATUS_SUCCESS;
@@ -2291,16 +2244,9 @@ void ticker_job(void *param)
 
 	DEBUG_TICKER_JOB(1);
 
-	/* Defer job, as worker is running */
+	/* Defer worker, as job is now running */
 	if (instance->worker_trigger) {
 		DEBUG_TICKER_JOB(0);
-		return;
-	}
-
-	/* Defer job, as job is already running */
-	if (instance->job_guard) {
-		instance->sched_cb(TICKER_CALL_ID_JOB, TICKER_CALL_ID_JOB, 1,
-				   instance);
 		return;
 	}
 	instance->job_guard = 1U;
@@ -2379,13 +2325,13 @@ void ticker_job(void *param)
 		ticker_job_list_inquire(instance);
 	}
 
+	/* Permit worker job to run */
+	instance->job_guard = 0U;
+
 	/* update compare if head changed */
 	if (flag_compare_update) {
 		ticker_job_compare_update(instance, ticker_id_old_head);
 	}
-
-	/* Permit worker to run */
-	instance->job_guard = 0U;
 
 	/* trigger worker if deferred */
 	if (instance->worker_trigger) {
@@ -2639,36 +2585,16 @@ uint32_t ticker_start(uint8_t instance_index, uint8_t user_id, uint8_t ticker_id
  * @param fp_op_func	     Function pointer of user operation completion
  *			     function
  * @param op_context	     Context passed in operation completion call
- * @param must_expire	     Disable, enable or ignore the must-expire state.
- *			     A value of 0 means no change, 1 means disable and
- *			     2 means enable.
  *
  * @return TICKER_STATUS_BUSY if update was successful but not yet completed.
  * TICKER_STATUS_FAILURE is returned if there are no more user operations
  * available, and TICKER_STATUS_SUCCESS is returned if ticker_job gets to run
  * before exiting ticker_update
  */
-uint32_t ticker_update(uint8_t instance_index, uint8_t user_id,
-		       uint8_t ticker_id, uint32_t ticks_drift_plus,
-		       uint32_t ticks_drift_minus, uint32_t ticks_slot_plus,
-		       uint32_t ticks_slot_minus, uint16_t lazy, uint8_t force,
-		       ticker_op_func fp_op_func, void *op_context)
-#if defined(CONFIG_BT_TICKER_EXT)
-{
-	return ticker_update_ext(instance_index, user_id, ticker_id,
-				 ticks_drift_plus, ticks_drift_minus,
-				 ticks_slot_plus, ticks_slot_minus, lazy,
-				 force, fp_op_func, op_context, 0);
-}
-
-uint32_t ticker_update_ext(uint8_t instance_index, uint8_t user_id,
-			   uint8_t ticker_id, uint32_t ticks_drift_plus,
-			   uint32_t ticks_drift_minus,
-			   uint32_t ticks_slot_plus, uint32_t ticks_slot_minus,
-			   uint16_t lazy, uint8_t force,
-			   ticker_op_func fp_op_func, void *op_context,
-			   uint8_t must_expire)
-#endif /* CONFIG_BT_TICKER_EXT */
+uint32_t ticker_update(uint8_t instance_index, uint8_t user_id, uint8_t ticker_id,
+		    uint32_t ticks_drift_plus, uint32_t ticks_drift_minus,
+		    uint32_t ticks_slot_plus, uint32_t ticks_slot_minus, uint16_t lazy,
+		    uint8_t force, ticker_op_func fp_op_func, void *op_context)
 {
 	struct ticker_instance *instance = &_instance[instance_index];
 	struct ticker_user_op *user_op;
@@ -2695,9 +2621,6 @@ uint32_t ticker_update_ext(uint8_t instance_index, uint8_t user_id,
 	user_op->params.update.ticks_slot_minus = ticks_slot_minus;
 	user_op->params.update.lazy = lazy;
 	user_op->params.update.force = force;
-#if defined(CONFIG_BT_TICKER_EXT)
-	user_op->params.update.must_expire = must_expire;
-#endif /* CONFIG_BT_TICKER_EXT */
 	user_op->status = TICKER_STATUS_BUSY;
 	user_op->fp_op_func = fp_op_func;
 	user_op->op_context = op_context;
@@ -2840,23 +2763,10 @@ uint32_t ticker_stop_abs(uint8_t instance_index, uint8_t user_id, uint8_t ticker
  * available, and TICKER_STATUS_SUCCESS is returned if ticker_job gets to run
  * before exiting ticker_next_slot_get
  */
-uint32_t ticker_next_slot_get(uint8_t instance_index, uint8_t user_id,
-			      uint8_t *ticker_id, uint32_t *ticks_current,
-			      uint32_t *ticks_to_expire,
-			      ticker_op_func fp_op_func, void *op_context)
+uint32_t ticker_next_slot_get(uint8_t instance_index, uint8_t user_id, uint8_t *ticker_id,
+			   uint32_t *ticks_current, uint32_t *ticks_to_expire,
+			   ticker_op_func fp_op_func, void *op_context)
 {
-#if defined(CONFIG_BT_TICKER_LAZY_GET)
-	return ticker_next_slot_get_ext(instance_index, user_id, ticker_id,
-					ticks_current, ticks_to_expire, NULL,
-					fp_op_func, op_context);
-}
-
-uint32_t ticker_next_slot_get_ext(uint8_t instance_index, uint8_t user_id,
-				  uint8_t *ticker_id, uint32_t *ticks_current,
-				  uint32_t *ticks_to_expire, uint16_t *lazy,
-				  ticker_op_func fp_op_func, void *op_context)
-{
-#endif /* CONFIG_BT_TICKER_LAZY_GET */
 	struct ticker_instance *instance = &_instance[instance_index];
 	struct ticker_user_op *user_op;
 	struct ticker_user *user;
@@ -2879,9 +2789,6 @@ uint32_t ticker_next_slot_get_ext(uint8_t instance_index, uint8_t user_id,
 	user_op->params.slot_get.ticker_id = ticker_id;
 	user_op->params.slot_get.ticks_current = ticks_current;
 	user_op->params.slot_get.ticks_to_expire = ticks_to_expire;
-#if defined(CONFIG_BT_TICKER_LAZY_GET)
-	user_op->params.slot_get.lazy = lazy;
-#endif /* CONFIG_BT_TICKER_LAZY_GET */
 	user_op->status = TICKER_STATUS_BUSY;
 	user_op->fp_op_func = fp_op_func;
 	user_op->op_context = op_context;

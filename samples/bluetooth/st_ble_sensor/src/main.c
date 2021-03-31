@@ -27,8 +27,9 @@
 
 LOG_MODULE_REGISTER(main);
 
-/* Button value. */
-static uint16_t but_val;
+extern uint16_t but_val;
+extern const struct device *led_dev;
+extern bool led_state;
 
 /* Prototype */
 static ssize_t recv(struct bt_conn *conn,
@@ -108,33 +109,17 @@ static ssize_t recv(struct bt_conn *conn,
 		    const struct bt_gatt_attr *attr, const void *buf,
 		    uint16_t len, uint16_t offset, uint8_t flags)
 {
-	led_update();
+	if (led_dev) {
+		if (led_state) {
+			LOG_INF("Turn off LED");
+		} else {
+			LOG_INF("Turn on LED");
+		}
+		led_state = !led_state;
+		led_on_off(led_state);
+	}
 
 	return 0;
-}
-
-static void button_callback(const struct device *gpiob, struct gpio_callback *cb,
-		     uint32_t pins)
-{
-	int err;
-
-	LOG_INF("Button pressed");
-	if (conn) {
-		if (notify_enable) {
-			err = bt_gatt_notify(NULL, &stsensor_svc.attrs[2],
-					     &but_val, sizeof(but_val));
-			if (err) {
-				LOG_ERR("Notify error: %d", err);
-			} else {
-				LOG_INF("Send notify ok");
-				but_val = (but_val == 0) ? 0x100 : 0;
-			}
-		} else {
-			LOG_INF("Notify not enabled");
-		}
-	} else {
-		LOG_INF("BLE not connected");
-	}
 }
 
 static void bt_ready(int err)
@@ -185,7 +170,7 @@ void main(void)
 {
 	int err;
 
-	err = button_init(button_callback);
+	err = button_init();
 	if (err) {
 		return;
 	}

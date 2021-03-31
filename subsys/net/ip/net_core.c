@@ -129,19 +129,7 @@ static inline enum net_verdict process_data(struct net_pkt *pkt,
 
 static void processing_data(struct net_pkt *pkt, bool is_loopback)
 {
-again:
 	switch (process_data(pkt, is_loopback)) {
-	case NET_CONTINUE:
-		if (IS_ENABLED(CONFIG_NET_L2_VIRTUAL)) {
-			/* If we have a tunneling packet, feed it back
-			 * to the stack in this case.
-			 */
-			goto again;
-		} else {
-			NET_DBG("Dropping pkt %p", pkt);
-			net_pkt_unref(pkt);
-		}
-		break;
 	case NET_OK:
 		NET_DBG("Consumed pkt %p", pkt);
 		break;
@@ -394,7 +382,7 @@ int net_recv_data(struct net_if *iface, struct net_pkt *pkt)
 		return -EINVAL;
 	}
 
-	if (net_pkt_is_empty(pkt)) {
+	if (!pkt->frags) {
 		return -ENODATA;
 	}
 

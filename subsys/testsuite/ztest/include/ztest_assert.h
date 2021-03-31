@@ -10,8 +10,8 @@
  * @brief Zephyr testing framework assertion macros
  */
 
-#ifndef ZEPHYR_TESTSUITE_ZTEST_ASSERT_H_
-#define ZEPHYR_TESTSUITE_ZTEST_ASSERT_H_
+#ifndef __ZTEST_ASSERT_H__
+#define __ZTEST_ASSERT_H__
 
 #include <ztest.h>
 #include <stdarg.h>
@@ -190,7 +190,7 @@ static inline void z_zassert(bool cond,
  * @param msg Optional message to print if the assertion fails
  */
 #define zassert_within(a, b, d, msg, ...)			     \
-	zassert(((a) >= ((b) - (d))) && ((a) <= ((b) + (d))),	     \
+	zassert(((a) > ((b) - (d))) && ((a) < ((b) + (d))),	     \
 		#a " not within " #b " +/- " #d,		     \
 		msg, ##__VA_ARGS__)
 
@@ -231,4 +231,4 @@ static inline void z_zassert(bool cond,
 }
 #endif
 
-#endif /* ZEPHYR_TESTSUITE_ZTEST_ASSERT_H_ */
+#endif /* __ZTEST_ASSERT_H__ */
