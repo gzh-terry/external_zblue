@@ -53,7 +53,7 @@ struct spi_flash_at45_data {
 	const struct device *spi;
 	struct spi_cs_control spi_cs;
 	struct k_sem lock;
-#if IS_ENABLED(CONFIG_DEVICE_POWER_MANAGEMENT)
+#if IS_ENABLED(CONFIG_PM_DEVICE)
 	uint32_t pm_state;
 #endif
 };
@@ -486,24 +486,6 @@ static int spi_flash_at45_erase(const struct device *dev, off_t offset,
 	return err;
 }
 
-static int spi_flash_at45_write_protection(const struct device *dev,
-					   bool enable)
-{
-	ARG_UNUSED(dev);
-	ARG_UNUSED(enable);
-
-	/* The Sector Protection mechanism that is available in AT45 family
-	 * chips is more complex than what is exposed by the the flash API
-	 * (particular sectors need to be earlier configured in a write to
-	 * the nonvolatile Sector Protection Register), so it is not feasible
-	 * to try to use it here. Since the protection is not automatically
-	 * enabled after the device is power cycled, there is nothing needed
-	 * to be done in this function.
-	 */
-
-	return 0;
-}
-
 #if IS_ENABLED(CONFIG_FLASH_PAGE_LAYOUT)
 static void spi_flash_at45_pages_layout(const struct device *dev,
 					const struct flash_pages_layout **layout,
@@ -585,7 +567,7 @@ static int spi_flash_at45_init(const struct device *dev)
 	return err;
 }
 
-#if IS_ENABLED(CONFIG_DEVICE_POWER_MANAGEMENT)
+#if IS_ENABLED(CONFIG_PM_DEVICE)
 static int spi_flash_at45_pm_control(const struct device *dev,
 				     uint32_t ctrl_command,
 				     void *context, device_pm_cb cb, void *arg)
@@ -634,7 +616,7 @@ static int spi_flash_at45_pm_control(const struct device *dev,
 
 	return err;
 }
-#endif /* IS_ENABLED(CONFIG_DEVICE_POWER_MANAGEMENT) */
+#endif /* IS_ENABLED(CONFIG_PM_DEVICE) */
 
 static const struct flash_parameters *
 flash_at45_get_parameters(const struct device *dev)
@@ -648,7 +630,6 @@ static const struct flash_driver_api spi_flash_at45_api = {
 	.read = spi_flash_at45_read,
 	.write = spi_flash_at45_write,
 	.erase = spi_flash_at45_erase,
-	.write_protection = spi_flash_at45_write_protection,
 	.get_parameters = flash_at45_get_parameters,
 #if IS_ENABLED(CONFIG_FLASH_PAGE_LAYOUT)
 	.page_layout = spi_flash_at45_pages_layout,
@@ -665,7 +646,7 @@ static const struct flash_driver_api spi_flash_at45_api = {
 	};								     \
 	static struct spi_flash_at45_data inst_##idx##_data = {		     \
 		.lock = Z_SEM_INITIALIZER(inst_##idx##_data.lock, 1, 1),     \
-		IF_ENABLED(CONFIG_DEVICE_POWER_MANAGEMENT, (		     \
+		IF_ENABLED(CONFIG_PM_DEVICE, (		     \
 			.pm_state = DEVICE_PM_ACTIVE_STATE))		     \
 	};								     \
 	static const struct spi_flash_at45_config inst_##idx##_config = {    \
@@ -706,7 +687,7 @@ static const struct flash_driver_api spi_flash_at45_api = {
 			"Page size specified for instance " #idx " of "	     \
 			"atmel,at45 is not compatible with its "	     \
 			"total size");))				     \
-	DEVICE_DEFINE(inst_##idx, DT_INST_LABEL(idx),			     \
+	DEVICE_DT_INST_DEFINE(idx,					     \
 		      spi_flash_at45_init, spi_flash_at45_pm_control,	     \
 		      &inst_##idx##_data, &inst_##idx##_config,		     \
 		      POST_KERNEL, CONFIG_SPI_FLASH_AT45_INIT_PRIORITY,      \

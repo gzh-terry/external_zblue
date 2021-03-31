@@ -103,8 +103,8 @@
 &i2c0 {
 	compatible = "nordic,nrf-twi";
 	status = "okay";
-	sda-pin = <5>;
-	scl-pin = <6>;
+	sda-gpios = <&gpio0 5 0>;
+	scl-gpios = <&gpio0 6 0>;
 };
 
 &spi1 {
@@ -128,7 +128,7 @@
 &flash0 {
 	/*
 	 * For more information, see:
-	 * http://docs.zephyrproject.org/latest/devices/dts/flash_partitions.html
+	 * https://docs.zephyrproject.org/latest/reference/devicetree/index.html#fixed-flash-partitions
 	 */
 	partitions {
 		compatible = "fixed-partitions";

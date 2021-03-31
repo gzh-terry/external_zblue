@@ -88,7 +88,7 @@ struct fp_non_volatile_register_set {
 #define SIZEOF_FP_NON_VOLATILE_REGISTER_SET \
 	sizeof(struct fp_non_volatile_register_set)
 
-#elif defined(CONFIG_CPU_ARCV2)
+#elif defined(CONFIG_ISA_ARCV2)
 
 struct fp_volatile_register_set {
 #ifdef CONFIG_FP_FPU_DA
@@ -118,6 +118,18 @@ struct fp_volatile_register_set {
 
 struct fp_non_volatile_register_set {
 	/* No non-volatile floating point registers */
+};
+
+#define SIZEOF_FP_VOLATILE_REGISTER_SET sizeof(struct fp_volatile_register_set)
+#define SIZEOF_FP_NON_VOLATILE_REGISTER_SET 0
+
+#elif defined(CONFIG_SPARC)
+
+struct fp_volatile_register_set {
+	double d[16];
+};
+
+struct fp_non_volatile_register_set {
 };
 
 #define SIZEOF_FP_VOLATILE_REGISTER_SET sizeof(struct fp_volatile_register_set)
