@@ -80,6 +80,7 @@
 		sw1 = &button1;
 		sw2 = &button2;
 		sw3 = &button3;
+		bootloader-led0 = &led0;
 	};
 };
 
@@ -106,15 +107,15 @@
 
 &i2c0 {
 	status = "okay";
-	sda-pin = <30>;
-	scl-pin = <7>;
+	sda-gpios = <&gpio0 30 0>;
+	scl-gpios = <&gpio0 7 0>;
 };
 
 &i2c1 {
 	/* Cannot be used together with spi1. */
 	/* status = "okay"; */
-	sda-pin = <5>;
-	scl-pin = <6>;
+	sda-gpios = <&gpio0 5 0>;
+	scl-gpios = <&gpio0 6 0>;
 };
 
 &spi0 {
@@ -134,10 +135,7 @@
 };
 
 &flash0 {
-	/*
-	 * For more information, see:
-	 * https://docs.zephyrproject.org/latest/guides/dts/legacy-macros.html#legacy-flash-partitions
-	 */
+
 	partitions {
 		compatible = "fixed-partitions";
 		#address-cells = <1>;

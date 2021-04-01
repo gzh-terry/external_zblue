@@ -56,17 +56,25 @@ struct lll_conn {
 		uint16_t data_chan_id;
 	};
 
+	union {
+		struct {
+			uint8_t initiated:1;
+			uint8_t cancelled:1;
+		} master;
 #if defined(CONFIG_BT_PERIPHERAL)
-	struct {
-		uint8_t  latency_enabled:1;
-		uint32_t window_widening_periodic_us;
-		uint32_t window_widening_max_us;
-		uint32_t window_widening_prepare_us;
-		uint32_t window_widening_event_us;
-		uint32_t window_size_prepare_us;
-		uint32_t window_size_event_us;
-	} slave;
+		struct {
+			uint8_t  initiated:1;
+			uint8_t  latency_enabled:1;
+
+			uint32_t window_widening_periodic_us;
+			uint32_t window_widening_max_us;
+			uint32_t window_widening_prepare_us;
+			uint32_t window_widening_event_us;
+			uint32_t window_size_prepare_us;
+			uint32_t window_size_event_us;
+		} slave;
 #endif /* CONFIG_BT_PERIPHERAL */
+	};
 
 #if defined(CONFIG_BT_CTLR_DATA_LENGTH)
 	uint16_t max_tx_octets;
@@ -122,10 +130,8 @@ struct lll_conn {
 
 int lll_conn_init(void);
 int lll_conn_reset(void);
+void lll_conn_flush(uint16_t handle, struct lll_conn *lll);
 
-uint8_t lll_conn_sca_local_get(void);
-uint32_t lll_conn_ppm_local_get(void);
-uint32_t lll_conn_ppm_get(uint8_t sca);
 void lll_conn_prepare_reset(void);
 void lll_conn_abort_cb(struct lll_prepare_param *prepare_param, void *param);
 void lll_conn_isr_rx(void *param);
@@ -133,7 +139,7 @@ void lll_conn_isr_tx(void *param);
 void lll_conn_rx_pkt_set(struct lll_conn *lll);
 void lll_conn_tx_pkt_set(struct lll_conn *lll, struct pdu_data *pdu_data_tx);
 void lll_conn_pdu_tx_prep(struct lll_conn *lll, struct pdu_data **pdu_data_tx);
-void lll_conn_flush(uint16_t handle, struct lll_conn *lll);
+uint8_t lll_conn_force_md_cnt_set(uint8_t force_md_cnt);
 
 extern void ull_conn_lll_ack_enqueue(uint16_t handle, struct node_tx *tx);
 extern uint16_t ull_conn_lll_max_tx_octets_get(struct lll_conn *lll);

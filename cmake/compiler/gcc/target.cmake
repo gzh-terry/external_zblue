@@ -47,6 +47,8 @@ include(${ZEPHYR_BASE}/cmake/gcc-m-cpu.cmake)
 
 if("${ARCH}" STREQUAL "arm")
   include(${ZEPHYR_BASE}/cmake/compiler/gcc/target_arm.cmake)
+elseif("${ARCH}" STREQUAL "arm64")
+  include(${ZEPHYR_BASE}/cmake/compiler/gcc/target_arm64.cmake)
 elseif("${ARCH}" STREQUAL "arc")
   list(APPEND TOOLCHAIN_C_FLAGS
     -mcpu=${GCC_M_CPU}
@@ -55,6 +57,8 @@ elseif("${ARCH}" STREQUAL "riscv")
   include(${CMAKE_CURRENT_LIST_DIR}/target_riscv.cmake)
 elseif("${ARCH}" STREQUAL "x86")
   include(${CMAKE_CURRENT_LIST_DIR}/target_x86.cmake)
+elseif("${ARCH}" STREQUAL "sparc")
+  include(${CMAKE_CURRENT_LIST_DIR}/target_sparc.cmake)
 endif()
 
 if(NOT no_libgcc)

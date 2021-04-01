@@ -24,6 +24,7 @@
 /* Private includes for raw Network & Transport layer access */
 #include "mesh.h"
 #include "net.h"
+#include "rpl.h"
 #include "transport.h"
 #include "foundation.h"
 #include "settings.h"
@@ -46,27 +47,6 @@ static struct {
 } net = {
 	.local = BT_MESH_ADDR_UNASSIGNED,
 	.dst = BT_MESH_ADDR_UNASSIGNED,
-};
-
-static struct bt_mesh_cfg_srv cfg_srv = {
-	.relay = BT_MESH_RELAY_DISABLED,
-	.beacon = BT_MESH_BEACON_DISABLED,
-#if defined(CONFIG_BT_MESH_FRIEND)
-	.frnd = BT_MESH_FRIEND_DISABLED,
-#else
-	.frnd = BT_MESH_FRIEND_NOT_SUPPORTED,
-#endif
-#if defined(CONFIG_BT_MESH_GATT_PROXY)
-	.gatt_proxy = BT_MESH_GATT_PROXY_DISABLED,
-#else
-	.gatt_proxy = BT_MESH_GATT_PROXY_NOT_SUPPORTED,
-#endif
-
-	.default_ttl = 7,
-
-	/* 3 transmissions with 20ms interval */
-	.net_transmit = BT_MESH_TRANSMIT(2, 20),
-	.relay_retransmit = BT_MESH_TRANSMIT(2, 20),
 };
 
 #define CUR_FAULTS_MAX 4
@@ -158,7 +138,7 @@ BT_MESH_HEALTH_PUB_DEFINE(health_pub, CUR_FAULTS_MAX);
 static struct bt_mesh_cfg_cli cfg_cli = {
 };
 
-static void show_faults(uint8_t test_id, uint16_t cid, uint8_t *faults, size_t fault_count)
+void show_faults(uint8_t test_id, uint16_t cid, uint8_t *faults, size_t fault_count)
 {
 	size_t i;
 
@@ -191,7 +171,7 @@ static struct bt_mesh_health_cli health_cli = {
 static uint8_t dev_uuid[16] = { 0xdd, 0xdd };
 
 static struct bt_mesh_model root_models[] = {
-	BT_MESH_MODEL_CFG_SRV(&cfg_srv),
+	BT_MESH_MODEL_CFG_SRV,
 	BT_MESH_MODEL_CFG_CLI(&cfg_cli),
 	BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub),
 	BT_MESH_MODEL_HEALTH_CLI(&health_cli),
@@ -521,16 +501,24 @@ static int cmd_poll(const struct shell *shell, size_t argc, char *argv[])
 	return 0;
 }
 
-static void lpn_cb(uint16_t friend_addr, bool established)
+static void lpn_established(uint16_t net_idx, uint16_t friend_addr,
+					uint8_t queue_size, uint8_t recv_win)
 {
-	if (established) {
-		shell_print(ctx_shell, "Friendship (as LPN) established to "
-			    "Friend 0x%04x", friend_addr);
-	} else {
-		shell_print(ctx_shell, "Friendship (as LPN) lost with Friend "
-			    "0x%04x", friend_addr);
-	}
+	shell_print(ctx_shell, "Friendship (as LPN) established to "
+			"Friend 0x%04x Queue Size %d Receive Window %d",
+			friend_addr, queue_size, recv_win);
 }
+
+static void lpn_terminated(uint16_t net_idx, uint16_t friend_addr)
+{
+	shell_print(ctx_shell, "Friendship (as LPN) lost with Friend "
+			"0x%04x", friend_addr);
+}
+
+BT_MESH_LPN_CB_DEFINE(lpn_cb) = {
+	.established = lpn_established,
+	.terminated = lpn_terminated,
+};
 
 #endif /* MESH_LOW_POWER */
 
@@ -555,7 +543,7 @@ static int cmd_init(const struct shell *shell, size_t argc, char *argv[])
 
 	ctx_shell = shell;
 
-	if (IS_ENABLED(CONFIG_SETTINGS)) {
+	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
 		settings_load();
 	}
 
@@ -565,10 +553,6 @@ static int cmd_init(const struct shell *shell, size_t argc, char *argv[])
 		shell_print(shell, "Use \"pb-adv on\" or \"pb-gatt on\" to "
 			    "enable advertising");
 	}
-
-#if IS_ENABLED(CONFIG_BT_MESH_LOW_POWER)
-	bt_mesh_lpn_set_cb(lpn_cb);
-#endif
 
 	return 0;
 }
@@ -590,7 +574,7 @@ static int cmd_ident(const struct shell *shell, size_t argc, char *argv[])
 
 static int cmd_get_comp(const struct shell *shell, size_t argc, char *argv[])
 {
-	NET_BUF_SIMPLE_DEFINE(comp, 32);
+	NET_BUF_SIMPLE_DEFINE(comp, BT_MESH_RX_SDU_MAX);
 	uint8_t status, page = 0x00;
 	int err;
 
@@ -724,20 +708,12 @@ static int cmd_net_send(const struct shell *shell, size_t argc, char *argv[])
 	struct bt_mesh_net_tx tx = {
 		.ctx = &ctx,
 		.src = net.local,
-		.xmit = bt_mesh_net_transmit_get(),
-		.sub = bt_mesh_subnet_get(net.net_idx),
 	};
 	size_t len;
 	int err;
 
 	if (argc < 2) {
 		return -EINVAL;
-	}
-
-	if (!tx.sub) {
-		shell_print(shell, "No matching subnet for NetKey Index 0x%04x",
-			    net.net_idx);
-		return 0;
 	}
 
 	len = hex2bin(argv[1], strlen(argv[1]),
@@ -1645,13 +1621,13 @@ static int mod_pub_get(const struct shell *shell, uint16_t addr, uint16_t mod_id
 		return 0;
 	}
 
-	shell_print(shell, "Model Publication for Element 0x%04x, Model 0x%04x:"
-		    "\tPublish Address:                0x%04x"
-		    "\tAppKeyIndex:                    0x%04x"
-		    "\tCredential Flag:                %u"
-		    "\tPublishTTL:                     %u"
-		    "\tPublishPeriod:                  0x%02x"
-		    "\tPublishRetransmitCount:         %u"
+	shell_print(shell, "Model Publication for Element 0x%04x, Model 0x%04x:\n"
+		    "\tPublish Address:                0x%04x\n"
+		    "\tAppKeyIndex:                    0x%04x\n"
+		    "\tCredential Flag:                %u\n"
+		    "\tPublishTTL:                     %u\n"
+		    "\tPublishPeriod:                  0x%02x\n"
+		    "\tPublishRetransmitCount:         %u\n"
 		    "\tPublishRetransmitInterval:      %ums",
 		    addr, mod_id, pub.addr, pub.app_idx, pub.cred_flag, pub.ttl,
 		    pub.period, BT_MESH_PUB_TRANSMIT_COUNT(pub.transmit),
@@ -1748,12 +1724,12 @@ static int cmd_mod_pub(const struct shell *shell, size_t argc, char *argv[])
 static void hb_sub_print(const struct shell *shell,
 			 struct bt_mesh_cfg_hb_sub *sub)
 {
-	shell_print(shell, "Heartbeat Subscription:"
-		    "\tSource:      0x%04x"
-		    "\tDestination: 0x%04x"
-		    "\tPeriodLog:   0x%02x"
-		    "\tCountLog:    0x%02x"
-		    "\tMinHops:     %u"
+	shell_print(shell, "Heartbeat Subscription:\n"
+		    "\tSource:      0x%04x\n"
+		    "\tDestination: 0x%04x\n"
+		    "\tPeriodLog:   0x%02x\n"
+		    "\tCountLog:    0x%02x\n"
+		    "\tMinHops:     %u\n"
 		    "\tMaxHops:     %u",
 		    sub->src, sub->dst, sub->period, sub->count,
 		    sub->min, sub->max);
@@ -1893,7 +1869,7 @@ static int cmd_hb_pub(const struct shell *shell, size_t argc, char *argv[])
 	}
 }
 
-#if defined(CONFIG_BT_MESH_PROV)
+#if defined(CONFIG_BT_MESH_PROV_DEVICE)
 static int cmd_pb(bt_mesh_prov_bearer_t bearer, const struct shell *shell,
 		  size_t argc, char *argv[])
 {
@@ -1997,7 +1973,7 @@ static int cmd_provision(const struct shell *shell, size_t argc, char *argv[])
 			return 0;
 		}
 
-		net_key = sub->keys[sub->kr_flag].net_key;
+		net_key = sub->keys[SUBNET_KEY_TX_IDX(sub)].net_key;
 	}
 
 	err = bt_mesh_provision(net_key, net_idx, 0, iv_index, addr,
@@ -2525,8 +2501,8 @@ static int cmd_cdb_node_add(const struct shell *shell, size_t argc,
 
 	memcpy(node->dev_key, dev_key, 16);
 
-	if (IS_ENABLED(CONFIG_SETTINGS)) {
-		bt_mesh_store_cdb_node(node);
+	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
+		bt_mesh_cdb_node_store(node);
 	}
 
 	shell_print(shell, "Added node 0x%04x", addr);
@@ -2581,8 +2557,8 @@ static int cmd_cdb_subnet_add(const struct shell *shell, size_t argc,
 
 	memcpy(sub->keys[0].net_key, net_key, 16);
 
-	if (IS_ENABLED(CONFIG_SETTINGS)) {
-		bt_mesh_store_cdb_subnet(sub);
+	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
+		bt_mesh_cdb_subnet_store(sub);
 	}
 
 	shell_print(shell, "Added Subnet 0x%03x", net_idx);
@@ -2638,8 +2614,8 @@ static int cmd_cdb_app_key_add(const struct shell *shell, size_t argc,
 
 	memcpy(key->keys[0].app_key, app_key, 16);
 
-	if (IS_ENABLED(CONFIG_SETTINGS)) {
-		bt_mesh_store_cdb_app_key(key);
+	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
+		bt_mesh_cdb_app_key_store(key);
 	}
 
 	shell_print(shell, "Added AppKey 0x%03x", app_idx);
@@ -2724,7 +2700,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 	/* Configuration Client Model operations */
 	SHELL_CMD_ARG(timeout, NULL, "[timeout in seconds]", cmd_timeout, 1, 1),
 	SHELL_CMD_ARG(get-comp, NULL, "[page]", cmd_get_comp, 1, 1),
-	SHELL_CMD_ARG(beacon, NULL, "[val: off, on]", cmd_beacon, 2, 1),
+	SHELL_CMD_ARG(beacon, NULL, "[val: off, on]", cmd_beacon, 1, 1),
 	SHELL_CMD_ARG(ttl, NULL, "[ttl: 0x00, 0x02-0x7f]", cmd_ttl, 1, 1),
 	SHELL_CMD_ARG(friend, NULL, "[val: off, on]", cmd_friend, 1, 1),
 	SHELL_CMD_ARG(gatt-proxy, NULL, "[val: off, on]", cmd_gatt_proxy, 1, 1),
