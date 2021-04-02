@@ -19,7 +19,7 @@ struct spi_nrfx_data {
 	const struct device *dev;
 	size_t chunk_len;
 	bool   busy;
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 	uint32_t pm_state;
 #endif
 };
@@ -142,7 +142,7 @@ static void transfer_next_chunk(const struct device *dev)
 	struct spi_context *ctx = &dev_data->ctx;
 	int error = 0;
 
-	size_t chunk_len = spi_context_max_continuous_chunk(ctx);
+	size_t chunk_len = spi_context_longest_current_buf(ctx);
 
 	if (chunk_len > 0) {
 		nrfx_spi_xfer_desc_t xfer;
@@ -180,7 +180,7 @@ static int transceive(const struct device *dev,
 	struct spi_nrfx_data *dev_data = get_dev_data(dev);
 	int error;
 
-	spi_context_lock(&dev_data->ctx, asynchronous, signal, spi_cfg);
+	spi_context_lock(&dev_data->ctx, asynchronous, signal);
 
 	error = configure(dev, spi_cfg);
 	if (error == 0) {
@@ -276,14 +276,15 @@ static int init_spi(const struct device *dev)
 		return -EBUSY;
 	}
 
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 	dev_data->pm_state = DEVICE_PM_ACTIVE_STATE;
 #endif
+	spi_context_unlock_unconditionally(&dev_data->ctx);
 
 	return 0;
 }
 
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 static int spi_nrfx_pm_control(const struct device *dev,
 				uint32_t ctrl_command,
 				void *context, device_pm_cb cb, void *arg)
@@ -329,7 +330,7 @@ static int spi_nrfx_pm_control(const struct device *dev,
 
 	return ret;
 }
-#endif /* CONFIG_PM_DEVICE */
+#endif /* CONFIG_DEVICE_POWER_MANAGEMENT */
 
 /*
  * Current factors requiring use of DT_NODELABEL:
@@ -360,9 +361,7 @@ static int spi_nrfx_pm_control(const struct device *dev,
 	{								       \
 		IRQ_CONNECT(DT_IRQN(SPI(idx)), DT_IRQ(SPI(idx), priority),     \
 			    nrfx_isr, nrfx_spi_##idx##_irq_handler, 0);	       \
-		int err = init_spi(dev);				       \
-		spi_context_unlock_unconditionally(&get_dev_data(dev)->ctx);   \
-		return err;					       	       \
+		return init_spi(dev);					       \
 	}								       \
 	static struct spi_nrfx_data spi_##idx##_data = {		       \
 		SPI_CONTEXT_INIT_LOCK(spi_##idx##_data, ctx),		       \
@@ -383,7 +382,7 @@ static int spi_nrfx_pm_control(const struct device *dev,
 			.miso_pull = SPI_NRFX_MISO_PULL(idx),		       \
 		}							       \
 	};								       \
-	DEVICE_DT_DEFINE(SPI(idx),					       \
+	DEVICE_DEFINE(spi_##idx, DT_LABEL(SPI(idx)),			       \
 		      spi_##idx##_init,					       \
 		      spi_nrfx_pm_control,				       \
 		      &spi_##idx##_data,				       \

@@ -32,10 +32,11 @@ _vector_start = .;
 KEEP(*(.exc_vector_table))
 KEEP(*(".exc_vector_table.*"))
 
-KEEP(*(_IRQ_VECTOR_TABLE_SECTION_SYMS))
+KEEP(*(_IRQ_VECTOR_TABLE_SECTION_NAME))
 
 KEEP(*(.vectors))
 
 _vector_end = .;
 
-#include "cortex_m/vector_table_pad.ld"
+KEEP(*(.openocd_dbg))
+KEEP(*(".openocd_dbg.*"))

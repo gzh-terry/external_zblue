@@ -134,6 +134,11 @@ static uint32_t imx_epit_get_top_value(const struct device *dev)
 	return EPIT_GetCounterLoadValue(base);
 }
 
+static uint32_t imx_epit_get_max_relative_alarm(const struct device *dev)
+{
+	return COUNTER_MAX_RELOAD;
+}
+
 static const struct counter_driver_api imx_epit_driver_api = {
 	.start = imx_epit_start,
 	.stop = imx_epit_stop,
@@ -141,6 +146,7 @@ static const struct counter_driver_api imx_epit_driver_api = {
 	.set_top_value = imx_epit_set_top_value,
 	.get_pending_int = imx_epit_get_pending_int,
 	.get_top_value = imx_epit_get_top_value,
+	.get_max_relative_alarm = imx_epit_get_max_relative_alarm,
 };
 
 #define COUNTER_IMX_EPIT_DEVICE(idx)					       \
@@ -156,9 +162,8 @@ static const struct imx_epit_config imx_epit_##idx##z_config = {	       \
 	.prescaler = DT_INST_PROP(idx, prescaler),			       \
 };									       \
 static struct imx_epit_data imx_epit_##idx##_data;			       \
-DEVICE_DT_INST_DEFINE(idx,						       \
+DEVICE_AND_API_INIT(epit_##idx, DT_INST_LABEL(idx),			       \
 		    &imx_epit_config_func_##idx,			       \
-		    device_pm_control_nop,				       \
 		    &imx_epit_##idx##_data, &imx_epit_##idx##z_config.info,    \
 		    PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,	       \
 		    &imx_epit_driver_api);				       \
@@ -167,7 +172,7 @@ static int imx_epit_config_func_##idx(const struct device *dev)		       \
 	imx_epit_init(dev);						       \
 	IRQ_CONNECT(DT_INST_IRQN(idx),					       \
 		    DT_INST_IRQ(idx, priority),				       \
-		    imx_epit_isr, DEVICE_DT_INST_GET(idx), 0);		       \
+		    imx_epit_isr, DEVICE_GET(epit_##idx), 0);		       \
 	irq_enable(DT_INST_IRQN(idx));					       \
 	return 0;							       \
 }

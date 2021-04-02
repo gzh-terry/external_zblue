@@ -15,6 +15,3 @@ supported:
   - ieee802154
   - spi
   - pwm
-testing:
-  ignore_tags:
-    - bluetooth

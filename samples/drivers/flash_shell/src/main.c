@@ -10,6 +10,7 @@
 #include <sys/printk.h>
 #include <logging/log.h>
 #include <shell/shell.h>
+#include <shell/shell_uart.h>
 #include <drivers/flash.h>
 #include <device.h>
 #include <soc.h>
@@ -193,32 +194,53 @@ static int do_read(const struct shell *shell, off_t offset, size_t len)
 	return ret;
 }
 
-/* Erase area and printing on error. */
+/* Erase area, handling write protection and printing on error. */
 static int do_erase(const struct shell *shell, off_t offset, size_t size)
 {
 	int ret;
 
+	ret = flash_write_protection_set(flash_device, false);
+	if (ret) {
+		PR_ERROR(shell, "Failed to disable flash protection (err: %d)."
+				"\n", ret);
+		return ret;
+	}
 	ret = flash_erase(flash_device, offset, size);
 	if (ret) {
 		PR_ERROR(shell, "flash_erase failed (err:%d).\n", ret);
 		return ret;
 	}
-
+	ret = flash_write_protection_set(flash_device, true);
+	if (ret) {
+		PR_ERROR(shell, "Failed to enable flash protection (err: %d)."
+				"\n", ret);
+	}
 	return ret;
 }
 
-/* Write bytes and printing on error. */
+/* Write bytes, handling write protection and printing on error. */
 static int do_write(const struct shell *shell, off_t offset, uint8_t *buf,
 		    size_t len, bool read_back)
 {
 	int ret;
 
+	ret = flash_write_protection_set(flash_device, false);
+	if (ret) {
+		PR_ERROR(shell, "Failed to disable flash protection (err: %d)."
+				"\n", ret);
+		return ret;
+	}
 	ret = flash_write(flash_device, offset, buf, len);
 	if (ret) {
 		PR_ERROR(shell, "flash_write failed (err:%d).\n", ret);
 		return ret;
 	}
-
+	ret = flash_write_protection_set(flash_device, true);
+	if (ret) {
+		PR_ERROR(shell, "Failed to enable flash protection (err: %d)."
+				"\n", ret);
+		return ret;
+	}
 	if (read_back) {
 		PR_SHELL(shell, "Reading back written bytes:\n");
 		ret = do_read(shell, offset, len);
@@ -241,12 +263,23 @@ static int do_write_unaligned(const struct shell *shell, off_t offset, uint8_t *
 	char *before_data;
 	char *after_data;
 
+	ret = flash_write_protection_set(flash_device, false);
+	if (ret) {
+		PR_ERROR(shell, "Failed to disable flash protection (err: %d)."
+				"\n", ret);
+		return ret;
+	}
+
 	if (0 == size_before && 0 == size_after) {
 		/* Aligned write */
 		flash_erase(flash_device, offset, len);
 		flash_write(flash_device, offset, buf, len);
-
-		return 0;
+		ret = flash_write_protection_set(flash_device, true);
+		if (ret) {
+			PR_ERROR(shell, "Failed to enable flash protection (err: %d)."
+					"\n", ret);
+		}
+		return ret;
 	}
 
 	before_data = k_malloc(page_size);
@@ -338,6 +371,13 @@ static int do_write_unaligned(const struct shell *shell, off_t offset, uint8_t *
 free_buffers:
 	k_free(before_data);
 	k_free(after_data);
+
+	int ret1 = flash_write_protection_set(flash_device, true);
+	if (ret1) {
+		PR_ERROR(shell, "Failed to enable flash protection (err: %d)."
+				"\n", ret1);
+		return ret1;
+	}
 
 	return ret;
 }

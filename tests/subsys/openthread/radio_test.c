@@ -423,15 +423,13 @@ static void test_tx_test(void)
 
 	zassert_not_null(frm, "Transmit buffer is null.");
 
-	zassert_equal(otPlatRadioSetTransmitPower(ot, power), OT_ERROR_NONE,
-		      "Failed to set TX power.");
+	otPlatRadioSetTransmitPower(ot, power);
 
 	ztest_returns_value(set_channel_mock, 0);
 	ztest_expect_value(set_channel_mock, channel, chan);
 	ztest_expect_value(set_txpower_mock, dbm, power);
 	ztest_expect_value(start_mock, dev, &radio);
-	zassert_equal(otPlatRadioReceive(ot, chan), OT_ERROR_NONE,
-		      "Failed to receive.");
+	otPlatRadioReceive(ot, chan);
 
 	/* ACKed frame */
 	frm->mChannel = chan2;
@@ -492,15 +490,11 @@ static void test_tx_power_test(void)
 {
 	int8_t out_power = 0;
 
-	zassert_equal(otPlatRadioSetTransmitPower(ot, -3), OT_ERROR_NONE,
-		      "Failed to set TX power.");
-	zassert_equal(otPlatRadioGetTransmitPower(ot, &out_power),
-		      OT_ERROR_NONE, "Failed to obtain TX power.");
+	otPlatRadioSetTransmitPower(ot, -3);
+	otPlatRadioGetTransmitPower(ot, &out_power);
 	zassert_equal(out_power, -3, "Got different power than set.");
-	zassert_equal(otPlatRadioSetTransmitPower(ot, -6), OT_ERROR_NONE,
-		      "Failed to set TX power.");
-	zassert_equal(otPlatRadioGetTransmitPower(ot, &out_power),
-		      OT_ERROR_NONE, "Failed to obtain TX power.");
+	otPlatRadioSetTransmitPower(ot, -6);
+	otPlatRadioGetTransmitPower(ot, &out_power);
 	zassert_equal(out_power, -6,
 		      "Second call to otPlatRadioSetTransmitPower failed.");
 }
@@ -576,29 +570,24 @@ static void test_source_match_test(void)
 	sys_put_le16(12345, ext_addr.m8);
 	set_expected_match_values(IEEE802154_CONFIG_ACK_FPB, ext_addr.m8, false,
 				  true);
-	zassert_equal(otPlatRadioAddSrcMatchShortEntry(ot, 12345),
-		      OT_ERROR_NONE, "Failed to add short src entry.");
-
+	otPlatRadioAddSrcMatchShortEntry(ot, 12345);
 
 	for (int i = 0; i < sizeof(ext_addr.m8); i++) {
 		ext_addr.m8[i] = i;
 	}
 	set_expected_match_values(IEEE802154_CONFIG_ACK_FPB, ext_addr.m8, true,
 				  true);
-	zassert_equal(otPlatRadioAddSrcMatchExtEntry(ot, &ext_addr),
-		      OT_ERROR_NONE, "Failed to add ext src entry.");
+	otPlatRadioAddSrcMatchExtEntry(ot, &ext_addr);
 
 	/* Clear */
 	sys_put_le16(12345, ext_addr.m8);
 	set_expected_match_values(IEEE802154_CONFIG_ACK_FPB, ext_addr.m8, false,
 				  false);
-	zassert_equal(otPlatRadioClearSrcMatchShortEntry(ot, 12345),
-		      OT_ERROR_NONE, "Failed to clear short src entry.");
+	otPlatRadioClearSrcMatchShortEntry(ot, 12345);
 
 	set_expected_match_values(IEEE802154_CONFIG_ACK_FPB, ext_addr.m8, true,
 				  false);
-	zassert_equal(otPlatRadioClearSrcMatchExtEntry(ot, &ext_addr),
-		      OT_ERROR_NONE, "Failed to clear ext src entry.");
+	otPlatRadioClearSrcMatchExtEntry(ot, &ext_addr);
 
 	set_expected_match_values(IEEE802154_CONFIG_ACK_FPB, NULL, false,
 				  false);
@@ -735,8 +724,7 @@ static void test_radio_state_test(void)
 	const uint8_t channel = 12;
 	const uint8_t power = 10;
 
-	zassert_equal(otPlatRadioSetTransmitPower(ot, power), OT_ERROR_NONE,
-		      "Failed to set TX power.");
+	otPlatRadioSetTransmitPower(ot, power);
 	zassert_equal(otPlatRadioDisable(ot), OT_ERROR_NONE,
 		      "Failed to disable radio.");
 
@@ -760,8 +748,7 @@ static void test_radio_state_test(void)
 	ztest_expect_value(set_channel_mock, channel, channel);
 	ztest_expect_value(set_txpower_mock, dbm, power);
 	ztest_expect_value(start_mock, dev, &radio);
-	zassert_equal(otPlatRadioReceive(ot, channel), OT_ERROR_NONE,
-		      "Failed to receive.");
+	otPlatRadioReceive(ot, channel);
 	zassert_equal(platformRadioChannelGet(ot), channel,
 		      "Channel number not remembered.");
 
@@ -847,15 +834,13 @@ static void test_receive_test(void)
 	net_pkt_set_ieee802154_lqi(packet, lqi);
 	net_pkt_set_ieee802154_rssi(packet, rssi);
 
-	zassert_equal(otPlatRadioSetTransmitPower(ot, power), OT_ERROR_NONE,
-		      "Failed to set TX power.");
+	otPlatRadioSetTransmitPower(ot, power);
 
 	ztest_returns_value(set_channel_mock, 0);
 	ztest_expect_value(set_channel_mock, channel, channel);
 	ztest_expect_value(set_txpower_mock, dbm, power);
 	ztest_expect_value(start_mock, dev, &radio);
-	zassert_equal(otPlatRadioReceive(ot, channel), OT_ERROR_NONE,
-		      "Failed to receive.");
+	otPlatRadioReceive(ot, channel);
 
 	/*
 	 * Not setting any expect values as nothing shall be called from
@@ -888,15 +873,13 @@ static void test_net_pkt_transmit(void)
 	/* success */
 	len = alloc_pkt(&packet, 2, 'a');
 	buf = packet->buffer;
-	zassert_equal(otPlatRadioSetTransmitPower(ot, power), OT_ERROR_NONE,
-		      "Failed to set TX power.");
+	otPlatRadioSetTransmitPower(ot, power);
 
 	ztest_returns_value(set_channel_mock, 0);
 	ztest_expect_value(set_channel_mock, channel, channel);
 	ztest_expect_value(set_txpower_mock, dbm, power);
 	ztest_expect_value(start_mock, dev, &radio);
-	zassert_equal(otPlatRadioReceive(ot, channel), OT_ERROR_NONE,
-		      "Failed to receive.");
+	otPlatRadioReceive(ot, channel);
 
 	notify_new_tx_frame(packet);
 

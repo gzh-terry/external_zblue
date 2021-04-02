@@ -170,7 +170,7 @@ int ak8975_init(const struct device *dev)
 
 struct ak8975_data ak8975_data;
 
-DEVICE_DT_INST_DEFINE(0, ak8975_init, device_pm_control_nop,
+DEVICE_AND_API_INIT(ak8975, DT_INST_LABEL(0), ak8975_init,
 		    &ak8975_data,
 		    NULL, POST_KERNEL, CONFIG_SENSOR_INIT_PRIORITY,
 		    &ak8975_driver_api);

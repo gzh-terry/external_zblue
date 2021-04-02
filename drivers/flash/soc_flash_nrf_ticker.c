@@ -58,20 +58,18 @@ static void time_slot_callback_work(uint32_t ticks_at_expire,
 	struct flash_op_desc *op_desc;
 	uint8_t instance_index;
 	uint8_t ticker_id;
-	int rc;
 
 	__ASSERT(ll_radio_state_is_idle(),
 		 "Radio is on during flash operation.\n");
 
 	op_desc = context;
-	rc = op_desc->handler(op_desc->context);
-	if (rc != FLASH_OP_ONGOING) {
+	if (op_desc->handler(op_desc->context) == FLASH_OP_DONE) {
 		ll_timeslice_ticker_id_get(&instance_index, &ticker_id);
 
 		/* Stop the time slot ticker */
 		_ticker_stop(instance_index, 0, ticker_id);
 
-		_ticker_sync_context.result = (rc == FLASH_OP_DONE) ? 0 : rc;
+		_ticker_sync_context.result = 0;
 
 		/* notify thread that data is available */
 		k_sem_give(&sem_sync);
@@ -92,8 +90,7 @@ static void time_slot_delay(uint32_t ticks_at_expire, uint32_t ticks_delay,
 	 * Radio h/w.
 	 */
 	err = ticker_start(instance_index, /* Radio instance ticker */
-			   1, /* user id for link layer ULL_HIGH */
-			      /* (MAYFLY_CALL_ID_WORKER) */
+			   0, /* user_id */
 			   (ticker_id + 1), /* ticker_id */
 			   ticks_at_expire, /* current tick */
 			   ticks_delay, /* one-shot delayed timeout */

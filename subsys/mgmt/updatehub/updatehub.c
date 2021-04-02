@@ -53,15 +53,6 @@ LOG_MODULE_REGISTER(updatehub, CONFIG_UPDATEHUB_LOG_LEVEL);
 #define UPDATEHUB_SERVER "coap.updatehub.io"
 #endif
 
-#ifdef CONFIG_UPDATEHUB_DOWNLOAD_SHA256_VERIFICATION
-#define _DOWNLOAD_SHA256_VERIFICATION
-#elif defined(CONFIG_UPDATEHUB_DOWNLOAD_STORAGE_SHA256_VERIFICATION)
-#define _DOWNLOAD_SHA256_VERIFICATION
-#define _STORAGE_SHA256_VERIFICATION
-#elif defined(CONFIG_UPDATEHUB_STORAGE_SHA256_VERIFICATION)
-#define _STORAGE_SHA256_VERIFICATION
-#endif
-
 static struct updatehub_context {
 	struct coap_block_context block;
 	struct k_sem semaphore;
@@ -256,6 +247,7 @@ static int send_request(enum coap_msgtype msgtype, enum coap_method method,
 {
 	struct coap_packet request_packet;
 	int ret = -1;
+	uint8_t content_application_json = 50;
 	uint8_t *data = k_malloc(MAX_PAYLOAD_SIZE);
 
 	if (data == NULL) {
@@ -263,9 +255,8 @@ static int send_request(enum coap_msgtype msgtype, enum coap_method method,
 		goto error;
 	}
 
-	ret = coap_packet_init(&request_packet, data, MAX_PAYLOAD_SIZE,
-			       COAP_VERSION_1, COAP_TYPE_CON,
-			       COAP_TOKEN_MAX_LEN, coap_next_token(), method,
+	ret = coap_packet_init(&request_packet, data, MAX_PAYLOAD_SIZE, 1,
+			       COAP_TYPE_CON, 8, coap_next_token(), method,
 			       coap_next_id());
 	if (ret < 0) {
 		LOG_ERR("Could not init packet");
@@ -314,9 +305,10 @@ static int send_request(enum coap_msgtype msgtype, enum coap_method method,
 			goto error;
 		}
 
-		ret = coap_append_option_int(&request_packet,
-					     COAP_OPTION_CONTENT_FORMAT,
-					     COAP_CONTENT_FORMAT_APP_JSON);
+		ret = coap_packet_append_option(&request_packet,
+						COAP_OPTION_CONTENT_FORMAT,
+						&content_application_json,
+						sizeof(content_application_json));
 		if (ret < 0) {
 			LOG_ERR("Unable add option to request format");
 			goto error;
@@ -363,7 +355,8 @@ error:
 	return ret;
 }
 
-#ifdef _DOWNLOAD_SHA256_VERIFICATION
+#if defined(CONFIG_UPDATEHUB_DOWNLOAD_SHA256_VERIFICATION) || \
+	defined(CONFIG_UPDATEHUB_DOWNLOAD_STORAGE_SHA256_VERIFICATION)
 static bool install_update_cb_sha256(void)
 {
 	char sha256[SHA256_HEX_DIGEST_SIZE];
@@ -416,7 +409,8 @@ static int install_update_cb_check_blk_num(struct coap_packet *resp)
 static void install_update_cb(void)
 {
 	struct coap_packet response_packet;
-#ifdef _STORAGE_SHA256_VERIFICATION
+#if defined(CONFIG_UPDATEHUB_STORAGE_SHA256_VERIFICATION) || \
+	defined(CONFIG_UPDATEHUB_DOWNLOAD_STORAGE_SHA256_VERIFICATION)
 	struct flash_img_check fic;
 #endif
 	uint8_t *data = k_malloc(MAX_DOWNLOAD_DATA);
@@ -455,7 +449,8 @@ static void install_update_cb(void)
 	ctx.downloaded_size = ctx.downloaded_size +
 			      (response_packet.max_len - response_packet.offset);
 
-#ifdef _DOWNLOAD_SHA256_VERIFICATION
+#if defined(CONFIG_UPDATEHUB_DOWNLOAD_SHA256_VERIFICATION) || \
+	defined(CONFIG_UPDATEHUB_DOWNLOAD_STORAGE_SHA256_VERIFICATION)
 	if (tc_sha256_update(&ctx.sha256sum,
 			     response_packet.data + response_packet.offset,
 			     response_packet.max_len - response_packet.offset) < 1) {
@@ -464,12 +459,6 @@ static void install_update_cb(void)
 		goto cleanup;
 	}
 #endif
-
-	LOG_DBG("Flash: Address: 0x%08x, Size: %d, Flush: %s",
-		ctx.flash_ctx.stream.bytes_written,
-		response_packet.max_len - response_packet.offset,
-		(ctx.downloaded_size == ctx.block.total_size ?
-			"True" : "False"));
 
 	if (flash_img_buffered_write(&ctx.flash_ctx,
 				     response_packet.data + response_packet.offset,
@@ -494,7 +483,8 @@ static void install_update_cb(void)
 
 		LOG_INF("Firmware download complete");
 
-#ifdef _DOWNLOAD_SHA256_VERIFICATION
+#if defined(CONFIG_UPDATEHUB_DOWNLOAD_SHA256_VERIFICATION) || \
+	defined(CONFIG_UPDATEHUB_DOWNLOAD_STORAGE_SHA256_VERIFICATION)
 		if (!install_update_cb_sha256()) {
 			LOG_ERR("Firmware - download validation has failed");
 			ctx.code_status = UPDATEHUB_DOWNLOAD_ERROR;
@@ -510,7 +500,8 @@ static void install_update_cb(void)
 		}
 #endif
 
-#ifdef _STORAGE_SHA256_VERIFICATION
+#if defined(CONFIG_UPDATEHUB_STORAGE_SHA256_VERIFICATION) || \
+	defined(CONFIG_UPDATEHUB_DOWNLOAD_STORAGE_SHA256_VERIFICATION)
 		fic.match = ctx.hash;
 		fic.clen = ctx.downloaded_size;
 
@@ -537,7 +528,8 @@ static enum updatehub_response install_update(void)
 		goto error;
 	}
 
-#ifdef _DOWNLOAD_SHA256_VERIFICATION
+#if defined(CONFIG_UPDATEHUB_DOWNLOAD_SHA256_VERIFICATION) || \
+	defined(CONFIG_UPDATEHUB_DOWNLOAD_STORAGE_SHA256_VERIFICATION)
 	if (tc_sha256_init(&ctx.sha256sum) < 1) {
 		LOG_ERR("Could not start sha256sum");
 		ctx.code_status = UPDATEHUB_DOWNLOAD_ERROR;
@@ -866,8 +858,7 @@ enum updatehub_response updatehub_probe(void)
 		       metadata_any_boards.objects[1].objects.sha256sum,
 		       SHA256_HEX_DIGEST_SIZE);
 		update_info.image_size = metadata_any_boards.objects[1].objects.size;
-		LOG_DBG("metadata_any: %s",
-			log_strdup(update_info.sha256sum_image));
+		LOG_DBG("metadata_any: %s", update_info.sha256sum_image);
 	} else {
 		if (metadata_some_boards.objects_len != 2) {
 			LOG_ERR("Could not parse json");
@@ -896,8 +887,7 @@ enum updatehub_response updatehub_probe(void)
 		       SHA256_HEX_DIGEST_SIZE);
 		update_info.image_size =
 			metadata_some_boards.objects[1].objects.size;
-		LOG_DBG("metadata_some: %s",
-			log_strdup(update_info.sha256sum_image));
+		LOG_DBG("metadata_some: %s", update_info.sha256sum_image);
 	}
 
 	ctx.code_status = UPDATEHUB_HAS_UPDATE;
@@ -972,14 +962,12 @@ static void autohandler(struct k_work *work)
 		LOG_ERR("Image is unconfirmed. Rebooting to revert back to previous"
 			"confirmed image.");
 
-		LOG_PANIC();
 		sys_reboot(SYS_REBOOT_WARM);
 		break;
 
 	case UPDATEHUB_HAS_UPDATE:
 		switch (updatehub_update()) {
 		case UPDATEHUB_OK:
-			LOG_PANIC();
 			sys_reboot(SYS_REBOOT_WARM);
 			break;
 

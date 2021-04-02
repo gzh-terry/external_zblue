@@ -243,33 +243,33 @@ void stm32_dma_dump_stream_irq(DMA_TypeDef *dma, uint32_t id)
 		dma_stm32_is_fe_active(dma, id));
 }
 
-inline bool stm32_dma_is_tc_irq_active(DMA_TypeDef *dma, uint32_t id)
+static inline bool stm32_dma_is_tc_irq_active(DMA_TypeDef *dma, uint32_t id)
 {
-	return LL_DMA_IsEnabledIT_TC(dma, dma_stm32_id_to_stream(id)) &&
+	return LL_DMA_IsEnabledIT_TC(dma, id) &&
 	       dma_stm32_is_tc_active(dma, id);
 }
 
-inline bool stm32_dma_is_ht_irq_active(DMA_TypeDef *dma, uint32_t id)
+static inline bool stm32_dma_is_ht_irq_active(DMA_TypeDef *dma, uint32_t id)
 {
-	return LL_DMA_IsEnabledIT_HT(dma, dma_stm32_id_to_stream(id)) &&
+	return LL_DMA_IsEnabledIT_HT(dma, id) &&
 	       dma_stm32_is_ht_active(dma, id);
 }
 
 static inline bool stm32_dma_is_te_irq_active(DMA_TypeDef *dma, uint32_t id)
 {
-	return LL_DMA_IsEnabledIT_TE(dma, dma_stm32_id_to_stream(id)) &&
+	return LL_DMA_IsEnabledIT_TE(dma, id) &&
 	       dma_stm32_is_te_active(dma, id);
 }
 
 static inline bool stm32_dma_is_dme_irq_active(DMA_TypeDef *dma, uint32_t id)
 {
-	return LL_DMA_IsEnabledIT_DME(dma, dma_stm32_id_to_stream(id)) &&
+	return LL_DMA_IsEnabledIT_DME(dma, id) &&
 	       dma_stm32_is_dme_active(dma, id);
 }
 
 static inline bool stm32_dma_is_fe_irq_active(DMA_TypeDef *dma, uint32_t id)
 {
-	return LL_DMA_IsEnabledIT_FE(dma, dma_stm32_id_to_stream(id)) &&
+	return LL_DMA_IsEnabledIT_FE(dma, id) &&
 	       dma_stm32_is_fe_active(dma, id);
 }
 
@@ -291,8 +291,7 @@ void stm32_dma_clear_stream_irq(DMA_TypeDef *dma, uint32_t id)
 
 bool stm32_dma_is_irq_happened(DMA_TypeDef *dma, uint32_t id)
 {
-	if (LL_DMA_IsEnabledIT_FE(dma, dma_stm32_id_to_stream(id)) &&
-	    dma_stm32_is_fe_active(dma, id)) {
+	if (dma_stm32_is_fe_active(dma, id) && LL_DMA_IsEnabledIT_FE(dma, id)) {
 		return true;
 	}
 
@@ -301,8 +300,7 @@ bool stm32_dma_is_irq_happened(DMA_TypeDef *dma, uint32_t id)
 
 bool stm32_dma_is_unexpected_irq_happened(DMA_TypeDef *dma, uint32_t id)
 {
-	if (LL_DMA_IsEnabledIT_FE(dma, dma_stm32_id_to_stream(id)) &&
-	    dma_stm32_is_fe_active(dma, id)) {
+	if (dma_stm32_is_fe_active(dma, id) && LL_DMA_IsEnabledIT_FE(dma, id)) {
 		LOG_ERR("FiFo error.");
 		stm32_dma_dump_stream_irq(dma, id);
 		stm32_dma_clear_stream_irq(dma, id);

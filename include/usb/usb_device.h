@@ -1,5 +1,3 @@
-/* SPDX-License-Identifier: BSD-3-Clause */
-
 /*
  *  LPCUSB, an USB device driver for LPC microcontrollers
  *  Copyright (C) 2006 Bertrik Sikken (bertrik@sikken.nl)
@@ -182,7 +180,7 @@ struct usb_cfg_data {
 	 */
 	const uint8_t *usb_device_description;
 	/** Pointer to interface descriptor */
-	void *interface_descriptor;
+	const void *interface_descriptor;
 	/** Function for interface runtime configuration */
 	usb_interface_config interface_config;
 	/** Callback to be notified on USB connection status change */

@@ -5,6 +5,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stddef.h>
+
 #ifndef DOUBLE_BUFFER_SIZE
 #define DOUBLE_BUFFER_SIZE 2
 #endif

@@ -22,9 +22,6 @@ config USE_STDC_AIS328DQ
 config USE_STDC_AIS3624DQ
 	bool
 
-config USE_STDC_H3LIS100DL
-	bool
-
 config USE_STDC_H3LIS331DL
 	bool
 
@@ -38,9 +35,6 @@ config USE_STDC_IIS2DH
 	bool
 
 config USE_STDC_IIS2DLPC
-	bool
-
-config USE_STDC_IIS2ICLX
 	bool
 
 config USE_STDC_IIS2MDC
@@ -68,9 +62,6 @@ config USE_STDC_L20G20IS
 	bool
 
 config USE_STDC_L3GD20H
-	bool
-
-config USE_STDC_LIS25BA
 	bool
 
 config USE_STDC_LIS2DE12
@@ -106,9 +97,6 @@ config USE_STDC_LIS3DHH
 config USE_STDC_LIS3DH
 	bool
 
-config USE_STDC_LIS3DSH
-	bool
-
 config USE_STDC_LIS3MDL
 	bool
 
@@ -125,9 +113,6 @@ config USE_STDC_LPS27HHW
 	bool
 
 config USE_STDC_LPS33HW
-	bool
-
-config USE_STDC_LPS33K
 	bool
 
 config USE_STDC_LPS33W
@@ -154,22 +139,13 @@ config USE_STDC_LSM6DSM
 config USE_STDC_LSM6DSO
 	bool
 
-config USE_STDC_LSM6DSO32
-	bool
-
 config USE_STDC_LSM6DSOX
 	bool
 
 config USE_STDC_LSM6DSR
 	bool
 
-config USE_STDC_LSM6DSRX
-	bool
-
 config USE_STDC_LSM9DS1
-	bool
-
-config USE_STDC_STTS22H
 	bool
 
 config USE_STDC_STTS751

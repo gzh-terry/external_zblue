@@ -104,8 +104,9 @@ The ``nrf52_adafruit_feather`` board is available in two different versions:
    needs to be soldered.
 
 Applications for the ``nrf52_adafruit_feather`` board configuration can be
-built, flashed, and debugged in the usual way. See :ref:`build_an_application`
-and :ref:`application_run` for more details on building and running.
+built and flashed in the usual way (see :ref:`build_an_application`
+and :ref:`application_run` for more details); however, the standard
+debugging targets are not currently available.
 
 Flashing
 ========

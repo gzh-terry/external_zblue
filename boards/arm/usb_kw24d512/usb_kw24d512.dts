@@ -2,7 +2,7 @@
 
 /dts-v1/;
 
-#include <nxp/MKW24D512VHA5.dtsi>
+#include <nxp/nxp_kw2xd.dtsi>
 
 / {
 	model = "NXP USB-KW24D512 board";
@@ -41,11 +41,6 @@
 			gpios = <&gpioc 4 GPIO_ACTIVE_LOW>;
 		};
 	};
-};
-
-&sim {
-	pllfll-select = <KINETIS_SIM_PLLFLLSEL_MCGPLLCLK>;
-	er32k-select = <KINETIS_SIM_ER32KSEL_RTC>;
 };
 
 &cpu0 {

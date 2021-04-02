@@ -13,6 +13,14 @@ choice CODE_LOCATION
 	default CODE_FLEXSPI
 endchoice
 
+choice DATA_LOCATION
+	default DATA_SEMC
+endchoice
+
+config DISK_ACCESS_USDHC1
+	default y
+	depends on DISK_ACCESS_USDHC
+
 config I2C
 	default y if KSCAN
 
@@ -36,6 +44,9 @@ if NETWORKING
 
 config NET_L2_ETHERNET
 	default y
+
+config ETH_MCUX_0
+	default y if NET_L2_ETHERNET
 
 endif # NETWORKING
 
