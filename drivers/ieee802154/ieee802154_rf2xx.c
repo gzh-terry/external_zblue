@@ -15,7 +15,6 @@
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #include <errno.h>
-#include <assert.h>
 #include <stdio.h>
 
 #include <kernel.h>
@@ -267,7 +266,7 @@ static void rf2xx_process_rx_frame(const struct device *dev)
 		while (rf2xx_iface_reg_read(dev, RF2XX_TRX_STATUS_REG) ==
 		       RF2XX_TRX_PHY_STATUS_BUSY_RX_AACK) {
 			;
-		};
+		}
 
 		/* Set PLL_ON to avoid transceiver receive
 		 * new data until finish reading process
@@ -951,10 +950,10 @@ static struct ieee802154_radio_api rf2xx_radio_api = {
 	}
 
 #define IEEE802154_RF2XX_RAW_DEVICE_INIT(n)	   \
-	DEVICE_AND_API_INIT(			   \
-		rf2xx_##n,			   \
-		DT_INST_LABEL(n),		   \
+	DEVICE_DT_INST_DEFINE(			   \
+		n,				   \
 		&rf2xx_init,			   \
+		device_pm_control_nop,		   \
 		&rf2xx_ctx_data_##n,		   \
 		&rf2xx_ctx_config_##n,		   \
 		POST_KERNEL,			   \
@@ -962,9 +961,8 @@ static struct ieee802154_radio_api rf2xx_radio_api = {
 		&rf2xx_radio_api)
 
 #define IEEE802154_RF2XX_NET_DEVICE_INIT(n)	   \
-	NET_DEVICE_INIT(			   \
-		rf2xx_##n,			   \
-		DT_INST_LABEL(n),		   \
+	NET_DEVICE_DT_INST_DEFINE(		   \
+		n,				   \
 		&rf2xx_init,			   \
 		device_pm_control_nop,		   \
 		&rf2xx_ctx_data_##n,		   \

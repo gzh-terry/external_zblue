@@ -48,7 +48,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #endif
 
 #if defined(CONFIG_PTP_CLOCK_SAM_GMAC)
-#include <ptp_clock.h>
+#include <drivers/ptp_clock.h>
 #include <net/gptp.h>
 #endif
 
@@ -1785,6 +1785,7 @@ static void get_mac_addr_from_i2c_eeprom(uint8_t mac_addr[6])
 {
 	const struct device *dev;
 	uint32_t iaddr = CONFIG_ETH_SAM_GMAC_MAC_I2C_INT_ADDRESS;
+	int ret;
 
 	dev = device_get_binding(CONFIG_ETH_SAM_GMAC_MAC_I2C_DEV_NAME);
 	if (!dev) {
@@ -1792,9 +1793,14 @@ static void get_mac_addr_from_i2c_eeprom(uint8_t mac_addr[6])
 		return;
 	}
 
-	i2c_write_read(dev, CONFIG_ETH_SAM_GMAC_MAC_I2C_SLAVE_ADDRESS,
-		       &iaddr, CONFIG_ETH_SAM_GMAC_MAC_I2C_INT_ADDRESS_SIZE,
-		       mac_addr, 6);
+	ret = i2c_write_read(dev, CONFIG_ETH_SAM_GMAC_MAC_I2C_SLAVE_ADDRESS,
+			   &iaddr, CONFIG_ETH_SAM_GMAC_MAC_I2C_INT_ADDRESS_SIZE,
+			   mac_addr, 6);
+
+	if (ret != 0) {
+		LOG_ERR("I2C: failed to read MAC addr");
+		return;
+	}
 }
 #endif
 
@@ -1846,8 +1852,8 @@ static void monitor_work_handler(struct k_work *work)
 
 finally:
 	/* Submit delayed work */
-	k_delayed_work_submit(&dev_data->monitor_work,
-			      K_MSEC(CONFIG_ETH_SAM_GMAC_MONITOR_PERIOD));
+	k_work_reschedule(&dev_data->monitor_work,
+			  K_MSEC(CONFIG_ETH_SAM_GMAC_MONITOR_PERIOD));
 }
 
 static void eth0_iface_init(struct net_if *iface)
@@ -1964,9 +1970,9 @@ static void eth0_iface_init(struct net_if *iface)
 	}
 
 	/* Initialise monitor */
-	k_delayed_work_init(&dev_data->monitor_work, monitor_work_handler);
-	k_delayed_work_submit(&dev_data->monitor_work,
-			      K_MSEC(CONFIG_ETH_SAM_GMAC_MONITOR_PERIOD));
+	k_work_init_delayable(&dev_data->monitor_work, monitor_work_handler);
+	k_work_reschedule(&dev_data->monitor_work,
+			  K_MSEC(CONFIG_ETH_SAM_GMAC_MONITOR_PERIOD));
 
 	/* Do not start the interface until PHY link is up */
 	net_if_flag_set(iface, NET_IF_NO_AUTO_START);
@@ -2041,6 +2047,29 @@ static int eth_sam_gmac_set_config(const struct device *dev,
 	case ETHERNET_CONFIG_TYPE_QAV_PARAM:
 		return eth_sam_gmac_set_qav_param(dev, type, config);
 #endif
+	case ETHERNET_CONFIG_TYPE_MAC_ADDRESS:
+	{
+		struct eth_sam_dev_data *const dev_data = DEV_DATA(dev);
+		const struct eth_sam_dev_cfg *const cfg = DEV_CFG(dev);
+
+		memcpy(dev_data->mac_addr,
+		       config->mac_address.addr,
+		       sizeof(dev_data->mac_addr));
+
+		/* Set MAC Address for frame filtering logic */
+		mac_addr_set(cfg->regs, 0, dev_data->mac_addr);
+
+		LOG_INF("%s MAC set to %02x:%02x:%02x:%02x:%02x:%02x",
+			dev->name,
+			dev_data->mac_addr[0], dev_data->mac_addr[1],
+			dev_data->mac_addr[2], dev_data->mac_addr[3],
+			dev_data->mac_addr[4], dev_data->mac_addr[5]);
+
+		/* Register Ethernet MAC Address with the upper layer */
+		net_if_set_link_addr(dev_data->iface, dev_data->mac_addr,
+				     sizeof(dev_data->mac_addr),
+				     NET_LINK_ETHERNET);
+	}
 	default:
 		break;
 	}
@@ -2139,47 +2168,45 @@ static const struct ethernet_api eth_api = {
 #endif
 };
 
-DEVICE_DECLARE(eth0_sam_gmac);
-
 static void eth0_irq_config(void)
 {
 	IRQ_CONNECT(DT_INST_IRQ_BY_NAME(0, gmac, irq),
 		    DT_INST_IRQ_BY_NAME(0, gmac, priority),
-		    queue0_isr, DEVICE_GET(eth0_sam_gmac), 0);
+		    queue0_isr, DEVICE_DT_INST_GET(0), 0);
 	irq_enable(DT_INST_IRQ_BY_NAME(0, gmac, irq));
 
 #if GMAC_ACTIVE_PRIORITY_QUEUE_NUM >= 1
 	IRQ_CONNECT(DT_INST_IRQ_BY_NAME(0, q1, irq),
 		    DT_INST_IRQ_BY_NAME(0, q1, priority),
-		    queue1_isr, DEVICE_GET(eth0_sam_gmac), 0);
+		    queue1_isr, DEVICE_DT_INST_GET(0), 0);
 	irq_enable(DT_INST_IRQ_BY_NAME(0, q1, irq));
 #endif
 
 #if GMAC_ACTIVE_PRIORITY_QUEUE_NUM >= 2
 	IRQ_CONNECT(DT_INST_IRQ_BY_NAME(0, q2, irq),
 		    DT_INST_IRQ_BY_NAME(0, q1, priority),
-		    queue2_isr, DEVICE_GET(eth0_sam_gmac), 0);
+		    queue2_isr, DEVICE_DT_INST_GET(0), 0);
 	irq_enable(DT_INST_IRQ_BY_NAME(0, q2, irq));
 #endif
 
 #if GMAC_ACTIVE_PRIORITY_QUEUE_NUM >= 3
 	IRQ_CONNECT(DT_INST_IRQ_BY_NAME(0, q3, irq),
 		    DT_INST_IRQ_BY_NAME(0, q3, priority),
-		    queue3_isr, DEVICE_GET(eth0_sam_gmac), 0);
+		    queue3_isr, DEVICE_DT_INST_GET(0), 0);
 	irq_enable(DT_INST_IRQ_BY_NAME(0, q3, irq));
 #endif
 
 #if GMAC_ACTIVE_PRIORITY_QUEUE_NUM >= 4
 	IRQ_CONNECT(DT_INST_IRQ_BY_NAME(0, q4, irq),
 		    DT_INST_IRQ_BY_NAME(0, q4, priority),
-		    queue4_isr, DEVICE_GET(eth0_sam_gmac), 0);
+		    queue4_isr, DEVICE_DT_INST_GET(0), 0);
 	irq_enable(DT_INST_IRQ_BY_NAME(0, q4, irq));
 #endif
 
 #if GMAC_ACTIVE_PRIORITY_QUEUE_NUM >= 5
 	IRQ_CONNECT(DT_INST_IRQ_BY_NAME(0, q5, irq),
 		    DT_INST_IRQ_BY_NAME(0, q5, priority),
-		    queue5_isr, DEVICE_GET(eth0_sam_gmac), 0);
+		    queue5_isr, DEVICE_DT_INST_GET(0), 0);
 	irq_enable(DT_INST_IRQ_BY_NAME(0, q5, irq));
 #endif
 }
@@ -2366,7 +2393,7 @@ static struct eth_sam_dev_data eth0_data = {
 	},
 };
 
-ETH_NET_DEVICE_INIT(eth0_sam_gmac, DT_INST_LABEL(0),
+ETH_NET_DEVICE_DT_INST_DEFINE(0,
 		    eth_initialize, device_pm_control_nop, &eth0_data,
 		    &eth0_config, CONFIG_ETH_INIT_PRIORITY, &eth_api,
 		    GMAC_MTU);
@@ -2439,7 +2466,7 @@ static const struct ptp_clock_driver_api ptp_api = {
 
 static int ptp_gmac_init(const struct device *port)
 {
-	const struct device *eth_dev = DEVICE_GET(eth0_sam_gmac);
+	const struct device *eth_dev = DEVICE_DT_INST_GET(0);
 	struct eth_sam_dev_data *dev_data = eth_dev->data;
 	struct ptp_context *ptp_context = port->data;
 
@@ -2449,8 +2476,8 @@ static int ptp_gmac_init(const struct device *port)
 	return 0;
 }
 
-DEVICE_AND_API_INIT(gmac_ptp_clock_0, PTP_CLOCK_NAME, ptp_gmac_init,
-		    &ptp_gmac_0_context, NULL, POST_KERNEL,
-		    CONFIG_APPLICATION_INIT_PRIORITY, &ptp_api);
+DEVICE_DEFINE(gmac_ptp_clock_0, PTP_CLOCK_NAME, ptp_gmac_init,
+		device_pm_control_nop, &ptp_gmac_0_context, NULL, POST_KERNEL,
+		CONFIG_APPLICATION_INIT_PRIORITY, &ptp_api);
 
 #endif /* CONFIG_PTP_CLOCK_SAM_GMAC */

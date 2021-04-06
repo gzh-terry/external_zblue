@@ -15,8 +15,6 @@
 #include <init.h>
 #include <sys/check.h>
 
-static struct k_spinlock lock;
-
 #ifdef CONFIG_OBJECT_TRACING
 struct k_mem_slab *_trace_list_k_mem_slab;
 #endif	/* CONFIG_OBJECT_TRACING */
@@ -36,7 +34,7 @@ static int create_free_list(struct k_mem_slab *slab)
 
 	/* blocks must be word aligned */
 	CHECKIF(((slab->block_size | (uintptr_t)slab->buffer) &
-				(sizeof(void *) - 1)) != 0) {
+				(sizeof(void *) - 1)) != 0U) {
 		return -EINVAL;
 	}
 
@@ -88,6 +86,12 @@ int k_mem_slab_init(struct k_mem_slab *slab, void *buffer,
 	slab->block_size = block_size;
 	slab->buffer = buffer;
 	slab->num_used = 0U;
+	slab->lock = (struct k_spinlock) {};
+
+#ifdef CONFIG_MEM_SLAB_TRACE_MAX_UTILIZATION
+	slab->max_used = 0U;
+#endif
+
 	rc = create_free_list(slab);
 	if (rc < 0) {
 		goto out;
@@ -103,7 +107,7 @@ out:
 
 int k_mem_slab_alloc(struct k_mem_slab *slab, void **mem, k_timeout_t timeout)
 {
-	k_spinlock_key_t key = k_spin_lock(&lock);
+	k_spinlock_key_t key = k_spin_lock(&slab->lock);
 	int result;
 
 	if (slab->free_list != NULL) {
@@ -111,6 +115,11 @@ int k_mem_slab_alloc(struct k_mem_slab *slab, void **mem, k_timeout_t timeout)
 		*mem = slab->free_list;
 		slab->free_list = *(char **)(slab->free_list);
 		slab->num_used++;
+
+#ifdef CONFIG_MEM_SLAB_TRACE_MAX_UTILIZATION
+		slab->max_used = MAX(slab->num_used, slab->max_used);
+#endif
+
 		result = 0;
 	} else if (K_TIMEOUT_EQ(timeout, K_NO_WAIT)) {
 		/* don't wait for a free block to become available */
@@ -118,31 +127,34 @@ int k_mem_slab_alloc(struct k_mem_slab *slab, void **mem, k_timeout_t timeout)
 		result = -ENOMEM;
 	} else {
 		/* wait for a free block or timeout */
-		result = z_pend_curr(&lock, key, &slab->wait_q, timeout);
+		result = z_pend_curr(&slab->lock, key, &slab->wait_q, timeout);
 		if (result == 0) {
 			*mem = _current->base.swap_data;
 		}
 		return result;
 	}
 
-	k_spin_unlock(&lock, key);
+	k_spin_unlock(&slab->lock, key);
 
 	return result;
 }
 
 void k_mem_slab_free(struct k_mem_slab *slab, void **mem)
 {
-	k_spinlock_key_t key = k_spin_lock(&lock);
-	struct k_thread *pending_thread = z_unpend_first_thread(&slab->wait_q);
+	k_spinlock_key_t key = k_spin_lock(&slab->lock);
 
-	if (pending_thread != NULL) {
-		z_thread_return_value_set_with_data(pending_thread, 0, *mem);
-		z_ready_thread(pending_thread);
-		z_reschedule(&lock, key);
-	} else {
-		**(char ***)mem = slab->free_list;
-		slab->free_list = *(char **)mem;
-		slab->num_used--;
-		k_spin_unlock(&lock, key);
+	if (slab->free_list == NULL) {
+		struct k_thread *pending_thread = z_unpend_first_thread(&slab->wait_q);
+
+		if (pending_thread != NULL) {
+			z_thread_return_value_set_with_data(pending_thread, 0, *mem);
+			z_ready_thread(pending_thread);
+			z_reschedule(&slab->lock, key);
+			return;
+		}
 	}
+	**(char ***) mem = slab->free_list;
+	slab->free_list = *(char **) mem;
+	slab->num_used--;
+	k_spin_unlock(&slab->lock, key);
 }
