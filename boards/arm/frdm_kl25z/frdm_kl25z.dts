@@ -2,7 +2,7 @@
 
 /dts-v1/;
 
-#include <nxp/nxp_kl25z.dtsi>
+#include <nxp/MKL25Z128VLK4.dtsi>
 
 / {
 	model = "NXP Freedom KL25Z board";
@@ -79,6 +79,11 @@
 			   <20 0 &gpioe 0 0>,	/* D14 */
 			   <21 0 &gpioe 1 0>;	/* D15 */
 	};
+};
+
+&sim {
+	pllfll-select = <KINETIS_SIM_PLLFLLSEL_MCGPLLCLK>;
+	er32k-select = <KINETIS_SIM_ER32KSEL_LPO1KHZ>;
 };
 
 &cpu0 {
