@@ -91,12 +91,7 @@ static struct net_icmpv6_handler test_handler2 = {
 
 void test_icmpv6(void)
 {
-	if (IS_ENABLED(CONFIG_NET_TC_THREAD_COOPERATIVE)) {
-		k_thread_priority_set(k_current_get(),
-				K_PRIO_COOP(CONFIG_NUM_COOP_PRIORITIES - 1));
-	} else {
-		k_thread_priority_set(k_current_get(), K_PRIO_PREEMPT(9));
-	}
+	k_thread_priority_set(k_current_get(), K_PRIO_COOP(7));
 
 	struct net_ipv6_hdr *hdr;
 	struct net_pkt *pkt;

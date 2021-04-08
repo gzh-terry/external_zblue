@@ -35,9 +35,7 @@
  * FC      Flow Control
  * FF      First Frame
  * FS      Flow Status
- * AE      Address Extension
- * SA      Source Address
- * TA      Target Address
+ * AE      Adders Extension
  */
 
 /*
@@ -92,38 +90,6 @@
 /** Timeout for recv */
 #define ISOTP_RECV_TIMEOUT      -14
 
-/*
- * CAN ID filtering for ISO-TP fixed addressing according to SAE J1939
- *
- * Format of 29-bit CAN identifier:
- * ------------------------------------------------------
- * | 28 .. 26 | 25  | 24 | 23 .. 16 | 15 .. 8  | 7 .. 0 |
- * ------------------------------------------------------
- * | Priority | EDP | DP | N_TAtype |   N_TA   |  N_SA  |
- * ------------------------------------------------------
- */
-
-/** Position of fixed source address (SA) */
-#define ISOTP_FIXED_ADDR_SA_POS         (0U)
-
-/** Mask to obtain fixed source address (SA) */
-#define ISOTP_FIXED_ADDR_SA_MASK        (0xFF << ISOTP_FIXED_ADDR_SA_POS)
-
-/** Position of fixed target address (TA) */
-#define ISOTP_FIXED_ADDR_TA_POS         (8U)
-
-/** Mask to obtain fixed target address (TA) */
-#define ISOTP_FIXED_ADDR_TA_MASK        (0xFF << ISOTP_FIXED_ADDR_TA_POS)
-
-/** Position of priority in fixed addressing mode */
-#define ISOTP_FIXED_ADDR_PRIO_POS       (26U)
-
-/** Mask for priority in fixed addressing mode */
-#define ISOTP_FIXED_ADDR_PRIO_MASK      (0x7 << ISOTP_FIXED_ADDR_PRIO_POS)
-
-/* CAN filter RX mask to match any priority and source address (SA) */
-#define ISOTP_FIXED_ADDR_RX_MASK        (0x03FFFF00)
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -134,24 +100,17 @@ extern "C" {
  * Used to pass addresses to the bind and send functions.
  */
 struct isotp_msg_id {
-	/**
-	 * CAN identifier
-	 *
-	 * If ISO-TP fixed addressing is used, isotp_bind ignores SA and
-	 * priority sections and modifies TA section in flow control frames.
-	 */
+	/** Message identifier*/
 	union {
 		uint32_t std_id  : 11;
 		uint32_t ext_id  : 29;
 	};
-	/** ISO-TP extended address (if used) */
+	/** extended address */
 	uint8_t ext_addr;
-	/** Indicates the CAN identifier type (standard or extended) */
+	/** Indicates the identifier type (standard or extended) */
 	uint8_t id_type : 1;
-	/** Indicates if ISO-TP extended addressing is used */
+	/** Indicates if extended addressing is used */
 	uint8_t use_ext_addr : 1;
-	/** Indicates if ISO-TP fixed addressing (acc. to SAE J1939) is used */
-	uint8_t use_fixed_addr : 1;
 };
 
 /*

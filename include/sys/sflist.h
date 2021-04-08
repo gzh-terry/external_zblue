@@ -19,7 +19,6 @@
 
 #include <stddef.h>
 #include <stdbool.h>
-#include <sys/__assert.h>
 #include "list_gen.h"
 
 #ifdef __cplusplus

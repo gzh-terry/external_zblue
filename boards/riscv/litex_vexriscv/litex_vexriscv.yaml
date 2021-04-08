@@ -13,7 +13,6 @@ toolchain:
 ram: 262144
 supported:
   - spi
-  - i2s
 testing:
   ignore_tags:
     - bluetooth

@@ -2,6 +2,7 @@
 
 if(CONFIG_WIFI_SIMPLELINK)
   zephyr_include_directories(
+    .
     ${ZEPHYR_BASE}/subsys/net/lib/tls_credentials
     )
   zephyr_sources(

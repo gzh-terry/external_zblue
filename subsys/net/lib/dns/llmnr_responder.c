@@ -651,9 +651,9 @@ ipv4_out:
 	return !ok;
 }
 
-static int llmnr_responder_init(const struct device *dev)
+static int llmnr_responder_init(const struct device *device)
 {
-	ARG_UNUSED(dev);
+	ARG_UNUSED(device);
 
 	return init_listener();
 }

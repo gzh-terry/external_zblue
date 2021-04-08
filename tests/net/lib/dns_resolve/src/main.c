@@ -39,7 +39,6 @@ LOG_MODULE_REGISTER(net_test, CONFIG_DNS_RESOLVER_LOG_LEVEL);
 #define NAME_IPV6 "2001:db8::1"
 
 #define DNS_TIMEOUT 500 /* ms */
-#define THREAD_SLEEP 10
 
 #if defined(CONFIG_NET_IPV6)
 /* Interface 1 addresses */
@@ -154,7 +153,7 @@ static int sender_iface(const struct device *dev, struct net_pkt *pkt)
 		/* We need to cancel the query manually so that we
 		 * will not get a timeout.
 		 */
-		k_work_cancel_delayable(&ctx->queries[slot].timer);
+		k_delayed_work_cancel(&ctx->queries[slot].timer);
 
 		DBG("Calling cb %p with user data %p\n",
 		    ctx->queries[slot].cb,
@@ -511,7 +510,7 @@ static void verify_cancelled(void)
 			count++;
 		}
 
-		if (k_work_delayable_busy_get(&ctx->queries[i].timer) != 0) {
+		if (k_delayed_work_remaining_get(&ctx->queries[i].timer) > 0) {
 			timer_not_stopped++;
 		}
 	}
@@ -617,8 +616,7 @@ static void test_dns_query_ipv4(void)
 
 	DBG("Query id %u\n", current_dns_id);
 
-	/* Let the network stack to proceed */
-	k_msleep(THREAD_SLEEP);
+	k_yield(); /* mandatory so that net_if send func gets to run */
 
 	if (k_sem_take(&wait_data2, WAIT_TIME)) {
 		zassert_true(false, "Timeout while waiting data");

@@ -73,7 +73,7 @@ int posix_is_cpu_running(void)
  * raise a new interrupt; and how the HW models awake the CPU, and wait for it
  * to complete and go to idle.
  */
-void posix_change_cpu_state_and_wait(bool halted)
+static void posix_change_cpu_state_and_wait(bool halted)
 {
 	PC_SAFE_CALL(pthread_mutex_lock(&mtx_cpu));
 

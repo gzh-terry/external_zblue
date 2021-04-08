@@ -117,7 +117,7 @@ extern void z_arm_interrupt_init(void);
 	z_arm_irq_priority_set(irq_p, priority_p, flags_p); \
 }
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_SYS_POWER_MANAGEMENT
 extern void _arch_isr_direct_pm(void);
 #define ARCH_ISR_DIRECT_PM() _arch_isr_direct_pm()
 #else
@@ -147,7 +147,7 @@ static inline void arch_isr_direct_footer(int maybe_swap)
 #ifdef CONFIG_TRACING
 	sys_trace_isr_exit();
 #endif
-	if (maybe_swap != 0) {
+	if (maybe_swap) {
 		z_arm_int_exit();
 	}
 }

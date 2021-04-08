@@ -30,9 +30,6 @@ union axis1bit16_t {
 struct lis2mdl_config {
 	char *master_dev_name;
 	int (*bus_init)(const struct device *dev);
-	bool cancel_offset;
-	bool single_mode;
-
 #ifdef CONFIG_LIS2MDL_TRIGGER
 	char *gpio_name;
 	uint32_t gpio_pin;
@@ -59,12 +56,6 @@ struct lis2mdl_data {
 	int32_t temp_sample;
 
 	stmdev_ctx_t *ctx;
-
-#ifdef CONFIG_PM_DEVICE
-	uint32_t power_state;
-#endif
-
-	struct k_sem fetch_sem;
 
 #if DT_ANY_INST_ON_BUS_STATUS_OKAY(i2c)
 	stmdev_ctx_t ctx_i2c;
