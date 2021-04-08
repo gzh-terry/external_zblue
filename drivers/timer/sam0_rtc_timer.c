@@ -155,7 +155,7 @@ static void rtc_isr(const void *arg)
 	if (count != rtc_last) {
 		uint32_t ticks = (count - rtc_last) / CYCLES_PER_TICK;
 
-		sys_clock_announce(ticks);
+		z_clock_announce(ticks);
 		rtc_last += ticks * CYCLES_PER_TICK;
 	}
 
@@ -164,20 +164,20 @@ static void rtc_isr(const void *arg)
 	if (status) {
 		/* RTC just ticked one more tick... */
 		if (++rtc_counter == rtc_timeout) {
-			sys_clock_announce(rtc_counter - rtc_last);
+			z_clock_announce(rtc_counter - rtc_last);
 			rtc_last = rtc_counter;
 		}
 	} else {
-		/* ISR was invoked directly from sys_clock_set_timeout. */
-		sys_clock_announce(0);
+		/* ISR was invoked directly from z_clock_set_timeout. */
+		z_clock_announce(0);
 	}
 
 #endif /* CONFIG_TICKLESS_KERNEL */
 }
 
-int sys_clock_driver_init(const struct device *dev)
+int z_clock_driver_init(const struct device *device)
 {
-	ARG_UNUSED(dev);
+	ARG_UNUSED(device);
 
 #ifdef MCLK
 	MCLK->APBAMASK.reg |= MCLK_APBAMASK_RTC;
@@ -252,14 +252,14 @@ int sys_clock_driver_init(const struct device *dev)
 	return 0;
 }
 
-void sys_clock_set_timeout(int32_t ticks, bool idle)
+void z_clock_set_timeout(int32_t ticks, bool idle)
 {
 	ARG_UNUSED(idle);
 
 #ifdef CONFIG_TICKLESS_KERNEL
 
 	ticks = (ticks == K_TICKS_FOREVER) ? MAX_TICKS : ticks;
-	ticks = CLAMP(ticks - 1, 0, (int32_t) MAX_TICKS);
+	ticks = MAX(MIN(ticks - 1, (int32_t) MAX_TICKS), 0);
 
 	/* Compute number of RTC cycles until the next timeout. */
 	uint32_t count = rtc_count();
@@ -301,7 +301,7 @@ void sys_clock_set_timeout(int32_t ticks, bool idle)
 #endif /* CONFIG_TICKLESS_KERNEL */
 }
 
-uint32_t sys_clock_elapsed(void)
+uint32_t z_clock_elapsed(void)
 {
 #ifdef CONFIG_TICKLESS_KERNEL
 	return (rtc_count() - rtc_last) / CYCLES_PER_TICK;
@@ -310,7 +310,7 @@ uint32_t sys_clock_elapsed(void)
 #endif
 }
 
-uint32_t sys_clock_cycle_get_32(void)
+uint32_t z_timer_cycle_get_32(void)
 {
 	/* Just return the absolute value of RTC cycle counter. */
 	return rtc_count();

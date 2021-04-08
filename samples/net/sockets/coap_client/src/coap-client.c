@@ -140,8 +140,7 @@ static int send_simple_coap_request(uint8_t method)
 	}
 
 	r = coap_packet_init(&request, data, MAX_COAP_MSG_LEN,
-			     COAP_VERSION_1, COAP_TYPE_CON,
-			     COAP_TOKEN_MAX_LEN, coap_next_token(),
+			     1, COAP_TYPE_CON, 8, coap_next_token(),
 			     method, coap_next_id());
 	if (r < 0) {
 		LOG_ERR("Failed to init CoAP message");
@@ -327,8 +326,7 @@ static int send_large_coap_request(void)
 	}
 
 	r = coap_packet_init(&request, data, MAX_COAP_MSG_LEN,
-			     COAP_VERSION_1, COAP_TYPE_CON,
-			     COAP_TOKEN_MAX_LEN, coap_next_token(),
+			     1, COAP_TYPE_CON, 8, coap_next_token(),
 			     COAP_METHOD_GET, coap_next_id());
 	if (r < 0) {
 		LOG_ERR("Failed to init CoAP message");
@@ -400,7 +398,7 @@ static int send_obs_reply_ack(uint16_t id, uint8_t *token, uint8_t tkl)
 	}
 
 	r = coap_packet_init(&request, data, MAX_COAP_MSG_LEN,
-			     COAP_VERSION_1, COAP_TYPE_ACK, tkl, token, 0, id);
+			     1, COAP_TYPE_ACK, tkl, token, 0, id);
 	if (r < 0) {
 		LOG_ERR("Failed to init CoAP message");
 		goto end;
@@ -419,7 +417,7 @@ static int process_obs_coap_reply(void)
 {
 	struct coap_packet reply;
 	uint16_t id;
-	uint8_t token[COAP_TOKEN_MAX_LEN];
+	uint8_t token[8];
 	uint8_t *data;
 	uint8_t type;
 	uint8_t tkl;
@@ -457,7 +455,7 @@ static int process_obs_coap_reply(void)
 		goto end;
 	}
 
-	tkl = coap_header_get_token(&reply, token);
+	tkl = coap_header_get_token(&reply, (uint8_t *)token);
 	id = coap_header_get_id(&reply);
 
 	type = coap_header_get_type(&reply);
@@ -485,8 +483,7 @@ static int send_obs_coap_request(void)
 	}
 
 	r = coap_packet_init(&request, data, MAX_COAP_MSG_LEN,
-			     COAP_VERSION_1, COAP_TYPE_CON,
-			     COAP_TOKEN_MAX_LEN, coap_next_token(),
+			     1, COAP_TYPE_CON, 8, coap_next_token(),
 			     COAP_METHOD_GET, coap_next_id());
 	if (r < 0) {
 		LOG_ERR("Failed to init CoAP message");
@@ -531,8 +528,7 @@ static int send_obs_reset_coap_request(void)
 	}
 
 	r = coap_packet_init(&request, data, MAX_COAP_MSG_LEN,
-			     COAP_VERSION_1, COAP_TYPE_RESET,
-			     COAP_TOKEN_MAX_LEN, coap_next_token(),
+			     1, COAP_TYPE_RESET, 8, coap_next_token(),
 			     0, coap_next_id());
 	if (r < 0) {
 		LOG_ERR("Failed to init CoAP message");

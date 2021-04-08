@@ -57,6 +57,7 @@ K_SEM_DEFINE(dma_sem, 0, 1);
 
 extern struct k_sem thread_sem;
 
+#define DMA_DEVICE_NAME		CONFIG_DMA_0_NAME
 #define RX_BUFF_SIZE		(48)
 
 struct transfers {
@@ -138,10 +139,10 @@ static int test_task(uint32_t chan_id, uint32_t blen, uint32_t block_count)
 		return -1;
 	}
 
-	dma_device = DEVICE_DT_GET(DT_NODELABEL(dma0));
+	dma_device = device_get_binding(DMA_DEVICE_NAME);
 
-	if (!device_is_ready(dma_device)) {
-		printk("dma controller is not ready\n");
+	if (!dma_device) {
+		printk("Cannot get dma controller\n");
 		return -1;
 	}
 
@@ -190,10 +191,10 @@ static int test_task(uint32_t chan_id, uint32_t blen, uint32_t block_count)
 		printk("*** timed out waiting for dma to complete ***\n");
 	}
 
-	z_xtensa_cache_inv(rx_data, RX_BUFF_SIZE);
-	z_xtensa_cache_inv(rx_data2, RX_BUFF_SIZE);
-	z_xtensa_cache_inv(rx_data3, RX_BUFF_SIZE);
-	z_xtensa_cache_inv(rx_data4, RX_BUFF_SIZE);
+	xthal_dcache_region_invalidate(rx_data, RX_BUFF_SIZE);
+	xthal_dcache_region_invalidate(rx_data2, RX_BUFF_SIZE);
+	xthal_dcache_region_invalidate(rx_data3, RX_BUFF_SIZE);
+	xthal_dcache_region_invalidate(rx_data4, RX_BUFF_SIZE);
 
 	/* Intentionally break has been omitted (fall-through) */
 	switch (block_count) {

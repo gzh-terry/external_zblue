@@ -233,9 +233,9 @@ class RunnerConfig(NamedTuple):
     '''
     build_dir: str              # application build directory
     board_dir: str              # board definition directory
-    elf_file: Optional[str]     # zephyr.elf path, or None
-    hex_file: Optional[str]     # zephyr.hex path, or None
-    bin_file: Optional[str]     # zephyr.bin path, or None
+    elf_file: str               # zephyr.elf path
+    hex_file: str               # zephyr.hex path
+    bin_file: str               # zephyr.bin path
     gdb: Optional[str] = None   # path to a usable gdb
     openocd: Optional[str] = None  # path to a usable openocd
     openocd_search: Optional[str] = None  # add this to openocd search path
@@ -514,19 +514,13 @@ class ZephyrBinaryRunner(abc.ABC):
 
         It's useful to e.g. open a GDB server and client.'''
         server_proc = self.popen_ignore_int(server)
-        try:
-            self.run_client(client)
-        finally:
-            server_proc.terminate()
-            server_proc.wait()
-
-    def run_client(self, client):
-        '''Run a client that handles SIGINT.'''
         previous = signal.signal(signal.SIGINT, signal.SIG_IGN)
         try:
             self.check_call(client)
         finally:
             signal.signal(signal.SIGINT, previous)
+            server_proc.terminate()
+            server_proc.wait()
 
     def _log_cmd(self, cmd: List[str]):
         escaped = ' '.join(shlex.quote(s) for s in cmd)
@@ -592,26 +586,3 @@ class ZephyrBinaryRunner(abc.ABC):
             return _DebugDummyPopen()  # type: ignore
 
         return subprocess.Popen(cmd, creationflags=cflags, preexec_fn=preexec)
-
-    def ensure_output(self, output_type: str) -> None:
-        '''Ensure self.cfg has a particular output artifact.
-
-        For example, ensure_output('bin') ensures that self.cfg.bin_file
-        refers to an existing file. Errors out if it's missing or undefined.
-
-        :param output_type: string naming the output type
-        '''
-        output_file = getattr(self.cfg, f'{output_type}_file', None)
-
-        if output_file is None:
-            err = f'{output_type} file location is unknown.'
-        elif not os.path.isfile(output_file):
-            err = f'{output_file} does not exist.'
-        else:
-            return
-
-        if output_type in ('elf', 'hex', 'bin'):
-            err += f' Try enabling CONFIG_BUILD_OUTPUT_{output_type.upper()}.'
-
-        # RuntimeError avoids a stack trace saved in run_common.
-        raise RuntimeError(err)

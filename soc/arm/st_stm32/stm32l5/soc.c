@@ -11,8 +11,6 @@
 
 #include <device.h>
 #include <init.h>
-#include <stm32_ll_bus.h>
-#include <stm32_ll_pwr.h>
 #include <arch/cpu.h>
 #include <arch/arm/aarch32/cortex_m/cmsis.h>
 
@@ -46,6 +44,7 @@ static int stm32l5_init(const struct device *arg)
 	/* Enable Scale 0 to achieve 110MHz */
 	LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_PWR);
 	LL_PWR_SetRegulVoltageScaling(LL_PWR_REGU_VOLTAGE_SCALE0);
+	LL_APB1_GRP1_DisableClock(LL_APB1_GRP1_PERIPH_PWR);
 
 	return 0;
 }

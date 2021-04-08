@@ -25,5 +25,3 @@ supported:
   - usb_device
   - kscan:touch
   - dma
-  - can
-  - watchdog

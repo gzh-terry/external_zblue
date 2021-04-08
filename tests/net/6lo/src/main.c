@@ -1145,12 +1145,7 @@ void test_loop(void)
 {
 	int count;
 
-	if (IS_ENABLED(CONFIG_NET_TC_THREAD_COOPERATIVE)) {
-		k_thread_priority_set(k_current_get(),
-				K_PRIO_COOP(CONFIG_NUM_COOP_PRIORITIES - 1));
-	} else {
-		k_thread_priority_set(k_current_get(), K_PRIO_PREEMPT(9));
-	}
+	k_thread_priority_set(k_current_get(), K_PRIO_COOP(7));
 
 #if defined(CONFIG_NET_6LO_CONTEXT)
 	net_6lo_set_context(net_if_get_default(), &ctx1);

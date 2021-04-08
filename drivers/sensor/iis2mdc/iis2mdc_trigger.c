@@ -32,13 +32,13 @@ int iis2mdc_trigger_set(const struct device *dev,
 			  sensor_trigger_handler_t handler)
 {
 	struct iis2mdc_data *iis2mdc = dev->data;
-	int16_t raw[3];
+	union axis3bit16_t raw;
 
 	if (trig->chan == SENSOR_CHAN_MAGN_XYZ) {
 		iis2mdc->handler_drdy = handler;
 		if (handler) {
 			/* fetch raw data sample: re-trigger lost interrupt */
-			iis2mdc_magnetic_raw_get(iis2mdc->ctx, raw);
+			iis2mdc_magnetic_raw_get(iis2mdc->ctx, raw.u8bit);
 
 			return iis2mdc_enable_int(dev, 1);
 		} else {
@@ -118,7 +118,7 @@ int iis2mdc_init_interrupt(const struct device *dev)
 	}
 
 #if defined(CONFIG_IIS2MDC_TRIGGER_OWN_THREAD)
-	k_sem_init(&iis2mdc->gpio_sem, 0, K_SEM_MAX_LIMIT);
+	k_sem_init(&iis2mdc->gpio_sem, 0, UINT_MAX);
 	k_thread_create(&iis2mdc->thread, iis2mdc->thread_stack,
 			CONFIG_IIS2MDC_THREAD_STACK_SIZE,
 			(k_thread_entry_t)iis2mdc_thread, iis2mdc,

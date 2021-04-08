@@ -16,6 +16,9 @@
 #ifndef ZEPHYR_INCLUDE_DRIVERS_GIC_H_
 #define ZEPHYR_INCLUDE_DRIVERS_GIC_H_
 
+#include <zephyr/types.h>
+#include <device.h>
+
 /*
  * GIC Register Interface Base Addresses
  */
@@ -207,6 +210,18 @@
 
 #endif /* CONFIG_GIC_VER <= 2 */
 
+#if defined(CONFIG_GIC_V3)
+/**
+ * @brief raise SGI to target cores
+ *
+ * @param sgi_id      SGI ID 0 to 15
+ * @param target_aff  target affinity in mpidr form.
+ *                    Aff level 1 2 3 will be extracted by api.
+ * @param target_list bitmask of target cores
+ */
+void gic_raise_sgi(unsigned int sgi_id, uint64_t target_aff,
+		   uint16_t target_list);
+#endif
 
 /* GICD_ICFGR */
 #define GICD_ICFGR_MASK			BIT_MASK(2)
@@ -252,22 +267,22 @@
 #define GIC_INTID_SPURIOUS		1023
 
 /* Fixme: update from platform specific define or dt */
-#define GIC_NUM_CPU_IF			CONFIG_MP_NUM_CPUS
+#define GIC_NUM_CPU_IF			1
 /* Fixme: arch support need to provide api/macro in SMP implementation */
-#if defined(CONFIG_ARM64) && (CONFIG_MP_NUM_CPUS > 1)
-#define GET_CPUID()			MPIDR_TO_CORE(GET_MPIDR())
-#else
-#define GET_CPUID()			0
-#endif
+#define GET_CPUID			0
 
 #ifndef _ASMLANGUAGE
-
-#include <zephyr/types.h>
-#include <device.h>
 
 /*
  * GIC Driver Interface Functions
  */
+
+/**
+ * @brief Initialise ARM GIC driver
+ *
+ * @return 0 if successful
+ */
+int arm_gic_init(void);
 
 /**
  * @brief Enable interrupt
@@ -315,26 +330,6 @@ unsigned int arm_gic_get_active(void);
  */
 void arm_gic_eoi(unsigned int irq);
 
-#ifdef CONFIG_SMP
-/**
- * @brief Initialize GIC of secondary cores
- */
-void arm_gic_secondary_init(void);
-#endif
-
-#if defined(CONFIG_GIC_V3)
-/**
- * @brief raise SGI to target cores
- *
- * @param sgi_id      SGI ID 0 to 15
- * @param target_aff  target affinity in mpidr form.
- *                    Aff level 1 2 3 will be extracted by api.
- * @param target_list bitmask of target cores
- */
-void gic_raise_sgi(unsigned int sgi_id, uint64_t target_aff,
-		   uint16_t target_list);
-
-#endif /* CONFIG_GIC_V3 */
 #endif /* !_ASMLANGUAGE */
 
 #endif /* ZEPHYR_INCLUDE_DRIVERS_GIC_H_ */

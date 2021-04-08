@@ -14,11 +14,17 @@
  * @{
  */
 
-#include <net/socket_types.h>
+#include <zephyr/types.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+struct zsock_timeval {
+	/* Using longs, as many (?) implementations seem to use it. */
+	long tv_sec;
+	long tv_usec;
+};
 
 typedef struct zsock_fd_set {
 	uint32_t bitset[(CONFIG_POSIX_MAX_FDS + 31) / 32];

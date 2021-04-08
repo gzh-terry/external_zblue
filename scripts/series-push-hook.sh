@@ -22,9 +22,15 @@ then
 	# Handle delete
 	:
 else
-	# At each (forced) push, examine all commits since $remote/master
-	base_commit=`git rev-parse $remote/master`
-	range="$base_commit..$local_sha"
+	if [ "$remote_sha" = $z40 ]
+	then
+		# New branch, examine all commits since $remote/master
+		base_commit=`git rev-parse $remote/master`
+		range="$base_commit..$local_sha"
+	else
+		# Update to existing branch, examine new commits
+		range="$remote_sha..$local_sha"
+	fi
 
 	echo "Perform check patch"
 	${ZEPHYR_BASE}/scripts/checkpatch.pl --git $range

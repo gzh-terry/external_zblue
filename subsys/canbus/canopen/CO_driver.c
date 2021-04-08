@@ -88,7 +88,7 @@ static void canopen_rx_isr_callback(struct zcan_frame *msg, void *arg)
 		return;
 	}
 
-	rxMsg.ident = msg->id;
+	rxMsg.ident = msg->std_id;
 	rxMsg.DLC = msg->dlc;
 	memcpy(rxMsg.data, msg->data, msg->dlc);
 	buffer->pFunct(buffer->object, &rxMsg);
@@ -126,7 +126,7 @@ static void canopen_tx_retry(struct k_work *item)
 		buffer = &CANmodule->tx_array[i];
 		if (buffer->bufferFull) {
 			msg.id_type = CAN_STANDARD_IDENTIFIER;
-			msg.id = buffer->ident;
+			msg.std_id = buffer->ident;
 			msg.dlc = buffer->DLC;
 			msg.rtr = (buffer->rtr ? 1 : 0);
 			memcpy(msg.data, buffer->data, buffer->DLC);
@@ -212,13 +212,7 @@ CO_ReturnError_t CO_CANmodule_init(CO_CANmodule_t *CANmodule,
 		txArray[i].bufferFull = false;
 	}
 
-	err = can_set_bitrate(CANmodule->dev, KHZ(CANbitRate), 0);
-	if (err) {
-		LOG_ERR("failed to configure CAN bitrate (err %d)", err);
-		return CO_ERROR_ILLEGAL_ARGUMENT;
-	}
-
-	err = can_set_mode(CANmodule->dev, CAN_NORMAL_MODE);
+	err = can_configure(CANmodule->dev, CAN_NORMAL_MODE, KHZ(CANbitRate));
 	if (err) {
 		LOG_ERR("failed to configure CAN interface (err %d)", err);
 		return CO_ERROR_ILLEGAL_ARGUMENT;
@@ -274,8 +268,8 @@ CO_ReturnError_t CO_CANrxBufferInit(CO_CANmodule_t *CANmodule, uint16_t index,
 	buffer->pFunct = pFunct;
 
 	filter.id_type = CAN_STANDARD_IDENTIFIER;
-	filter.id = ident;
-	filter.id_mask = mask;
+	filter.std_id = ident;
+	filter.std_id_mask = mask;
 	filter.rtr = (rtr ? 1 : 0);
 	filter.rtr_mask = 1;
 
@@ -345,7 +339,7 @@ CO_ReturnError_t CO_CANsend(CO_CANmodule_t *CANmodule, CO_CANtx_t *buffer)
 	}
 
 	msg.id_type = CAN_STANDARD_IDENTIFIER;
-	msg.id = buffer->ident;
+	msg.std_id = buffer->ident;
 	msg.dlc = buffer->DLC;
 	msg.rtr = (buffer->rtr ? 1 : 0);
 	memcpy(msg.data, buffer->data, buffer->DLC);

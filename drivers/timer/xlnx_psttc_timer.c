@@ -93,13 +93,12 @@ static void ttc_isr(const void *arg)
 #endif
 
 	/* Announce to the kernel*/
-	sys_clock_announce(ticks);
+	z_clock_announce(ticks);
 }
 
-int sys_clock_driver_init(const struct device *dev)
+int z_clock_driver_init(const struct device *device)
 {
 	uint32_t reg_val;
-	ARG_UNUSED(dev);
 
 	/* Stop timer */
 	sys_write32(XTTCPS_CNT_CNTRL_DIS_MASK,
@@ -153,7 +152,7 @@ int sys_clock_driver_init(const struct device *dev)
 	return 0;
 }
 
-void sys_clock_set_timeout(int32_t ticks, bool idle)
+void z_clock_set_timeout(int32_t ticks, bool idle)
 {
 #ifdef CONFIG_TICKLESS_KERNEL
 	uint32_t cycles;
@@ -174,7 +173,7 @@ void sys_clock_set_timeout(int32_t ticks, bool idle)
 #endif
 }
 
-uint32_t sys_clock_elapsed(void)
+uint32_t z_clock_elapsed(void)
 {
 #ifdef CONFIG_TICKLESS_KERNEL
 	uint32_t cycles;
@@ -190,7 +189,7 @@ uint32_t sys_clock_elapsed(void)
 #endif
 }
 
-uint32_t sys_clock_cycle_get_32(void)
+uint32_t z_timer_cycle_get_32(void)
 {
 	/* Return the current counter value */
 	return read_count();

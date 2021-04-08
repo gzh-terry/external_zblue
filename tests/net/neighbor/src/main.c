@@ -297,13 +297,7 @@ static void test_neighbor(void)
 /*test case main entry*/
 void test_main(void)
 {
-	if (IS_ENABLED(CONFIG_NET_TC_THREAD_COOPERATIVE)) {
-		k_thread_priority_set(k_current_get(),
-				K_PRIO_COOP(CONFIG_NUM_COOP_PRIORITIES - 1));
-	} else {
-		k_thread_priority_set(k_current_get(), K_PRIO_PREEMPT(9));
-	}
-
+	k_thread_priority_set(k_current_get(), K_PRIO_COOP(7));
 	ztest_test_suite(neighbor,
 			 ztest_unit_test(test_neighbor));
 	ztest_run_test_suite(neighbor);

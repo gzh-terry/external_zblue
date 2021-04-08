@@ -1,14 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
-if(CONFIG_OPENOCD_SUPPORT)
-  message(WARNING "CONFIG_OPENOCD_SUPPORT is deprecated
-  Please use DEBUG_THREAD_INFO instead."
-)
-endif()
-
 zephyr_sources_ifdef(
-  CONFIG_DEBUG_THREAD_INFO
-  thread_info.c
+  CONFIG_OPENOCD_SUPPORT
+  openocd.c
   )
 
 zephyr_sources_ifdef(

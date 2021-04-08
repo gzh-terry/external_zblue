@@ -2,7 +2,7 @@
 
 /dts-v1/;
 
-#include <nxp/MKW41Z512VHT4.dtsi>
+#include <nxp/nxp_kw41z.dtsi>
 
 / {
 	model = "NXP Freedom KW41Z board";
@@ -100,11 +100,6 @@
 			   <20 0 &gpioc 3 0>,	/* D14 */
 			   <21 0 &gpioc 2 0>;	/* D15 */
 	};
-};
-
-&sim {
-	pllfll-select = <KINETIS_SIM_PLLFLLSEL_MCGPLLCLK>;
-	er32k-select = <KINETIS_SIM_ER32KSEL_OSC32KCLK>;
 };
 
 &adc0 {

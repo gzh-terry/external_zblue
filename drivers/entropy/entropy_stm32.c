@@ -18,10 +18,6 @@
 #include <sys/util.h>
 #include <errno.h>
 #include <soc.h>
-#include <stm32_ll_bus.h>
-#include <stm32_ll_rcc.h>
-#include <stm32_ll_rng.h>
-#include <stm32_ll_system.h>
 #include <sys/printk.h>
 #include <drivers/clock_control.h>
 #include <drivers/clock_control/stm32_clock_control.h>
@@ -124,11 +120,8 @@ static int random_byte_get(void)
 	if ((LL_RNG_IsActiveFlag_DRDY(entropy_stm32_rng_data.rng) == 1)) {
 		if (entropy_stm32_got_error(entropy_stm32_rng_data.rng)) {
 			retval = -EIO;
-		} else {
-			retval = LL_RNG_ReadRandData32(
-						    entropy_stm32_rng_data.rng);
-			retval &= 0xFF;
 		}
+		retval = LL_RNG_ReadRandData32(entropy_stm32_rng_data.rng);
 	}
 
 	irq_unlock(key);
@@ -249,12 +242,12 @@ static void stm32_rng_isr(const void *arg)
 	}
 }
 
-static int entropy_stm32_rng_get_entropy(const struct device *dev,
+static int entropy_stm32_rng_get_entropy(const struct device *device,
 					 uint8_t *buf,
 					 uint16_t len)
 {
 	/* Check if this API is called on correct driver instance. */
-	__ASSERT_NO_MSG(&entropy_stm32_rng_data == DEV_DATA(dev));
+	__ASSERT_NO_MSG(&entropy_stm32_rng_data == DEV_DATA(device));
 
 	while (len) {
 		uint16_t bytes;
@@ -412,7 +405,8 @@ static int entropy_stm32_rng_init(const struct device *dev)
 
 #endif /* CONFIG_SOC_SERIES_STM32L4X */
 
-	dev_data->clock = DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE);
+	dev_data->clock = device_get_binding(STM32_CLOCK_CONTROL_NAME);
+	__ASSERT_NO_MSG(dev_data->clock != NULL);
 
 	res = clock_control_on(dev_data->clock,
 		(clock_control_subsys_t *)&dev_cfg->pclken);
@@ -448,8 +442,8 @@ static const struct entropy_driver_api entropy_stm32_rng_api = {
 	.get_entropy_isr = entropy_stm32_rng_get_entropy_isr
 };
 
-DEVICE_DT_INST_DEFINE(0,
-		    entropy_stm32_rng_init, device_pm_control_nop,
+DEVICE_AND_API_INIT(entropy_stm32_rng, DT_INST_LABEL(0),
+		    entropy_stm32_rng_init,
 		    &entropy_stm32_rng_data, &entropy_stm32_rng_config,
 		    PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    &entropy_stm32_rng_api);

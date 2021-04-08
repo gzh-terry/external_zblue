@@ -421,12 +421,7 @@ static void set_port(sa_family_t family, struct sockaddr *raddr,
 
 void test_udp(void)
 {
-	if (IS_ENABLED(CONFIG_NET_TC_THREAD_COOPERATIVE)) {
-		k_thread_priority_set(k_current_get(),
-				K_PRIO_COOP(CONFIG_NUM_COOP_PRIORITIES - 1));
-	} else {
-		k_thread_priority_set(k_current_get(), K_PRIO_PREEMPT(9));
-	}
+	k_thread_priority_set(k_current_get(), K_PRIO_COOP(7));
 
 	test_failed = false;
 
@@ -509,7 +504,7 @@ void test_udp(void)
 				       (struct sockaddr *)raddr,	\
 				       (struct sockaddr *)laddr,	\
 				       rport, lport,			\
-				       NULL, test_ok, &user_data,	\
+				       test_ok, &user_data,		\
 				       &handlers[i]);			\
 		if (ret) {						\
 			printk("UDP register %s failed (%d)\n",		\
@@ -525,8 +520,7 @@ void test_udp(void)
 			       (struct sockaddr *)raddr,		\
 			       (struct sockaddr *)laddr,		\
 			       rport, lport,				\
-			       NULL, test_fail, INT_TO_POINTER(0),	\
-			       NULL);					\
+			       test_fail, INT_TO_POINTER(0), NULL);	\
 	if (!ret) {							\
 		printk("UDP register invalid match %s failed\n",	\
 		       "DST="#raddr"-SRC="#laddr"-RP="#rport"-LP="#lport); \

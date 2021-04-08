@@ -1,7 +1,0 @@
-sample:
-  name: Quadrature Decoder
-tests:
-  sample.sensor.qdec:
-    tags: sensors
-    harness: sensor
-    platform_allow: sam_e70_xplained
