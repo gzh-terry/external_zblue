@@ -52,6 +52,8 @@ BUILD_ASSERT((PROP(hw_flow_control) && HW_FLOW_CONTROL_AVAILABLE) ||
 
 static NRF_UART_Type *const uart0_addr = (NRF_UART_Type *)DT_INST_REG_ADDR(0);
 
+DEVICE_DECLARE(uart_nrfx_uart0);
+
 /* Device data structure */
 struct uart_nrfx_data {
 	struct uart_config uart_config;
@@ -74,7 +76,7 @@ static struct {
 	volatile size_t rx_counter;
 	volatile size_t rx_offset;
 	int32_t rx_timeout;
-	struct k_timer rx_timeout_timer;
+	struct k_delayed_work rx_timeout_work;
 	bool rx_enabled;
 
 	bool tx_abort;
@@ -83,7 +85,7 @@ static struct {
 	volatile size_t tx_counter;
 #if HW_FLOW_CONTROL_AVAILABLE
 	int32_t tx_timeout;
-	struct k_timer tx_timeout_timer;
+	struct k_delayed_work tx_timeout_work;
 #endif
 } uart0_cb;
 #endif /* CONFIG_UART_0_ASYNC */
@@ -272,14 +274,10 @@ static void uart_nrfx_poll_out(const struct device *dev, unsigned char c)
 		while (atomic_cas((atomic_t *) lock,
 				  (atomic_val_t) 0,
 				  (atomic_val_t) 1) == false) {
-			if (IS_ENABLED(CONFIG_MULTITHREADING)) {
-				/* k_sleep allows other threads to execute and finish
-				 * their transactions.
-				 */
-				k_msleep(1);
-			} else {
-				k_busy_wait(1000);
-			}
+			/* k_sleep allows other threads to execute and finish
+			 * their transactions.
+			 */
+			k_msleep(1);
 			if (--safety_cnt == 0) {
 				break;
 			}
@@ -448,7 +446,7 @@ static int uart_nrfx_tx_abort(const struct device *dev)
 	}
 #if	HW_FLOW_CONTROL_AVAILABLE
 	if (uart0_cb.tx_timeout != SYS_FOREVER_MS) {
-		k_timer_stop(&uart0_cb.tx_timeout_timer);
+		k_delayed_work_cancel(&uart0_cb.tx_timeout_work);
 	}
 #endif
 	nrf_uart_task_trigger(uart0_addr, NRF_UART_TASK_STOPTX);
@@ -527,7 +525,7 @@ static int uart_nrfx_rx_disable(const struct device *dev)
 
 	uart0_cb.rx_enabled = 0;
 	if (uart0_cb.rx_timeout != SYS_FOREVER_MS) {
-		k_timer_stop(&uart0_cb.rx_timeout_timer);
+		k_delayed_work_cancel(&uart0_cb.rx_timeout_work);
 	}
 	nrf_uart_task_trigger(uart0_addr, NRF_UART_TASK_STOPRX);
 
@@ -599,15 +597,14 @@ static void rx_isr(const struct device *dev)
 		if (uart0_cb.rx_timeout == 0) {
 			rx_rdy_evt(dev);
 		} else if (uart0_cb.rx_timeout != SYS_FOREVER_MS) {
-			k_timer_start(&uart0_cb.rx_timeout_timer,
-				      K_MSEC(uart0_cb.rx_timeout),
-				      K_NO_WAIT);
+			k_delayed_work_submit(&uart0_cb.rx_timeout_work,
+					      K_MSEC(uart0_cb.rx_timeout));
 		}
 	}
 
 	if (uart0_cb.rx_buffer_length == uart0_cb.rx_counter) {
 		if (uart0_cb.rx_timeout != SYS_FOREVER_MS) {
-			k_timer_stop(&uart0_cb.rx_timeout_timer);
+			k_delayed_work_cancel(&uart0_cb.rx_timeout_work);
 		}
 		rx_rdy_evt(dev);
 
@@ -643,9 +640,8 @@ static void tx_isr(const struct device *dev)
 	    !uart0_cb.tx_abort) {
 #if	HW_FLOW_CONTROL_AVAILABLE
 		if (uart0_cb.tx_timeout != SYS_FOREVER_MS) {
-			k_timer_start(&uart0_cb.tx_timeout_timer,
-				      K_MSEC(uart0_cb.tx_timeout),
-				      K_NO_WAIT);
+			k_delayed_work_submit(&uart0_cb.tx_timeout_work,
+					      K_MSEC(uart0_cb.tx_timeout));
 		}
 #endif
 		nrf_uart_event_clear(uart0_addr, NRF_UART_EVENT_TXDRDY);
@@ -657,7 +653,7 @@ static void tx_isr(const struct device *dev)
 #if	HW_FLOW_CONTROL_AVAILABLE
 
 		if (uart0_cb.tx_timeout != SYS_FOREVER_MS) {
-			k_timer_stop(&uart0_cb.tx_timeout_timer);
+			k_delayed_work_cancel(&uart0_cb.tx_timeout_work);
 		}
 #endif
 		nrf_uart_task_trigger(uart0_addr, NRF_UART_TASK_STOPTX);
@@ -686,7 +682,7 @@ static void tx_isr(const struct device *dev)
 static void error_isr(const struct device *dev)
 {
 	if (uart0_cb.rx_timeout != SYS_FOREVER_MS) {
-		k_timer_stop(&uart0_cb.rx_timeout_timer);
+		k_delayed_work_cancel(&uart0_cb.rx_timeout_work);
 	}
 	nrf_uart_event_clear(uart0_addr, NRF_UART_EVENT_ERROR);
 
@@ -755,18 +751,18 @@ void uart_nrfx_isr(const struct device *uart)
 	}
 }
 
-static void rx_timeout(struct k_timer *timer)
+static void rx_timeout(struct k_work *work)
 {
-	rx_rdy_evt(DEVICE_DT_GET(DT_DRV_INST(0)));
+	rx_rdy_evt(DEVICE_GET(uart_nrfx_uart0));
 }
 
 #if HW_FLOW_CONTROL_AVAILABLE
-static void tx_timeout(struct k_timer *timer)
+static void tx_timeout(struct k_work *work)
 {
 	struct uart_event evt;
 
 	if (uart0_cb.tx_timeout != SYS_FOREVER_MS) {
-		k_timer_stop(&uart0_cb.tx_timeout_timer);
+		k_delayed_work_cancel(&uart0_cb.tx_timeout_work);
 	}
 	nrf_uart_task_trigger(uart0_addr, NRF_UART_TASK_STOPTX);
 	evt.type = UART_TX_ABORTED;
@@ -774,7 +770,8 @@ static void tx_timeout(struct k_timer *timer)
 	evt.data.tx.len = uart0_cb.tx_buffer_length;
 	uart0_cb.tx_buffer_length = 0;
 	uart0_cb.tx_counter = 0;
-	user_callback(DEVICE_DT_GET(DT_DRV_INST(0)), &evt);
+	user_callback(DEVICE_GET(uart_nrfx_uart0), &evt);
+
 }
 #endif
 
@@ -1044,15 +1041,15 @@ static int uart_nrfx_init(const struct device *dev)
 	IRQ_CONNECT(IRQN,
 		    IRQ_PRIO,
 		    uart_nrfx_isr,
-		    DEVICE_DT_GET(DT_DRV_INST(0)),
+		    DEVICE_GET(uart_nrfx_uart0),
 		    0);
 	irq_enable(IRQN);
 #endif
 
 #ifdef CONFIG_UART_0_ASYNC
-	k_timer_init(&uart0_cb.rx_timeout_timer, rx_timeout, NULL);
+	k_delayed_work_init(&uart0_cb.rx_timeout_work, rx_timeout);
 #if HW_FLOW_CONTROL_AVAILABLE
-	k_timer_init(&uart0_cb.tx_timeout_timer, tx_timeout, NULL);
+	k_delayed_work_init(&uart0_cb.tx_timeout_work, tx_timeout);
 #endif
 #endif
 	return 0;
@@ -1093,7 +1090,7 @@ static const struct uart_driver_api uart_nrfx_uart_driver_api = {
 #endif /* CONFIG_UART_0_INTERRUPT_DRIVEN */
 };
 
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 
 static void uart_nrfx_pins_enable(const struct device *dev, bool enable)
 {
@@ -1140,7 +1137,7 @@ static void uart_nrfx_pins_enable(const struct device *dev, bool enable)
 static void uart_nrfx_set_power_state(const struct device *dev,
 				      uint32_t new_state)
 {
-	if (new_state == PM_DEVICE_STATE_ACTIVE) {
+	if (new_state == DEVICE_PM_ACTIVE_STATE) {
 		uart_nrfx_pins_enable(dev, true);
 		nrf_uart_enable(uart0_addr);
 		if (RX_PIN_USED) {
@@ -1148,9 +1145,9 @@ static void uart_nrfx_set_power_state(const struct device *dev,
 					      NRF_UART_TASK_STARTRX);
 		}
 	} else {
-		__ASSERT_NO_MSG(new_state == PM_DEVICE_STATE_LOW_POWER ||
-				new_state == PM_DEVICE_STATE_SUSPEND ||
-				new_state == PM_DEVICE_STATE_OFF);
+		__ASSERT_NO_MSG(new_state == DEVICE_PM_LOW_POWER_STATE ||
+				new_state == DEVICE_PM_SUSPEND_STATE ||
+				new_state == DEVICE_PM_OFF_STATE);
 		nrf_uart_disable(uart0_addr);
 		uart_nrfx_pins_enable(dev, false);
 	}
@@ -1158,29 +1155,29 @@ static void uart_nrfx_set_power_state(const struct device *dev,
 
 static int uart_nrfx_pm_control(const struct device *dev,
 				uint32_t ctrl_command,
-				uint32_t *state, pm_device_cb cb, void *arg)
+				void *context, device_pm_cb cb, void *arg)
 {
-	static uint32_t current_state = PM_DEVICE_STATE_ACTIVE;
+	static uint32_t current_state = DEVICE_PM_ACTIVE_STATE;
 
-	if (ctrl_command == PM_DEVICE_STATE_SET) {
-		uint32_t new_state = *state;
+	if (ctrl_command == DEVICE_PM_SET_POWER_STATE) {
+		uint32_t new_state = *((const uint32_t *)context);
 
 		if (new_state != current_state) {
 			uart_nrfx_set_power_state(dev, new_state);
 			current_state = new_state;
 		}
 	} else {
-		__ASSERT_NO_MSG(ctrl_command == PM_DEVICE_STATE_GET);
-		*state = current_state;
+		__ASSERT_NO_MSG(ctrl_command == DEVICE_PM_GET_POWER_STATE);
+		*((uint32_t *)context) = current_state;
 	}
 
 	if (cb) {
-		cb(dev, 0, state, arg);
+		cb(dev, 0, context, arg);
 	}
 
 	return 0;
 }
-#endif /* CONFIG_PM_DEVICE */
+#endif /* CONFIG_DEVICE_POWER_MANAGEMENT */
 
 static struct uart_nrfx_data uart_nrfx_uart0_data = {
 	.uart_config = {
@@ -1197,7 +1194,8 @@ static struct uart_nrfx_data uart_nrfx_uart0_data = {
 	}
 };
 
-DEVICE_DT_INST_DEFINE(0,
+DEVICE_DEFINE(uart_nrfx_uart0,
+	      DT_INST_LABEL(0),
 	      uart_nrfx_init,
 	      uart_nrfx_pm_control,
 	      &uart_nrfx_uart0_data,

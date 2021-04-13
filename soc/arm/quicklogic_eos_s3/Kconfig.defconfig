@@ -28,11 +28,4 @@ config UART_PL011_PORT1
 
 endif # SERIAL
 
-if GPIO
-
-config GPIO_EOS_S3
-	default y
-
-endif # GPIO
-
 endif # SOC_EOS_S3

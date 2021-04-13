@@ -8,7 +8,7 @@
 
 #include <kernel.h>
 #include <drivers/i2c.h>
-#include <pm/device.h>
+#include <power/power.h>
 
 #define LOG_LEVEL CONFIG_I2C_LOG_LEVEL
 #include <logging/log.h>
@@ -23,15 +23,17 @@ LOG_MODULE_REGISTER(i2c_cc13xx_cc26xx);
 
 #include "i2c-priv.h"
 
+DEVICE_DECLARE(i2c_cc13xx_cc26xx);
+
 struct i2c_cc13xx_cc26xx_data {
 	struct k_sem lock;
 	struct k_sem complete;
 	volatile uint32_t error;
-#ifdef CONFIG_PM
+#ifdef CONFIG_SYS_POWER_MANAGEMENT
 	Power_NotifyObj postNotify;
 	uint32_t dev_config;
 #endif
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 	uint32_t pm_state;
 #endif
 };
@@ -207,8 +209,9 @@ static int i2c_cc13xx_cc26xx_transfer(const struct device *dev,
 
 	k_sem_take(&get_dev_data(dev)->lock, K_FOREVER);
 
-#ifdef CONFIG_PM
-	pm_constraint_set(PM_STATE_STANDBY);
+#if defined(CONFIG_SYS_POWER_MANAGEMENT) && \
+	defined(CONFIG_SYS_POWER_SLEEP_STATES)
+	sys_pm_ctrl_disable_state(SYS_POWER_STATE_SLEEP_2);
 #endif
 
 	for (int i = 0; i < num_msgs; i++) {
@@ -231,8 +234,9 @@ static int i2c_cc13xx_cc26xx_transfer(const struct device *dev,
 		}
 	}
 
-#ifdef CONFIG_PM
-	pm_constraint_release(PM_STATE_STANDBY);
+#if defined(CONFIG_SYS_POWER_MANAGEMENT) && \
+	defined(CONFIG_SYS_POWER_SLEEP_STATES)
+	sys_pm_ctrl_enable_state(SYS_POWER_STATE_SLEEP_2);
 #endif
 
 	k_sem_give(&get_dev_data(dev)->lock);
@@ -273,7 +277,7 @@ static int i2c_cc13xx_cc26xx_configure(const struct device *dev,
 	/* Enables and configures I2C master */
 	I2CMasterInitExpClk(get_dev_config(dev)->base, CPU_FREQ, fast);
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_SYS_POWER_MANAGEMENT
 	get_dev_data(dev)->dev_config = dev_config;
 #endif
 
@@ -294,7 +298,7 @@ static void i2c_cc13xx_cc26xx_isr(const void *arg)
 	}
 }
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_SYS_POWER_MANAGEMENT
 /*
  *  ======== postNotifyFxn ========
  *  Called by Power module when waking up the CPU from Standby. The i2c needs
@@ -327,13 +331,13 @@ static int postNotifyFxn(unsigned int eventType, uintptr_t eventArg,
 }
 #endif
 
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 static int i2c_cc13xx_cc26xx_set_power_state(const struct device *dev,
 					     uint32_t new_state)
 {
 	int ret = 0;
 
-	if ((new_state == PM_DEVICE_STATE_ACTIVE) &&
+	if ((new_state == DEVICE_PM_ACTIVE_STATE) &&
 		(new_state != get_dev_data(dev)->pm_state)) {
 		Power_setDependency(PowerCC26XX_PERIPH_I2C0);
 		IOCPinTypeI2c(get_dev_config(dev)->base,
@@ -346,11 +350,11 @@ static int i2c_cc13xx_cc26xx_set_power_state(const struct device *dev,
 			get_dev_data(dev)->pm_state = new_state;
 		}
 	} else {
-		__ASSERT_NO_MSG(new_state == PM_DEVICE_STATE_LOW_POWER ||
-			new_state == PM_DEVICE_STATE_SUSPEND ||
-			new_state == PM_DEVICE_STATE_OFF);
+		__ASSERT_NO_MSG(new_state == DEVICE_PM_LOW_POWER_STATE ||
+			new_state == DEVICE_PM_SUSPEND_STATE ||
+			new_state == DEVICE_PM_OFF_STATE);
 
-		if (get_dev_data(dev)->pm_state == PM_DEVICE_STATE_ACTIVE) {
+		if (get_dev_data(dev)->pm_state == DEVICE_PM_ACTIVE_STATE) {
 			I2CMasterIntDisable(get_dev_config(dev)->base);
 			I2CMasterDisable(get_dev_config(dev)->base);
 			/* Reset pin type to default GPIO configuration */
@@ -368,41 +372,41 @@ static int i2c_cc13xx_cc26xx_set_power_state(const struct device *dev,
 
 static int i2c_cc13xx_cc26xx_pm_control(const struct device *dev,
 					uint32_t ctrl_command,
-					uint32_t *state, pm_device_cb cb,
+					void *context, device_pm_cb cb,
 					void *arg)
 {
 	int ret = 0;
 
-	if (ctrl_command == PM_DEVICE_STATE_SET) {
-		uint32_t new_state = *state;
+	if (ctrl_command == DEVICE_PM_SET_POWER_STATE) {
+		uint32_t new_state = *((const uint32_t *)context);
 
 		if (new_state != get_dev_data(dev)->pm_state) {
 			ret = i2c_cc13xx_cc26xx_set_power_state(dev,
 				new_state);
 		}
 	} else {
-		__ASSERT_NO_MSG(ctrl_command == PM_DEVICE_STATE_GET);
-		*state = get_dev_data(dev)->pm_state;
+		__ASSERT_NO_MSG(ctrl_command == DEVICE_PM_GET_POWER_STATE);
+		*((uint32_t *)context) = get_dev_data(dev)->pm_state;
 	}
 
 	if (cb) {
-		cb(dev, ret, state, arg);
+		cb(dev, ret, context, arg);
 	}
 
 	return ret;
 }
-#endif /* CONFIG_PM_DEVICE */
+#endif /* CONFIG_DEVICE_POWER_MANAGEMENT */
 
 static int i2c_cc13xx_cc26xx_init(const struct device *dev)
 {
 	uint32_t cfg;
 	int err;
 
-#ifdef CONFIG_PM_DEVICE
-	get_dev_data(dev)->pm_state = PM_DEVICE_STATE_ACTIVE;
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
+	get_dev_data(dev)->pm_state = DEVICE_PM_ACTIVE_STATE;
 #endif
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_SYS_POWER_MANAGEMENT
 	/* Set Power dependencies & constraints */
 	Power_setDependency(PowerCC26XX_PERIPH_I2C0);
 
@@ -435,7 +439,7 @@ static int i2c_cc13xx_cc26xx_init(const struct device *dev)
 
 	IRQ_CONNECT(DT_INST_IRQN(0),
 		    DT_INST_IRQ(0, priority),
-		    i2c_cc13xx_cc26xx_isr, DEVICE_DT_INST_GET(0), 0);
+		    i2c_cc13xx_cc26xx_isr, DEVICE_GET(i2c_cc13xx_cc26xx), 0);
 	irq_enable(DT_INST_IRQN(0));
 
 	/* Configure IOC module to route SDA and SCL signals */
@@ -471,9 +475,16 @@ static struct i2c_cc13xx_cc26xx_data i2c_cc13xx_cc26xx_data = {
 	.error = I2C_MASTER_ERR_NONE
 };
 
-DEVICE_DT_INST_DEFINE(0,
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
+DEVICE_DEFINE(i2c_cc13xx_cc26xx, DT_INST_LABEL(0),
 		i2c_cc13xx_cc26xx_init,
 		i2c_cc13xx_cc26xx_pm_control,
 		&i2c_cc13xx_cc26xx_data, &i2c_cc13xx_cc26xx_config,
 		POST_KERNEL, CONFIG_I2C_INIT_PRIORITY,
 		&i2c_cc13xx_cc26xx_driver_api);
+#else
+DEVICE_AND_API_INIT(i2c_cc13xx_cc26xx, DT_INST_LABEL(0),
+		    i2c_cc13xx_cc26xx_init, &i2c_cc13xx_cc26xx_data,
+		    &i2c_cc13xx_cc26xx_config, POST_KERNEL,
+		    CONFIG_I2C_INIT_PRIORITY, &i2c_cc13xx_cc26xx_driver_api);
+#endif

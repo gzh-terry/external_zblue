@@ -26,7 +26,6 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include <sys/printk.h>
 #include <drivers/clock_control.h>
 #include <drivers/clock_control/stm32_clock_control.h>
-#include <pinmux/stm32/pinmux_stm32.h>
 
 #include "eth.h"
 #include "eth_stm32_hal_priv.h"
@@ -67,27 +66,24 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #if defined(CONFIG_ETH_STM32_HAL_USE_DTCM_FOR_DMA_BUFFER) && \
 	    DT_NODE_HAS_STATUS(DT_CHOSEN(zephyr_dtcm), okay)
-#define __eth_stm32_desc __dtcm_noinit_section
-#define __eth_stm32_buf  __dtcm_noinit_section
-#elif defined(CONFIG_SOC_SERIES_STM32H7X) && \
-		DT_NODE_HAS_STATUS(DT_NODELABEL(sram3), okay)
-#define __eth_stm32_desc __attribute__((section(".eth_stm32_desc")))
-#define __eth_stm32_buf  __attribute__((section(".eth_stm32_buf")))
-#elif defined(CONFIG_NOCACHE_MEMORY)
-#define __eth_stm32_desc __nocache __aligned(4)
-#define __eth_stm32_buf  __nocache __aligned(4)
+#define ETH_DMA_MEM	__dtcm_noinit_section
 #else
-#define __eth_stm32_desc __aligned(4)
-#define __eth_stm32_buf  __aligned(4)
+#define ETH_DMA_MEM	__aligned(4)
+#endif /* CONFIG_ETH_STM32_HAL_USE_DTCM_FOR_DMA_BUFFER */
+
+#if defined(CONFIG_NOCACHE_MEMORY)
+#define CACHE __nocache
+#else
+#define CACHE
 #endif
 
-static ETH_DMADescTypeDef dma_rx_desc_tab[ETH_RXBUFNB] __eth_stm32_desc;
-static ETH_DMADescTypeDef dma_tx_desc_tab[ETH_TXBUFNB] __eth_stm32_desc;
-static uint8_t dma_rx_buffer[ETH_RXBUFNB][ETH_RX_BUF_SIZE] __eth_stm32_buf;
-static uint8_t dma_tx_buffer[ETH_TXBUFNB][ETH_TX_BUF_SIZE] __eth_stm32_buf;
+static ETH_DMADescTypeDef dma_rx_desc_tab[ETH_RXBUFNB] CACHE ETH_DMA_MEM;
+static ETH_DMADescTypeDef dma_tx_desc_tab[ETH_TXBUFNB] CACHE ETH_DMA_MEM;
+static uint8_t dma_rx_buffer[ETH_RXBUFNB][ETH_RX_BUF_SIZE] CACHE ETH_DMA_MEM;
+static uint8_t dma_tx_buffer[ETH_TXBUFNB][ETH_TX_BUF_SIZE] CACHE ETH_DMA_MEM;
 
 #if defined(CONFIG_SOC_SERIES_STM32H7X)
-static ETH_TxPacketConfig tx_config;
+static ETH_TxPacketConfig tx_config CACHE;
 #endif
 
 #if defined(CONFIG_NET_L2_CANBUS_ETH_TRANSLATOR)
@@ -211,7 +207,7 @@ static int eth_tx(const struct device *dev, struct net_pkt *pkt)
 #endif /* CONFIG_SOC_SERIES_STM32H7X */
 
 	if (net_pkt_read(pkt, dma_buffer, total_len)) {
-		res = -ENOBUFS;
+		res = -EIO;
 		goto error;
 	}
 
@@ -638,7 +634,8 @@ static int eth_initialize(const struct device *dev)
 	__ASSERT_NO_MSG(dev_data != NULL);
 	__ASSERT_NO_MSG(cfg != NULL);
 
-	dev_data->clock = DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE);
+	dev_data->clock = device_get_binding(STM32_CLOCK_CONTROL_NAME);
+	__ASSERT_NO_MSG(dev_data->clock != NULL);
 
 	/* enable clock */
 	ret = clock_control_on(dev_data->clock,
@@ -655,14 +652,6 @@ static int eth_initialize(const struct device *dev)
 	if (ret) {
 		LOG_ERR("Failed to enable ethernet clock");
 		return -EIO;
-	}
-
-	/* configure pinmux */
-	ret = stm32_dt_pinctrl_configure(cfg->pinctrl, cfg->pinctrl_len,
-					 (uint32_t)dev_data->heth.Instance);
-	if (ret < 0) {
-		LOG_ERR("Could not configure ethernet pins");
-		return ret;
 	}
 
 	heth = &dev_data->heth;
@@ -706,9 +695,9 @@ static int eth_initialize(const struct device *dev)
 
 	/* Initialize semaphores */
 	k_mutex_init(&dev_data->tx_mutex);
-	k_sem_init(&dev_data->rx_int_sem, 0, K_SEM_MAX_LIMIT);
+	k_sem_init(&dev_data->rx_int_sem, 0, UINT_MAX);
 #ifdef CONFIG_SOC_SERIES_STM32H7X
-	k_sem_init(&dev_data->tx_int_sem, 0, K_SEM_MAX_LIMIT);
+	k_sem_init(&dev_data->tx_int_sem, 0, UINT_MAX);
 #endif /* CONFIG_SOC_SERIES_STM32H7X */
 
 	/* Start interruption-poll thread */
@@ -838,9 +827,6 @@ static int eth_stm32_hal_set_config(const struct device *dev,
 			(dev_data->mac_addr[2] << 16) |
 			(dev_data->mac_addr[1] << 8) |
 			dev_data->mac_addr[0];
-		net_if_set_link_addr(dev_data->iface, dev_data->mac_addr,
-				     sizeof(dev_data->mac_addr),
-				     NET_LINK_ETHERNET);
 		return 0;
 	default:
 		break;
@@ -857,14 +843,14 @@ static const struct ethernet_api eth_api = {
 	.send = eth_tx,
 };
 
+DEVICE_DECLARE(eth0_stm32_hal);
+
 static void eth0_irq_config(void)
 {
 	IRQ_CONNECT(DT_INST_IRQN(0), DT_INST_IRQ(0, priority), eth_isr,
-		    DEVICE_DT_INST_GET(0), 0);
+		    DEVICE_GET(eth0_stm32_hal), 0);
 	irq_enable(DT_INST_IRQN(0));
 }
-
-static const struct soc_gpio_pinctrl eth0_pins[] = ST_STM32_DT_INST_PINCTRL(0, 0);
 
 static const struct eth_stm32_hal_dev_cfg eth0_config = {
 	.config_func = eth0_irq_config,
@@ -878,8 +864,6 @@ static const struct eth_stm32_hal_dev_cfg eth0_config = {
 	.pclken_ptp = {.bus = DT_INST_CLOCKS_CELL_BY_NAME(0, mac_clk_ptp, bus),
 		       .enr = DT_INST_CLOCKS_CELL_BY_NAME(0, mac_clk_ptp, bits)},
 #endif /* !CONFIG_SOC_SERIES_STM32H7X */
-	.pinctrl = eth0_pins,
-	.pinctrl_len = ARRAY_SIZE(eth0_pins),
 };
 
 static struct eth_stm32_hal_dev_data eth0_data = {
@@ -911,6 +895,6 @@ static struct eth_stm32_hal_dev_data eth0_data = {
 	},
 };
 
-ETH_NET_DEVICE_DT_INST_DEFINE(0, eth_initialize,
-		    NULL, &eth0_data, &eth0_config,
+ETH_NET_DEVICE_INIT(eth0_stm32_hal, DT_INST_LABEL(0), eth_initialize,
+		    device_pm_control_nop, &eth0_data, &eth0_config,
 		    CONFIG_ETH_INIT_PRIORITY, &eth_api, ETH_STM32_HAL_MTU);

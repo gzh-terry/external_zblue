@@ -10,7 +10,6 @@ include: [base.yaml]
 properties:
   ph: {type: "phandle"}
   phs: {type: "phandles"}
-  phs-or: {type: "phandles"}
   pha-gpios: {type: "phandle-array"}
   gpios: {type: "phandle-array"}
   foos: {type: "phandle-array"}

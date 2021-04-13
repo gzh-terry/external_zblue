@@ -27,7 +27,6 @@
 #include <sw_isr_table.h>
 #include <irq.h>
 #include <tracing/tracing.h>
-#include <pm/pm.h>
 
 extern void z_arm_reserved(void);
 
@@ -69,25 +68,29 @@ void z_arm_irq_priority_set(unsigned int irq, unsigned int prio, uint32_t flags)
 	 * of priority levels reserved by the kernel.
 	 */
 
+#if defined(CONFIG_ZERO_LATENCY_IRQS)
 	/* If we have zero latency interrupts, those interrupts will
 	 * run at a priority level which is not masked by irq_lock().
 	 * Our policy is to express priority levels with special properties
 	 * via flags
 	 */
-	if (IS_ENABLED(CONFIG_ZERO_LATENCY_IRQS) && (flags & IRQ_ZERO_LATENCY)) {
+	if (flags & IRQ_ZERO_LATENCY) {
 		prio = _EXC_ZERO_LATENCY_IRQS_PRIO;
 	} else {
 		prio += _IRQ_PRIO_OFFSET;
 	}
-
+#else
+	ARG_UNUSED(flags);
+	prio += _IRQ_PRIO_OFFSET;
+#endif
 	/* The last priority level is also used by PendSV exception, but
 	 * allow other interrupts to use the same level, even if it ends up
 	 * affecting performance (can still be useful on systems with a
 	 * reduced set of priorities, like Cortex-M0/M0+).
 	 */
 	__ASSERT(prio <= (BIT(NUM_IRQ_PRIO_BITS) - 1),
-		 "invalid priority %d for %d irq! values must be less than %lu\n",
-		 prio - _IRQ_PRIO_OFFSET, irq,
+		 "invalid priority %d! values must be less than %lu\n",
+		 prio - _IRQ_PRIO_OFFSET,
 		 BIT(NUM_IRQ_PRIO_BITS) - (_IRQ_PRIO_OFFSET));
 	NVIC_SetPriority((IRQn_Type)irq, prio);
 }
@@ -158,7 +161,7 @@ void z_irq_spurious(const void *unused)
 	z_arm_fatal_error(K_ERR_SPURIOUS_IRQ, NULL);
 }
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_SYS_POWER_MANAGEMENT
 void _arch_isr_direct_pm(void)
 {
 #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE) \
@@ -181,7 +184,7 @@ void _arch_isr_direct_pm(void)
 		int32_t idle_val = _kernel.idle;
 
 		_kernel.idle = 0;
-		z_pm_save_idle_exit(idle_val);
+		z_sys_power_save_idle_exit(idle_val);
 	}
 
 #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE) \

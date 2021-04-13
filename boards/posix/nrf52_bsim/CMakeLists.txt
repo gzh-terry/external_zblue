@@ -23,7 +23,7 @@ zephyr_compile_options(
 
 zephyr_library_sources(
 	irq_handler.c
-	cpu_wait.c
+	k_busy_wait.c
 	bstests_entry.c
 	argparse.c
 	main.c

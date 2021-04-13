@@ -22,16 +22,6 @@ Sample can be built and executed for the nRF52840 DK NRF52840 as follows:
    :goals: build flash
    :compact:
 
-To build a debug version, with logging and shell support, use the config file
-:file:`prj_dbg.conf`:
-
-.. zephyr-app-commands::
-   :zephyr-app: samples/bluetooth/ipsp
-   :board: nrf52840dk_nrf52840
-   :conf: prj_dbg.conf
-   :goals: build flash
-   :compact:
-
 Building and Running for Linux kernels released before 4.12
 ===========================================================
 .. note::

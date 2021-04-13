@@ -6,7 +6,6 @@
 #ifndef ZEPHYR_ARCH_XTENSA_INCLUDE_XTENSA_ASM2_H_
 #define ZEPHYR_ARCH_XTENSA_INCLUDE_XTENSA_ASM2_H_
 
-#include <kernel_structs.h>
 #include "xtensa-asm2-context.h"
 
 /**
@@ -17,7 +16,7 @@
  * INTLEVEL set to zero (i.e. it's a user thread, we don't start with
  * anything masked, so don't assume that!).
  */
-void *xtensa_init_stack(struct k_thread *thread, int *stack_top,
+void *xtensa_init_stack(int *stack_top,
 			void (*entry)(void *, void *, void *),
 			void *arg1, void *arg2, void *arg3);
 

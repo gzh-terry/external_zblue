@@ -32,7 +32,6 @@ struct pinmux_ports_t {
 #endif
 };
 
-#ifdef CONFIG_I2C_XEC
 static void i2c_pinmux(struct pinmux_ports_t *p, uint8_t port_sel)
 {
 	switch (port_sel) {
@@ -98,7 +97,6 @@ static void i2c_pinmux(struct pinmux_ports_t *p, uint8_t port_sel)
 		break;
 	}
 }
-#endif
 
 static void configure_debug_interface(void)
 {
@@ -130,45 +128,33 @@ static int board_pinmux_init(const struct device *dev)
 	struct pinmux_ports_t pinmux_ports;
 
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(pinmux_000_036), okay)
-	const struct device *porta = DEVICE_DT_GET(DT_NODELABEL(pinmux_000_036));
-
-	__ASSERT_NO_MSG(device_is_ready(porta));
-
+	const struct device *porta =
+		device_get_binding(DT_LABEL(DT_NODELABEL(pinmux_000_036)));
 	pinmux_ports.porta = porta;
 #endif
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(pinmux_040_076), okay)
-	const struct device *portb = DEVICE_DT_GET(DT_NODELABEL(pinmux_040_076));
-
-	__ASSERT_NO_MSG(device_is_ready(portb));
-
+	const struct device *portb =
+		device_get_binding(DT_LABEL(DT_NODELABEL(pinmux_040_076)));
 	pinmux_ports.portb = portb;
 #endif
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(pinmux_100_136), okay)
-	const struct device *portc = DEVICE_DT_GET(DT_NODELABEL(pinmux_100_136));
-
-	__ASSERT_NO_MSG(device_is_ready(portc));
-
+	const struct device *portc =
+		device_get_binding(DT_LABEL(DT_NODELABEL(pinmux_100_136)));
 	pinmux_ports.portc = portc;
 #endif
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(pinmux_140_176), okay)
-	const struct device *portd = DEVICE_DT_GET(DT_NODELABEL(pinmux_140_176));
-
-	__ASSERT_NO_MSG(device_is_ready(portd));
-
+	const struct device *portd =
+		device_get_binding(DT_LABEL(DT_NODELABEL(pinmux_140_176)));
 	pinmux_ports.portd = portd;
 #endif
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(pinmux_200_236), okay)
-	const struct device *porte = DEVICE_DT_GET(DT_NODELABEL(pinmux_200_236));
-
-	__ASSERT_NO_MSG(device_is_ready(porte));
-
+	const struct device *porte =
+		device_get_binding(DT_LABEL(DT_NODELABEL(pinmux_200_236)));
 	pinmux_ports.porte = porte;
 #endif
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(pinmux_240_276), okay)
-	const struct device *portf = DEVICE_DT_GET(DT_NODELABEL(pinmux_240_276));
-
-	__ASSERT_NO_MSG(device_is_ready(portf));
-
+	const struct device *portf =
+		device_get_binding(DT_LABEL(DT_NODELABEL(pinmux_240_276)));
 	pinmux_ports.portf = portf;
 #endif
 
@@ -397,28 +383,28 @@ static int board_pinmux_init(const struct device *dev)
 
 	/* KSCAN KSI00 */
 	pinmux_pin_set(porta, MCHP_GPIO_017,
-		       MCHP_GPIO_CTRL_MUX_F1 | MCHP_GPIO_CTRL_PUD_PU);
+		       MCHP_GPIO_CTRL_MUX_F1 | MCHP_GPIO_CTRL_BUFT_OPENDRAIN);
 	/* KSCAN KSI01 */
 	pinmux_pin_set(porta, MCHP_GPIO_020,
-		       MCHP_GPIO_CTRL_MUX_F1 | MCHP_GPIO_CTRL_PUD_PU);
+		       MCHP_GPIO_CTRL_MUX_F1 | MCHP_GPIO_CTRL_BUFT_OPENDRAIN);
 	/* KSCAN KSI02 */
 	pinmux_pin_set(porta, MCHP_GPIO_021,
-		       MCHP_GPIO_CTRL_MUX_F1 | MCHP_GPIO_CTRL_PUD_PU);
+		       MCHP_GPIO_CTRL_MUX_F1 | MCHP_GPIO_CTRL_BUFT_OPENDRAIN);
 	/* KSCAN KSI03 */
 	pinmux_pin_set(porta, MCHP_GPIO_026,
-		       MCHP_GPIO_CTRL_MUX_F1 | MCHP_GPIO_CTRL_PUD_PU);
+		       MCHP_GPIO_CTRL_MUX_F1 | MCHP_GPIO_CTRL_BUFT_OPENDRAIN);
 	/* KSCAN KSI04 */
 	pinmux_pin_set(porta, MCHP_GPIO_027,
-		       MCHP_GPIO_CTRL_MUX_F1 | MCHP_GPIO_CTRL_PUD_PU);
+		       MCHP_GPIO_CTRL_MUX_F1 | MCHP_GPIO_CTRL_BUFT_OPENDRAIN);
 	/* KSCAN KSI05 */
 	pinmux_pin_set(porta, MCHP_GPIO_030,
-		       MCHP_GPIO_CTRL_MUX_F1 | MCHP_GPIO_CTRL_PUD_PU);
+		       MCHP_GPIO_CTRL_MUX_F1 | MCHP_GPIO_CTRL_BUFT_OPENDRAIN);
 	/* KSCAN KSI06 */
 	pinmux_pin_set(porta, MCHP_GPIO_031,
-		       MCHP_GPIO_CTRL_MUX_F1 | MCHP_GPIO_CTRL_PUD_PU);
+		       MCHP_GPIO_CTRL_MUX_F1 | MCHP_GPIO_CTRL_BUFT_OPENDRAIN);
 	/* KSCAN KSI07 */
 	pinmux_pin_set(porta, MCHP_GPIO_032,
-		       MCHP_GPIO_CTRL_MUX_F1 | MCHP_GPIO_CTRL_PUD_PU);
+		       MCHP_GPIO_CTRL_MUX_F1 | MCHP_GPIO_CTRL_BUFT_OPENDRAIN);
 #endif /* CONFIG_KSCAN_XEC */
 
 #ifdef CONFIG_PECI_XEC
@@ -462,7 +448,7 @@ static int board_pinmux_init(const struct device *dev)
 #endif /* DT_NODE_HAS_STATUS(DT_INST(0, microchip_xec_qmspi), okay) */
 #endif /* CONFIG_SPI_XEC_QMSPI */
 
-#ifdef CONFIG_PM_DEBUG
+#ifdef CONFIG_SYS_PM_DEBUG
 	/*
 	 * Deep sleep testing: Enable TEST_CLK_OUT on GPIO_060 function 2.
 	 * TEST_CLK_OUT is the PLL 48MHz conditioned output.

@@ -8,7 +8,7 @@
 #include <logging/log_core.h>
 #include <logging/log_msg.h>
 #include <logging/log_output.h>
-#include <logging/log_backend_std.h>
+#include "log_backend_std.h"
 #include <SEGGER_RTT.h>
 
 #ifndef CONFIG_LOG_BACKEND_RTT_BUFFER_SIZE
@@ -201,10 +201,7 @@ static void on_write(int retry_cnt)
 static int data_out_block_mode(uint8_t *data, size_t length, void *ctx)
 {
 	int ret = 0;
-	/* This function is also called in drop mode for synchronous operation
-	 * in that case retry is undesired */
-	int retry_cnt = IS_ENABLED(CONFIG_LOG_BACKEND_RTT_MODE_BLOCK) ?
-			 CONFIG_LOG_BACKEND_RTT_RETRY_CNT : 1;
+	int retry_cnt = CONFIG_LOG_BACKEND_RTT_RETRY_CNT;
 
 	do {
 		if (!is_sync_mode()) {
@@ -222,7 +219,6 @@ static int data_out_block_mode(uint8_t *data, size_t length, void *ctx)
 		} else if (host_present) {
 			retry_cnt--;
 			on_failed_write(retry_cnt);
-		} else {
 		}
 	} while ((ret == 0) && host_present);
 
@@ -250,7 +246,7 @@ static void log_backend_rtt_cfg(void)
 				  SEGGER_RTT_MODE_NO_BLOCK_SKIP);
 }
 
-static void log_backend_rtt_init(struct log_backend const *const backend)
+static void log_backend_rtt_init(void)
 {
 	if (CONFIG_LOG_BACKEND_RTT_BUFFER > 0) {
 		log_backend_rtt_cfg();
@@ -295,20 +291,11 @@ static void sync_hexdump(const struct log_backend *const backend,
 				     timestamp, metadata, data, length);
 }
 
-static void process(const struct log_backend *const backend,
-		union log_msg2_generic *msg)
-{
-	uint32_t flags = log_backend_std_get_flags();
-
-	log_output_msg2_process(&log_output_rtt, &msg->log, flags);
-}
-
 const struct log_backend_api log_backend_rtt_api = {
-	.process = IS_ENABLED(CONFIG_LOG2) ? process : NULL,
-	.put = IS_ENABLED(CONFIG_LOG_MODE_DEFERRED) ? put : NULL,
-	.put_sync_string = IS_ENABLED(CONFIG_LOG_MODE_IMMEDIATE) ?
+	.put = IS_ENABLED(CONFIG_LOG_IMMEDIATE) ? NULL : put,
+	.put_sync_string = IS_ENABLED(CONFIG_LOG_IMMEDIATE) ?
 			sync_string : NULL,
-	.put_sync_hexdump = IS_ENABLED(CONFIG_LOG_MODE_IMMEDIATE) ?
+	.put_sync_hexdump = IS_ENABLED(CONFIG_LOG_IMMEDIATE) ?
 			sync_hexdump : NULL,
 	.panic = panic,
 	.init = log_backend_rtt_init,

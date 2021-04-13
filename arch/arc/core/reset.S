@@ -15,7 +15,6 @@
 #include <linker/sections.h>
 #include <arch/cpu.h>
 #include <swap_macros.h>
-#include <arch/arc/asm-compat/assembler.h>
 
 GDATA(z_interrupt_stacks)
 GDATA(z_main_stack)
@@ -55,6 +54,17 @@ SECTION_FUNC(TEXT,__start)
 #ifdef CONFIG_ARC_SECURE_FIRMWARE
 	sflag r0
 #endif
+
+#if defined(CONFIG_BOOT_TIME_MEASUREMENT) && defined(CONFIG_ARCV2_TIMER)
+	/*
+	 * ARCV2 timer (timer0) is a free run timer, let it start to count
+	 * here.
+	 */
+	mov_s r0, 0xffffffff
+	sr r0, [_ARC_V2_TMR0_LIMIT]
+	mov_s r0, 0
+	sr r0, [_ARC_V2_TMR0_COUNT]
+#endif
 	/* interrupt related init */
 #ifndef CONFIG_ARC_NORMAL_FIRMWARE
 	/* IRQ_ACT and IRQ_CTRL should be initialized and set in secure mode */
@@ -66,16 +76,12 @@ SECTION_FUNC(TEXT,__start)
 	/* set the vector table base early,
 	 * so that exception vectors can be handled.
 	 */
-	MOVR r0, _VectorTable
+	mov_s r0, _VectorTable
 #ifdef CONFIG_ARC_SECURE_FIRMWARE
 	sr r0, [_ARC_V2_IRQ_VECT_BASE_S]
 #else
-	SRR r0, [_ARC_V2_IRQ_VECT_BASE]
+	sr r0, [_ARC_V2_IRQ_VECT_BASE]
 #endif
-
-	lr r0, [_ARC_V2_STATUS32]
-	bset r0, r0, _ARC_V2_STATUS32_DZ_BIT
-	kflag r0
 
 #if defined(CONFIG_USERSPACE)
 	lr r0, [_ARC_V2_STATUS32]
@@ -89,10 +95,13 @@ SECTION_FUNC(TEXT,__start)
 	kflag r0
 #endif
 
-/* Invalidate icache */
+	mov_s r1, 1
+
+invalidate_and_disable_icache:
+
 	lr r0, [_ARC_V2_I_CACHE_BUILD]
 	and.f r0, r0, 0xff
-	bz.nd done_icache_invalidate
+	bz.nd invalidate_dcache
 
 	mov_s r2, 0
 	sr r2, [_ARC_V2_IC_IVIC]
@@ -100,49 +109,21 @@ SECTION_FUNC(TEXT,__start)
 	nop_s
 	nop_s
 	nop_s
-done_icache_invalidate:
+	sr r1, [_ARC_V2_IC_CTRL]
 
-/* Invalidate dcache */
+invalidate_dcache:
+
 	lr r3, [_ARC_V2_D_CACHE_BUILD]
 	and.f r3, r3, 0xff
-	bz.nd done_dcache_invalidate
+	bz.nd done_cache_invalidate
 
-	mov_s r1, 1
 	sr r1, [_ARC_V2_DC_IVDC]
 
-done_dcache_invalidate:
+done_cache_invalidate:
 
-/*
- * Init ARC internal architecture state
- * Force to initialize internal architecture state to reset values
- * For scenarios where board hardware is not re-initialized between tests,
- * some settings need to be restored to its default initial states as a
- * substitution of normal hardware reset sequence.
- */
-#ifdef CONFIG_INIT_ARCH_HW_AT_BOOT
-	/* Set MPU (v4) registers to default */
-#if CONFIG_ARC_MPU_VER == 4
-	/* Set default reset value to _ARC_V2_MPU_EN register */
-#define ARC_MPU_EN_RESET_VALUE 0x400181C0
-	mov_s r1, ARC_MPU_EN_RESET_VALUE
-	sr r1, [_ARC_V2_MPU_EN]
-	/* Get MPU region numbers */
-	lr r3, [_ARC_V2_MPU_BUILD]
-	lsr_s r3, r3, 8
-	and r3, r3, 0xff
-	mov_s r1, 0
-	mov_s r2, 0
-	/* Set all MPU regions by iterating index */
-mpu_regions_reset:
-	brge r2, r3, done_mpu_regions_reset
-	sr r2, [_ARC_V2_MPU_INDEX]
-	sr r1, [_ARC_V2_MPU_RSTART]
-	sr r1, [_ARC_V2_MPU_REND]
-	sr r1, [_ARC_V2_MPU_RPER]
-	add_s r2, r2, 1
-	b_s mpu_regions_reset
-done_mpu_regions_reset:
-#endif
+#if defined(CONFIG_SYS_POWER_DEEP_SLEEP_STATES) && \
+	!defined(CONFIG_BOOTLOADER_CONTEXT_RESTORE)
+        jl @_sys_resume_from_deep_sleep
 #endif
 
 #if defined(CONFIG_SMP) || CONFIG_MP_NUM_CPUS  > 1
