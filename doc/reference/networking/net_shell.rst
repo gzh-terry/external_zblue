@@ -19,9 +19,13 @@ The following net-shell commands are implemented:
    :option:`CONFIG_NET_DEBUG_NET_PKT_ALLOC` is set."
    "net arp", "Print information about IPv4 ARP cache. Only available if
    :option:`CONFIG_NET_ARP` is set in IPv4 enabled networks."
+   "net capture", "Monitor network traffic See :ref:`network_monitoring`
+   for details."
    "net conn", "Print information about network connections."
    "net dns", "Show how DNS is configured. The command can also be used to
    resolve a DNS name. Only available if :option:`CONFIG_DNS_RESOLVER` is set."
+   "net events", "Enable network event monitoring. Only available if
+   :option:`CONFIG_NET_MGMT_EVENT_MONITOR` is set."
    "net gptp", "Print information about gPTP support. Only available if
    :option:`CONFIG_NET_GPTP` is set."
    "net iface", "Print information about network interfaces."

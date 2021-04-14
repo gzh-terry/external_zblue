@@ -87,8 +87,9 @@ practices should be followed.
   enabled should be provided unconditionally.  Add a note in the
   description that the function is available only when the specified
   feature is enabled, referencing the required Kconfig symbol by name.
-  (In cases where the function is used but not enabled a link-time error
-  will be generated.)
+  In the cases where the function is used but not enabled the definition
+  of the function shall be excluded from compilation, so references to
+  the unsupported API will result in a link-time error.
 * Where code specific to the feature is isolated in a source file that
   has no other content that file should be conditionally included in
   ``CMakeLists.txt``::
@@ -101,3 +102,21 @@ practices should be followed.
 The Kconfig flag used to enable the feature should be added to the
 ``PREDEFINED`` variable in :file:`doc/zephyr.doxyfile.in` to ensure the
 conditional API and functions appear in generated documentation.
+
+Return Codes
+************
+
+Implementations of an API, for example an API for accessing a peripheral might
+implement only a subset of the functions that is required for minimal operation.
+A distinction is needed between APIs that are not supported and those that are
+not implemented or optional:
+
+- APIs that are supported but not implemented shall return ``-ENOSYS``.
+
+- Optional APIs that are not supported by the hardware should be implemented and
+  the return code in this case shall be ``-ENOTSUP``.
+
+- When an API is implemented, but the particular combination of options
+  requested in the call cannot be satisfied by the implementation the call shall
+  return -ENOTSUP. (For example, a request for a level-triggered GPIO interrupt on
+  hardware that supports only edge-triggered interrupts)

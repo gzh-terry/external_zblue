@@ -66,9 +66,6 @@ static struct {
 	atomic_t other;
 } drops;
 
-extern int z_prf(int (*func)(), void *dest,
-		const char *format, va_list vargs);
-
 static void monitor_send(const void *data, size_t len)
 {
 	const uint8_t *buf = data;
@@ -308,7 +305,7 @@ static void monitor_log_panic(const struct log_backend *const backend)
 {
 }
 
-static void monitor_log_init(void)
+static void monitor_log_init(const struct log_backend *const backend)
 {
 	log_set_timestamp_func(monitor_ts_get, MONITOR_TS_FREQ);
 }
