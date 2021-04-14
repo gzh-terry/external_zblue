@@ -2,7 +2,7 @@
 
 /dts-v1/;
 
-#include <nxp/MKW24D512VHA5.dtsi>
+#include <nxp/nxp_kw2xd.dtsi>
 
 / {
 	model = "NXP USB-KW24D512 board";
@@ -43,11 +43,6 @@
 	};
 };
 
-&sim {
-	pllfll-select = <KINETIS_SIM_PLLFLLSEL_MCGPLLCLK>;
-	er32k-select = <KINETIS_SIM_ER32KSEL_RTC>;
-};
-
 &cpu0 {
 	clock-frequency = <48000000>;
 };
@@ -69,7 +64,6 @@
 &uart0 {
 	status = "okay";
 	current-speed = <115200>;
-	pinctrl-0 = <&UART0_RX_PTA1 &UART0_TX_PTA2>;
 };
 
 &usbd {

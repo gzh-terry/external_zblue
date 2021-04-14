@@ -30,5 +30,3 @@
 
 KEEP(*(.vector_relay_table))
 KEEP(*(".vector_relay_table.*"))
-
-#include "vector_table_pad.ld"

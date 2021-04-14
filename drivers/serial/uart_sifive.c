@@ -392,9 +392,8 @@ static const struct uart_sifive_device_config uart_sifive_dev_cfg_0 = {
 #endif
 };
 
-DEVICE_DT_INST_DEFINE(0,
+DEVICE_AND_API_INIT(uart_sifive_0, DT_INST_LABEL(0),
 		    uart_sifive_init,
-		    device_pm_control_nop,
 		    &uart_sifive_data_0, &uart_sifive_dev_cfg_0,
 		    PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    (void *)&uart_sifive_driver_api);
@@ -402,8 +401,9 @@ DEVICE_DT_INST_DEFINE(0,
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 static void uart_sifive_irq_cfg_func_0(void)
 {
-	IRQ_CONNECT(DT_INST_IRQN(0), DT_INST_IRQ(0, priority),
-		    uart_sifive_irq_handler, DEVICE_DT_INST_GET(0),
+	IRQ_CONNECT(DT_INST_IRQN(0),
+		    CONFIG_UART_SIFIVE_PORT_0_IRQ_PRIORITY,
+		    uart_sifive_irq_handler, DEVICE_GET(uart_sifive_0),
 		    0);
 
 	irq_enable(DT_INST_IRQN(0));
@@ -431,9 +431,8 @@ static const struct uart_sifive_device_config uart_sifive_dev_cfg_1 = {
 #endif
 };
 
-DEVICE_DT_INST_DEFINE(1,
+DEVICE_AND_API_INIT(uart_sifive_1, DT_INST_LABEL(1),
 		    uart_sifive_init,
-		    device_pm_control_nop,
 		    &uart_sifive_data_1, &uart_sifive_dev_cfg_1,
 		    PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    (void *)&uart_sifive_driver_api);
@@ -441,8 +440,9 @@ DEVICE_DT_INST_DEFINE(1,
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 static void uart_sifive_irq_cfg_func_1(void)
 {
-	IRQ_CONNECT(DT_INST_IRQN(1), DT_INST_IRQ(1, priority),
-		    uart_sifive_irq_handler, DEVICE_DT_INST_GET(1),
+	IRQ_CONNECT(DT_INST_IRQN(1),
+		    CONFIG_UART_SIFIVE_PORT_1_IRQ_PRIORITY,
+		    uart_sifive_irq_handler, DEVICE_GET(uart_sifive_1),
 		    0);
 
 	irq_enable(DT_INST_IRQN(1));

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # HCI regression tests based on the EDTTool
-CWD="$(cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P)"
+CWD=`pwd`"/"`dirname $0`
 
 export SIMULATION_ID="edtt_hci"
 export TEST_FILE=${CWD}"/hci.test_list"

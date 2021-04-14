@@ -13,22 +13,11 @@
 #include "altera_avalon_timer_regs.h"
 #include "altera_avalon_timer.h"
 
-/* The old driver "now" API would return a full uptime value.  The new
- * one only requires the driver to track ticks since the last announce
- * call.  Implement the new call in terms of the old one on legacy
- * drivers by keeping (yet another) uptime value locally.
- */
-static uint32_t driver_uptime;
+#include "legacy_api.h"
 
 static uint32_t accumulated_cycle_count;
 
 static int32_t _sys_idle_elapsed_ticks = 1;
-
-static void wrapped_announce(int32_t ticks)
-{
-	driver_uptime += ticks;
-	sys_clock_announce(ticks);
-}
 
 static void timer_irq_handler(const void *unused)
 {
@@ -39,12 +28,12 @@ static void timer_irq_handler(const void *unused)
 	/* Clear the interrupt */
 	alt_handle_irq((void *)TIMER_0_BASE, TIMER_0_IRQ);
 
-	wrapped_announce(_sys_idle_elapsed_ticks);
+	z_clock_announce(_sys_idle_elapsed_ticks);
 }
 
-int sys_clock_driver_init(const struct device *dev)
+int z_clock_driver_init(const struct device *device)
 {
-	ARG_UNUSED(dev);
+	ARG_UNUSED(device);
 
 	IOWR_ALTERA_AVALON_TIMER_PERIODL(TIMER_0_BASE,
 			k_ticks_to_cyc_floor32(1) & 0xFFFF);
@@ -60,7 +49,7 @@ int sys_clock_driver_init(const struct device *dev)
 	return 0;
 }
 
-uint32_t sys_clock_cycle_get_32(void)
+uint32_t z_timer_cycle_get_32(void)
 {
 	/* Per the Altera Embedded IP Peripherals guide, you cannot
 	 * use a timer instance for both the system clock and timestamps
@@ -79,9 +68,4 @@ uint32_t sys_clock_cycle_get_32(void)
 	 * is currently unimplemented.
 	 */
 	return accumulated_cycle_count;
-}
-
-uint32_t sys_clock_elapsed(void)
-{
-	return 0;
 }

@@ -5,10 +5,10 @@ $name?="Mi-V"
 
 using sysbus
 mach create $name
-machine LoadPlatformDescription $ORIGIN/m2gl025_miv.repl
+machine LoadPlatformDescription @platforms/boards/miv-board.repl
 
 showAnalyzer uart
-cpu PerformanceInMips 4
+cpu PerformanceInMips 80
 
 macro reset
 """

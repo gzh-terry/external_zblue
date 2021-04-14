@@ -1,11 +1,9 @@
-name: Conflict Finder
-
 on:
   push:
     branches-ignore:
       - '**'
 jobs:
-  conflict:
+  triage:
     runs-on: ubuntu-latest
     steps:
       - uses: mschilde/auto-label-merge-conflicts@master

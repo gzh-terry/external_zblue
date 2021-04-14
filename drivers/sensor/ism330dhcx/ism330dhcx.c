@@ -26,6 +26,7 @@ LOG_MODULE_REGISTER(ISM330DHCX, CONFIG_SENSOR_LOG_LEVEL);
 static const uint16_t ism330dhcx_odr_map[] = {0, 12, 26, 52, 104, 208, 416, 833,
 					1660, 3330, 6660};
 
+#if defined(ISM330DHCX_ACCEL_ODR_RUNTIME) || defined(ISM330DHCX_GYRO_ODR_RUNTIME)
 static int ism330dhcx_freq_to_odr_val(uint16_t freq)
 {
 	size_t i;
@@ -38,6 +39,7 @@ static int ism330dhcx_freq_to_odr_val(uint16_t freq)
 
 	return -EINVAL;
 }
+#endif
 
 static int ism330dhcx_odr_to_freq_val(uint16_t odr)
 {
@@ -50,6 +52,7 @@ static int ism330dhcx_odr_to_freq_val(uint16_t odr)
 	return ism330dhcx_odr_map[ARRAY_SIZE(ism330dhcx_odr_map) - 1];
 }
 
+#ifdef ISM330DHCX_ACCEL_FS_RUNTIME
 static const uint16_t ism330dhcx_accel_fs_map[] = {2, 16, 4, 8};
 static const uint16_t ism330dhcx_accel_fs_sens[] = {1, 8, 2, 4};
 
@@ -65,7 +68,9 @@ static int ism330dhcx_accel_range_to_fs_val(int32_t range)
 
 	return -EINVAL;
 }
+#endif
 
+#ifdef ISM330DHCX_GYRO_FS_RUNTIME
 static const uint16_t ism330dhcx_gyro_fs_map[] = {250, 500, 1000, 2000, 125};
 static const uint16_t ism330dhcx_gyro_fs_sens[] = {2, 4, 8, 16, 1};
 
@@ -81,6 +86,7 @@ static int ism330dhcx_gyro_range_to_fs_val(int32_t range)
 
 	return -EINVAL;
 }
+#endif
 
 static inline int ism330dhcx_reboot(const struct device *dev)
 {
@@ -144,6 +150,7 @@ static int ism330dhcx_gyro_set_odr_raw(const struct device *dev, uint8_t odr)
 	return 0;
 }
 
+#ifdef ISM330DHCX_ACCEL_ODR_RUNTIME
 static int ism330dhcx_accel_odr_set(const struct device *dev, uint16_t freq)
 {
 	int odr;
@@ -160,7 +167,9 @@ static int ism330dhcx_accel_odr_set(const struct device *dev, uint16_t freq)
 
 	return 0;
 }
+#endif
 
+#ifdef ISM330DHCX_ACCEL_FS_RUNTIME
 static int ism330dhcx_accel_range_set(const struct device *dev, int32_t range)
 {
 	int fs;
@@ -179,6 +188,7 @@ static int ism330dhcx_accel_range_set(const struct device *dev, int32_t range)
 	data->acc_gain = (ism330dhcx_accel_fs_sens[fs] * GAIN_UNIT_XL);
 	return 0;
 }
+#endif
 
 static int ism330dhcx_accel_config(const struct device *dev,
 				   enum sensor_channel chan,
@@ -186,10 +196,14 @@ static int ism330dhcx_accel_config(const struct device *dev,
 				   const struct sensor_value *val)
 {
 	switch (attr) {
+#ifdef ISM330DHCX_ACCEL_FS_RUNTIME
 	case SENSOR_ATTR_FULL_SCALE:
 		return ism330dhcx_accel_range_set(dev, sensor_ms2_to_g(val));
+#endif
+#ifdef ISM330DHCX_ACCEL_ODR_RUNTIME
 	case SENSOR_ATTR_SAMPLING_FREQUENCY:
 		return ism330dhcx_accel_odr_set(dev, val->val1);
+#endif
 	default:
 		LOG_DBG("Accel attribute not supported.");
 		return -ENOTSUP;
@@ -198,6 +212,7 @@ static int ism330dhcx_accel_config(const struct device *dev,
 	return 0;
 }
 
+#ifdef ISM330DHCX_GYRO_ODR_RUNTIME
 static int ism330dhcx_gyro_odr_set(const struct device *dev, uint16_t freq)
 {
 	int odr;
@@ -214,7 +229,9 @@ static int ism330dhcx_gyro_odr_set(const struct device *dev, uint16_t freq)
 
 	return 0;
 }
+#endif
 
+#ifdef ISM330DHCX_GYRO_FS_RUNTIME
 static int ism330dhcx_gyro_range_set(const struct device *dev, int32_t range)
 {
 	int fs;
@@ -233,6 +250,7 @@ static int ism330dhcx_gyro_range_set(const struct device *dev, int32_t range)
 	data->gyro_gain = (ism330dhcx_gyro_fs_sens[fs] * GAIN_UNIT_G);
 	return 0;
 }
+#endif
 
 static int ism330dhcx_gyro_config(const struct device *dev,
 				  enum sensor_channel chan,
@@ -240,10 +258,14 @@ static int ism330dhcx_gyro_config(const struct device *dev,
 				  const struct sensor_value *val)
 {
 	switch (attr) {
+#ifdef ISM330DHCX_GYRO_FS_RUNTIME
 	case SENSOR_ATTR_FULL_SCALE:
 		return ism330dhcx_gyro_range_set(dev, sensor_rad_to_degrees(val));
+#endif
+#ifdef ISM330DHCX_GYRO_ODR_RUNTIME
 	case SENSOR_ATTR_SAMPLING_FREQUENCY:
 		return ism330dhcx_gyro_odr_set(dev, val->val1);
+#endif
 	default:
 		LOG_DBG("Gyro attribute not supported.");
 		return -ENOTSUP;
@@ -279,16 +301,16 @@ static int ism330dhcx_attr_set(const struct device *dev,
 static int ism330dhcx_sample_fetch_accel(const struct device *dev)
 {
 	struct ism330dhcx_data *data = dev->data;
-	int16_t buf[3];
+	union axis3bit16_t buf;
 
-	if (ism330dhcx_acceleration_raw_get(data->ctx, buf) < 0) {
+	if (ism330dhcx_acceleration_raw_get(data->ctx, buf.u8bit) < 0) {
 		LOG_DBG("Failed to read sample");
 		return -EIO;
 	}
 
-	data->acc[0] = sys_le16_to_cpu(buf[0]);
-	data->acc[1] = sys_le16_to_cpu(buf[1]);
-	data->acc[2] = sys_le16_to_cpu(buf[2]);
+	data->acc[0] = sys_le16_to_cpu(buf.i16bit[0]);
+	data->acc[1] = sys_le16_to_cpu(buf.i16bit[1]);
+	data->acc[2] = sys_le16_to_cpu(buf.i16bit[2]);
 
 	return 0;
 }
@@ -296,16 +318,16 @@ static int ism330dhcx_sample_fetch_accel(const struct device *dev)
 static int ism330dhcx_sample_fetch_gyro(const struct device *dev)
 {
 	struct ism330dhcx_data *data = dev->data;
-	int16_t buf[3];
+	union axis3bit16_t buf;
 
-	if (ism330dhcx_angular_rate_raw_get(data->ctx, buf) < 0) {
+	if (ism330dhcx_angular_rate_raw_get(data->ctx, buf.u8bit) < 0) {
 		LOG_DBG("Failed to read sample");
 		return -EIO;
 	}
 
-	data->gyro[0] = sys_le16_to_cpu(buf[0]);
-	data->gyro[1] = sys_le16_to_cpu(buf[1]);
-	data->gyro[2] = sys_le16_to_cpu(buf[2]);
+	data->gyro[0] = sys_le16_to_cpu(buf.i16bit[0]);
+	data->gyro[1] = sys_le16_to_cpu(buf.i16bit[1]);
+	data->gyro[2] = sys_le16_to_cpu(buf.i16bit[2]);
 
 	return 0;
 }
@@ -314,14 +336,14 @@ static int ism330dhcx_sample_fetch_gyro(const struct device *dev)
 static int ism330dhcx_sample_fetch_temp(const struct device *dev)
 {
 	struct ism330dhcx_data *data = dev->data;
-	int16_t buf;
+	union axis1bit16_t buf;
 
-	if (ism330dhcx_temperature_raw_get(data->ctx, &buf) < 0) {
+	if (ism330dhcx_temperature_raw_get(data->ctx, buf.u8bit) < 0) {
 		LOG_DBG("Failed to read sample");
 		return -EIO;
 	}
 
-	data->temp_sample = sys_le16_to_cpu(buf);
+	data->temp_sample = sys_le16_to_cpu(buf.i16bit);
 
 	return 0;
 }
@@ -468,7 +490,8 @@ static int ism330dhcx_gyro_channel_get(enum sensor_channel chan,
 				       struct sensor_value *val,
 				       struct ism330dhcx_data *data)
 {
-	return ism330dhcx_gyro_get_channel(chan, val, data, data->gyro_gain);
+	return ism330dhcx_gyro_get_channel(chan, val, data,
+					ISM330DHCX_DEFAULT_GYRO_SENSITIVITY);
 }
 
 #if defined(CONFIG_ISM330DHCX_ENABLE_TEMP)
@@ -668,7 +691,6 @@ static const struct sensor_driver_api ism330dhcx_api_funcs = {
 
 static int ism330dhcx_init_chip(const struct device *dev)
 {
-	const struct ism330dhcx_config * const cfg = dev->config;
 	struct ism330dhcx_data *ism330dhcx = dev->data;
 	uint8_t chip_id;
 
@@ -693,27 +715,27 @@ static int ism330dhcx_init_chip(const struct device *dev)
 
 	k_busy_wait(100);
 
-	LOG_DBG("accel range is %d", cfg->accel_range);
-	if (ism330dhcx_accel_range_set(dev, cfg->accel_range) < 0) {
+	if (ism330dhcx_accel_set_fs_raw(dev,
+				     ISM330DHCX_DEFAULT_ACCEL_FULLSCALE) < 0) {
 		LOG_DBG("failed to set accelerometer full-scale");
 		return -EIO;
 	}
+	ism330dhcx->acc_gain = ISM330DHCX_DEFAULT_ACCEL_SENSITIVITY;
 
-	LOG_DBG("accel odr is %d", cfg->accel_odr);
-	if (ism330dhcx_accel_set_odr_raw(dev, cfg->accel_odr) < 0) {
+	ism330dhcx->accel_freq = ism330dhcx_odr_to_freq_val(CONFIG_ISM330DHCX_ACCEL_ODR);
+	if (ism330dhcx_accel_set_odr_raw(dev, CONFIG_ISM330DHCX_ACCEL_ODR) < 0) {
 		LOG_DBG("failed to set accelerometer sampling rate");
 		return -EIO;
 	}
 
-	LOG_DBG("gyro range is %d", cfg->gyro_range);
-	if (ism330dhcx_gyro_range_set(dev, cfg->gyro_range) < 0) {
+	if (ism330dhcx_gyro_set_fs_raw(dev, ISM330DHCX_DEFAULT_GYRO_FULLSCALE) < 0) {
 		LOG_DBG("failed to set gyroscope full-scale");
 		return -EIO;
 	}
+	ism330dhcx->gyro_gain = ISM330DHCX_DEFAULT_GYRO_SENSITIVITY;
 
-	LOG_DBG("gyro odr is %d", cfg->gyro_odr);
-	ism330dhcx->gyro_freq = ism330dhcx_odr_to_freq_val(cfg->gyro_odr);
-	if (ism330dhcx_gyro_set_odr_raw(dev, cfg->gyro_odr) < 0) {
+	ism330dhcx->gyro_freq = ism330dhcx_odr_to_freq_val(CONFIG_ISM330DHCX_GYRO_ODR);
+	if (ism330dhcx_gyro_set_odr_raw(dev, CONFIG_ISM330DHCX_GYRO_ODR) < 0) {
 		LOG_DBG("failed to set gyroscope sampling rate");
 		return -EIO;
 	}
@@ -736,10 +758,6 @@ static struct ism330dhcx_data ism330dhcx_data;
 
 static const struct ism330dhcx_config ism330dhcx_config = {
 	.bus_name = DT_INST_BUS_LABEL(0),
-	.accel_odr = DT_INST_PROP(0, accel_odr),
-	.accel_range = DT_INST_PROP(0, accel_range),
-	.gyro_odr = DT_INST_PROP(0, gyro_odr),
-	.gyro_range = DT_INST_PROP(0, gyro_range),
 #if DT_ANY_INST_ON_BUS_STATUS_OKAY(spi)
 	.bus_init = ism330dhcx_spi_init,
 	.spi_conf.frequency = DT_INST_PROP(0, spi_max_frequency),
@@ -763,11 +781,31 @@ static const struct ism330dhcx_config ism330dhcx_config = {
 #error "BUS MACRO NOT DEFINED IN DTS"
 #endif
 #ifdef CONFIG_ISM330DHCX_TRIGGER
+#if DT_INST_PROP_HAS_IDX(0, drdy_gpios, 1)
+	/* Two gpio pins declared in DTS */
+#if defined(CONFIG_ISM330DHCX_INT_PIN_1)
+	.int_gpio_port = DT_INST_GPIO_LABEL_BY_IDX(0, drdy_gpios, 0),
+	.int_gpio_pin = DT_INST_GPIO_PIN_BY_IDX(0, drdy_gpios, 0),
+	.int_gpio_flags = DT_INST_GPIO_FLAGS_BY_IDX(0, drdy_gpios, 0),
+	.int_pin = 1,
+#elif defined(CONFIG_ISM330DHCX_INT_PIN_2)
+	.int_gpio_port = DT_INST_GPIO_LABEL_BY_IDX(0, drdy_gpios, 1),
+	.int_gpio_pin = DT_INST_GPIO_PIN_BY_IDX(0, drdy_gpios, 1),
+	.int_gpio_flags = DT_INST_GPIO_FLAGS_BY_IDX(0, drdy_gpios, 1),
+	.int_pin = 2,
+#endif /* CONFIG_ISM330DHCX_INT_PIN_* */
+#else
 	/* One gpio pin declared in DTS */
 	.int_gpio_port = DT_INST_GPIO_LABEL(0, drdy_gpios),
 	.int_gpio_pin = DT_INST_GPIO_PIN(0, drdy_gpios),
 	.int_gpio_flags = DT_INST_GPIO_FLAGS(0, drdy_gpios),
-	.int_pin = DT_INST_PROP(0, int_pin),
+#if defined(CONFIG_ISM330DHCX_INT_PIN_1)
+	.int_pin = 1,
+#elif defined(CONFIG_ISM330DHCX_INT_PIN_2)
+	.int_pin = 2,
+#endif /* CONFIG_ISM330DHCX_INT_PIN_* */
+#endif /* DT_INST_PROP_HAS_IDX(0, drdy_gpios, 1) */
+
 #endif /* CONFIG_ISM330DHCX_TRIGGER */
 };
 
@@ -785,17 +823,17 @@ static int ism330dhcx_init(const struct device *dev)
 
 	config->bus_init(dev);
 
-	if (ism330dhcx_init_chip(dev) < 0) {
-		LOG_DBG("failed to initialize chip");
-		return -EIO;
-	}
-
 #ifdef CONFIG_ISM330DHCX_TRIGGER
 	if (ism330dhcx_init_interrupt(dev) < 0) {
 		LOG_ERR("Failed to initialize interrupt.");
 		return -EIO;
 	}
 #endif
+
+	if (ism330dhcx_init_chip(dev) < 0) {
+		LOG_DBG("failed to initialize chip");
+		return -EIO;
+	}
 
 #ifdef CONFIG_ISM330DHCX_SENSORHUB
 	if (ism330dhcx_shub_init(dev) < 0) {
@@ -810,6 +848,6 @@ static int ism330dhcx_init(const struct device *dev)
 
 static struct ism330dhcx_data ism330dhcx_data;
 
-DEVICE_DT_INST_DEFINE(0, ism330dhcx_init, device_pm_control_nop,
+DEVICE_AND_API_INIT(ism330dhcx, DT_INST_LABEL(0), ism330dhcx_init,
 		    &ism330dhcx_data, &ism330dhcx_config, POST_KERNEL,
 		    CONFIG_SENSOR_INIT_PRIORITY, &ism330dhcx_api_funcs);

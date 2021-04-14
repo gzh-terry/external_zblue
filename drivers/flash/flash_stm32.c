@@ -15,8 +15,6 @@
 #include <drivers/flash.h>
 #include <init.h>
 #include <soc.h>
-#include <stm32_ll_bus.h>
-#include <stm32_ll_rcc.h>
 #include <logging/log.h>
 
 #include "flash_stm32.h"
@@ -41,9 +39,6 @@ LOG_MODULE_REGISTER(flash_stm32, CONFIG_FLASH_LOG_LEVEL);
 #define STM32_FLASH_MAX_ERASE_TIME	4000
 /* STM32L0: maximum erase time of 3.2ms for a 128B page */
 #elif defined(CONFIG_SOC_SERIES_STM32L0X)
-#define STM32_FLASH_MAX_ERASE_TIME	4
-/* STM32L1: maximum erase time of 3.94ms for a 128B half-page */
-#elif defined(CONFIG_SOC_SERIES_STM32L1X)
 #define STM32_FLASH_MAX_ERASE_TIME	4
 /* STM32L4: maximum erase time of 24.47ms for a 2K sector */
 #elif defined(CONFIG_SOC_SERIES_STM32L4X)
@@ -74,13 +69,6 @@ static const struct flash_parameters flash_stm32_parameters = {
 	.erase_value = 0xff,
 #endif
 };
-
-static int flash_stm32_write_protection(const struct device *dev, bool enable);
-
-int __weak flash_stm32_check_configuration(void)
-{
-	return 0;
-}
 
 #if defined(CONFIG_MULTITHREADING)
 /*
@@ -234,18 +222,9 @@ static int flash_stm32_erase(const struct device *dev, off_t offset,
 
 	LOG_DBG("Erase offset: %ld, len: %zu", (long int) offset, len);
 
-	rc = flash_stm32_write_protection(dev, false);
-	if (rc == 0) {
-		rc = flash_stm32_block_erase_loop(dev, offset, len);
-	}
+	rc = flash_stm32_block_erase_loop(dev, offset, len);
 
 	flash_stm32_flush_caches(dev, offset, len);
-
-	int rc2 = flash_stm32_write_protection(dev, true);
-
-	if (!rc) {
-		rc = rc2;
-	}
 
 	flash_stm32_sem_give(dev);
 
@@ -271,16 +250,7 @@ static int flash_stm32_write(const struct device *dev, off_t offset,
 
 	LOG_DBG("Write offset: %ld, len: %zu", (long int) offset, len);
 
-	rc = flash_stm32_write_protection(dev, false);
-	if (rc == 0) {
-		rc = flash_stm32_write_range(dev, offset, data, len);
-	}
-
-	int rc2 = flash_stm32_write_protection(dev, true);
-
-	if (!rc) {
-		rc = rc2;
-	}
+	rc = flash_stm32_write_range(dev, offset, data, len);
 
 	flash_stm32_sem_give(dev);
 
@@ -292,6 +262,8 @@ static int flash_stm32_write_protection(const struct device *dev, bool enable)
 	FLASH_TypeDef *regs = FLASH_STM32_REGS(dev);
 
 	int rc = 0;
+
+	flash_stm32_sem_take(dev);
 
 	if (enable) {
 		rc = flash_stm32_wait_flash_idle(dev);
@@ -335,6 +307,8 @@ static int flash_stm32_write_protection(const struct device *dev, bool enable)
 		LOG_DBG("Disable write protection");
 	}
 
+	flash_stm32_sem_give(dev);
+
 	return rc;
 }
 
@@ -360,6 +334,7 @@ static struct flash_stm32_priv flash_data = {
 };
 
 static const struct flash_driver_api flash_stm32_api = {
+	.write_protection = flash_stm32_write_protection,
 	.erase = flash_stm32_erase,
 	.write = flash_stm32_write,
 	.read = flash_stm32_read,
@@ -371,14 +346,13 @@ static const struct flash_driver_api flash_stm32_api = {
 
 static int stm32_flash_init(const struct device *dev)
 {
-	int rc;
 #if defined(CONFIG_SOC_SERIES_STM32L4X) || \
 	defined(CONFIG_SOC_SERIES_STM32F0X) || \
 	defined(CONFIG_SOC_SERIES_STM32F1X) || \
 	defined(CONFIG_SOC_SERIES_STM32F3X) || \
 	defined(CONFIG_SOC_SERIES_STM32G0X)
 	struct flash_stm32_priv *p = FLASH_STM32_PRIV(dev);
-	const struct device *clk = DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE);
+	const struct device *clk = device_get_binding(STM32_CLOCK_CONTROL_NAME);
 
 	/*
 	 * On STM32F0, Flash interface clock source is always HSI,
@@ -409,12 +383,6 @@ static int stm32_flash_init(const struct device *dev)
 	LOG_DBG("Flash initialized. BS: %zu",
 		flash_stm32_parameters.write_block_size);
 
-	/* Check Flash configuration */
-	rc = flash_stm32_check_configuration();
-	if (rc < 0) {
-		return rc;
-	}
-
 #if ((CONFIG_FLASH_LOG_LEVEL >= LOG_LEVEL_DBG) && CONFIG_FLASH_PAGE_LAYOUT)
 	const struct flash_pages_layout *layout;
 	size_t layout_size;
@@ -429,6 +397,6 @@ static int stm32_flash_init(const struct device *dev)
 	return flash_stm32_write_protection(dev, false);
 }
 
-DEVICE_DT_INST_DEFINE(0, stm32_flash_init, device_pm_control_nop,
-		    &flash_data, NULL, POST_KERNEL,
+DEVICE_AND_API_INIT(stm32_flash, DT_INST_LABEL(0),
+		    stm32_flash_init, &flash_data, NULL, POST_KERNEL,
 		    CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &flash_stm32_api);
