@@ -6,7 +6,8 @@
 
 #include <shell/shell_fprintf.h>
 #include <shell/shell.h>
-#include <sys/cbprintf.h>
+
+extern int z_prf(int (*func)(), void *dest, char *format, va_list vargs);
 
 static int out_func(int c, void *ctx)
 {
@@ -24,24 +25,24 @@ static int out_func(int c, void *ctx)
 	sh_fprintf->ctrl_blk->buffer_cnt++;
 
 	if (sh_fprintf->ctrl_blk->buffer_cnt == sh_fprintf->buffer_size) {
-		z_shell_fprintf_buffer_flush(sh_fprintf);
+		shell_fprintf_buffer_flush(sh_fprintf);
 	}
 
 	return 0;
 }
 
-void z_shell_fprintf_fmt(const struct shell_fprintf *sh_fprintf,
-			 const char *fmt, va_list args)
+void shell_fprintf_fmt(const struct shell_fprintf *sh_fprintf,
+		       const char *fmt, va_list args)
 {
-	(void)cbvprintf(out_func, (void *)sh_fprintf, fmt, args);
+	(void)z_prf(out_func, (void *)sh_fprintf, (char *)fmt, args);
 
 	if (sh_fprintf->ctrl_blk->autoflush) {
-		z_shell_fprintf_buffer_flush(sh_fprintf);
+		shell_fprintf_buffer_flush(sh_fprintf);
 	}
 }
 
 
-void z_shell_fprintf_buffer_flush(const struct shell_fprintf *sh_fprintf)
+void shell_fprintf_buffer_flush(const struct shell_fprintf *sh_fprintf)
 {
 	sh_fprintf->fwrite(sh_fprintf->user_ctx, sh_fprintf->buffer,
 			   sh_fprintf->ctrl_blk->buffer_cnt);

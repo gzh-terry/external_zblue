@@ -1,3 +1,4 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
-/* Empty file */
+/* space holder  */
+APP_SMEM_SECTION()

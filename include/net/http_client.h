@@ -146,11 +146,6 @@ struct http_response {
 	 */
 	char http_status[HTTP_STATUS_STR_SIZE];
 
-	/** Numeric HTTP status code which corresponds to the
-	 * textual description.
-	 */
-	uint16_t http_status_code;
-
 	uint8_t cl_present : 1;
 	uint8_t body_found : 1;
 	uint8_t message_complete : 1;
@@ -160,7 +155,7 @@ struct http_response {
  */
 struct http_client_internal_data {
 	/** Work for handling timeout */
-	struct k_work_delayable work;
+	struct k_delayed_work work;
 
 	/** HTTP parser context */
 	struct http_parser parser;

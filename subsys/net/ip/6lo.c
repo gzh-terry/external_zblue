@@ -1348,11 +1348,6 @@ static bool uncompress_IPHC_header(struct net_pkt *pkt)
 			nhc_inline_size;
 	}
 
-	if (pkt->buffer->len < compressed_hdr_size) {
-		NET_ERR("Scattered compressed header?");
-		return false;
-	}
-
 	if (net_buf_tailroom(pkt->buffer) >= diff) {
 		NET_DBG("Enough tailroom. Uncompress inplace");
 		frag = pkt->buffer;

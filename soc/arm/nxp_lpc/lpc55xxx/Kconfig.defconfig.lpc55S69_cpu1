@@ -9,18 +9,15 @@ config SOC
 	default "lpc55S69_cpu1"
 
 config PINMUX_MCUX_LPC
-	default y
+	default n
 	depends on PINMUX
 
 config GPIO
-	default y
+	default n
 
 config GPIO_MCUX_LPC
-	default y
-	depends on GPIO
-
-config SERIAL
 	default n
+	depends on GPIO
 
 config UART_MCUX_FLEXCOMM
 	default n

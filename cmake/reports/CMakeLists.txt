@@ -2,7 +2,6 @@
 
 set(flag_for_ram_report ram)
 set(flag_for_rom_report rom)
-set(report_depth 99)
 
 foreach(report ram_report rom_report)
   add_custom_target(
@@ -13,7 +12,6 @@ foreach(report ram_report rom_report)
     -z ${ZEPHYR_BASE}
     -o ${CMAKE_BINARY_DIR}
     --json ${CMAKE_BINARY_DIR}/${flag_for_${report}}.json
-    -d ${report_depth}
     ${flag_for_${report}}
     DEPENDS ${logical_target_for_zephyr_elf}
             $<TARGET_PROPERTY:zephyr_property_target,${report}_DEPENDENCIES>

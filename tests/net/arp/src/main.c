@@ -319,12 +319,7 @@ static void arp_cb(struct arp_entry *entry, void *user_data)
 
 void test_arp(void)
 {
-	if (IS_ENABLED(CONFIG_NET_TC_THREAD_COOPERATIVE)) {
-		k_thread_priority_set(k_current_get(),
-				K_PRIO_COOP(CONFIG_NUM_COOP_PRIORITIES - 1));
-	} else {
-		k_thread_priority_set(k_current_get(), K_PRIO_PREEMPT(9));
-	}
+	k_thread_priority_set(k_current_get(), K_PRIO_COOP(7));
 
 	struct net_eth_hdr *eth_hdr = NULL;
 	struct net_pkt *pkt;

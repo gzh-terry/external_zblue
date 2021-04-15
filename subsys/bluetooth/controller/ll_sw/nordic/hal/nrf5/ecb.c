@@ -8,8 +8,9 @@
 #include <string.h>
 
 #include <sys/dlist.h>
+#include <sys/mempool_base.h>
 
-#include <hal/nrf_ecb.h>
+#include <nrfx/hal/nrf_ecb.h>
 
 #include "util/mem.h"
 #include "hal/ecb.h"

@@ -136,14 +136,11 @@ static inline void z_vrfy_k_queue_cancel_wait(struct k_queue *queue)
 #endif
 
 static int32_t queue_insert(struct k_queue *queue, void *prev, void *data,
-			    bool alloc, bool is_append)
+			  bool alloc)
 {
-	struct k_thread *first_pending_thread;
 	k_spinlock_key_t key = k_spin_lock(&queue->lock);
+	struct k_thread *first_pending_thread;
 
-	if (is_append) {
-		prev = sys_sflist_peek_tail(&queue->data_q);
-	}
 	first_pending_thread = z_unpend_first_thread(&queue->wait_q);
 
 	if (first_pending_thread != NULL) {
@@ -176,27 +173,29 @@ static int32_t queue_insert(struct k_queue *queue, void *prev, void *data,
 
 void k_queue_insert(struct k_queue *queue, void *prev, void *data)
 {
-	(void)queue_insert(queue, prev, data, false, false);
+	(void)queue_insert(queue, prev, data, false);
 }
 
 void k_queue_append(struct k_queue *queue, void *data)
 {
-	(void)queue_insert(queue, NULL, data, false, true);
+	(void)queue_insert(queue, sys_sflist_peek_tail(&queue->data_q),
+			   data, false);
 }
 
 void k_queue_prepend(struct k_queue *queue, void *data)
 {
-	(void)queue_insert(queue, NULL, data, false, false);
+	(void)queue_insert(queue, NULL, data, false);
 }
 
 int32_t z_impl_k_queue_alloc_append(struct k_queue *queue, void *data)
 {
-	return queue_insert(queue, NULL, data, true, true);
+	return queue_insert(queue, sys_sflist_peek_tail(&queue->data_q), data,
+			    true);
 }
 
 #ifdef CONFIG_USERSPACE
 static inline int32_t z_vrfy_k_queue_alloc_append(struct k_queue *queue,
-						  void *data)
+						void *data)
 {
 	Z_OOPS(Z_SYSCALL_OBJ(queue, K_OBJ_QUEUE));
 	return z_impl_k_queue_alloc_append(queue, data);
@@ -206,13 +205,12 @@ static inline int32_t z_vrfy_k_queue_alloc_append(struct k_queue *queue,
 
 int32_t z_impl_k_queue_alloc_prepend(struct k_queue *queue, void *data)
 {
-	return queue_insert(queue, NULL, data, true, false);
-
+	return queue_insert(queue, NULL, data, true);
 }
 
 #ifdef CONFIG_USERSPACE
 static inline int32_t z_vrfy_k_queue_alloc_prepend(struct k_queue *queue,
-						   void *data)
+						 void *data)
 {
 	Z_OOPS(Z_SYSCALL_OBJ(queue, K_OBJ_QUEUE));
 	return z_impl_k_queue_alloc_prepend(queue, data);

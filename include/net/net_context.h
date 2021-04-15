@@ -6,7 +6,6 @@
 
 /*
  * Copyright (c) 2016 Intel Corporation
- * Copyright (c) 2021 Nordic Semiconductor
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -65,9 +64,6 @@ enum net_context_state {
 /** Is the socket closing / closed */
 #define NET_CONTEXT_CLOSING_SOCK  BIT(10)
 
-/* Context is bound to a specific interface */
-#define NET_CONTEXT_BOUND_TO_IFACE BIT(11)
-
 struct net_context;
 
 /**
@@ -125,7 +121,7 @@ typedef void (*net_context_send_cb_t)(struct net_context *context,
  * context is used here. Keep processing in the callback minimal to reduce the
  * time spent blocked while handling packets.
  *
- * @param new_context The context to use.
+ * @param context The context to use.
  * @param addr The peer address.
  * @param addrlen Length of the peer address.
  * @param status The status code, 0 on success, < 0 otherwise
@@ -252,6 +248,11 @@ __net_socket struct net_context {
 	net_pkt_get_pool_func_t data_pool;
 #endif /* CONFIG_NET_CONTEXT_NET_PKT_POOL */
 
+#if defined(CONFIG_NET_TCP1)
+	/** TCP connection information */
+	struct net_tcp *tcp;
+#endif /* CONFIG_NET_TCP1 */
+
 #if defined(CONFIG_NET_TCP2)
 	/** TCP connection information */
 	void *tcp;
@@ -274,13 +275,6 @@ __net_socket struct net_context {
 		struct k_fifo accept_q;
 	};
 
-	struct {
-		/** Condition variable used when receiving data */
-		struct k_condvar recv;
-
-		/** Mutex used by condition variable */
-		struct k_mutex *lock;
-	} cond;
 #endif /* CONFIG_NET_SOCKETS */
 
 #if defined(CONFIG_NET_OFFLOAD)
@@ -310,12 +304,6 @@ __net_socket struct net_context {
 			socklen_t addrlen;
 		} proxy;
 #endif
-#if defined(CONFIG_NET_CONTEXT_RCVTIMEO)
-		k_timeout_t rcvtimeo;
-#endif
-#if defined(CONFIG_NET_CONTEXT_SNDTIMEO)
-		k_timeout_t sndtimeo;
-#endif
 	} options;
 
 	/** Protocol (UDP, TCP or IEEE 802.3 protocol value) */
@@ -344,13 +332,6 @@ static inline bool net_context_is_used(struct net_context *context)
 	NET_ASSERT(context);
 
 	return context->flags & NET_CONTEXT_IN_USE;
-}
-
-static inline bool net_context_is_bound_to_iface(struct net_context *context)
-{
-	NET_ASSERT(context);
-
-	return context->flags & NET_CONTEXT_BOUND_TO_IFACE;
 }
 
 /**
@@ -1062,8 +1043,6 @@ enum net_context_option {
 	NET_OPT_TIMESTAMP	= 2,
 	NET_OPT_TXTIME		= 3,
 	NET_OPT_SOCKS5		= 4,
-	NET_OPT_RCVTIMEO        = 5,
-	NET_OPT_SNDTIMEO        = 6,
 };
 
 /**
@@ -1145,22 +1124,6 @@ static inline void net_context_setup_pools(struct net_context *context,
 #else
 #define net_context_setup_pools(context, tx_pool, data_pool)
 #endif
-
-/**
- * @brief Check if a port is in use (bound)
- *
- * This function checks if a port is bound with respect to the specified
- * @p ip_proto and @p local_addr.
- *
- * @param ip_proto the IP protocol
- * @param local_port the port to check
- * @param local_addr the network address
- *
- * @return true if the port is bound
- * @return false if the port is not bound
- */
-bool net_context_port_in_use(enum net_ip_protocol ip_proto,
-	uint16_t local_port, const struct sockaddr *local_addr);
 
 #ifdef __cplusplus
 }

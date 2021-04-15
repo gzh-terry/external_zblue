@@ -20,7 +20,6 @@ LOG_MODULE_REGISTER(net_bt, CONFIG_NET_L2_BT_LOG_LEVEL);
 #include <net/net_core.h>
 #include <net/net_l2.h>
 #include <net/net_if.h>
-#include <net/capture.h>
 #include <net/bt.h>
 #include <6lo.h>
 
@@ -109,8 +108,6 @@ static int net_bt_send(struct net_if *iface, struct net_pkt *pkt)
 
 	length = net_pkt_get_len(pkt);
 
-	net_capture_pkt(iface, pkt);
-
 	/* Dettach data fragments for packet */
 	buffer = pkt->buffer;
 	pkt->buffer = NULL;
@@ -142,10 +139,7 @@ static int net_bt_enable(struct net_if *iface, bool state)
 
 static enum net_l2_flags net_bt_flags(struct net_if *iface)
 {
-	/* TODO: add NET_L2_MULTICAST_SKIP_JOIN_SOLICIT_NODE once the stack
-	 * supports Address Registration Option for neighbor discovery.
-	 */
-	return NET_L2_MULTICAST;
+	return NET_L2_MULTICAST | NET_L2_MULTICAST_SKIP_JOIN_SOLICIT_NODE;
 }
 
 NET_L2_INIT(BLUETOOTH_L2, net_bt_recv, net_bt_send,
@@ -629,8 +623,8 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_BT_SCAN, bt_scan);
 NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_BT_DISCONNECT, bt_disconnect);
 #endif
 
-DEVICE_DEFINE(net_bt, "net_bt", net_bt_init, device_pm_control_nop,
-	      &bt_context_data, NULL, POST_KERNEL,
-	      CONFIG_KERNEL_INIT_PRIORITY_DEFAULT, &bt_if_api);
+DEVICE_AND_API_INIT(net_bt, "net_bt", net_bt_init, &bt_context_data, NULL,
+		    POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,
+		    &bt_if_api);
 NET_L2_DATA_INIT(net_bt, 0, NET_L2_GET_CTX_TYPE(BLUETOOTH_L2));
 NET_IF_INIT(net_bt, 0, BLUETOOTH_L2, L2CAP_IPSP_MTU, CONFIG_BT_MAX_CONN);

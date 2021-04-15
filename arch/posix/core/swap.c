@@ -18,7 +18,6 @@
 #include "posix_core.h"
 #include "irq.h"
 #include "kswap.h"
-#include <power/power.h>
 
 int arch_swap(unsigned int key)
 {
@@ -31,8 +30,8 @@ int arch_swap(unsigned int key)
 	 * and so forth.  But we do not need to do so because we use posix
 	 * threads => those are all nicely kept by the native OS kernel
 	 */
-#if CONFIG_INSTRUMENT_THREAD_SWITCHING
-	z_thread_mark_switched_out();
+#if CONFIG_TRACING
+	sys_trace_thread_switched_out();
 #endif
 	_current->callee_saved.key = key;
 	_current->callee_saved.retval = -EAGAIN;
@@ -51,8 +50,8 @@ int arch_swap(unsigned int key)
 
 
 	_current = _kernel.ready_q.cache;
-#if CONFIG_INSTRUMENT_THREAD_SWITCHING
-	z_thread_mark_switched_in();
+#if CONFIG_TRACING
+	sys_trace_thread_switched_in();
 #endif
 
 	/*
@@ -90,21 +89,17 @@ void arch_switch_to_main_thread(struct k_thread *main_thread, char *stack_ptr,
 			(posix_thread_status_t *)
 			_kernel.ready_q.cache->callee_saved.thread_status;
 
-#ifdef CONFIG_INSTRUMENT_THREAD_SWITCHING
-	z_thread_mark_switched_out();
-#endif
+	sys_trace_thread_switched_out();
 
 	_current = _kernel.ready_q.cache;
 
-#ifdef CONFIG_INSTRUMENT_THREAD_SWITCHING
-	z_thread_mark_switched_in();
-#endif
+	sys_trace_thread_switched_in();
 
 	posix_main_thread_start(ready_thread_ptr->thread_idx);
 } /* LCOV_EXCL_LINE */
 #endif
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_SYS_POWER_MANAGEMENT
 /**
  * If the kernel is in idle mode, take it out
  */
@@ -114,7 +109,7 @@ void posix_irq_check_idle_exit(void)
 		int32_t idle_val = _kernel.idle;
 
 		_kernel.idle = 0;
-		z_pm_save_idle_exit(idle_val);
+		z_sys_power_save_idle_exit(idle_val);
 	}
 }
 #endif

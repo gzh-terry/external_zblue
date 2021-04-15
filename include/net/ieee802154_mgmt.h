@@ -12,7 +12,6 @@
 #ifndef ZEPHYR_INCLUDE_NET_IEEE802154_MGMT_H_
 #define ZEPHYR_INCLUDE_NET_IEEE802154_MGMT_H_
 
-#include <net/ieee802154.h>
 #include <net/net_mgmt.h>
 
 #ifdef __cplusplus
@@ -25,6 +24,9 @@ extern "C" {
  * @ingroup networking
  * @{
  */
+
+
+#define IEEE802154_MAX_ADDR_LENGTH	8
 
 
 #define _NET_IEEE802154_LAYER	NET_MGMT_LAYER_L2

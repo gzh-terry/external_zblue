@@ -62,10 +62,6 @@
 	};
 };
 
-&adc0 {
-	status = "okay";
-};
-
 &uart0 {
 	status = "okay";
 	current-speed = <115200>;

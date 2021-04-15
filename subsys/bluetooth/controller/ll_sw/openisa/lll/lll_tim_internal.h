@@ -16,11 +16,11 @@ static inline uint32_t addr_us_get(uint8_t phy)
 {
 	switch (phy) {
 	default:
-	case PHY_1M:
+	case BIT(0):
 		return 40;
-	case PHY_2M:
+	case BIT(1):
 		return 24;
-	case PHY_CODED:
+	case BIT(2):
 		return 376;
 	}
 }
