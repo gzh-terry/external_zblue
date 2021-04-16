@@ -90,7 +90,7 @@ static void hpet_isr(const void *arg)
 	}
 
 	k_spin_unlock(&lock, key);
-	sys_clock_announce(IS_ENABLED(CONFIG_TICKLESS_KERNEL) ? dticks : 1);
+	z_clock_announce(IS_ENABLED(CONFIG_TICKLESS_KERNEL) ? dticks : 1);
 }
 
 static void set_timer0_irq(unsigned int irq)
@@ -106,12 +106,12 @@ static void set_timer0_irq(unsigned int irq)
 	TIMER0_CONF_REG = val;
 }
 
-int sys_clock_driver_init(const struct device *dev)
+int z_clock_driver_init(const struct device *device)
 {
 	extern int z_clock_hw_cycles_per_sec;
 	uint32_t hz;
 
-	ARG_UNUSED(dev);
+	ARG_UNUSED(device);
 
 	DEVICE_MMIO_TOPLEVEL_MAP(hpet_regs, K_MEM_CACHE_NONE);
 
@@ -154,7 +154,7 @@ void smp_timer_init(void)
 	 */
 }
 
-void sys_clock_set_timeout(int32_t ticks, bool idle)
+void z_clock_set_timeout(int32_t ticks, bool idle)
 {
 	ARG_UNUSED(idle);
 
@@ -165,7 +165,7 @@ void sys_clock_set_timeout(int32_t ticks, bool idle)
 	}
 
 	ticks = ticks == K_TICKS_FOREVER ? max_ticks : ticks;
-	ticks = CLAMP(ticks - 1, 0, (int32_t)max_ticks);
+	ticks = MAX(MIN(ticks - 1, (int32_t)max_ticks), 0);
 
 	k_spinlock_key_t key = k_spin_lock(&lock);
 	uint32_t now = MAIN_COUNTER_REG, cyc, adj;
@@ -191,7 +191,7 @@ void sys_clock_set_timeout(int32_t ticks, bool idle)
 #endif
 }
 
-uint32_t sys_clock_elapsed(void)
+uint32_t z_clock_elapsed(void)
 {
 	if (!IS_ENABLED(CONFIG_TICKLESS_KERNEL)) {
 		return 0;
@@ -204,12 +204,12 @@ uint32_t sys_clock_elapsed(void)
 	return ret;
 }
 
-uint32_t sys_clock_cycle_get_32(void)
+uint32_t z_timer_cycle_get_32(void)
 {
 	return MAIN_COUNTER_REG;
 }
 
-void sys_clock_idle_exit(void)
+void z_clock_idle_exit(void)
 {
 	GENERAL_CONF_REG |= GCONF_ENABLE;
 }

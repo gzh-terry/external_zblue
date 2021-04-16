@@ -23,5 +23,3 @@ supported:
   - counter
   - can
   - adc
-  - dma
-  - backup_sram

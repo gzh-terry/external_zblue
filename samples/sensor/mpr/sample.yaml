@@ -6,5 +6,3 @@ tests:
     tags: sensors
     depends_on: i2c
     platform_allow: arduino_due
-    integration_platforms:
-      - arduino_due

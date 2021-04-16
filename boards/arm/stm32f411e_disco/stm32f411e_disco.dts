@@ -6,11 +6,10 @@
 
 /dts-v1/;
 #include <st/f4/stm32f411Xe.dtsi>
-#include <st/f4/stm32f411v(c-e)tx-pinctrl.dtsi>
 
 / {
 	model = "STMicroelectronics STM32F411E-DISCO board";
-	compatible = "st,stm32f411e-disco";
+	compatible = "st,stm32f411e-disco", "st,stm32f411";
 
 	chosen {
 		zephyr,console = &usart2;
@@ -69,12 +68,10 @@
 
 	pwm4: pwm {
 		status = "okay";
-		pinctrl-0 = <&tim4_ch1_pd12>;
 	};
 };
 
 &usart2 {
-	pinctrl-0 = <&usart2_tx_pa2 &usart2_rx_pa3>;
 	current-speed = <115200>;
 	status = "okay";
 };
@@ -84,6 +81,5 @@
 };
 
 &usbotg_fs {
-	pinctrl-0 = <&usb_otg_fs_dm_pa11 &usb_otg_fs_dp_pa12>;
 	status = "okay";
 };

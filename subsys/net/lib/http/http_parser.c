@@ -1,5 +1,3 @@
-/* SPDX-License-Identifier: MIT */
-
 /* Based on src/http/ngx_http_parse.c from NGINX copyright Igor Sysoev
  *
  * Additional changes are licensed under the same terms as NGINX and
@@ -24,7 +22,7 @@
  * IN THE SOFTWARE.
  */
 #include <net/http_parser.h>
-#include <sys/__assert.h>
+#include <assert.h>
 #include <stddef.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -206,7 +204,7 @@ static inline
 int cb_notify(struct http_parser *parser, enum state *current_state, http_cb cb,
 	      int cb_error, size_t *parsed, size_t already_parsed)
 {
-	__ASSERT_NO_MSG(HTTP_PARSER_ERRNO(parser) == HPE_OK);
+	assert(HTTP_PARSER_ERRNO(parser) == HPE_OK);
 
 	if (cb == NULL) {
 		return 0;
@@ -233,7 +231,7 @@ int cb_data(struct http_parser *parser, http_data_cb cb, int cb_error,
 {
 	int rc;
 
-	__ASSERT_NO_MSG(HTTP_PARSER_ERRNO(parser) == HPE_OK);
+	assert(HTTP_PARSER_ERRNO(parser) == HPE_OK);
 	if (*mark == NULL) {
 		return 0;
 	}
@@ -470,7 +468,7 @@ int parser_header_state(struct http_parser *parser, char ch, char c)
 		break;
 
 	default:
-		__ASSERT_NO_MSG(0 && "Unknown header_state");
+		assert(0 && "Unknown header_state");
 		break;
 	}
 	return 0;
@@ -512,7 +510,7 @@ int header_states(struct http_parser *parser, const char *data, size_t len,
 
 	case h_connection:
 	case h_transfer_encoding:
-		__ASSERT_NO_MSG(0 && "Shouldn't get here.");
+		assert(0 && "Shouldn't get here.");
 		break;
 
 	case h_content_length: {
@@ -1950,7 +1948,7 @@ reexecute:
 			uint64_t to_read = MIN(parser->content_length,
 					       (uint64_t) ((data + len) - p));
 
-			__ASSERT_NO_MSG(parser->content_length != 0U
+			assert(parser->content_length != 0U
 			       && parser->content_length != ULLONG_MAX);
 
 			/* The difference between advancing content_length and
@@ -2028,8 +2026,8 @@ reexecute:
 			break;
 
 		case s_chunk_size_start: {
-			__ASSERT_NO_MSG(parser->nread == 1U);
-			__ASSERT_NO_MSG(parser->flags & F_CHUNKED);
+			assert(parser->nread == 1U);
+			assert(parser->flags & F_CHUNKED);
 
 			unhex_val = unhex[(unsigned char)ch];
 			if (UNLIKELY(unhex_val == -1)) {
@@ -2045,7 +2043,7 @@ reexecute:
 		case s_chunk_size: {
 			uint64_t t;
 
-			__ASSERT_NO_MSG(parser->flags & F_CHUNKED);
+			assert(parser->flags & F_CHUNKED);
 
 			if (ch == CR) {
 				UPDATE_STATE(s_chunk_size_almost_done);
@@ -2083,7 +2081,7 @@ reexecute:
 		}
 
 		case s_chunk_parameters: {
-			__ASSERT_NO_MSG(parser->flags & F_CHUNKED);
+			assert(parser->flags & F_CHUNKED);
 			/* just ignore this shit. TODO check for overflow */
 			if (ch == CR) {
 				UPDATE_STATE(s_chunk_size_almost_done);
@@ -2093,7 +2091,7 @@ reexecute:
 		}
 
 		case s_chunk_size_almost_done: {
-			__ASSERT_NO_MSG(parser->flags & F_CHUNKED);
+			assert(parser->flags & F_CHUNKED);
 
 			rc = strict_check(parser, ch != LF);
 			if (rc != 0) {
@@ -2123,9 +2121,9 @@ reexecute:
 			uint64_t to_read = MIN(parser->content_length,
 					       (uint64_t) ((data + len) - p));
 
-			__ASSERT_NO_MSG(parser->flags & F_CHUNKED);
-			__ASSERT_NO_MSG(parser->content_length != 0U
-					&& parser->content_length != ULLONG_MAX);
+			assert(parser->flags & F_CHUNKED);
+			assert(parser->content_length != 0U
+			       && parser->content_length != ULLONG_MAX);
 
 			/* See the explanation in s_body_identity for why the
 			 * content
@@ -2143,8 +2141,8 @@ reexecute:
 		}
 
 		case s_chunk_data_almost_done:
-			__ASSERT_NO_MSG(parser->flags & F_CHUNKED);
-			__ASSERT_NO_MSG(parser->content_length == 0U);
+			assert(parser->flags & F_CHUNKED);
+			assert(parser->content_length == 0U);
 			rc = strict_check(parser, ch != CR);
 			if (rc != 0) {
 				goto error;
@@ -2160,7 +2158,7 @@ reexecute:
 			break;
 
 		case s_chunk_data_done:
-			__ASSERT_NO_MSG(parser->flags & F_CHUNKED);
+			assert(parser->flags & F_CHUNKED);
 			rc = strict_check(parser, ch != LF);
 			if (rc != 0) {
 				goto error;
@@ -2178,7 +2176,7 @@ reexecute:
 			break;
 
 		default:
-			__ASSERT_NO_MSG(0 && "unhandled state");
+			assert(0 && "unhandled state");
 			SET_ERRNO(HPE_INVALID_INTERNAL_STATE);
 			goto error;
 		}
@@ -2197,11 +2195,11 @@ reexecute:
 	 * value that's in-bounds).
 	 */
 
-	__ASSERT_NO_MSG(((header_field_mark ? 1 : 0) +
-			(header_value_mark ? 1 : 0) +
-			(url_mark ? 1 : 0)  +
-			(body_mark ? 1 : 0) +
-			(status_mark ? 1 : 0)) <= 1);
+	assert(((header_field_mark ? 1 : 0) +
+		(header_value_mark ? 1 : 0) +
+		(url_mark ? 1 : 0)  +
+		(body_mark ? 1 : 0) +
+		(status_mark ? 1 : 0)) <= 1);
 
 	rc = cb_data(parser, settings->on_header_field, HPE_CB_header_field,
 		     &p_state, parsed, p - data, &header_field_mark,
@@ -2325,14 +2323,14 @@ void http_parser_settings_init(struct http_parser_settings *settings)
 
 const char *http_errno_name(enum http_errno err)
 {
-	__ASSERT_NO_MSG(((size_t) err) < ARRAY_SIZE(http_strerror_tab));
+	assert(((size_t) err) < ARRAY_SIZE(http_strerror_tab));
 
 	return http_strerror_tab[err].name;
 }
 
 const char *http_errno_description(enum http_errno err)
 {
-	__ASSERT_NO_MSG(((size_t) err) < ARRAY_SIZE(http_strerror_tab));
+	assert(((size_t) err) < ARRAY_SIZE(http_strerror_tab));
 
 	return http_strerror_tab[err].description;
 }
@@ -2349,7 +2347,7 @@ void http_parser_pause(struct http_parser *parser, int paused)
 			HTTP_PARSER_ERRNO(parser) == HPE_PAUSED) {
 		SET_ERRNO((paused) ? HPE_PAUSED : HPE_OK);
 	} else {
-		__ASSERT_NO_MSG(0 && "Attempting to pause parser in error state");
+		assert(0 && "Attempting to pause parser in error state");
 	}
 }
 

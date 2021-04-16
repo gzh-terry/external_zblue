@@ -53,8 +53,6 @@ extern "C" {
 #define BT_DATA_MESH_PROV               0x29 /* Mesh Provisioning PDU */
 #define BT_DATA_MESH_MESSAGE            0x2a /* Mesh Networking PDU */
 #define BT_DATA_MESH_BEACON             0x2b /* Mesh Beacon */
-#define BT_DATA_BIG_INFO                0x2c /* BIGInfo */
-#define BT_DATA_BROADCAST_CODE          0x2d /* Broadcast Code */
 
 #define BT_DATA_MANUFACTURER_DATA       0xff /* Manufacturer Specific Data */
 
@@ -160,20 +158,6 @@ enum {
 	BT_GAP_CTE_AOD_2US = 0x02,
 	/** No extensions */
 	BT_GAP_CTE_NONE = 0xFF,
-};
-
-
-/** @brief Peripheral sleep clock accuracy (SCA) in ppm (parts per million) */
-enum {
-	BT_GAP_SCA_UNKNOWN = 0,
-	BT_GAP_SCA_251_500 = 0,
-	BT_GAP_SCA_151_250 = 1,
-	BT_GAP_SCA_101_150 = 2,
-	BT_GAP_SCA_76_100 = 3,
-	BT_GAP_SCA_51_75 = 4,
-	BT_GAP_SCA_31_50 = 5,
-	BT_GAP_SCA_21_30 = 6,
-	BT_GAP_SCA_0_20 = 7,
 };
 
 /**

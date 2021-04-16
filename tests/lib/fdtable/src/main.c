@@ -15,9 +15,7 @@
 static struct k_thread fd_thread;
 static int shared_fd;
 
-static struct fd_op_vtable fd_vtable = { 0 };
-
-#define VTABLE_INIT (&fd_vtable)
+#define VTABLE_INIT ((const struct fd_op_vtable *)1)
 
 K_THREAD_STACK_DEFINE(fd_thread_stack, CONFIG_ZTEST_STACKSIZE +
 		      CONFIG_TEST_EXTRA_STACKSIZE);
@@ -39,8 +37,7 @@ void test_z_get_fd_obj_and_vtable(void)
 	zassert_true(fd >= 0, "fd < 0");
 
 	int *obj;
-	obj = z_get_fd_obj_and_vtable(fd, &vtable,
-				      NULL); /* function being tested */
+	obj = z_get_fd_obj_and_vtable(fd, &vtable); /* function being tested */
 
 	zassert_is_null(obj, "obj is not NULL");
 
@@ -62,7 +59,7 @@ void test_z_get_fd_obj(void)
 	zassert_is_null(obj, "obj not is NULL");
 
 	obj = (void *)1;
-	vtable = NULL;
+	vtable = (const struct fd_op_vtable *)1;
 
 	/* This will set obj and vtable properly */
 	z_finalize_fd(fd, obj, vtable);
@@ -88,14 +85,14 @@ void test_z_finalize_fd(void)
 	int fd = z_reserve_fd();
 	zassert_true(fd >= 0, NULL);
 
-	int *obj = z_get_fd_obj_and_vtable(fd, &vtable, NULL);
+	int *obj = z_get_fd_obj_and_vtable(fd, &vtable);
 
 	const struct fd_op_vtable *original_vtable = vtable;
 	int *original_obj = obj;
 
 	z_finalize_fd(fd, obj, vtable); /* function being tested */
 
-	obj = z_get_fd_obj_and_vtable(fd, &vtable, NULL);
+	obj = z_get_fd_obj_and_vtable(fd, &vtable);
 
 	zassert_equal_ptr(obj, original_obj, "obj is different after finalizing");
 	zassert_equal_ptr(vtable, original_vtable, "vtable is different after finalizing");
@@ -111,7 +108,7 @@ void test_z_alloc_fd(void)
 	int fd = z_alloc_fd(obj, vtable); /* function being tested */
 	zassert_true(fd >= 0, NULL);
 
-	obj = z_get_fd_obj_and_vtable(fd, &vtable, NULL);
+	obj = z_get_fd_obj_and_vtable(fd, &vtable);
 
 	zassert_equal_ptr(obj, NULL, "obj is different after allocating");
 	zassert_equal_ptr(vtable, NULL, "vtable is different after allocating");
@@ -128,7 +125,7 @@ void test_z_free_fd(void)
 
 	z_free_fd(fd); /* function being tested */
 
-	int *obj = z_get_fd_obj_and_vtable(fd, &vtable, NULL);
+	int *obj = z_get_fd_obj_and_vtable(fd, &vtable);
 
 	zassert_equal_ptr(obj, NULL, "obj is not NULL after freeing");
 }
@@ -139,14 +136,14 @@ static void test_cb(void *fd_ptr)
 	const struct fd_op_vtable *vtable;
 	int *obj;
 
-	obj = z_get_fd_obj_and_vtable(fd, &vtable, NULL);
+	obj = z_get_fd_obj_and_vtable(fd, &vtable);
 
 	zassert_not_null(obj, "obj is null");
 	zassert_not_null(vtable, "vtable is null");
 
 	z_free_fd(fd);
 
-	obj = z_get_fd_obj_and_vtable(fd, &vtable, NULL);
+	obj = z_get_fd_obj_and_vtable(fd, &vtable);
 	zassert_is_null(obj, "obj is still there");
 	zassert_equal(errno, EBADF, "fd was found");
 }
@@ -170,7 +167,7 @@ void test_z_fd_multiple_access(void)
 	k_thread_join(&fd_thread, K_FOREVER);
 
 	/* should be null since freed in the other thread */
-	obj = z_get_fd_obj_and_vtable(shared_fd, &vtable, NULL);
+	obj = z_get_fd_obj_and_vtable(shared_fd, &vtable);
 	zassert_is_null(obj, "obj is still there");
 	zassert_equal(errno, EBADF, "fd was found");
 }
