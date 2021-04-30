@@ -6,7 +6,7 @@ Vulnerabilities
 This page collects all of the vulnerabilities that are discovered and
 fixed in each release.  It will also often have more details than is
 available in the releases.  Some vulnerabilities are deemed to be
-sensitive, and will not be publically discussed until there is
+sensitive, and will not be publicly discussed until there is
 sufficient time to fix them.  Because the release notes are locked to
 a version, the information here can be updated after the embargo is
 lifted.
@@ -51,7 +51,7 @@ CVE-2017-14202
 --------------
 
 The shell implementation does not protect against buffer overruns
-resulting in unpredicable behavior.
+resulting in unpredictable behavior.
 
 Improper Restriction of Operations within the Bounds of a Memory
 Buffer vulnerability in the shell component of Zephyr allows a serial
@@ -154,7 +154,7 @@ case.
 
 See NCC-ZEP-016
 
-This has been fixed in the below pull requests for master, branch from
+This has been fixed in the below pull requests for main, branch from
 v2.1.0, and branch from v2.2.0.
 
 - `CVE-2020-10022 <http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-10022>`_
@@ -162,7 +162,7 @@ v2.1.0, and branch from v2.2.0.
 - `Zephyr project bug tracker ZEPSEC-28
   <https://zephyrprojectsec.atlassian.net/browse/ZEPSEC-28>`_
 
-- `PR24154 fix for master
+- `PR24154 fix for main
   <https://github.com/zephyrproject-rtos/zephyr/pull/24154>`_
 
 - `PR24065 fix for branch from v2.1.0
@@ -321,14 +321,14 @@ without the peer checking.
 
 See NCC-ZEP-018
 
-This has been fixed in a PR against Zephyr master.
+This has been fixed in a PR against Zephyr main.
 
 - `CVE-2020-10059 <http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-10059>`_
 
 - `Zephyr project bug tracker ZEPSEC-36
   <https://zephyrprojectsec.atlassian.net/browse/ZEPSEC-36>`_
 
-- `PR24954 fix on master (to be fixed in v2.3.0)
+- `PR24954 fix on main (to be fixed in v2.3.0)
   <https://github.com/zephyrproject-rtos/zephyr/pull/24954>`_
 
 - `PR24954 fix v2.1.0
@@ -353,12 +353,24 @@ available.
 
 See NCC-ZEP-030
 
-This issue has not been fixed.
+This has been fixed in a PR against Zephyr main.
 
 - `CVE-2020-10060 <http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-10060>`_
 
 - `Zephyr project bug tracker ZEPSEC-37
   <https://zephyrprojectsec.atlassian.net/browse/ZEPSEC-37>`_
+
+- `PR27865 fix on main (to be fixed in v2.4.0)
+  <https://github.com/zephyrproject-rtos/zephyr/pull/27865>`_
+
+- `PR27865 fix for v2.3.0
+  <https://github.com/zephyrproject-rtos/zephyr/pull/27889>`_
+
+- `PR27865 fix for v2.2.0
+  <https://github.com/zephyrproject-rtos/zephyr/pull/27891>`_
+
+- `PR27865 fix for v2.1.0
+  <https://github.com/zephyrproject-rtos/zephyr/pull/27893>`_
 
 CVE-2020-10061
 --------------
@@ -401,7 +413,7 @@ The MQTT packet header length can be 1 to 4 bytes. An off-by-one error
 in the code can result in this being interpreted as 5 bytes, which can
 cause an integer overflow, resulting in memory corruption.
 
-This has been fixed in master for v2.3.
+This has been fixed in main for v2.3.
 
 - `CVE-2020-10062 <http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-10062>`_
 
@@ -424,14 +436,14 @@ Overflow
 A remote adversary with the ability to send arbitrary CoAP packets to
 be parsed by Zephyr is able to cause a denial of service.
 
-This has been fixed in master for v2.3.
+This has been fixed in main for v2.3.
 
 - `CVE-2020-10063 <http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-10063>`_
 
 - `Zephyr project bug tracker ZEPSEC-55
   <https://zephyrprojectsec.atlassian.net/browse/ZEPSEC-55>`_
 
-- `PR24435 fix in master for v2.3
+- `PR24435 fix in main for v2.3
   <https://github.com/zephyrproject-rtos/zephyr/pull/24435>`_
 
 - `PR24531 fix for branch from v2.2
@@ -444,6 +456,55 @@ This has been fixed in master for v2.3.
   <https://github.com/zephyrproject-rtos/zephyr/pull/24530>`_
 
 - `NCC-ZEP report`_ (NCC-ZEP-032)
+
+CVE-2020-10064
+--------------
+
+Improper Input Frame Validation in ieee802154 Processing
+
+- `CVE-2020-10064 <http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-10064>`_
+
+- `Zephyr project bug tracker ZEPSEC-65
+  <https://zephyrprojectsec.atlasssian.net/browse/ZEPSEC-65>`_
+
+- `PR24971 fix for v2.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/24971>`_
+
+- `PR33451 fix for v1.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/33451>`_
+
+CVE-2020-10065
+--------------
+
+OOB Write after not validating user-supplied length (<= 0xffff) and
+copying to fixed-size buffer (default: 77 bytes) for HCI_ACL packets in
+bluetooth HCI over SPI driver.
+
+- `CVE-2020-10065 <http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-10065>`_
+
+- `Zephyr project bug tracker ZEPSEC-66
+  <https://zephyrprojectsec.atlasssian.net/browse/ZEPSEC-66>`_
+
+- This issue has not been fixed.
+
+CVE-2020-10066
+--------------
+
+Incorrect Error Handling in Bluetooth HCI core
+
+In hci_cmd_done, the buf argument being passed as null causes
+nullpointer dereference.
+
+- `CVE-2020-10066 <http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-10066>`_
+
+- `Zephyr project bug tracker ZEPSEC-67
+  <https://zephyrprojectsec.atlasssian.net/browse/ZEPSEC-67>`_
+
+- `PR24902 fix for v2.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/24902>`_
+
+- `PR25089 fix for v1.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/25089>`_
 
 CVE-2020-10067
 --------------
@@ -543,7 +604,7 @@ When calculating the packet length, arithmetic overflow can result in
 accepting a receive buffer larger than the available buffer space,
 resulting in user data being written beyond this buffer.
 
-This has been fixed in master for v2.3.
+This has been fixed in main for v2.3.
 
 - `CVE-2020-10070 <http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-10070>`_
 
@@ -564,7 +625,7 @@ The Zephyr MQTT parsing code performs insufficient checking of the
 length field on publish messages, allowing a buffer overflow and
 potentially remote code execution. NCC-ZEP-031
 
-This has been fixed in master for v2.3.
+This has been fixed in main for v2.3.
 
 - `CVE-2020-10071 <http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-10071>`_
 
@@ -575,3 +636,192 @@ This has been fixed in master for v2.3.
   <https://github.com/zephyrproject-rtos/zephyr/pull/23821/commits/989c4713ba429aa5105fe476b4d629718f3e6082>`_
 
 - `NCC-ZEP report`_ (NCC-ZEP-031)
+
+CVE-2020-10072
+--------------
+
+All threads can access all socket file descriptors
+
+There is no management of permissions to network socket API file
+descriptors. Any thread running on the system may read/write a socket
+file descriptor knowing only the numerical value of the file
+descriptor.
+
+- `CVE-2020-10072 <http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-10072>`_
+
+- `Zephyr project bug tracker ZEPSEC-87
+  <https://zephyrprojectsec.atlasssian.net/browse/ZEPSEC-87>`_
+
+- `PR25804 fix for v2.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/25804>`_
+
+- `PR27176 fix for v1.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/27176>`_
+
+CVE-2020-10136
+-------------------
+
+IP-in-IP protocol routes arbitrary traffic by default zephyrproject
+
+- `CVE-2020-10136 <https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-10136>`_
+
+- `Zephyr project bug tracker ZEPSEC-64
+  <https://zephyrprojectsec.atlassian.net/browse/ZEPSEC-64>`_
+
+CVE-2020-13598
+--------------
+
+FS: Buffer Overflow when enabling Long File Names in FAT_FS and calling fs_stat
+
+Performing fs_stat on a file with a filename longer than 12
+characters long will cause a buffer overflow.
+
+- `CVE-2020-13598 <http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-13598>`_
+
+- `Zephyr project bug tracker ZEPSEC-88
+  <https://zephyrprojectsec.atlasssian.net/browse/ZEPSEC-88>`_
+
+- `PR25852 fix for v2.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/25852>`_
+
+- `PR28782 fix for v2.3
+  <https://github.com/zephyrproject-rtos/zephyr/pull/28782>`_
+
+- `PR33577 fix for v1.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/33577>`_
+
+CVE-2020-13599
+--------------
+
+Security problem with settings and littlefs
+
+When settings is used in combination with littlefs all security
+related information can be extracted from the device using MCUmgr and
+this could be used e.g in bt-mesh to get the device key, network key,
+app keys from the device.
+
+- `CVE-2020-13599 <http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-13599>`_
+
+- `Zephyr project bug tracker ZEPSEC-57
+  <https://zephyrprojectsec.atlasssian.net/browse/ZEPSEC-57>`_
+
+- `PR26083 fix for v2.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/26083>`_
+
+CVE-2020-13600
+-------------------
+
+Malformed SPI in response for eswifi can corrupt kernel memory
+
+
+- `CVE-2020-13600 <https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-13600>`_
+
+- `Zephyr project bug tracker ZEPSEC-91
+  <https://zephyrprojectsec.atlassian.net/browse/ZEPSEC-91>`_
+
+- `PR26712 fix for v2.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/26712>`_
+
+CVE-2020-13601
+--------------
+
+Possible read out of bounds in dns read
+
+- `CVE-2020-13601 <https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-13601>`_
+
+- `Zephyr project bug tracker ZEPSEC-92
+  <https://zephyrprojectsec.atlassian.net/browse/ZEPSEC-92>`_
+
+- `PR27774 fix for v2.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/27774>`_
+
+- `PR30503 fix for v1.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/30503>`_
+
+CVE-2020-13602
+--------------
+
+Remote Denial of Service in LwM2M do_write_op_tlv
+
+In the Zephyr LwM2M implementation, malformed input can result in an
+infinite loop, resulting in a denial of service attack.
+
+- `CVE-2020-13602 <http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-13602>`_
+
+- `Zephyr project bug tracker ZEPSEC-56
+  <https://zephyrprojectsec.atlasssian.net/browse/ZEPSEC-56>`_
+
+- `PR26571 fix for v2.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/26571>`_
+
+- `PR33578 fix for v1.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/33578>`_
+
+CVE-2020-13603
+--------------
+
+Possible overflow in mempool
+
+ * Zephyr offers pre-built 'malloc' wrapper function instead.
+ * The 'malloc' function is wrapper for the 'sys_mem_pool_alloc' function
+ * sys_mem_pool_alloc allocates 'size + WB_UP(sizeof(struct sys_mem_pool_block))' in an unsafe manner.
+ * Asking for very large size values leads to internal integer wrap-around.
+ * Integer wrap-around leads to successful allocation of very small memory.
+ * For example: calling malloc(0xffffffff) leads to successful allocation of 7 bytes.
+ * That leads to heap overflow.
+
+- `CVE-2020-13603 <http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-13603>`_
+
+- `Zephyr project bug tracker ZEPSEC-111
+  <https://zephyrprojectsec.atlassian.net/browse/ZEPSEC-111>`_
+
+- `PR31796 fix for v2.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/31796>`_
+
+- `PR32808 fix for v1.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/26571>`_
+
+CVE-2021
+========
+
+CVE-2021-3320
+-------------------
+Mismatch between validation and handling of 802154 ACK frames, where
+ACK frames are considered during validation, but not during actual
+processing, leading to a type confusion.
+
+- `CVE-2020-3320 <http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-3320>`_
+
+- `PR31908 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/31908>`_
+
+CVE-2021-3321
+-------------
+
+Incomplete check of minimum IEEE 802154 fragment size leading to an
+integer underflow.
+
+- `CVE-2020-3321 <http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-3321>`_
+
+- `Zephyr project bug tracker ZEPSEC-114
+  <https://zephyrprojectsec.atlassian.net/browse/ZEPSEC-114>`_
+
+- `PR33453 fix for v2.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/33453>`_
+
+CVE-2021-3323
+-------------
+
+Integer Underflow in 6LoWPAN IPHC Header Uncompression
+
+- `CVE-2020-3323 <http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-3323>`_
+
+- `Zephyr project bug tracker ZEPSEC-116
+  <https://zephyrprojectsec.atlassian.net/browse/ZEPSEC-116>`_
+
+- This issue has not been fixed.
+
+CVE-2021-3581
+-------------
+
+Under embargo until 2021/09/04

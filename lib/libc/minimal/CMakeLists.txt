@@ -4,6 +4,7 @@ zephyr_system_include_directories(include)
 
 zephyr_library()
 zephyr_library_sources(
+  source/stdlib/abort.c
   source/stdlib/atoi.c
   source/stdlib/strtol.c
   source/stdlib/strtoul.c
@@ -19,3 +20,5 @@ zephyr_library_sources(
   source/stdout/fprintf.c
   source/time/gmtime.c
 )
+
+zephyr_library_sources_ifdef(CONFIG_POSIX_CLOCK source/time/time.c)
