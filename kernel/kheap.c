@@ -13,6 +13,8 @@ void k_heap_init(struct k_heap *h, void *mem, size_t bytes)
 {
 	z_waitq_init(&h->wait_q);
 	sys_heap_init(&h->heap, mem, bytes);
+
+	SYS_PORT_TRACING_OBJ_INIT(k_heap, h);
 }
 
 static int statics_init(const struct device *unused)
@@ -26,20 +28,36 @@ static int statics_init(const struct device *unused)
 
 SYS_INIT(statics_init, PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_OBJECTS);
 
-void *k_heap_alloc(struct k_heap *h, size_t bytes, k_timeout_t timeout)
+void *k_heap_aligned_alloc(struct k_heap *h, size_t align, size_t bytes,
+			k_timeout_t timeout)
 {
-	int64_t now, end = z_timeout_end_calc(timeout);
+	int64_t now, end = sys_clock_timeout_end_calc(timeout);
 	void *ret = NULL;
 	k_spinlock_key_t key = k_spin_lock(&h->lock);
 
+	SYS_PORT_TRACING_OBJ_FUNC_ENTER(k_heap, aligned_alloc, h, timeout);
+
 	__ASSERT(!arch_is_in_isr() || K_TIMEOUT_EQ(timeout, K_NO_WAIT), "");
 
-	while (ret == NULL) {
-		ret = sys_heap_alloc(&h->heap, bytes);
+	bool blocked_alloc = false;
 
-		now = z_tick_get();
-		if ((ret != NULL) || ((end - now) <= 0)) {
+	while (ret == NULL) {
+		ret = sys_heap_aligned_alloc(&h->heap, align, bytes);
+
+		now = sys_clock_tick_get();
+		if (!IS_ENABLED(CONFIG_MULTITHREADING) ||
+		    (ret != NULL) || ((end - now) <= 0)) {
 			break;
+		}
+
+		if (!blocked_alloc) {
+			blocked_alloc = true;
+
+			SYS_PORT_TRACING_OBJ_FUNC_BLOCKING(k_heap, aligned_alloc, h, timeout);
+		} else {
+			/**
+			 * @todo	Trace attempt to avoid empty trace segments
+			 */
 		}
 
 		(void) z_pend_curr(&h->lock, key, &h->wait_q,
@@ -47,7 +65,20 @@ void *k_heap_alloc(struct k_heap *h, size_t bytes, k_timeout_t timeout)
 		key = k_spin_lock(&h->lock);
 	}
 
+	SYS_PORT_TRACING_OBJ_FUNC_EXIT(k_heap, aligned_alloc, h, timeout, ret);
+
 	k_spin_unlock(&h->lock, key);
+	return ret;
+}
+
+void *k_heap_alloc(struct k_heap *h, size_t bytes, k_timeout_t timeout)
+{
+	SYS_PORT_TRACING_OBJ_FUNC_ENTER(k_heap, alloc, h, timeout);
+
+	void *ret = k_heap_aligned_alloc(h, sizeof(void *), bytes, timeout);
+
+	SYS_PORT_TRACING_OBJ_FUNC_EXIT(k_heap, alloc, h, timeout, ret);
+
 	return ret;
 }
 
@@ -57,37 +88,10 @@ void k_heap_free(struct k_heap *h, void *mem)
 
 	sys_heap_free(&h->heap, mem);
 
-	if (z_unpend_all(&h->wait_q) != 0) {
+	SYS_PORT_TRACING_OBJ_FUNC(k_heap, free, h);
+	if (IS_ENABLED(CONFIG_MULTITHREADING) && z_unpend_all(&h->wait_q) != 0) {
 		z_reschedule(&h->lock, key);
 	} else {
 		k_spin_unlock(&h->lock, key);
 	}
 }
-
-#ifdef CONFIG_MEM_POOL_HEAP_BACKEND
-/* Compatibility layer for legacy k_mem_pool code on top of a k_heap
- * backend.
- */
-
-int k_mem_pool_alloc(struct k_mem_pool *p, struct k_mem_block *block,
-		     size_t size, k_timeout_t timeout)
-{
-	block->id.heap = p->heap;
-	block->data = k_heap_alloc(p->heap, size, timeout);
-
-	/* The legacy API returns -EAGAIN on timeout expiration, but
-	 * -ENOMEM if the timeout was K_NO_WAIT. Don't ask.
-	 */
-	if (size != 0 && block->data == NULL) {
-		return K_TIMEOUT_EQ(timeout, K_NO_WAIT) ? -ENOMEM : -EAGAIN;
-	} else {
-		return 0;
-	}
-}
-
-void k_mem_pool_free_id(struct k_mem_block_id *id)
-{
-	k_heap_free(id->heap, id->data);
-}
-
-#endif /* CONFIG_MEM_POOL_HEAP_BACKEND */

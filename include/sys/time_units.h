@@ -27,9 +27,9 @@ extern "C" {
 /* Exhaustively enumerated, highly optimized time unit conversion API */
 
 #if defined(CONFIG_TIMER_READS_ITS_FREQUENCY_AT_RUNTIME)
-__syscall int z_clock_hw_cycles_per_sec_runtime_get(void);
+__syscall int sys_clock_hw_cycles_per_sec_runtime_get(void);
 
-static inline int z_impl_z_clock_hw_cycles_per_sec_runtime_get(void)
+static inline int z_impl_sys_clock_hw_cycles_per_sec_runtime_get(void)
 {
 	extern int z_clock_hw_cycles_per_sec;
 
@@ -50,7 +50,7 @@ static inline int z_impl_z_clock_hw_cycles_per_sec_runtime_get(void)
 static TIME_CONSTEXPR inline int sys_clock_hw_cycles_per_sec(void)
 {
 #if defined(CONFIG_TIMER_READS_ITS_FREQUENCY_AT_RUNTIME)
-	return z_clock_hw_cycles_per_sec_runtime_get();
+	return sys_clock_hw_cycles_per_sec_runtime_get();
 #else
 	return CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC;
 #endif
@@ -81,9 +81,9 @@ static TIME_CONSTEXPR ALWAYS_INLINE uint64_t z_tmcvt(uint64_t t, uint32_t from_h
 						  bool round_off)
 {
 	bool mul_ratio = const_hz &&
-		(to_hz > from_hz) && ((to_hz % from_hz) == 0);
+		(to_hz > from_hz) && ((to_hz % from_hz) == 0U);
 	bool div_ratio = const_hz &&
-		(from_hz > to_hz) && ((from_hz % to_hz) == 0);
+		(from_hz > to_hz) && ((from_hz % to_hz) == 0U);
 
 	if (from_hz == to_hz) {
 		return result32 ? ((uint32_t)t) : t;
@@ -95,9 +95,10 @@ static TIME_CONSTEXPR ALWAYS_INLINE uint64_t z_tmcvt(uint64_t t, uint32_t from_h
 		uint32_t rdivisor = div_ratio ? (from_hz / to_hz) : from_hz;
 
 		if (round_up) {
-			off = rdivisor - 1;
-		} else if (round_off) {
-			off = rdivisor / 2;
+			off = rdivisor - 1U;
+		}
+		if (round_off) {
+			off = rdivisor / 2U;
 		}
 	}
 

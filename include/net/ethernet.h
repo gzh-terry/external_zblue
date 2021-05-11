@@ -29,6 +29,10 @@
 #include <net/net_if.h>
 #include <net/ethernet_vlan.h>
 
+#if defined(CONFIG_NET_DSA)
+#include <net/dsa.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -78,7 +82,19 @@ struct net_eth_addr {
 
 #define NET_ETH_MINIMAL_FRAME_SIZE	60
 #define NET_ETH_MTU			1500
-#define NET_ETH_MAX_FRAME_SIZE	(NET_ETH_MTU + sizeof(struct net_eth_hdr))
+#define _NET_ETH_MAX_FRAME_SIZE	(NET_ETH_MTU + sizeof(struct net_eth_hdr))
+#define _NET_ETH_MAX_HDR_SIZE		(sizeof(struct net_eth_hdr))
+/*
+ * Extend the max frame size for DSA (KSZ8794) by one byte (to 1519) to
+ * store tail tag.
+ */
+#if defined(CONFIG_NET_DSA)
+#define NET_ETH_MAX_FRAME_SIZE (_NET_ETH_MAX_FRAME_SIZE + DSA_TAG_SIZE)
+#define NET_ETH_MAX_HDR_SIZE (_NET_ETH_MAX_HDR_SIZE + DSA_TAG_SIZE)
+#else
+#define NET_ETH_MAX_FRAME_SIZE (_NET_ETH_MAX_FRAME_SIZE)
+#define NET_ETH_MAX_HDR_SIZE (_NET_ETH_MAX_HDR_SIZE)
+#endif
 
 #define NET_ETH_VLAN_HDR_SIZE	4
 
@@ -130,6 +146,10 @@ enum ethernet_hw_caps {
 
 	/** VLAN Tag stripping */
 	ETHERNET_HW_VLAN_TAG_STRIP	= BIT(14),
+
+	/** DSA switch */
+	ETHERNET_DSA_SLAVE_PORT	= BIT(15),
+	ETHERNET_DSA_MASTER_PORT	= BIT(16),
 };
 
 /** @cond INTERNAL_HIDDEN */
@@ -327,8 +347,17 @@ struct ethernet_lldp {
 };
 #endif /* CONFIG_NET_LLDP */
 
+enum ethernet_flags {
+	ETH_CARRIER_UP,
+};
+
 /** Ethernet L2 context that is needed for VLAN */
 struct ethernet_context {
+	/** Flags representing ethernet state, which are accessed from multiple
+	 * threads.
+	 */
+	atomic_t flags;
+
 #if defined(CONFIG_NET_VLAN)
 	struct ethernet_vlan vlan[NET_VLAN_MAX_COUNT];
 
@@ -340,19 +369,16 @@ struct ethernet_context {
 	ATOMIC_DEFINE(interfaces, NET_VLAN_MAX_COUNT);
 #endif
 
-	struct {
-		/** Carrier ON/OFF handler worker. This is used to create
-		 * network interface UP/DOWN event when ethernet L2 driver
-		 * notices carrier ON/OFF situation. We must not create another
-		 * network management event from inside management handler thus
-		 * we use worker thread to trigger the UP/DOWN event.
-		 */
-		struct k_work work;
+	/** Carrier ON/OFF handler worker. This is used to create
+	 * network interface UP/DOWN event when ethernet L2 driver
+	 * notices carrier ON/OFF situation. We must not create another
+	 * network management event from inside management handler thus
+	 * we use worker thread to trigger the UP/DOWN event.
+	 */
+	struct k_work carrier_work;
 
-		/** Network interface that is detecting carrier ON/OFF event.
-		 */
-		struct net_if *iface;
-	} carrier_mgmt;
+	/** Network interface. */
+	struct net_if *iface;
 
 #if defined(CONFIG_NET_LLDP)
 	struct ethernet_lldp lldp[NET_VLAN_MAX_COUNT];
@@ -371,6 +397,22 @@ struct ethernet_context {
 	int port;
 #endif
 
+#if defined(CONFIG_NET_DSA)
+	/** DSA RX callback function - for custom processing - like e.g.
+	 * redirecting packets when MAC address is caught
+	 */
+	dsa_net_recv_cb_t dsa_recv_cb;
+
+	/** Switch physical port number */
+	uint8_t dsa_port_idx;
+
+	/** DSA context pointer */
+	struct dsa_context *dsa_ctx;
+
+	/** Send a network packet via DSA master port */
+	dsa_send_t dsa_send;
+#endif
+
 #if defined(CONFIG_NET_VLAN)
 	/** Flag that tells whether how many VLAN tags are enabled for this
 	 * context. The same information can be dug from the vlan array but
@@ -379,8 +421,11 @@ struct ethernet_context {
 	int8_t vlan_enabled;
 #endif
 
+	/** Is network carrier up */
+	bool is_net_carrier_up : 1;
+
 	/** Is this context already initialized */
-	bool is_init;
+	bool is_init : 1;
 };
 
 /**
@@ -611,6 +656,25 @@ static inline bool net_eth_get_vlan_status(struct net_if *iface)
 }
 #endif
 
+#if defined(CONFIG_NET_VLAN)
+#define Z_ETH_NET_DEVICE_INIT(node_id, dev_name, drv_name, init_fn,	\
+			      pm_control_fn, data, cfg, prio, api, mtu)	\
+	Z_DEVICE_DEFINE(node_id, dev_name, drv_name, init_fn,		\
+			pm_control_fn, data, cfg, POST_KERNEL,		\
+			prio, api);					\
+	NET_L2_DATA_INIT(dev_name, 0, NET_L2_GET_CTX_TYPE(ETHERNET_L2));\
+	NET_IF_INIT(dev_name, 0, ETHERNET_L2, mtu, NET_VLAN_MAX_COUNT)
+
+#else /* CONFIG_NET_VLAN */
+
+#define Z_ETH_NET_DEVICE_INIT(node_id, dev_name, drv_name, init_fn,	\
+			      pm_control_fn, data, cfg, prio, api, mtu)	\
+	Z_NET_DEVICE_INIT(node_id, dev_name, drv_name, init_fn,		\
+			  pm_control_fn, data, cfg, prio, api,		\
+			  ETHERNET_L2, NET_L2_GET_CTX_TYPE(ETHERNET_L2),\
+			  mtu)
+#endif /* CONFIG_NET_VLAN */
+
 /**
  * @def ETH_NET_DEVICE_INIT
  *
@@ -620,8 +684,8 @@ static inline bool net_eth_get_vlan_status(struct net_if *iface)
  * @param drv_name The name this instance of the driver exposes to
  * the system.
  * @param init_fn Address to the init function of the driver.
- * @param pm_control_fn Pointer to device_pm_control function.
- * Can be empty function (device_pm_control_nop) if not implemented.
+ * @param pm_control_fn Pointer to pm_control function.
+ * Can be NULL if not implemented.
  * @param data Pointer to the device's private data.
  * @param cfg The address to the structure containing the
  * configuration information for this instance of the driver.
@@ -630,23 +694,50 @@ static inline bool net_eth_get_vlan_status(struct net_if *iface)
  * used by the driver. Can be NULL.
  * @param mtu Maximum transfer unit in bytes for this network interface.
  */
-#if defined(CONFIG_NET_VLAN)
 #define ETH_NET_DEVICE_INIT(dev_name, drv_name, init_fn, pm_control_fn,	\
 			    data, cfg, prio, api, mtu)			\
-	DEVICE_DEFINE(dev_name, drv_name, init_fn, pm_control_fn, data,	\
-		      cfg, POST_KERNEL, prio, api);			\
-	NET_L2_DATA_INIT(dev_name, 0, NET_L2_GET_CTX_TYPE(ETHERNET_L2)); \
-	NET_IF_INIT(dev_name, 0, ETHERNET_L2, mtu, NET_VLAN_MAX_COUNT)
+	Z_ETH_NET_DEVICE_INIT(DT_INVALID_NODE, dev_name, drv_name,	\
+			      init_fn, pm_control_fn, data, cfg, prio,	\
+			      api, mtu)
 
-#else /* CONFIG_NET_VLAN */
+/**
+ * @def ETH_NET_DEVICE_DT_DEFINE
+ *
+ * @brief Like ETH_NET_DEVICE_INIT but taking metadata from a devicetree.
+ * Create an Ethernet network interface and bind it to network device.
+ *
+ * @param node_id The devicetree node identifier.
+ * @param init_fn Address to the init function of the driver.
+ * @param pm_control_fn Pointer to pm_control function.
+ * Can be NULL if not implemented.
+ * @param data Pointer to the device's private data.
+ * @param cfg The address to the structure containing the
+ * configuration information for this instance of the driver.
+ * @param prio The initialization level at which configuration occurs.
+ * @param api Provides an initial pointer to the API function struct
+ * used by the driver. Can be NULL.
+ * @param mtu Maximum transfer unit in bytes for this network interface.
+ */
+#define ETH_NET_DEVICE_DT_DEFINE(node_id, init_fn, pm_control_fn, data,	\
+			       cfg, prio, api, mtu)			\
+	Z_ETH_NET_DEVICE_INIT(node_id, Z_DEVICE_DT_DEV_NAME(node_id),	\
+			      DT_PROP_OR(node_id, label, ""),		\
+			      init_fn, pm_control_fn, data, cfg, prio,	\
+			      api, mtu)
 
-#define ETH_NET_DEVICE_INIT(dev_name, drv_name, init_fn, pm_control_fn,	\
-			    data, cfg, prio, api, mtu)			\
-	NET_DEVICE_INIT(dev_name, drv_name, init_fn, pm_control_fn,	\
-			data, cfg, prio, api, ETHERNET_L2,		\
-			NET_L2_GET_CTX_TYPE(ETHERNET_L2), mtu)
-
-#endif /* CONFIG_NET_VLAN */
+/**
+ * @def ETH_NET_DEVICE_DT_INST_DEFINE
+ *
+ * @brief Like ETH_NET_DEVICE_DT_DEFINE for an instance of a DT_DRV_COMPAT
+ * compatible
+ *
+ * @param inst instance number.  This is replaced by
+ * <tt>DT_DRV_COMPAT(inst)</tt> in the call to ETH_NET_DEVICE_DT_DEFINE.
+ *
+ * @param ... other parameters as expected by ETH_NET_DEVICE_DT_DEFINE.
+ */
+#define ETH_NET_DEVICE_DT_INST_DEFINE(inst, ...) \
+	ETH_NET_DEVICE_DT_DEFINE(DT_DRV_INST(inst), __VA_ARGS__)
 
 /**
  * @brief Inform ethernet L2 driver that ethernet carrier is detected.

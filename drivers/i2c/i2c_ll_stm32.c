@@ -10,8 +10,12 @@
 #include <sys/util.h>
 #include <kernel.h>
 #include <soc.h>
+#include <stm32_ll_i2c.h>
+#include <stm32_ll_rcc.h>
 #include <errno.h>
 #include <drivers/i2c.h>
+#include <drivers/pinmux.h>
+#include <pinmux/stm32/pinmux_stm32.h>
 #include "i2c_ll_stm32.h"
 
 #define LOG_LEVEL CONFIG_I2C_LOG_LEVEL
@@ -39,7 +43,7 @@ int i2c_stm32_runtime_configure(const struct device *dev, uint32_t config)
 	LL_RCC_GetSystemClocksFreq(&rcc_clocks);
 	clock = rcc_clocks.SYSCLK_Frequency;
 #else
-	if (clock_control_get_rate(device_get_binding(STM32_CLOCK_CONTROL_NAME),
+	if (clock_control_get_rate(DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE),
 			(clock_control_subsys_t *) &cfg->pclken, &clock) < 0) {
 		LOG_ERR("Failed call clock_control_get_rate");
 		return -EIO;
@@ -176,15 +180,24 @@ static const struct i2c_driver_api api_funcs = {
 
 static int i2c_stm32_init(const struct device *dev)
 {
-	const struct device *clock = device_get_binding(STM32_CLOCK_CONTROL_NAME);
+	const struct device *clock = DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE);
 	const struct i2c_stm32_config *cfg = DEV_CFG(dev);
 	uint32_t bitrate_cfg;
 	int ret;
 	struct i2c_stm32_data *data = DEV_DATA(dev);
 #ifdef CONFIG_I2C_STM32_INTERRUPT
-	k_sem_init(&data->device_sync_sem, 0, UINT_MAX);
+	k_sem_init(&data->device_sync_sem, 0, K_SEM_MAX_LIMIT);
 	cfg->irq_config_func(dev);
 #endif
+
+	/* Configure dt provided device signals when available */
+	ret = stm32_dt_pinctrl_configure(cfg->pinctrl_list,
+					 cfg->pinctrl_list_size,
+					 (uint32_t)cfg->i2c);
+	if (ret < 0) {
+		LOG_ERR("I2C pinctrl setup failed (%d)", ret);
+		return ret;
+	}
 
 	/*
 	 * initialize mutex used when multiple transfers
@@ -193,7 +206,6 @@ static int i2c_stm32_init(const struct device *dev)
 	 */
 	k_sem_init(&data->bus_mutex, 1, 1);
 
-	__ASSERT_NO_MSG(clock);
 	if (clock_control_on(clock,
 		(clock_control_subsys_t *) &cfg->pclken) != 0) {
 		LOG_ERR("i2c: failure enabling clock");
@@ -229,6 +241,18 @@ static int i2c_stm32_init(const struct device *dev)
 	}
 #endif /* CONFIG_SOC_SERIES_STM32F3X) || CONFIG_SOC_SERIES_STM32F0X */
 
+#if defined(CONFIG_SOC_SERIES_STM32F1X)
+	/*
+	 * Force i2c reset for STM32F1 series.
+	 * So that they can enter master mode properly.
+	 * Issue described in ES096 2.14.7
+	 */
+	I2C_TypeDef * i2c = cfg->i2c;
+
+	LL_I2C_EnableReset(i2c);
+	LL_I2C_DisableReset(i2c);
+#endif
+
 	bitrate_cfg = i2c_map_dt_bitrate(cfg->bitrate);
 
 	ret = i2c_stm32_runtime_configure(dev, I2C_MODE_MASTER | bitrate_cfg);
@@ -250,7 +274,7 @@ static int i2c_stm32_init(const struct device *dev)
 		IRQ_CONNECT(DT_IRQN(DT_NODELABEL(name)),		\
 			    DT_IRQ(DT_NODELABEL(name), priority),	\
 			    stm32_i2c_combined_isr,			\
-			    DEVICE_GET(i2c_stm32_##name), 0);		\
+			    DEVICE_DT_GET(DT_NODELABEL(name)), 0);	\
 		irq_enable(DT_IRQN(DT_NODELABEL(name)));		\
 	} while (0)
 #else
@@ -260,14 +284,14 @@ static int i2c_stm32_init(const struct device *dev)
 			    DT_IRQ_BY_NAME(DT_NODELABEL(name), event,	\
 								priority),\
 			    stm32_i2c_event_isr,			\
-			    DEVICE_GET(i2c_stm32_##name), 0);		\
+			    DEVICE_DT_GET(DT_NODELABEL(name)), 0);	\
 		irq_enable(DT_IRQ_BY_NAME(DT_NODELABEL(name), event, irq));\
 									\
 		IRQ_CONNECT(DT_IRQ_BY_NAME(DT_NODELABEL(name), error, irq),\
 			    DT_IRQ_BY_NAME(DT_NODELABEL(name), error,	\
 								priority),\
 			    stm32_i2c_error_isr,			\
-			    DEVICE_GET(i2c_stm32_##name), 0);		\
+			    DEVICE_DT_GET(DT_NODELABEL(name)), 0);	\
 		irq_enable(DT_IRQ_BY_NAME(DT_NODELABEL(name), error, irq));\
 	} while (0)
 #endif /* CONFIG_I2C_STM32_COMBINED_INTERRUPT */
@@ -306,6 +330,9 @@ STM32_I2C_IRQ_HANDLER_DECL(name);					\
 									\
 DEFINE_TIMINGS(name)							\
 									\
+static const struct soc_gpio_pinctrl i2c_pins_##name[] =		\
+					ST_STM32_DT_PINCTRL(name, 0);	\
+									\
 static const struct i2c_stm32_config i2c_stm32_cfg_##name = {		\
 	.i2c = (I2C_TypeDef *)DT_REG_ADDR(DT_NODELABEL(name)),		\
 	.pclken = {							\
@@ -314,13 +341,15 @@ static const struct i2c_stm32_config i2c_stm32_cfg_##name = {		\
 	},								\
 	STM32_I2C_IRQ_HANDLER_FUNCTION(name)				\
 	.bitrate = DT_PROP(DT_NODELABEL(name), clock_frequency),	\
+	.pinctrl_list = i2c_pins_##name,				\
+	.pinctrl_list_size = ARRAY_SIZE(i2c_pins_##name),		\
 	USE_TIMINGS(name)						\
 };									\
 									\
 static struct i2c_stm32_data i2c_stm32_dev_data_##name;			\
 									\
-DEVICE_AND_API_INIT(i2c_stm32_##name, DT_LABEL(DT_NODELABEL(name)),	\
-		    &i2c_stm32_init, &i2c_stm32_dev_data_##name,	\
+DEVICE_DT_DEFINE(DT_NODELABEL(name), &i2c_stm32_init,			\
+		    NULL, &i2c_stm32_dev_data_##name,			\
 		    &i2c_stm32_cfg_##name,				\
 		    POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,	\
 		    &api_funcs);					\

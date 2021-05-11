@@ -122,8 +122,8 @@ noted for users who do not want heap allocations within their application:
    dynamically allocated at runtime and a usable pointer to them returned to
    the caller.
 
-The relevant API is :c:func:`k_thread_resource_pool_assign` which assigns
-a k_mem_pool to draw these allocations from for the target thread.
+The relevant API is :c:func:`k_thread_heap_assign` which assigns
+a k_heap to draw these allocations from for the target thread.
 
 If the system heap is enabled, then the system heap may be used with
 :c:func:`k_thread_system_pool_assign`, but it is preferable for different
@@ -256,7 +256,7 @@ BSS.
 
 The build system will ensure that the base address of my_partition will
 be properly aligned, and the total size of the region conforms to the memory
-management hardware requirments, adding padding if necessary.
+management hardware requirements, adding padding if necessary.
 
 If multiple partitions are being created, a variadic preprocessor macro can be
 used as provided in ``app_macro_support.h``:
@@ -264,24 +264,6 @@ used as provided in ``app_macro_support.h``:
 .. code-block:: c
 
     FOR_EACH(K_APPMEM_PARTITION_DEFINE, part0, part1, part2);
-
-There are some kernel objects which are defined by macros and take an argument
-for a destination section. A good example of these are sys_mem_pools, which
-are heap objects. The destination section name for an automatic partition
-can be obtained with :c:macro:`K_APP_DMEM_SECTION()` and
-:c:macro:`K_APP_BMEM_SECTION()` respectively for initialized data and BSS:
-
-.. code-block:: c
-
-    /* Declare automatic memory partition foo_partition */
-    K_APPMEM_PARTITION_DEFINE(foo_partition);
-
-    /* Section argument for the destination section obtained via
-     * K_APP_DMEM_SECTION()
-     */
-    SYS_MEM_POOL_DEFINE(foo_pool, NULL, BLK_SIZE_MIN, BLK_SIZE_MAX,
-                        BLK_NUM_MAX, BLK_ALIGN,
-    			K_APP_DMEM_SECTION(foo_partition));
 
 Automatic Partitions for Static Library Globals
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -315,7 +297,7 @@ There are a few memory partitions which are pre-defined by the system:
  - ``z_malloc_partition`` - This partition contains the system-wide pool of
    memory used by libc malloc(). Due to possible starvation issues, it is
    not recommended to draw heap memory from a global pool, instead
-   it is better to define various sys_mem_pool objects and assign them
+   it is better to define various sys_heap objects and assign them
    to specific memory domains.
 
  - ``z_libc_partition`` - Contains globals required by the C library and runtime.

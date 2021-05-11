@@ -16,8 +16,8 @@ Thread execution resumes only once all ISR work has been completed.
 Concepts
 ********
 
-Any number of ISRs can be defined, subject to the constraints imposed
-by underlying hardware.
+Any number of ISRs can be defined (limited only by available RAM), subject to
+the constraints imposed by underlying hardware.
 
 An ISR has the following key properties:
 
@@ -134,17 +134,25 @@ is running.
 
 .. important::
     The IRQ lock is thread-specific. If thread A locks out interrupts
-    then performs an operation that allows thread B to run
-    (e.g. giving a semaphore or sleeping for N milliseconds), the thread's
-    IRQ lock no longer applies once thread A is swapped out. This means
-    that interrupts can be processed while thread B is running unless
-    thread B has also locked out interrupts using its own IRQ lock.
-    (Whether interrupts can be processed while the kernel is switching
-    between two threads that are using the IRQ lock is architecture-specific.)
+    then performs an operation that puts itself to sleep (e.g. sleeping
+    for N milliseconds), the thread's IRQ lock no longer applies once
+    thread A is swapped out and the next ready thread B starts to
+    run.
+
+    This means that interrupts can be processed while thread B is
+    running unless thread B has also locked out interrupts using its own
+    IRQ lock.  (Whether interrupts can be processed while the kernel is
+    switching between two threads that are using the IRQ lock is
+    architecture-specific.)
 
     When thread A eventually becomes the current thread once again, the kernel
     re-establishes thread A's IRQ lock. This ensures thread A won't be
     interrupted until it has explicitly unlocked its IRQ lock.
+
+    If thread A does not sleep but does make a higher-priority thread B
+    ready, the IRQ lock will inhibit any preemption that would otherwise
+    occur.  Thread B will not run until the next :ref:`reschedule point
+    <scheduling_v2>` reached after releasing the IRQ lock.
 
 Alternatively, a thread may temporarily **disable** a specified IRQ
 so its associated ISR does not execute when the IRQ is signaled.
@@ -165,7 +173,10 @@ The kernel addresses such use-cases by allowing interrupts with critical
 latency constraints to execute at a priority level that cannot be blocked
 by interrupt locking. These interrupts are defined as
 *zero-latency interrupts*. The support for zero-latency interrupts requires
-:option:`CONFIG_ZERO_LATENCY_IRQS` to be enabled.
+:option:`CONFIG_ZERO_LATENCY_IRQS` to be enabled. In addition to that, the
+flag :c:macro:`IRQ_ZERO_LATENCY` must be passed to :c:macro:`IRQ_CONNECT` or
+:c:macro:`IRQ_DIRECT_CONNECT` macros to configure the particular interrupt
+with zero latency.
 
 Zero-latency interrupts are expected to be used to manage hardware events
 directly, and not to interoperate with the kernel code at all. They should
@@ -227,7 +238,7 @@ The following code defines and enables an ISR.
     #define MY_DEV_PRIO  2       /* device uses interrupt priority 2 */
     /* argument passed to my_isr(), in this case a pointer to the device */
     #define MY_ISR_ARG  DEVICE_GET(my_device)
-    #define MY_IRQ_FLAGS 0       /* IRQ flags. Unused on non-x86 */
+    #define MY_IRQ_FLAGS 0       /* IRQ flags */
 
     void my_isr(void *arg)
     {
@@ -293,7 +304,7 @@ The following code demonstrates a direct ISR:
     #define MY_DEV_IRQ  24       /* device uses IRQ 24 */
     #define MY_DEV_PRIO  2       /* device uses interrupt priority 2 */
     /* argument passed to my_isr(), in this case a pointer to the device */
-    #define MY_IRQ_FLAGS 0       /* IRQ flags. Unused on non-x86 */
+    #define MY_IRQ_FLAGS 0       /* IRQ flags */
 
     ISR_DIRECT_DECLARE(my_isr)
     {

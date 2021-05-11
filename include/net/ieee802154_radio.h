@@ -26,6 +26,24 @@ extern "C" {
  * @{
  */
 
+/**
+ * @brief IEEE 802.15.4 Channel assignments
+ *
+ * Channel numbering for 868 MHz, 915 MHz, and 2450 MHz bands.
+ *
+ * - Channel 0 is for 868.3 MHz.
+ * - Channels 1-10 are for 906 to 924 MHz with 2 MHz channel spacing.
+ * - Channels 11-26 are for 2405 to 2530 MHz with 5 MHz channel spacing.
+ *
+ * For more information, please refer to 802.15.4-2015 Section 10.1.2.2.
+ */
+enum ieee802154_channel {
+	IEEE802154_SUB_GHZ_CHANNEL_MIN = 0,
+	IEEE802154_SUB_GHZ_CHANNEL_MAX = 10,
+	IEEE802154_2_4_GHZ_CHANNEL_MIN = 11,
+	IEEE802154_2_4_GHZ_CHANNEL_MAX = 26,
+};
+
 enum ieee802154_hw_caps {
 	IEEE802154_HW_FCS	  = BIT(0), /* Frame Check-Sum supported */
 	IEEE802154_HW_PROMISC	  = BIT(1), /* Promiscuous mode supported */
@@ -37,6 +55,8 @@ enum ieee802154_hw_caps {
 	IEEE802154_HW_ENERGY_SCAN = BIT(7), /* Energy scan supported */
 	IEEE802154_HW_TXTIME	  = BIT(8), /* TX at specified time supported */
 	IEEE802154_HW_SLEEP_TO_TX = BIT(9), /* TX directly from sleep supported */
+	IEEE802154_HW_TX_SEC	  = BIT(10), /* TX security hadling supported */
+	IEEE802154_HW_RXTIME	  = BIT(11), /* RX at specified time supported */
 };
 
 enum ieee802154_filter_type {
@@ -48,7 +68,15 @@ enum ieee802154_filter_type {
 };
 
 enum ieee802154_event {
-	IEEE802154_EVENT_TX_STARTED /* Data transmission started */
+	IEEE802154_EVENT_TX_STARTED, /* Data transmission started */
+	IEEE802154_EVENT_RX_FAILED   /* Data reception failed */
+};
+
+enum ieee802154_rx_fail_reason {
+	IEEE802154_RX_FAIL_NOT_RECEIVED,  /* Nothing received */
+	IEEE802154_RX_FAIL_INVALID_FCS,   /* Frame had invalid checksum */
+	IEEE802154_RX_FAIL_ADDR_FILTERED, /* Address did not match */
+	IEEE802154_RX_FAIL_OTHER	  /* General reason */
 };
 
 typedef void (*energy_scan_done_cb_t)(const struct device *dev,
@@ -124,7 +152,29 @@ enum ieee802154_config_type {
 	/** Specifies new radio event handler. Specifying NULL as a handler
 	 *  will disable radio events notification.
 	 */
-	IEEE802154_CONFIG_EVENT_HANDLER
+	IEEE802154_CONFIG_EVENT_HANDLER,
+
+	/** Updates MAC keys and key index for radios supporting transmit security. */
+	IEEE802154_CONFIG_MAC_KEYS,
+
+	/** Sets the current MAC frame counter value for radios supporting transmit security. */
+	IEEE802154_CONFIG_FRAME_COUNTER,
+
+	/** Configure a radio reception slot */
+	IEEE802154_CONFIG_RX_SLOT,
+
+	/** Enable CSL receiver (Endpoint) */
+	IEEE802154_CONFIG_CSL_RECEIVER,
+
+	/** Configure the next CSL receive window center, in units of microseconds,
+	 *  based on the radio time.
+	 */
+	IEEE802154_CONFIG_CSL_RX_TIME,
+
+	/** Enable/disable or update Enhanced-ACK Based Probing in radio
+	 *  for a specific Initiator.
+	 */
+	IEEE802154_CONFIG_ENH_ACK_PROBING,
 };
 
 /** IEEE802.15.4 driver configuration data. */
@@ -152,6 +202,43 @@ struct ieee802154_config {
 
 		/** ``IEEE802154_CONFIG_EVENT_HANDLER`` */
 		ieee802154_event_cb_t event_handler;
+
+		/** ``IEEE802154_CONFIG_MAC_KEYS`` */
+		struct {
+			uint8_t key_id_mode;
+			uint8_t key_id;
+			uint8_t *prev_key;
+			uint8_t *curr_key;
+			uint8_t *next_key;
+		} mac_keys;
+
+		/** ``IEEE802154_CONFIG_FRAME_COUNTER`` */
+		uint32_t frame_counter;
+
+		/** ``IEEE802154_CONFIG_RX_SLOT`` */
+		struct {
+			uint8_t channel;
+			uint32_t start;
+			uint32_t duration;
+		} rx_slot;
+
+		/** ``IEEE802154_CONFIG_CSL_RECEIVER`` */
+		struct {
+			uint32_t period;
+			uint8_t *addr;
+		} csl_recv;
+
+		/** ``IEEE802154_CONFIG_CSL_RX_TIME`` */
+		uint32_t csl_rx_time;
+
+		/** ``IEEE802154_CONFIG_ENH_ACK_PROBING`` */
+		struct {
+			bool lqi : 1;
+			bool link_margin : 1;
+			bool rssi : 1;
+			uint16_t short_addr;
+			const uint8_t *ext_addr;
+		} enh_ack;
 	};
 };
 
@@ -201,10 +288,8 @@ struct ieee802154_radio_api {
 			 enum ieee802154_config_type type,
 			 const struct ieee802154_config *config);
 
-#ifdef CONFIG_NET_L2_IEEE802154_SUB_GHZ
 	/** Get the available amount of Sub-GHz channels */
 	uint16_t (*get_subg_channel_count)(const struct device *dev);
-#endif /* CONFIG_NET_L2_IEEE802154_SUB_GHZ */
 
 	/** Run an energy detection scan.
 	 *  Note: channel must be set prior to request this function.
@@ -213,6 +298,16 @@ struct ieee802154_radio_api {
 	int (*ed_scan)(const struct device *dev,
 		       uint16_t duration,
 		       energy_scan_done_cb_t done_cb);
+
+	/** Get the current radio time in microseconds */
+	uint64_t (*get_time)(const struct device *dev);
+
+	/** Get the current accuracy, in units of ± ppm, of the clock used for
+	 *  scheduling CSL transmissions or receive windows.
+	 *  Note: Implementations may optimize this value based on operational
+	 *  conditions (i.e.: temperature).
+	 */
+	uint8_t (*get_csl_acc)(const struct device *dev);
 };
 
 /* Make sure that the network interface API is properly setup inside

@@ -50,6 +50,67 @@ GNU ARM Embedded
       > echo %GNUARMEMB_TOOLCHAIN_PATH%
       C:\gnu_arm_embedded
 
+Intel oneApi Toolkits
+*********************
+
+#. Download `Intel oneAPI Base Toolkit
+   <https://software.intel.com/content/www/us/en/develop/tools/oneapi/all-toolkits.html>`_
+
+#. Assuming the toolkit is installed in ``/opt/intel/oneApi``, set environment
+   using::
+
+        export ONEAPI_TOOLCHAIN_PATH=/opt/intel/oneapi
+        source $ONEAPI_TOOLCHAIN_PATH/compiler/latest/env/vars.sh
+
+   To setup the complete oneApi environment, use::
+
+        source  /opt/intel/oneapi/setvars.sh
+
+   The above will also change the python environment to the one used by the
+   toolchain and might conflict with what Zephyr uses.
+
+#. Set :envvar:`ZEPHYR_TOOLCHAIN_VARIANT` to ``oneApi``.
+
+   .. warning::
+
+      On macOS, if you are having trouble with the suggested procedure, there is an unofficial package on brew that might help you.
+      Run ``brew install gcc-arm-embedded`` and configure the variables
+
+      - Set :envvar:`ZEPHYR_TOOLCHAIN_VARIANT` to ``gnuarmemb``.
+      - Set :envvar:`GNUARMEMB_TOOLCHAIN_PATH` to the brew installation directory (something like ``/usr/local``)
+
+DesignWare ARC MetaWare Development Toolkit (MWDT)
+**************************************************
+
+#. You need to have `ARC MWDT
+   <https://www.synopsys.com/dw/ipdir.php?ds=sw_metaware>`_ installed on your
+   host.
+
+#. :ref:`Set these environment variables <env_vars>`:
+
+   - Set :envvar:`ZEPHYR_TOOLCHAIN_VARIANT` to ``arcmwdt``.
+   - Set :envvar:`ARCMWDT_TOOLCHAIN_PATH` to the toolchain installation
+     directory. MWDT installation provides :envvar:`METAWARE_ROOT` so simply set
+     :envvar:`ARCMWDT_TOOLCHAIN_PATH` to ``$METAWARE_ROOT/../`` (Linux)
+     or ``%METAWARE_ROOT%\..\`` (Windows)
+
+#. To check that you have set these variables correctly in your current
+   environment, follow these example shell sessions (the
+   :envvar:`ARCMWDT_TOOLCHAIN_PATH` values may be different on your system):
+
+   .. code-block:: console
+
+      # Linux:
+      $ echo $ZEPHYR_TOOLCHAIN_VARIANT
+      arcmwdt
+      $ echo $ARCMWDT_TOOLCHAIN_PATH
+      /home/you/ARC/MWDT_2019.12/
+
+      # Windows
+      > echo %ZEPHYR_TOOLCHAIN_VARIANT%
+      arcmwdt
+      > echo %ARCMWDT_TOOLCHAIN_PATH%
+      C:\ARC\MWDT_2019.12\
 
 Crosstool-NG
 ************

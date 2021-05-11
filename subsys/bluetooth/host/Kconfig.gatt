@@ -24,19 +24,9 @@ config BT_ATT_PREPARE_COUNT
 	  Number of buffers available for ATT prepare write, setting
 	  this to 0 disables GATT long/reliable writes.
 
-config BT_ATT_TX_MAX
-	int "Maximum number of queued outgoing ATT PDUs"
-	default BT_L2CAP_TX_BUF_COUNT
-	range 1 BT_L2CAP_TX_BUF_COUNT
-	help
-	  Number of ATT PDUs that can be at a single moment queued for
-	  transmission. If the application tries to send more than this
-	  amount the calls will block until an existing queued PDU gets
-	  sent.
-
 config BT_EATT
 	bool "Enhanced ATT Bearers support [EXPERIMENTAL]"
-	depends on BT_L2CAP_DYNAMIC_CHANNEL
+	depends on BT_L2CAP_ECRED
 	help
 	  This option enables support for Enhanced ATT bearers support. When
 	  enabled additional L2CAP channels can be connected as bearers enabling
@@ -51,18 +41,6 @@ config BT_EATT_MAX
 
 	help
 	  Number of Enhanced ATT bearers available.
-
-config BT_EATT_RX_MTU
-	int "Maximum supported Enhanced ATT MTU for incoming data"
-	default 70
-	range 70 519
-	depends on BT_EATT
-	help
-	  Maximum size incoming PDUs on EATT bearers, value shall include L2CAP
-	  headers and SDU length, maximum is limited to 512 bytes payload, which
-	  is the maximum size for a GATT attribute, plus 1 byte for ATT opcode.
-	  This option influences the stack buffer size and by that may also
-	  limit the outgoing MTU.
 
 config BT_EATT_SEC_LEVEL
 	int "Enhanced ATT bearer security level"
@@ -201,6 +179,23 @@ config BT_DEVICE_NAME_GATT_WRITABLE
 	help
 	  Enabling this option allows remote GATT clients to write to device
 	  name GAP characteristic.
+
+if BT_DEVICE_NAME_GATT_WRITABLE
+config DEVICE_NAME_GATT_WRITABLE_ENCRYPT
+	bool "Encryption required to write name by remote GATT clients"
+	default y
+	help
+	  Enabling this option requires the connection to be encrypted to write
+	  to the device name GAP characteristic.
+
+
+config DEVICE_NAME_GATT_WRITABLE_AUTHEN
+	bool "Authentication required to write name by remote GATT clients"
+	help
+	  Enabling this option requires the connection to be encrypted and
+	  authenticated to write to the device name GAP characteristic.
+
+endif #BT_DEVICE_NAME_GATT_WRITABLE
 
 if BT_DEBUG
 
