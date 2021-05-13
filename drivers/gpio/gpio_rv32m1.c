@@ -24,7 +24,7 @@ struct gpio_rv32m1_config {
 	GPIO_Type *gpio_base;
 	PORT_Type *port_base;
 	unsigned int flags;
-	char *clock_controller;
+	const struct device *clock_dev;
 	clock_control_subsys_t clock_subsys;
 	int (*irq_config_func)(const struct device *dev);
 };
@@ -263,16 +263,10 @@ static void gpio_rv32m1_port_isr(const struct device *dev)
 static int gpio_rv32m1_init(const struct device *dev)
 {
 	const struct gpio_rv32m1_config *config = dev->config;
-	const struct device *clk;
 	int ret;
 
-	if (config->clock_controller) {
-		clk = device_get_binding(config->clock_controller);
-		if (!clk) {
-			return -ENODEV;
-		}
-
-		ret = clock_control_on(clk, config->clock_subsys);
+	if (config->clock_dev) {
+		ret = clock_control_on(config->clock_dev, config->clock_subsys);
 
 		if (ret < 0) {
 			return ret;
@@ -295,8 +289,8 @@ static const struct gpio_driver_api gpio_rv32m1_driver_api = {
 
 #define INST_DT_PORT_ADDR(n) \
 	DT_REG_ADDR(DT_INST_PHANDLE(n, openisa_rv32m1_port))
-#define INST_DT_CLK_CTRL_LABEL(n) \
-	UTIL_AND(DT_INST_NODE_HAS_PROP(n, clocks), DT_INST_CLOCKS_LABEL(n))
+#define INST_DT_CLK_CTRL_DEV(n) \
+	UTIL_AND(DT_INST_NODE_HAS_PROP(n, clocks), DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)))
 #define INST_DT_CLK_CELL_NAME(n) \
 	UTIL_AND(DT_INST_NODE_HAS_PROP(n, clocks), DT_INST_CLOCKS_CELL(n, name))
 
@@ -311,15 +305,16 @@ static const struct gpio_driver_api gpio_rv32m1_driver_api = {
 		.port_base = (PORT_Type *) INST_DT_PORT_ADDR(n),	\
 		.flags = GPIO_INT_ENABLE,				\
 		.irq_config_func = gpio_rv32m1_##n##_init,		\
-		.clock_controller = INST_DT_CLK_CTRL_LABEL(n),		\
+		.clock_dev = INST_DT_CLK_CTRL_DEV(n),			\
 		.clock_subsys = (clock_control_subsys_t)		\
 				INST_DT_CLK_CELL_NAME(n)		\
 	};								\
 									\
 	static struct gpio_rv32m1_data gpio_rv32m1_##n##_data;		\
 									\
-	DEVICE_AND_API_INIT(gpio_rv32m1_##n, DT_INST_LABEL(n),		\
+	DEVICE_DT_INST_DEFINE(n,					\
 			    gpio_rv32m1_init,				\
+			    NULL,					\
 			    &gpio_rv32m1_##n##_data,			\
 			    &gpio_rv32m1_##n##_config,			\
 			    POST_KERNEL,				\
@@ -331,7 +326,7 @@ static const struct gpio_driver_api gpio_rv32m1_driver_api = {
 		IRQ_CONNECT(DT_INST_IRQN(n),				\
 			    0,						\
 			    gpio_rv32m1_port_isr,			\
-			    DEVICE_GET(gpio_rv32m1_##n), 0);		\
+			    DEVICE_DT_INST_GET(n), 0);			\
 									\
 		irq_enable(DT_INST_IRQN(0));				\
 									\

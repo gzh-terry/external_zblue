@@ -228,7 +228,7 @@ static int usb_validate_ep_cfg_data(struct usb_ep_descriptor * const ep_descr,
 				    struct usb_cfg_data * const cfg_data,
 				    uint32_t *requested_ep)
 {
-	for (int i = 0; i < cfg_data->num_endpoints; i++) {
+	for (unsigned int i = 0; i < cfg_data->num_endpoints; i++) {
 		struct usb_ep_cfg_data *ep_data = cfg_data->endpoint;
 
 		/*
@@ -238,7 +238,7 @@ static int usb_validate_ep_cfg_data(struct usb_ep_descriptor * const ep_descr,
 			continue;
 		}
 
-		for (uint8_t idx = 1; idx < 16; idx++) {
+		for (uint8_t idx = 1; idx < 16U; idx++) {
 			struct usb_dc_ep_cfg_data ep_cfg;
 
 			ep_cfg.ep_type = (ep_descr->bmAttributes &
@@ -246,13 +246,13 @@ static int usb_validate_ep_cfg_data(struct usb_ep_descriptor * const ep_descr,
 			ep_cfg.ep_mps = ep_descr->wMaxPacketSize;
 			ep_cfg.ep_addr = ep_descr->bEndpointAddress;
 			if (ep_cfg.ep_addr & USB_EP_DIR_IN) {
-				if ((*requested_ep & (1 << (idx + 16)))) {
+				if ((*requested_ep & (1U << (idx + 16U)))) {
 					continue;
 				}
 
 				ep_cfg.ep_addr = (USB_EP_DIR_IN | idx);
 			} else {
-				if ((*requested_ep & (1 << (idx)))) {
+				if ((*requested_ep & (1U << (idx)))) {
 					continue;
 				}
 
@@ -265,9 +265,9 @@ static int usb_validate_ep_cfg_data(struct usb_ep_descriptor * const ep_descr,
 				ep_descr->bEndpointAddress = ep_cfg.ep_addr;
 				ep_data[i].ep_addr = ep_cfg.ep_addr;
 				if (ep_cfg.ep_addr & USB_EP_DIR_IN) {
-					*requested_ep |= (1 << (idx + 16));
+					*requested_ep |= (1U << (idx + 16U));
 				} else {
-					*requested_ep |= (1 << idx);
+					*requested_ep |= (1U << idx);
 				}
 				LOG_DBG("endpoint 0x%x", ep_data[i].ep_addr);
 				return 0;
@@ -299,22 +299,34 @@ static struct usb_cfg_data *usb_get_cfg_data(struct usb_if_descriptor *iface)
  * Default USB Serial Number string descriptor will be derived from
  * Hardware Information Driver (HWINFO). User can implement own variant
  * of this function. Please note that the length of the new Serial Number
- * descriptor may not exceed the length of the CONFIG_USB_DEVICE_SN.
+ * descriptor may not exceed the length of the CONFIG_USB_DEVICE_SN. In
+ * case the device ID returned by the HWINFO driver is bigger, the lower
+ * part is used for the USB Serial Number, as that part is usually having
+ * more entropy.
  */
 __weak uint8_t *usb_update_sn_string_descriptor(void)
 {
-	uint8_t hwid[sizeof(CONFIG_USB_DEVICE_SN) / 2];
+	/*
+	 * The biggest device ID supported by the HWINFO driver is currently
+	 * 128 bits, which is 16 bytes. Assume this is the maximum for now,
+	 * unless the user requested a longer serial number.
+	 */
+	const int usblen = sizeof(CONFIG_USB_DEVICE_SN) / 2;
+	uint8_t hwid[MAX(16, usblen)];
 	static uint8_t sn[sizeof(CONFIG_USB_DEVICE_SN) + 1];
 	const char hex[] = "0123456789ABCDEF";
+	int hwlen, skip;
 
 	memset(hwid, 0, sizeof(hwid));
 	memset(sn, 0, sizeof(sn));
 
-	if (hwinfo_get_device_id(hwid, sizeof(hwid)) > 0) {
-		LOG_HEXDUMP_DBG(hwid, sizeof(hwid), "Serial Number");
-		for (int i = 0; i < sizeof(hwid); i++) {
-			sn[i * 2] = hex[hwid[i] >> 4];
-			sn[i * 2 + 1] = hex[hwid[i] & 0xF];
+	hwlen = hwinfo_get_device_id(hwid, sizeof(hwid));
+	if (hwlen > 0) {
+		skip = MAX(0, hwlen - usblen);
+		LOG_HEXDUMP_DBG(&hwid[skip], usblen, "Serial Number");
+		for (int i = 0; i < usblen; i++) {
+			sn[i * 2] = hex[hwid[i + skip] >> 4];
+			sn[i * 2 + 1] = hex[hwid[i + skip] & 0xF];
 		}
 	}
 

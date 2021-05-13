@@ -22,6 +22,8 @@ source "drivers/counter/Kconfig.dtmr_cmsdk_apb"
 
 source "drivers/counter/Kconfig.mcux_rtc"
 
+source "drivers/counter/Kconfig.mcux_lpc_rtc"
+
 source "drivers/counter/Kconfig.nrfx"
 
 source "drivers/counter/Kconfig.imx_epit"
@@ -43,5 +45,9 @@ source "drivers/counter/Kconfig.maxim_ds3231"
 source "drivers/counter/Kconfig.native_posix"
 
 source "drivers/counter/Kconfig.mcux_pit"
+
+source "drivers/counter/Kconfig.xlnx"
+
+source "drivers/counter/Kconfig.esp32"
 
 endif # COUNTER

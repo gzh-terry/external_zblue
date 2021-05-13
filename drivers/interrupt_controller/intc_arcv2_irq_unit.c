@@ -23,8 +23,8 @@
 
 extern void *_VectorTable;
 
-#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
-#include <power/power.h>
+#ifdef CONFIG_PM_DEVICE
+#include <pm/device.h>
 #include <kernel_structs.h>
 
 #ifdef CONFIG_ARC_SECURE_FIRMWARE
@@ -32,7 +32,8 @@ extern void *_VectorTable;
 #define _ARC_V2_IRQ_VECT_BASE _ARC_V2_IRQ_VECT_BASE_S
 #endif
 
-static uint32_t _arc_v2_irq_unit_device_power_state = DEVICE_PM_ACTIVE_STATE;
+static enum pm_device_state _arc_v2_irq_unit_device_power_state =
+	PM_DEVICE_STATE_ACTIVE;
 struct arc_v2_irq_unit_ctx {
 	uint32_t irq_ctrl; /* Interrupt Context Saving Control Register. */
 	uint32_t irq_vect_base; /* Interrupt Vector Base. */
@@ -87,7 +88,7 @@ static int arc_v2_irq_unit_init(const struct device *unused)
 	return 0;
 }
 
-#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
+#ifdef CONFIG_PM_DEVICE
 
 /*
  * @brief Suspend the interrupt unit device driver
@@ -120,7 +121,7 @@ static int arc_v2_irq_unit_suspend(const struct device *dev)
 	ctx.irq_ctrl = z_arc_v2_aux_reg_read(_ARC_V2_AUX_IRQ_CTRL);
 	ctx.irq_vect_base = z_arc_v2_aux_reg_read(_ARC_V2_IRQ_VECT_BASE);
 
-	_arc_v2_irq_unit_device_power_state = DEVICE_PM_SUSPEND_STATE;
+	_arc_v2_irq_unit_device_power_state = PM_DEVICE_STATE_SUSPEND;
 
 	return 0;
 }
@@ -166,7 +167,7 @@ static int arc_v2_irq_unit_resume(const struct device *dev)
 #endif
 	z_arc_v2_aux_reg_write(_ARC_V2_IRQ_VECT_BASE, ctx.irq_vect_base);
 
-	_arc_v2_irq_unit_device_power_state = DEVICE_PM_ACTIVE_STATE;
+	_arc_v2_irq_unit_device_power_state = PM_DEVICE_STATE_ACTIVE;
 
 	return 0;
 }
@@ -176,7 +177,7 @@ static int arc_v2_irq_unit_resume(const struct device *dev)
  *
  * @return the power state of interrupt unit
  */
-static int arc_v2_irq_unit_get_state(const struct device *dev)
+static enum pm_device_state arc_v2_irq_unit_get_state(const struct device *dev)
 {
 	ARG_UNUSED(dev);
 
@@ -191,36 +192,30 @@ static int arc_v2_irq_unit_get_state(const struct device *dev)
  *
  * @return operation result
  */
-static int arc_v2_irq_unit_device_ctrl(const struct device *device,
-				       uint32_t ctrl_command, void *context,
-				       device_pm_cb cb, void *arg)
+static int arc_v2_irq_unit_device_ctrl(const struct device *dev,
+				       uint32_t ctrl_command,
+				       enum pm_device_state *state)
 {
 	int ret = 0;
 	unsigned int key = arch_irq_lock();
 
-	if (ctrl_command == DEVICE_PM_SET_POWER_STATE) {
-		if (*((uint32_t *)context) == DEVICE_PM_SUSPEND_STATE) {
-			ret = arc_v2_irq_unit_suspend(device);
-		} else if (*((uint32_t *)context) == DEVICE_PM_ACTIVE_STATE) {
-			ret = arc_v2_irq_unit_resume(device);
+	if (ctrl_command == PM_DEVICE_STATE_SET) {
+		if (*state == PM_DEVICE_STATE_SUSPEND) {
+			ret = arc_v2_irq_unit_suspend(dev);
+		} else if (*state == PM_DEVICE_STATE_ACTIVE) {
+			ret = arc_v2_irq_unit_resume(dev);
 		}
-	} else if (ctrl_command == DEVICE_PM_GET_POWER_STATE) {
-		*((uint32_t *)context) = arc_v2_irq_unit_get_state(device);
+	} else if (ctrl_command == PM_DEVICE_STATE_GET) {
+		*state = arc_v2_irq_unit_get_state(dev);
 	}
 
 	arch_irq_unlock(key);
-
-	if (cb) {
-		cb(device, ret, context, arg);
-	}
 
 	return ret;
 }
 
 SYS_DEVICE_DEFINE("arc_v2_irq_unit", arc_v2_irq_unit_init,
-		  arc_v2_irq_unit_device_ctrl, PRE_KERNEL_1,
-		  CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
+		  arc_v2_irq_unit_device_ctrl, PRE_KERNEL_1, 0);
 #else
-SYS_INIT(arc_v2_irq_unit_init, PRE_KERNEL_1,
-		CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
-#endif   /* CONFIG_DEVICE_POWER_MANAGEMENT */
+SYS_INIT(arc_v2_irq_unit_init, PRE_KERNEL_1, 0);
+#endif   /* CONFIG_PM_DEVICE */

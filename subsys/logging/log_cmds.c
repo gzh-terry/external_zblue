@@ -95,8 +95,6 @@ static int log_status(const struct shell *shell,
 	uint32_t modules_cnt = log_sources_count();
 	uint32_t dynamic_lvl;
 	uint32_t compiled_lvl;
-	uint32_t i;
-
 
 	if (!log_backend_is_active(backend)) {
 		shell_warn(shell, "Logs are halted!");
@@ -107,7 +105,7 @@ static int log_status(const struct shell *shell,
 	shell_fprintf(shell, SHELL_NORMAL,
 	      "----------------------------------------------------------\r\n");
 
-	for (i = 0U; i < modules_cnt; i++) {
+	for (int16_t i = 0U; i < modules_cnt; i++) {
 		dynamic_lvl = log_filter_get(backend, CONFIG_LOG_DOMAIN_ID,
 					     i, true);
 		compiled_lvl = log_filter_get(backend, CONFIG_LOG_DOMAIN_ID,
@@ -381,7 +379,7 @@ static int cmd_log_strdup_utilization(const struct shell *shell,
 	uint32_t buf_cnt = log_get_strdup_pool_utilization();
 	uint32_t buf_size = log_get_strdup_longest_string();
 	uint32_t percent = CONFIG_LOG_STRDUP_BUF_COUNT ?
-			100 * buf_cnt / CONFIG_LOG_STRDUP_BUF_COUNT : 0;
+			buf_cnt * 100U / CONFIG_LOG_STRDUP_BUF_COUNT : 0U;
 
 	shell_print(shell,
 		"Maximal utilization of the buffer pool: %d / %d (%d %%).",
@@ -438,19 +436,22 @@ SHELL_DYNAMIC_CMD_CREATE(dsub_backend_name_dynamic, backend_name_get);
 SHELL_STATIC_SUBCMD_SET_CREATE(sub_log_stat,
 	SHELL_CMD(backend, &dsub_backend_name_dynamic,
 			"Logger backends commands.", NULL),
-	SHELL_CMD_ARG(disable, &dsub_module_name,
-	"'log disable <module_0> .. <module_n>' disables logs in specified "
-	"modules (all if no modules specified).",
-	cmd_log_self_disable, 2, 255),
-	SHELL_CMD_ARG(enable, &dsub_severity_lvl,
-	"'log enable <level> <module_0> ...  <module_n>' enables logs up to"
-	" given level in specified modules (all if no modules specified).",
-	cmd_log_self_enable, 2, 255),
-	SHELL_CMD(go, NULL, "Resume logging", cmd_log_self_go),
-	SHELL_CMD(halt, NULL, "Halt logging", cmd_log_self_halt),
+	SHELL_COND_CMD_ARG(CONFIG_SHELL_LOG_BACKEND, disable, &dsub_module_name,
+		"'log disable <module_0> .. <module_n>' disables logs in specified "
+		"modules (all if no modules specified).",
+		cmd_log_self_disable, 1, 255),
+	SHELL_COND_CMD_ARG(CONFIG_SHELL_LOG_BACKEND, enable, &dsub_severity_lvl,
+		"'log enable <level> <module_0> ...  <module_n>' enables logs up to"
+		" given level in specified modules (all if no modules specified).",
+		cmd_log_self_enable, 2, 255),
+	SHELL_COND_CMD(CONFIG_SHELL_LOG_BACKEND, go, NULL, "Resume logging",
+			cmd_log_self_go),
+	SHELL_COND_CMD(CONFIG_SHELL_LOG_BACKEND, halt, NULL, "Halt logging",
+			cmd_log_self_halt),
 	SHELL_CMD_ARG(list_backends, NULL, "Lists logger backends.",
 		      cmd_log_backends_list, 1, 0),
-	SHELL_CMD(status, NULL, "Logger status", cmd_log_self_status),
+	SHELL_COND_CMD(CONFIG_SHELL_LOG_BACKEND, status, NULL, "Logger status",
+			cmd_log_self_status),
 	SHELL_COND_CMD_ARG(CONFIG_LOG_STRDUP_POOL_PROFILING, strdup_utilization,
 			NULL, "Get utilization of string duplicates pool",
 			cmd_log_strdup_utilization, 1, 0),

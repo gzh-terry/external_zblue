@@ -35,7 +35,7 @@ zephyr_linker_sources_ifdef(CONFIG_NOCACHE_MEMORY
 )
 
 # Only ARM, X86 and OPENISA_RV32M1_RISCV32 use ROM_START_OFFSET.
-if (DEFINED CONFIG_ARM OR DEFINED CONFIG_X86
+if (DEFINED CONFIG_ARM OR DEFINED CONFIG_X86 OR DEFINED CONFIG_ARM64
     OR DEFINED CONFIG_SOC_OPENISA_RV32M1_RISCV32)
   zephyr_linker_sources(ROM_START SORT_KEY 0x0 rom_start_offset.ld)
 endif()
@@ -51,4 +51,9 @@ if (CONFIG_GEN_ISR_TABLES)
   add_dependencies(isr_tables zephyr_generated_headers)
   target_link_libraries(isr_tables zephyr_interface)
   zephyr_library_link_libraries(isr_tables)
+endif()
+
+if(CONFIG_COVERAGE)
+  zephyr_compile_options($<TARGET_PROPERTY:compiler,coverage>)
+  zephyr_link_libraries($<TARGET_PROPERTY:linker,coverage>)
 endif()
