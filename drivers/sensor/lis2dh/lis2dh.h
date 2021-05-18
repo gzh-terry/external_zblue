@@ -15,27 +15,16 @@
 #include <drivers/sensor.h>
 #include <string.h>
 
-#define LIS2DH_BUS_ADDRESS		DT_INST_REG_ADDR(0)
-#define LIS2DH_BUS_DEV_NAME		DT_INST_BUS_LABEL(0)
-
 #define LIS2DH_REG_WAI			0x0f
 #define LIS2DH_CHIP_ID			0x33
 
 #if DT_ANY_INST_ON_BUS_STATUS_OKAY(spi)
 #include <drivers/spi.h>
+#endif /* DT_ANY_INST_ON_BUS_STATUS_OKAY(spi) */
 
-#define LIS2DH_SPI_READ_BIT		BIT(7)
-#define LIS2DH_SPI_AUTOINC		BIT(6)
-#define LIS2DH_SPI_ADDR_MASK		BIT_MASK(6)
-
-/* LIS2DH supports only SPI mode 0, word size 8 bits, MSB first */
-#define LIS2DH_SPI_CFG			SPI_WORD_SET(8)
-
-#elif DT_ANY_INST_ON_BUS_STATUS_OKAY(i2c)
+#if DT_ANY_INST_ON_BUS_STATUS_OKAY(i2c)
 #include <drivers/i2c.h>
-#else
-#error "define bus type (I2C/SPI)"
-#endif
+#endif /* DT_ANY_INST_ON_BUS_STATUS_OKAY(i2c) */
 
 #define LIS2DH_AUTOINCREMENT_ADDR	BIT(7)
 
@@ -174,21 +163,6 @@
 /* sample buffer size includes status register */
 #define LIS2DH_BUF_SZ			7
 
-#if DT_INST_PROP_HAS_IDX(0, irq_gpios, 1)
-/* INT1 and INT2 are configured */
-#define LIS2DH_INT1_GPIOS_PIN		DT_INST_GPIO_PIN_BY_IDX(0, irq_gpios, 0)
-#define LIS2DH_INT1_GPIOS_FLAGS		DT_INST_GPIO_FLAGS_BY_IDX(0, irq_gpios, 0)
-#define LIS2DH_INT1_GPIO_DEV_NAME	DT_INST_GPIO_LABEL_BY_IDX(0, irq_gpios, 0)
-#define LIS2DH_INT2_GPIOS_PIN		DT_INST_GPIO_PIN_BY_IDX(0, irq_gpios, 1)
-#define LIS2DH_INT2_GPIOS_FLAGS		DT_INST_GPIO_FLAGS_BY_IDX(0, irq_gpios, 1)
-#define LIS2DH_INT2_GPIO_DEV_NAME	DT_INST_GPIO_LABEL_BY_IDX(0, irq_gpios, 1)
-#else
-/* INT1 only */
-#define LIS2DH_INT1_GPIOS_PIN		DT_INST_GPIO_PIN(0, irq_gpios)
-#define LIS2DH_INT1_GPIOS_FLAGS		DT_INST_GPIO_FLAGS(0, irq_gpios)
-#define LIS2DH_INT1_GPIO_DEV_NAME	DT_INST_GPIO_LABEL(0, irq_gpios)
-#endif
-
 union lis2dh_sample {
 	uint8_t raw[LIS2DH_BUF_SZ];
 	struct {
@@ -197,20 +171,37 @@ union lis2dh_sample {
 	} __packed;
 };
 
-struct lis2dh_config {
-	char *bus_name;
-	int (*bus_init)(const struct device *dev);
-#if DT_ANY_INST_ON_BUS_STATUS_OKAY(i2c)
-	uint16_t i2c_slv_addr;
-#elif DT_ANY_INST_ON_BUS_STATUS_OKAY(spi)
+#if DT_ANY_INST_ON_BUS_STATUS_OKAY(spi)
+struct lis2dh_spi_cfg {
 	struct spi_config spi_conf;
-#if DT_INST_SPI_DEV_HAS_CS_GPIOS(0)
-	const char *gpio_cs_port;
-	uint8_t cs_gpio;
-	uint8_t cs_gpio_flags;
-#endif /* DT_INST_SPI_DEV_HAS_CS_GPIOS(0) */
+	const char *cs_gpios_label;
+};
 #endif /* DT_ANY_INST_ON_BUS_STATUS_OKAY(spi) */
 
+union lis2dh_bus_cfg {
+#if DT_ANY_INST_ON_BUS_STATUS_OKAY(i2c)
+	uint16_t i2c_slv_addr;
+#endif
+
+#if DT_ANY_INST_ON_BUS_STATUS_OKAY(spi)
+	const struct lis2dh_spi_cfg *spi_cfg;
+#endif /* DT_ANY_INST_ON_BUS_STATUS_OKAY(spi) */
+};
+
+struct lis2dh_config {
+	const char *bus_name;
+	int (*bus_init)(const struct device *dev);
+	const union lis2dh_bus_cfg bus_cfg;
+#ifdef CONFIG_LIS2DH_TRIGGER
+	const char *irq1_dev_name;
+	gpio_pin_t irq1_pin;
+	gpio_dt_flags_t irq1_flags;
+	const char *irq2_dev_name;
+	gpio_pin_t irq2_pin;
+	gpio_dt_flags_t irq2_flags;
+#endif /* CONFIG_LIS2DH_TRIGGER */
+	bool is_lsm303agr_dev;
+	bool disc_pull_up;
 };
 
 struct lis2dh_transfer_function {
@@ -255,9 +246,10 @@ struct lis2dh_data {
 #endif
 
 #endif /* CONFIG_LIS2DH_TRIGGER */
-#if DT_INST_SPI_DEV_HAS_CS_GPIOS(0)
+
+#if DT_ANY_INST_ON_BUS_STATUS_OKAY(spi)
 	struct spi_cs_control cs_ctrl;
-#endif /* DT_SPI_DEV_HAS_CS_GPIOS(DT_INST(0, st_lis2mdl)) */
+#endif /* DT_ANY_INST_ON_BUS_STATUS_OKAY(spi) */
 };
 
 #if DT_ANY_INST_ON_BUS_STATUS_OKAY(spi)

@@ -6,14 +6,23 @@
  */
 
 #include <ztest.h>
-#include "interrupt_util.h"
+#include <interrupt_util.h>
 
 /*
  * Run the nested interrupt test for the supported platforms only.
  */
-#if defined(CONFIG_CPU_CORTEX_M) || defined(CONFIG_CPU_ARCV2) || \
+#if defined(CONFIG_CPU_CORTEX_M) || defined(CONFIG_ARC) || \
 	defined(CONFIG_GIC)
 #define TEST_NESTED_ISR
+#endif
+
+#if defined(CONFIG_ARM64) && defined(CONFIG_FPU_SHARING)
+/*
+ * The various log outputs trigger FP access due to the va_list used by
+ * printk() and friends. IRQs are masked to prevent further IRQ nesting
+ * when that happens.
+ */
+#undef TEST_NESTED_ISR
 #endif
 
 #define DURATION	5

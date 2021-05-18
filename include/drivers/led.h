@@ -22,6 +22,10 @@
 #include <zephyr/types.h>
 #include <device.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief LED information structure
  *
@@ -137,8 +141,8 @@ static inline int z_impl_led_blink(const struct device *dev, uint32_t led,
 	const struct led_driver_api *api =
 		(const struct led_driver_api *)dev->api;
 
-	if (!api->blink) {
-		return -ENOTSUP;
+	if (api->blink == NULL) {
+		return -ENOSYS;
 	}
 	return api->blink(dev, led, delay_on, delay_off);
 }
@@ -162,9 +166,9 @@ static inline int z_impl_led_get_info(const struct device *dev, uint32_t led,
 	const struct led_driver_api *api =
 		(const struct led_driver_api *)dev->api;
 
-	if (!api->get_info) {
+	if (api->get_info == NULL) {
 		*info = NULL;
-		return -ENOTSUP;
+		return -ENOSYS;
 	}
 	return api->get_info(dev, led, info);
 }
@@ -174,6 +178,10 @@ static inline int z_impl_led_get_info(const struct device *dev, uint32_t led,
  *
  * This optional routine sets the brightness of a LED to the given value.
  * Calling this function after led_blink() won't affect blinking.
+ *
+ * LEDs which can only be turned on or off may provide this function.
+ * These should simply turn the LED on if @p value is nonzero, and off
+ * if @p value is zero.
  *
  * @param dev LED device
  * @param led LED number
@@ -190,8 +198,8 @@ static inline int z_impl_led_set_brightness(const struct device *dev,
 	const struct led_driver_api *api =
 		(const struct led_driver_api *)dev->api;
 
-	if (!api->set_brightness) {
-		return -ENOTSUP;
+	if (api->set_brightness == NULL) {
+		return -ENOSYS;
 	}
 	return api->set_brightness(dev, led, value);
 }
@@ -223,8 +231,8 @@ z_impl_led_write_channels(const struct device *dev, uint32_t start_channel,
 	const struct led_driver_api *api =
 		(const struct led_driver_api *)dev->api;
 
-	if (!api->write_channels) {
-		return -ENOTSUP;
+	if (api->write_channels == NULL) {
+		return -ENOSYS;
 	}
 	return api->write_channels(dev, start_channel, num_channels, buf);
 }
@@ -275,8 +283,8 @@ static inline int z_impl_led_set_color(const struct device *dev, uint32_t led,
 	const struct led_driver_api *api =
 		(const struct led_driver_api *)dev->api;
 
-	if (!api->set_color) {
-		return -ENOTSUP;
+	if (api->set_color == NULL) {
+		return -ENOSYS;
 	}
 	return api->set_color(dev, led, num_colors, color);
 }
@@ -322,6 +330,10 @@ static inline int z_impl_led_off(const struct device *dev, uint32_t led)
 /**
  * @}
  */
+
+#ifdef __cplusplus
+}
+#endif
 
 #include <syscalls/led.h>
 

@@ -64,8 +64,10 @@ static void fxas21002_convert(struct sensor_value *val, int16_t raw,
 {
 	int32_t micro_rad;
 
-	/* Convert units to micro radians per second.*/
-	micro_rad = (raw * 62500) >> range;
+	/* Convert units to micro radians per second.
+	 * 62500 micro dps * 2*pi/360 = 1091 micro radians per second
+	 */
+	micro_rad = (raw * 1091) >> range;
 
 	val->val1 = micro_rad / 1000000;
 	val->val2 = micro_rad % 1000000;
@@ -252,7 +254,7 @@ static int fxas21002_init(const struct device *dev)
 		return -EIO;
 	}
 
-	k_sem_init(&data->sem, 0, UINT_MAX);
+	k_sem_init(&data->sem, 0, K_SEM_MAX_LIMIT);
 
 #if CONFIG_FXAS21002_TRIGGER
 	if (fxas21002_trigger_init(dev)) {
@@ -308,7 +310,7 @@ static const struct fxas21002_config fxas21002_config = {
 
 static struct fxas21002_data fxas21002_data;
 
-DEVICE_AND_API_INIT(fxas21002, DT_INST_LABEL(0), fxas21002_init,
+DEVICE_DT_INST_DEFINE(0, fxas21002_init, NULL,
 		    &fxas21002_data, &fxas21002_config,
 		    POST_KERNEL, CONFIG_SENSOR_INIT_PRIORITY,
 		    &fxas21002_driver_api);

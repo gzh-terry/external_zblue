@@ -396,7 +396,7 @@ static int apds9960_init_interrupt(const struct device *dev)
 	}
 
 #else
-	k_sem_init(&drv_data->data_sem, 0, UINT_MAX);
+	k_sem_init(&drv_data->data_sem, 0, K_SEM_MAX_LIMIT);
 #endif
 	apds9960_setup_int(drv_data, true);
 
@@ -407,19 +407,19 @@ static int apds9960_init_interrupt(const struct device *dev)
 	return 0;
 }
 
-#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
+#ifdef CONFIG_PM_DEVICE
 static int apds9960_device_ctrl(const struct device *dev,
 				uint32_t ctrl_command,
-				void *context, device_pm_cb cb, void *arg)
+				void *context, pm_device_cb cb, void *arg)
 {
 	const struct apds9960_config *config = dev->config;
 	struct apds9960_data *data = dev->data;
 	int ret = 0;
 
-	if (ctrl_command == DEVICE_PM_SET_POWER_STATE) {
+	if (ctrl_command == PM_DEVICE_STATE_SET) {
 		uint32_t device_pm_state = *(uint32_t *)context;
 
-		if (device_pm_state == DEVICE_PM_ACTIVE_STATE) {
+		if (device_pm_state == PM_DEVICE_STATE_ACTIVE) {
 			if (i2c_reg_update_byte(data->i2c, config->i2c_address,
 						APDS9960_ENABLE_REG,
 						APDS9960_ENABLE_PON,
@@ -441,8 +441,8 @@ static int apds9960_device_ctrl(const struct device *dev,
 			}
 		}
 
-	} else if (ctrl_command == DEVICE_PM_GET_POWER_STATE) {
-		*((uint32_t *)context) = DEVICE_PM_ACTIVE_STATE;
+	} else if (ctrl_command == PM_DEVICE_STATE_GET) {
+		*((uint32_t *)context) = PM_DEVICE_STATE_ACTIVE;
 	}
 
 	if (cb) {
@@ -543,12 +543,6 @@ static const struct apds9960_config apds9960_config = {
 
 static struct apds9960_data apds9960_data;
 
-#ifndef CONFIG_DEVICE_POWER_MANAGEMENT
-DEVICE_AND_API_INIT(apds9960, DT_INST_LABEL(0), &apds9960_init,
-		    &apds9960_data, &apds9960_config, POST_KERNEL,
-		    CONFIG_SENSOR_INIT_PRIORITY, &apds9960_driver_api);
-#else
-DEVICE_DEFINE(apds9960, DT_INST_LABEL(0), apds9960_init,
+DEVICE_DT_INST_DEFINE(0, apds9960_init,
 	      apds9960_device_ctrl, &apds9960_data, &apds9960_config,
 	      POST_KERNEL, CONFIG_SENSOR_INIT_PRIORITY, &apds9960_driver_api);
-#endif

@@ -316,8 +316,8 @@ enum sensor_attribute {
  * @typedef sensor_trigger_handler_t
  * @brief Callback API upon firing of a trigger
  *
- * @param "struct device *dev" Pointer to the sensor device
- * @param "struct sensor_trigger *trigger" The trigger
+ * @param dev Pointer to the sensor device
+ * @param trigger The trigger
  */
 typedef void (*sensor_trigger_handler_t)(const struct device *dev,
 					 struct sensor_trigger *trigger);
@@ -405,7 +405,7 @@ static inline int z_impl_sensor_attr_set(const struct device *dev,
 		(const struct sensor_driver_api *)dev->api;
 
 	if (api->attr_set == NULL) {
-		return -ENOTSUP;
+		return -ENOSYS;
 	}
 
 	return api->attr_set(dev, chan, attr, val);
@@ -437,7 +437,7 @@ static inline int z_impl_sensor_attr_get(const struct device *dev,
 		(const struct sensor_driver_api *)dev->api;
 
 	if (api->attr_get == NULL) {
-		return -ENOTSUP;
+		return -ENOSYS;
 	}
 
 	return api->attr_get(dev, chan, attr, val);
@@ -468,7 +468,7 @@ static inline int sensor_trigger_set(const struct device *dev,
 		(const struct sensor_driver_api *)dev->api;
 
 	if (api->trigger_set == NULL) {
-		return -ENOTSUP;
+		return -ENOSYS;
 	}
 
 	return api->trigger_set(dev, trig, handler);
@@ -646,6 +646,18 @@ static inline void sensor_degrees_to_rad(int32_t d, struct sensor_value *rad)
 static inline double sensor_value_to_double(struct sensor_value *val)
 {
 	return (double)val->val1 + (double)val->val2 / 1000000;
+}
+
+/**
+ * @brief Helper function for converting double to struct sensor_value.
+ *
+ * @param val A pointer to a sensor_value struct.
+ * @param inp The converted value.
+ */
+static inline void sensor_value_from_double(struct sensor_value *val, double inp)
+{
+	val->val1 = (int32_t) inp;
+	val->val2 = (int32_t)(inp * 1000000) % 1000000;
 }
 
 /**

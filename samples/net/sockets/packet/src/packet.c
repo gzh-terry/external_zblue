@@ -15,7 +15,11 @@ LOG_MODULE_REGISTER(net_pkt_sock_sample, LOG_LEVEL_DBG);
 #include <net/ethernet.h>
 
 #define STACK_SIZE 1024
-#define THREAD_PRIORITY K_PRIO_COOP(8)
+#if IS_ENABLED(CONFIG_NET_TC_THREAD_COOPERATIVE)
+#define THREAD_PRIORITY K_PRIO_COOP(CONFIG_NUM_COOP_PRIORITIES - 1)
+#else
+#define THREAD_PRIORITY K_PRIO_PREEMPT(8)
+#endif
 #define RECV_BUFFER_SIZE 1280
 #define WAIT_TIME CONFIG_NET_SAMPLE_SEND_WAIT_TIME
 
@@ -182,6 +186,16 @@ static int send_packet_socket(struct packet_data *packet)
 			}
 		}
 
+		/* If we have received any data, flush it here in order to
+		 * not to leak memory in IP stack.
+		 */
+		do {
+			static char recv_buffer[RECV_BUFFER_SIZE];
+
+			ret = recv(packet->send_sock, recv_buffer,
+				   sizeof(recv_buffer), MSG_DONTWAIT);
+		} while (ret > 0);
+
 		if (!FLOOD) {
 			k_msleep(WAIT_TIME);
 		}
@@ -211,7 +225,7 @@ static void send_packet(void)
 
 void main(void)
 {
-	k_sem_init(&quit_lock, 0, UINT_MAX);
+	k_sem_init(&quit_lock, 0, K_SEM_MAX_LIMIT);
 
 	LOG_INF("Packet socket sample is running");
 

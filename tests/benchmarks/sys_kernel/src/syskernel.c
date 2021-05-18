@@ -134,11 +134,11 @@ void main(void)
 	/* The following code is needed to make the benchmakring run on
 	 * slower platforms.
 	 */
-	uint64_t time_stamp = z_tick_get();
+	uint64_t time_stamp = sys_clock_tick_get();
 
 	k_sleep(K_MSEC(1));
 
-	uint64_t time_stamp_2 = z_tick_get();
+	uint64_t time_stamp_2 = sys_clock_tick_get();
 
 	if (time_stamp_2 - time_stamp > 1) {
 		number_of_loops = 10U;
@@ -165,10 +165,11 @@ void main(void)
 		test_result += lifo_test();
 		test_result += fifo_test();
 		test_result += stack_test();
+		test_result += mem_slab_test();
 
 		if (test_result) {
-			/* sema/lifo/fifo/stack account for 12 tests in total */
-			if (test_result == 12) {
+			/* sema/lifo/fifo/stack/mem_slab account for 14 tests in total */
+			if (test_result == 14) {
 				fprintf(output_file, sz_module_result_fmt,
 					sz_success);
 			} else {

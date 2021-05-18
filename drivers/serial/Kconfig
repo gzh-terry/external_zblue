@@ -132,4 +132,8 @@ source "drivers/serial/Kconfig.lpc11u6x"
 
 source "drivers/serial/Kconfig.npcx"
 
+source "drivers/serial/Kconfig.apbuart"
+
+source "drivers/serial/Kconfig.rcar"
+
 endif # SERIAL

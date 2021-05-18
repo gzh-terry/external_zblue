@@ -30,6 +30,10 @@ GDATA(_k_neg_eagain)
 
 GDATA(_kernel)
 
+#if defined(CONFIG_THREAD_LOCAL_STORAGE) && defined(CONFIG_CPU_CORTEX_M)
+GDATA(z_arm_tls_ptr)
+#endif
+
 /**
  *
  * @brief PendSV exception handler, handling context switches
@@ -45,27 +49,32 @@ GDATA(_kernel)
  * For Cortex-M, z_arm_pendsv() is invoked with no arguments.
  *
  * For Cortex-R, PendSV exception is not supported by the architecture and this
- * function is directly called either by _IntExit in case of preemption, or
- * z_arm_svc in case of cooperative switching.
+ * function is directly called either by z_arm_{exc,int}_exit in case of
+ * preemption, or z_arm_svc in case of cooperative switching.
  */
 
 SECTION_FUNC(TEXT, z_arm_pendsv)
 
-#ifdef CONFIG_TRACING
+#ifdef CONFIG_INSTRUMENT_THREAD_SWITCHING
     /* Register the context switch */
     push {r0, lr}
-    bl sys_trace_thread_switched_out
+    bl z_thread_mark_switched_out
 #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
     pop {r0, r1}
     mov lr, r1
 #else
     pop {r0, lr}
 #endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
-#endif /* CONFIG_TRACING */
+#endif /* CONFIG_INSTRUMENT_THREAD_SWITCHING */
 
     /* load _kernel into r1 and current k_thread into r2 */
     ldr r1, =_kernel
     ldr r2, [r1, #_kernel_offset_to_current]
+
+#if defined(CONFIG_ARM_STORE_EXC_RETURN)
+    /* Store LSB of LR (EXC_RETURN) to the thread's 'mode' word. */
+    strb lr, [r2, #_thread_offset_to_mode_exc_return]
+#endif
 
     /* addr of callee-saved regs in thread in r0 */
     ldr r0, =_thread_offset_to_callee_saved
@@ -91,23 +100,21 @@ SECTION_FUNC(TEXT, z_arm_pendsv)
     stmia r0, {v1-v8, ip}
 #ifdef CONFIG_FPU_SHARING
     /* Assess whether switched-out thread had been using the FP registers. */
-    ldr r0, =0x10 /* EXC_RETURN.F_Type Mask */
-    tst lr, r0    /* EXC_RETURN & EXC_RETURN.F_Type_Msk */
-    beq out_fp_active
-    /* FP context inactive: clear FP state */
-    ldr r0, [r2, #_thread_offset_to_mode]
-    bic r0, #0x4 /* _current->arch.mode &= ~(CONTROL_FPCA_Msk) */
-    b out_fp_endif
+    tst lr, #0x10    /* EXC_RETURN & EXC_RETURN.F_Type_Msk */
+    bne out_fp_endif
 
-out_fp_active:
-    /* FP context active: set FP state and store callee-saved registers */
+    /* FP context active: set FP state and store callee-saved registers.
+     * Note: if Lazy FP stacking is enabled, storing the callee-saved
+     * registers will automatically trigger FP state preservation in
+     * the thread's stack. This will also clear the FPCCR.LSPACT flag.
+     */
     add r0, r2, #_thread_offset_to_preempt_float
     vstmia r0, {s16-s31}
-    ldr r0, [r2, #_thread_offset_to_mode]
-    orrs r0, r0, #0x4 /* _current->arch.mode |= CONTROL_FPCA_Msk */
 
 out_fp_endif:
-    str r0, [r2, #_thread_offset_to_mode]
+    /* At this point FPCCR.LSPACT is guaranteed to be cleared,
+     * regardless of whether the thread has an active FP context.
+     */
 #endif /* CONFIG_FPU_SHARING */
 #elif defined(CONFIG_ARMV7_R)
     /* Store rest of process context */
@@ -165,6 +172,36 @@ out_fp_endif:
     /* _SCS_ICSR is still in v4 and _SCS_ICSR_UNPENDSV in v3 */
 #if defined(CONFIG_CPU_CORTEX_M)
     str v3, [v4, #0]
+#endif
+
+#if defined(CONFIG_THREAD_LOCAL_STORAGE)
+    /* Grab the TLS pointer */
+    ldr r4, =_thread_offset_to_tls
+    adds r4, r2, r4
+    ldr r0, [r4]
+
+#if defined(CONFIG_CPU_CORTEX_R)
+    /* Store TLS pointer in the "Process ID" register.
+     * This register is used as a base pointer to all
+     * thread variables with offsets added by toolchain.
+     */
+    mcr 15, 0, r0, cr13, cr0, 3
+#endif
+
+#if defined(CONFIG_CPU_CORTEX_M)
+    /* For Cortex-M, store TLS pointer in a global variable,
+     * as it lacks the process ID or thread ID register
+     * to be used by toolchain to access thread data.
+     */
+    ldr r4, =z_arm_tls_ptr
+    str r0, [r4]
+#endif
+
+#endif
+
+#if defined(CONFIG_ARM_STORE_EXC_RETURN)
+    /* Restore EXC_RETURN value. */
+    ldrsb lr, [r2, #_thread_offset_to_mode_exc_return]
 #endif
 
     /* Restore previous interrupt disable state (irq_lock key)
@@ -250,9 +287,8 @@ _thread_irq_disabled:
 
 #ifdef CONFIG_FPU_SHARING
     /* Assess whether switched-in thread had been using the FP registers. */
-    ldr r0, [r2, #_thread_offset_to_mode]
-    tst r0, #0x04 /* thread.arch.mode & CONTROL.FPCA Msk */
-    bne in_fp_active
+    tst lr, #0x10 /* EXC_RETURN & EXC_RETURN.F_Type_Msk */
+    beq in_fp_active
     /* FP context inactive for swapped-in thread:
      * - reset FPSCR to 0
      * - set EXC_RETURN.F_Type (prevents FP frame un-stacking when returning
@@ -260,7 +296,6 @@ _thread_irq_disabled:
      */
     movs.n r3, #0
     vmsr fpscr, r3
-    orrs lr, lr, #0x10 /* EXC_RETURN & EXC_RETURN.F_Type_Msk */
     b in_fp_endif
 
 in_fp_active:
@@ -269,7 +304,6 @@ in_fp_active:
      * - FPSCR and caller-saved registers will be restored automatically
      * - restore callee-saved FP registers
      */
-    bic lr, #0x10 /* EXC_RETURN | (~EXC_RETURN.F_Type_Msk) */
     add r0, r2, #_thread_offset_to_preempt_float
     vldmia r0, {s16-s31}
 in_fp_endif:
@@ -337,21 +371,21 @@ _thread_irq_disabled:
     pop {r2, lr}
 #endif /* CONFIG_BUILTIN_STACK_GUARD */
 
-#ifdef CONFIG_TRACING
+#ifdef CONFIG_INSTRUMENT_THREAD_SWITCHING
     /* Register the context switch */
     push {r0, lr}
-    bl sys_trace_thread_switched_in
+    bl z_thread_mark_switched_in
 #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
     pop {r0, r1}
     mov lr, r1
 #else
     pop {r0, lr}
 #endif
-#endif /* CONFIG_TRACING */
+#endif /* CONFIG_INSTRUMENT_THREAD_SWITCHING */
 
     /*
      * Cortex-M: return from PendSV exception
-     * Cortex-R: return to the caller (_IntExit or z_arm_svc)
+     * Cortex-R: return to the caller (z_arm_{exc,int}_exit, or z_arm_svc)
      */
     bx lr
 
@@ -580,6 +614,12 @@ SECTION_FUNC(TEXT, z_arm_svc)
     cps #MODE_SYS
     push {r0-r3, r12, lr}
     cps #MODE_SVC
+
+    /*
+     * Store lr_svc to the SVC mode stack. This value will be restored prior to
+     * exiting the SVC call in z_arm_int_exit.
+     */
+    push {lr}
 
     /* Align stack at double-word boundary */
     and r3, sp, #4

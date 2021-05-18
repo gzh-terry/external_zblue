@@ -63,7 +63,7 @@ extern void z_arm_secure_fault(void);
 extern void z_arm_svc(void);
 extern void z_arm_debug_monitor(void);
 extern void z_arm_pendsv(void);
-extern void z_clock_isr(void);
+extern void sys_clock_isr(void);
 extern void z_arm_exc_spurious(void);
 
 __imx_boot_ivt_section void (* const image_vector_table[])(void)  = {
@@ -87,7 +87,7 @@ __imx_boot_ivt_section void (* const image_vector_table[])(void)  = {
 	(void (*)())image_vector_table,		/* 0x34, imageLoadAddress. */
 	z_arm_pendsv,						/* 0x38 */
 #if defined(CONFIG_SYS_CLOCK_EXISTS)
-	z_clock_isr,						/* 0x3C */
+	sys_clock_isr,						/* 0x3C */
 #else
 	z_arm_exc_spurious,
 #endif
@@ -106,31 +106,22 @@ static ALWAYS_INLINE void clock_init(void)
 {
 #ifdef CONFIG_SOC_MIMXRT685S_CM33
 	/* Configure LPOSC clock*/
-	if ((SYSCTL0->PDRUNCFG0 & SYSCTL0_PDRUNCFG0_LPOSC_PD_MASK) != 0) {
-		POWER_DisablePD(kPDRUNCFG_PD_LPOSC);
-	}
-
+	POWER_DisablePD(kPDRUNCFG_PD_LPOSC);
 	/* Configure FFRO clock */
-	if ((SYSCTL0->PDRUNCFG0 & SYSCTL0_PDRUNCFG0_FFRO_PD_MASK) != 0) {
-		POWER_DisablePD(kPDRUNCFG_PD_FFRO);
-		CLOCK_EnableFfroClk(kCLOCK_Ffro48M);
-	}
-	if ((SYSCTL0->PDRUNCFG0 & SYSCTL0_PDRUNCFG0_SFRO_PD_MASK) != 0) {
-		/* Configure SFRO clock */
-		POWER_DisablePD(kPDRUNCFG_PD_SFRO);
-		CLOCK_EnableSfroClk();
-	}
+	POWER_DisablePD(kPDRUNCFG_PD_FFRO);
+	CLOCK_EnableFfroClk(kCLOCK_Ffro48M);
+	/* Configure SFRO clock */
+	POWER_DisablePD(kPDRUNCFG_PD_SFRO);
+	CLOCK_EnableSfroClk();
 
-	if ((SYSCTL0->PDRUNCFG0 & SYSCTL0_PDRUNCFG0_SYSXTAL_PD_MASK) != 0) {
-		/* Configure SYSOSC clock source */
-		POWER_DisablePD(kPDRUNCFG_PD_SYSXTAL);
-		CLOCK_EnableSysOscClk(true, true, BOARD_SYSOSC_SETTLING_US);
-	}
-	CLOCK_SetXtalFreq(BOARD_XTAL_SYS_CLK_HZ);
-
-	/* Let CPU and AHB bus run on FFRO 48MHz for safe switching. */
+	/* Let CPU run on FFRO for safe switching. */
 	CLOCK_AttachClk(kFFRO_to_MAIN_CLK);
-	CLOCK_SetClkDiv(kCLOCK_DivSysCpuAhbClk, 1U);
+
+	/* Configure SYSOSC clock source */
+	POWER_DisablePD(kPDRUNCFG_PD_SYSXTAL);
+	POWER_UpdateOscSettlingTime(CONFIG_SYSOSC_SETTLING_US);
+	CLOCK_EnableSysOscClk(true, true, CONFIG_SYSOSC_SETTLING_US);
+	CLOCK_SetXtalFreq(CONFIG_XTAL_SYS_CLK_HZ);
 
 #ifdef CONFIG_INIT_SYS_PLL
 	/* Configure SysPLL0 clock source */
@@ -139,15 +130,24 @@ static ALWAYS_INLINE void clock_init(void)
 	CLOCK_InitSysPfd(kCLOCK_Pfd2, 24);
 #endif
 
-	/* Set FRGPLLCLKDIV divider to value 12 */
-	CLOCK_SetClkDiv(kCLOCK_DivPllFrgClk, 12U);
-
 #ifdef CONFIG_INIT_AUDIO_PLL
 	/* Configure Audio PLL clock source */
 	CLOCK_InitAudioPll(&g_audioPllConfig);
 	CLOCK_InitAudioPfd(kCLOCK_Pfd0, 26);
 	CLOCK_SetClkDiv(kCLOCK_DivAudioPllClk, 15U);
 #endif
+
+	/* Set SYSCPUAHBCLKDIV divider to value 2 */
+	CLOCK_SetClkDiv(kCLOCK_DivSysCpuAhbClk, 2U);
+
+	/* Set up clock selectors - Attach clocks to the peripheries */
+	CLOCK_AttachClk(kMAIN_PLL_to_MAIN_CLK);
+
+	/* Set up dividers */
+	/* Set PFC0DIV divider to value 2 */
+	CLOCK_SetClkDiv(kCLOCK_DivPfc0Clk, 2U);
+	/* Set FRGPLLCLKDIV divider to value 12 */
+	CLOCK_SetClkDiv(kCLOCK_DivPllFrgClk, 12U);
 
 	CLOCK_AttachClk(kSFRO_to_FLEXCOMM0);
 
@@ -157,6 +157,15 @@ static ALWAYS_INLINE void clock_init(void)
 
 #if DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(flexcomm5), nxp_lpc_spi, okay)
 	CLOCK_AttachClk(kFFRO_to_FLEXCOMM5);
+#endif
+
+#if (DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(flexcomm1), nxp_lpc_i2s, okay))
+	/* attach AUDIO PLL clock to FLEXCOMM1 (I2S1) */
+	CLOCK_AttachClk(kAUDIO_PLL_to_FLEXCOMM1);
+#endif
+#if (DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(flexcomm3), nxp_lpc_i2s, okay))
+	/* attach AUDIO PLL clock to FLEXCOMM3 (I2S3) */
+	CLOCK_AttachClk(kAUDIO_PLL_to_FLEXCOMM3);
 #endif
 
 #endif /* CONFIG_SOC_MIMXRT685S_CM33 */

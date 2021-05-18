@@ -25,7 +25,7 @@ typedef __SIZE_TYPE__ ssize_t;
 #if !defined(__off_t_defined)
 #define __off_t_defined
 
-#if defined(__i386) || defined(__x86_64)
+#if defined(__i386) || defined(__x86_64) || defined(__ARC64__)
 typedef long int off_t; /* "long" works for all of i386, X32 and true 64 bit */
 #elif defined(__ARM_ARCH)
 typedef int off_t;
@@ -36,6 +36,8 @@ typedef int off_t;
 #elif defined(__riscv)
 typedef int off_t;
 #elif defined(__XTENSA__)
+typedef int off_t;
+#elif defined(__sparc__)
 typedef int off_t;
 #else
 #error "The minimal libc library does not recognize the architecture!\n"

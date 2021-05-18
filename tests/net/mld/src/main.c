@@ -32,6 +32,8 @@ LOG_MODULE_REGISTER(net_test, CONFIG_NET_IPV6_LOG_LEVEL);
 #include "icmpv6.h"
 #include "ipv6.h"
 
+#define THREAD_SLEEP 50 /* ms */
+
 #define NET_LOG_ENABLED 1
 #include "net_private.h"
 
@@ -144,7 +146,7 @@ static struct dummy_api net_test_if_api = {
 #define _ETH_L2_CTX_TYPE NET_L2_GET_CTX_TYPE(DUMMY_L2)
 
 NET_DEVICE_INIT(net_test_mld, "net_test_mld",
-		net_test_dev_init, device_pm_control_nop, &net_test_data, NULL,
+		net_test_dev_init, NULL, &net_test_data, NULL,
 		CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,
 		&net_test_if_api, _ETH_L2_LAYER, _ETH_L2_CTX_TYPE,
 		127);
@@ -204,7 +206,7 @@ static void test_mld_setup(void)
 
 	setup_mgmt_events();
 
-	iface = net_if_get_default();
+	iface = net_if_get_first_by_type(&NET_L2_GET_NAME(DUMMY));
 
 	zassert_not_null(iface, "Interface is NULL");
 
@@ -230,7 +232,8 @@ static void test_join_group(void)
 		zassert_equal(ret, 0, "Cannot join IPv6 multicast group");
 	}
 
-	k_yield();
+	/* Let the network stack to proceed */
+	k_msleep(THREAD_SLEEP);
 }
 
 static void test_leave_group(void)
@@ -243,7 +246,12 @@ static void test_leave_group(void)
 
 	zassert_equal(ret, 0, "Cannot leave IPv6 multicast group");
 
-	k_yield();
+	if (IS_ENABLED(CONFIG_NET_TC_THREAD_PREEMPTIVE)) {
+		/* Let the network stack to proceed */
+		k_msleep(THREAD_SLEEP);
+	} else {
+		k_yield();
+	}
 }
 
 static void test_catch_join_group(void)
@@ -392,8 +400,10 @@ static void send_query(struct net_if *iface)
  */
 static void join_mldv2_capable_routers_group(void)
 {
-	struct net_if *iface = net_if_get_default();
+	struct net_if *iface;
 	int ret;
+
+	iface = net_if_get_first_by_type(&NET_L2_GET_NAME(DUMMY));
 
 	net_ipv6_addr_create(&mcast_addr, 0xff02, 0, 0, 0, 0, 0, 0, 0x0016);
 	ret = net_ipv6_mld_join(iface, &mcast_addr);
@@ -401,13 +411,20 @@ static void join_mldv2_capable_routers_group(void)
 	zassert_true(ret == 0 || ret == -EALREADY,
 		     "Cannot join MLDv2-capable routers multicast group");
 
-	k_yield();
+	if (IS_ENABLED(CONFIG_NET_TC_THREAD_PREEMPTIVE)) {
+		/* Let the network stack to proceed */
+		k_msleep(THREAD_SLEEP);
+	} else {
+		k_yield();
+	}
 }
 
 static void leave_mldv2_capable_routers_group(void)
 {
-	struct net_if *iface = net_if_get_default();
+	struct net_if *iface;
 	int ret;
+
+	iface = net_if_get_first_by_type(&NET_L2_GET_NAME(DUMMY));
 
 	net_ipv6_addr_create(&mcast_addr, 0xff02, 0, 0, 0, 0, 0, 0, 0x0016);
 	ret = net_ipv6_mld_leave(iface, &mcast_addr);
@@ -415,7 +432,12 @@ static void leave_mldv2_capable_routers_group(void)
 	zassert_equal(ret, 0,
 		      "Cannot leave MLDv2-capable routers multicast group");
 
-	k_yield();
+	if (IS_ENABLED(CONFIG_NET_TC_THREAD_PREEMPTIVE)) {
+		/* Let the network stack to proceed */
+		k_msleep(THREAD_SLEEP);
+	} else {
+		k_yield();
+	}
 }
 
 /* We are not really interested to parse the query at this point */
@@ -444,9 +466,14 @@ static void test_catch_query(void)
 
 	net_icmpv6_register_handler(&mld_query_input_handler);
 
-	send_query(net_if_get_default());
+	send_query(net_if_get_first_by_type(&NET_L2_GET_NAME(DUMMY)));
 
-	k_yield();
+	if (IS_ENABLED(CONFIG_NET_TC_THREAD_PREEMPTIVE)) {
+		/* Let the network stack to proceed */
+		k_msleep(THREAD_SLEEP);
+	} else {
+		k_yield();
+	}
 
 	if (k_sem_take(&wait_data, K_MSEC(WAIT_TIME))) {
 		zassert_true(0, "Timeout while waiting query event");
@@ -472,7 +499,7 @@ static void test_verify_send_report(void)
 
 	test_join_group();
 
-	send_query(net_if_get_default());
+	send_query(net_if_get_first_by_type(&NET_L2_GET_NAME(DUMMY)));
 
 	k_yield();
 

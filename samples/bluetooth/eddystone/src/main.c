@@ -28,7 +28,7 @@
 #define EDS_IDLE_TIMEOUT K_SECONDS(30)
 
 /* Idle timer */
-struct k_delayed_work idle_work;
+struct k_work_delayable idle_work;
 
 static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
@@ -426,16 +426,27 @@ static ssize_t read_adv_data(struct bt_conn *conn,
 static int eds_slot_restart(struct eds_slot *slot, uint8_t type)
 {
 	int err;
+	char addr_s[BT_ADDR_LE_STR_LEN];
+	bt_addr_le_t addr = {0};
 
 	/* Restart advertising */
 	bt_le_adv_stop();
 
 	if (type == EDS_TYPE_NONE) {
+		struct bt_le_oob oob;
+
 		/* Restore connectable if slot */
+		if (bt_le_oob_get_local(BT_ID_DEFAULT, &oob) == 0) {
+			addr = oob.addr;
+		}
+
 		err = bt_le_adv_start(BT_LE_ADV_CONN_NAME, ad, ARRAY_SIZE(ad),
 				      NULL, 0);
 	} else {
-		err = bt_le_adv_start(BT_LE_ADV_NCONN_NAME, slot->ad,
+		size_t count = 1;
+
+		bt_id_get(&addr, &count);
+		err = bt_le_adv_start(BT_LE_ADV_NCONN_IDENTITY, slot->ad,
 				      ARRAY_SIZE(slot->ad), NULL, 0);
 	}
 
@@ -443,6 +454,9 @@ static int eds_slot_restart(struct eds_slot *slot, uint8_t type)
 		printk("Advertising failed to start (err %d)\n", err);
 		return err;
 	}
+
+	bt_addr_le_to_str(&addr, addr_s, sizeof(addr_s));
+	printk("Advertising as %s\n", addr_s);
 
 	slot->type = type;
 
@@ -619,6 +633,9 @@ BT_GATT_SERVICE_DEFINE(eds_svc,
 
 static void bt_ready(int err)
 {
+	char addr_s[BT_ADDR_LE_STR_LEN];
+	struct bt_le_oob oob;
+
 	if (err) {
 		printk("Bluetooth init failed (err %d)\n", err);
 		return;
@@ -633,7 +650,12 @@ static void bt_ready(int err)
 		return;
 	}
 
-	k_delayed_work_submit(&idle_work, EDS_IDLE_TIMEOUT);
+	/* Restore connectable if slot */
+	bt_le_oob_get_local(BT_ID_DEFAULT, &oob);
+	bt_addr_le_to_str(&oob.addr, addr_s, sizeof(addr_s));
+	printk("Initial advertising as %s\n", addr_s);
+
+	k_work_schedule(&idle_work, EDS_IDLE_TIMEOUT);
 
 	printk("Configuration mode: waiting connections...\n");
 }
@@ -641,7 +663,7 @@ static void bt_ready(int err)
 static void idle_timeout(struct k_work *work)
 {
 	if (eds_slots[eds_active_slot].type == EDS_TYPE_NONE) {
-		printk("Switching to Beacon mode.\n");
+		printk("Switching to Beacon mode %u.\n", eds_active_slot);
 		eds_slot_restart(&eds_slots[eds_active_slot], EDS_TYPE_URL);
 	}
 }
@@ -652,7 +674,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 		printk("Connection failed (err 0x%02x)\n", err);
 	} else {
 		printk("Connected\n");
-		k_delayed_work_cancel(&idle_work);
+		k_work_cancel_delayable(&idle_work);
 	}
 }
 
@@ -663,7 +685,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	printk("Disconnected (reason 0x%02x)\n", reason);
 
 	if (!slot->connectable) {
-		k_delayed_work_submit(&idle_work, K_NO_WAIT);
+		k_work_reschedule(&idle_work, K_NO_WAIT);
 	}
 }
 
@@ -677,7 +699,7 @@ void main(void)
 	int err;
 
 	bt_conn_cb_register(&conn_callbacks);
-	k_delayed_work_init(&idle_work, idle_timeout);
+	k_work_init_delayable(&idle_work, idle_timeout);
 
 	/* Initialize the Bluetooth Subsystem */
 	err = bt_enable(bt_ready);

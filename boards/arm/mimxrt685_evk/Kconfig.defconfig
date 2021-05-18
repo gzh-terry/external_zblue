@@ -8,15 +8,21 @@ if BOARD_MIMXRT685_EVK
 config BOARD
 	default "mimxrt685_evk_cm33"
 
-if PINMUX_MCUX_LPC
+config XTAL_SYS_CLK_HZ
+	default 24000000
 
-config PINMUX_MCUX_LPC_PORT0
-	default y
+config SYSOSC_SETTLING_US
+	default 260
 
-config PINMUX_MCUX_LPC_PORT1
-	default y
+config FLASH_MCUX_FLEXSPI_MX25UM51345G
+	default y if FLASH
 
-endif # PINMUX_MCUX_LPC
+config FLASH_MCUX_FLEXSPI_XIP
+	default y if FLASH
+
+choice FLASH_MCUX_FLEXSPI_XIP_MEM_TARGET
+	default FLASH_MCUX_FLEXSPI_XIP_MEM_SRAM
+endchoice
 
 if GPIO_MCUX_LPC
 
@@ -34,6 +40,9 @@ config FXOS8700_DRDY_INT1
 
 if DMA_MCUX_LPC
 
+# Memory from the heap pool is used to allocate DMA descriptors for
+# channels that use multiple blocks for a DMA transfer.
+# Adjust HEAP_MEM_POOL_SIZE in case you need more memory.
 config HEAP_MEM_POOL_SIZE
 	default 4096
 

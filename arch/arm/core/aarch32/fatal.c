@@ -14,7 +14,7 @@
 
 #include <kernel.h>
 #include <logging/log.h>
-LOG_MODULE_DECLARE(os);
+LOG_MODULE_DECLARE(os, CONFIG_KERNEL_LOG_LEVEL);
 
 static void esf_dump(const z_arch_esf_t *esf)
 {
@@ -24,7 +24,7 @@ static void esf_dump(const z_arch_esf_t *esf)
 		esf->basic.a4, esf->basic.ip, esf->basic.lr);
 	LOG_ERR(" xpsr:  0x%08x", esf->basic.xpsr);
 #if defined(CONFIG_FPU) && defined(CONFIG_FPU_SHARING)
-	for (int i = 0; i < 16; i += 4) {
+	for (int i = 0; i < ARRAY_SIZE(esf->s); i += 4) {
 		LOG_ERR("s[%2d]:  0x%08x  s[%2d]:  0x%08x"
 			"  s[%2d]:  0x%08x  s[%2d]:  0x%08x",
 			i, (uint32_t)esf->s[i],
@@ -45,6 +45,9 @@ static void esf_dump(const z_arch_esf_t *esf)
 		LOG_ERR("r10/v7: 0x%08x  r11/v8: 0x%08x    psp:  0x%08x",
 			callee->v7, callee->v8, callee->psp);
 	}
+
+	LOG_ERR("EXC_RETURN: 0x%0x", esf->extra_info.exc_return);
+
 #endif /* CONFIG_EXTRA_EXCEPTION_INFO */
 	LOG_ERR("Faulting instruction address (r15/pc): 0x%08x",
 		esf->basic.pc);
