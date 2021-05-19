@@ -20,15 +20,11 @@ LOG_MODULE_REGISTER(net_sock_addr, CONFIG_NET_SOCKETS_LOG_LEVEL);
 #include <net/socket_offload.h>
 #include <syscall_handler.h>
 
+#define AI_ARR_MAX	2
+
 #if defined(CONFIG_DNS_RESOLVER) || \
 	defined(CONFIG_NET_IPV6) || defined(CONFIG_NET_IPV4)
 #define ANY_RESOLVER
-
-#if defined(CONFIG_DNS_RESOLVER_AI_MAX_ENTRIES)
-#define AI_ARR_MAX CONFIG_DNS_RESOLVER_AI_MAX_ENTRIES
-#else
-#define AI_ARR_MAX 1
-#endif /* defined(CONFIG_DNS_RESOLVER_AI_MAX_ENTRIES) */
 
 /* Initialize static fields of addrinfo structure. A macro to let it work
  * with any sockaddr_* type.
@@ -60,6 +56,7 @@ static void dns_resolve_cb(enum dns_resolve_status status,
 	struct getaddrinfo_state *state = user_data;
 	struct zsock_addrinfo *ai;
 	int socktype = SOCK_STREAM;
+	int proto;
 
 	NET_DBG("dns status: %d", status);
 
@@ -78,10 +75,6 @@ static void dns_resolve_cb(enum dns_resolve_status status,
 	}
 
 	ai = &state->ai_arr[state->idx];
-	if (state->idx > 0) {
-		state->ai_arr[state->idx - 1].ai_next = ai;
-	}
-
 	memcpy(&ai->_ai_addr, &info->ai_addr, info->ai_addrlen);
 	net_sin(&ai->_ai_addr)->sin_port = state->port;
 	ai->ai_addr = &ai->_ai_addr;
@@ -97,8 +90,13 @@ static void dns_resolve_cb(enum dns_resolve_status status,
 		}
 	}
 
+	proto = IPPROTO_TCP;
+	if (socktype == SOCK_DGRAM) {
+		proto = IPPROTO_UDP;
+	}
+
 	ai->ai_socktype = socktype;
-	ai->ai_protocol = (socktype == SOCK_DGRAM) ? IPPROTO_UDP : IPPROTO_TCP;
+	ai->ai_protocol = proto;
 
 	state->idx++;
 }
@@ -200,6 +198,9 @@ int z_impl_z_zsock_getaddrinfo_internal(const char *host, const char *service,
 	ai_state.ai_arr = res;
 	k_sem_init(&ai_state.sem, 0, K_SEM_MAX_LIMIT);
 
+	/* Link entries in advance */
+	ai_state.ai_arr[0].ai_next = &ai_state.ai_arr[1];
+
 	/* If the family is AF_UNSPEC, then we query IPv4 address first */
 	ret = exec_query(host, family, &ai_state);
 	if (ret == 0) {
@@ -284,7 +285,8 @@ static inline int z_vrfy_z_zsock_getaddrinfo_internal(const char *host,
 		Z_OOPS(z_user_from_copy(&hints_copy, (void *)hints,
 					sizeof(hints_copy)));
 	}
-	Z_OOPS(Z_SYSCALL_MEMORY_ARRAY_WRITE(res, AI_ARR_MAX, sizeof(struct zsock_addrinfo)));
+	Z_OOPS(Z_SYSCALL_MEMORY_ARRAY_WRITE(res, AI_ARR_MAX,
+					    sizeof(struct zsock_addrinfo)));
 
 	if (service) {
 		service_copy = z_user_string_alloc_copy((char *)service, 64);

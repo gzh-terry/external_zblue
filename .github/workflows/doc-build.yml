@@ -34,7 +34,7 @@ jobs:
 
     - name: install-pkgs
       run: |
-        sudo apt-get install -y ninja-build doxygen graphviz
+        sudo apt-get install -y ninja-build doxygen
 
     - name: cache-pip
       uses: actions/cache@v1
@@ -45,6 +45,7 @@ jobs:
     - name: install-pip
       run: |
         sudo pip3 install -U setuptools wheel pip
+        pip3 install -r scripts/requirements-base.txt
         pip3 install -r scripts/requirements-doc.txt
         pip3 install west==0.11.0
 
@@ -54,7 +55,8 @@ jobs:
 
     - name: build-docs
       run: |
-        SPHINXOPTS="-q -W -j auto" make -C doc html
+        source zephyr-env.sh
+        SPHINXOPTS="-q -j auto" make -C doc htmldocs
         tar cvf htmldocs.tar --directory=./doc/_build html
 
     - name: upload-build

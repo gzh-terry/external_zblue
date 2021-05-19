@@ -34,12 +34,15 @@ static void trigger_handler(const struct device *dev,
 #endif
 
 #ifdef CONFIG_PM_DEVICE
-static void pm_info(enum pm_device_state state, int status)
+static void pm_cb(const struct device *dev,
+		  int status,
+		  uint32_t *state,
+		  void *arg)
 {
 	ARG_UNUSED(dev);
 	ARG_UNUSED(arg);
 
-	switch (state) {
+	switch (*state) {
 	case PM_DEVICE_STATE_ACTIVE:
 		printk("Enter ACTIVE_STATE ");
 		break;
@@ -92,20 +95,16 @@ void main(void)
 
 #ifdef CONFIG_PM_DEVICE
 	/* Testing the power modes */
-	enum pm_device_state p_state;
-	int ret;
+	uint32_t p_state;
 
 	p_state = PM_DEVICE_STATE_LOW_POWER;
-	ret = pm_device_state_set(dev, p_state);
-	pm_info(p_state, ret);
+	pm_device_state_set(dev, p_state, pm_cb, NULL);
 
 	p_state = PM_DEVICE_STATE_OFF;
-	ret = pm_device_state_set(dev, p_state);
-	pm_info(p_state, ret);
+	pm_device_state_set(dev, p_state, pm_cb, NULL);
 
 	p_state = PM_DEVICE_STATE_ACTIVE;
-	ret = pm_device_state_set(dev, p_state);
-	pm_info(p_state, ret);
+	pm_device_state_set(dev, p_state, pm_cb, NULL);
 #endif
 
 	while (1) {
@@ -134,12 +133,10 @@ void main(void)
 
 #ifdef CONFIG_PM_DEVICE
 		p_state = PM_DEVICE_STATE_OFF;
-		ret = pm_device_state_set(dev, p_state);
-		pm_info(p_state, ret);
+		pm_device_state_set(dev, p_state, pm_cb, NULL);
 		k_sleep(K_MSEC(2000));
 		p_state = PM_DEVICE_STATE_ACTIVE;
-		ret = pm_device_state_set(dev, p_state);
-		pm_info(p_state, ret);
+		pm_device_state_set(dev, p_state, pm_cb, NULL);
 #elif CONFIG_FDC2X1X_TRIGGER_NONE
 		k_sleep(K_MSEC(100));
 #endif

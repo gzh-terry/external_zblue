@@ -62,8 +62,6 @@ source "drivers/flash/Kconfig.at45"
 
 source "drivers/flash/Kconfig.esp32"
 
-source "drivers/flash/Kconfig.it8xxx2"
-
 source "drivers/flash/Kconfig.nrf"
 
 source "drivers/flash/Kconfig.lpc"

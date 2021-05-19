@@ -680,7 +680,7 @@ _oops:
 
 GTEXT(z_arm_cortex_r_svc)
 SECTION_FUNC(TEXT, z_arm_cortex_r_svc)
-    svc #_SVC_CALL_CONTEXT_SWITCH
+    svc #0
     bx lr
 
 #else

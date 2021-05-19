@@ -20,7 +20,7 @@ struct i2c_nrfx_twi_data {
 	volatile nrfx_err_t res;
 	uint32_t dev_config;
 #ifdef CONFIG_PM_DEVICE
-	enum pm_device_state pm_state;
+	uint32_t pm_state;
 #endif
 };
 
@@ -224,13 +224,13 @@ static int init_twi(const struct device *dev)
 #ifdef CONFIG_PM_DEVICE
 static int twi_nrfx_pm_control(const struct device *dev,
 				uint32_t ctrl_command,
-				enum pm_device_state *state)
+				uint32_t *state, pm_device_cb cb, void *arg)
 {
 	int ret = 0;
-	enum pm_device_state pm_current_state = get_dev_data(dev)->pm_state;
+	uint32_t pm_current_state = get_dev_data(dev)->pm_state;
 
 	if (ctrl_command == PM_DEVICE_STATE_SET) {
-		enum pm_device_state new_state = *state;
+		uint32_t new_state = *state;
 
 		if (new_state != pm_current_state) {
 			switch (new_state) {
@@ -261,6 +261,10 @@ static int twi_nrfx_pm_control(const struct device *dev,
 	} else {
 		__ASSERT_NO_MSG(ctrl_command == PM_DEVICE_STATE_GET);
 		*state = get_dev_data(dev)->pm_state;
+	}
+
+	if (cb) {
+		cb(dev, ret, state, arg);
 	}
 
 	return ret;

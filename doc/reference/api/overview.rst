@@ -48,7 +48,7 @@ current :ref:`stability level <api_lifecycle>`.
      - 2.4
 
    * - :ref:`can_api`
-     - Unstable
+     - Experimental
      - 1.14
      - 2.6
 
@@ -78,7 +78,7 @@ current :ref:`stability level <api_lifecycle>`.
      - 2.4
 
    * - :ref:`devicetree_api`
-     - Stable
+     - Experimental
      - 2.2
      - 2.6
 

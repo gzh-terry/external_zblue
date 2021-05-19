@@ -416,8 +416,6 @@ enum net_priority {
 	NET_PRIORITY_NC = 7  /**< Network control                    */
 } __packed;
 
-#define NET_MAX_PRIORITIES 8 /* How many priority values there are */
-
 /** IPv6/IPv4 network connection tuple */
 struct net_tuple {
 	struct net_addr *remote_addr;  /**< IPv6/IPv4 remote address */

@@ -588,7 +588,12 @@ static int sm_send_bootstrap_registration(void)
 	LOG_DBG("Register ID with bootstrap server as '%s'",
 		log_strdup(query_buffer));
 
-	lwm2m_send_message_async(msg);
+	ret = lwm2m_send_message(msg);
+	if (ret < 0) {
+		LOG_ERR("Error sending LWM2M packet (err:%d).",
+			    ret);
+		goto cleanup;
+	}
 
 	return 0;
 
@@ -774,7 +779,11 @@ static int sm_send_registration(bool send_obj_support_data,
 		}
 	}
 
-	lwm2m_send_message_async(msg);
+	ret = lwm2m_send_message(msg);
+	if (ret < 0) {
+		LOG_ERR("Error sending LWM2M packet (err:%d).", ret);
+		goto cleanup;
+	}
 
 	/* log the registration attempt */
 	LOG_DBG("registration sent [%s]",
@@ -920,7 +929,11 @@ static int sm_do_deregister(void)
 
 	LOG_INF("Deregister from '%s'", log_strdup(client.server_ep));
 
-	lwm2m_send_message_async(msg);
+	ret = lwm2m_send_message(msg);
+	if (ret < 0) {
+		LOG_ERR("Error sending LWM2M packet (err:%d).", ret);
+		goto cleanup;
+	}
 
 	set_sm_state(ENGINE_DEREGISTER_SENT);
 	return 0;
@@ -1058,11 +1071,6 @@ void lwm2m_rd_client_stop(struct lwm2m_ctx *client_ctx,
 	}
 
 	LOG_INF("Stop LWM2M Client: %s", log_strdup(client.ep_name));
-}
-
-void lwm2m_rd_client_update(void)
-{
-	engine_trigger_update(false);
 }
 
 static int lwm2m_rd_client_init(const struct device *dev)

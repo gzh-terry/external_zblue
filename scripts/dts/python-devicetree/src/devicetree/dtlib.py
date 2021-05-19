@@ -709,8 +709,7 @@ class DT:
     # Public interface
     #
 
-    def __init__(self, filename: str, include_path: Iterable[str] = (),
-                 force: bool = False):
+    def __init__(self, filename: str, include_path: Iterable[str] = ()):
         """
         Parses a DTS file to create a DT instance. Raises OSError if 'filename'
         can't be opened, and DTError for any parse errors.
@@ -722,14 +721,9 @@ class DT:
           An iterable (e.g. list or tuple) containing paths to search for
           /include/d and /incbin/'d files. By default, files are only looked up
           relative to the .dts file that contains the /include/ or /incbin/.
-
-        force:
-          Try not to raise DTError even if the input tree has errors.
-          For experimental use; results not guaranteed.
         """
         self.filename = filename
         self._include_path = list(include_path)
-        self._force = force
 
         with open(filename, encoding="utf-8") as f:
             self._file_contents = f.read()
@@ -1684,15 +1678,8 @@ class DT:
                     _err("/aliases: alias property name '{}' should include "
                          "only characters from [0-9a-z-]".format(prop.name))
 
-                # Property.to_path() checks that the node exists, has
-                # the right type, etc. Swallow errors for invalid
-                # aliases with self._force.
-                try:
-                    alias2node[prop.name] = prop.to_path()
-                except DTError:
-                    if self._force:
-                        continue
-                    raise
+                # Property.to_path() already checks that the node exists
+                alias2node[prop.name] = prop.to_path()
 
         self.alias2node = alias2node
 
