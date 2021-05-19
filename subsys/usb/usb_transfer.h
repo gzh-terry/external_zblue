@@ -18,8 +18,4 @@ extern "C" {
  */
 int usb_transfer_init(void);
 
-#ifdef __cplusplus
-}
-#endif
-
 #endif /* ZEPHYR_USB_TRANSFER_H_ */

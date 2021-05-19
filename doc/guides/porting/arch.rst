@@ -301,30 +301,6 @@ This means implementing an architecture-specific version of
 :option:`CONFIG_ARCH_HAS_THREAD_ABORT` as needed for the architecture (e.g. see
 :zephyr_file:`arch/arm/core/aarch32/cortex_m/Kconfig`).
 
-Thread Local Storage
-********************
-
-To enable thread local storage on a new architecture:
-
-#. Implement :c:func:`arch_tls_stack_setup` to setup the TLS storage area in
-   stack. Refer to the toolchain documentation on how the storage area needs
-   to be structured. Some helper functions can be used:
-
-   * Function :c:func:`z_tls_data_size` returns the size
-     needed for thread local variables (excluding any extra data required by
-     toolchain and architecture).
-   * Function :c:func:`z_tls_copy` prepares the TLS storage area for
-     thread local variables. This only copies the variable themselves and
-     does not do architecture and/or toolchain specific data.
-
-#. In the context switching, grab the ``tls`` field inside the new thread's
-   ``struct k_thread`` and put it into an appropriate register (or some
-   other variable) for access to the TLS storage area. Refer to toolchain
-   and architecture documentation on which registers to use.
-#. In kconfig, add ``select CONFIG_ARCH_HAS_THREAD_LOCAL_STORAGE`` to
-   kconfig related to the new architecture.
-#. Run the ``tests/kernel/threads/tls`` to make sure the new code works.
-
 Device Drivers
 **************
 
@@ -369,6 +345,27 @@ Cortex-M has the SYSTICK exception. Finally, ARCv2 has the timer0/1 device.
 Kernel timeouts are handled in the context of the system clock timer driver's
 interrupt handler.
 
+Tickless Idle
+-------------
+
+The kernel has support for tickless idle. Tickless idle is the concept where no
+system clock timer interrupt is to be delivered to the CPU when the kernel is
+about to go idle and the closest timeout expiry is passed a certain threshold.
+When this condition happens, the system clock is reprogrammed far in the future
+instead of for a periodic tick. For this to work, the system clock timer driver
+must support it.
+
+Tickless idle is optional but strongly recommended to achieve low-power
+consumption.
+
+The kernel has built-in support for going into tickless idle.
+
+The system clock timer driver must implement some hooks to support tickless
+idle. See existing drivers for examples.
+
+The interrupt entry stub (:code:`_interrupt_enter`, :code:`_isr_wrapper`) needs
+to be adapted to handle exiting tickless idle. See examples in the code for
+existing architectures.
 
 Console Over Serial Line
 ========================
@@ -390,10 +387,6 @@ instructions or in a lock-less manner in modern processors. Those are thus
 expected to be implemented as part of an architecture port.
 
 * Atomic operators.
-
-  * If instructions do exist for a given architecture, the implementation is
-    configured using the :option:`CONFIG_ATOMIC_OPERATIONS_ARCH` Kconfig
-    option.
 
   * If instructions do not exist for a given architecture,
     a generic version that wraps :c:func:`irq_lock` or :c:func:`irq_unlock`
@@ -807,6 +800,8 @@ on MMU systems and uncommon on MPU systems:
 
 * :c:func:`arch_mem_domain_partition_remove`
 
+* :c:func:`arch_mem_domain_destroy`
+
 Please see the doxygen documentation of these APIs for details.
 
 In addition to implementing these APIs, there are some other tasks as well:
@@ -848,9 +843,6 @@ Threads
 =======
 
 .. doxygengroup:: arch-threads
-   :project: Zephyr
-
-.. doxygengroup:: arch-tls
    :project: Zephyr
 
 Power Management

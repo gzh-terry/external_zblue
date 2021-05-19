@@ -19,7 +19,7 @@ struct spi_nrfx_data {
 	const struct device *dev;
 	size_t chunk_len;
 	bool   busy;
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 	uint32_t pm_state;
 #endif
 };
@@ -142,7 +142,7 @@ static void transfer_next_chunk(const struct device *dev)
 	struct spi_context *ctx = &dev_data->ctx;
 	int error = 0;
 
-	size_t chunk_len = spi_context_max_continuous_chunk(ctx);
+	size_t chunk_len = spi_context_longest_current_buf(ctx);
 
 	if (chunk_len > 0) {
 		nrfx_spi_xfer_desc_t xfer;
@@ -180,7 +180,7 @@ static int transceive(const struct device *dev,
 	struct spi_nrfx_data *dev_data = get_dev_data(dev);
 	int error;
 
-	spi_context_lock(&dev_data->ctx, asynchronous, signal, spi_cfg);
+	spi_context_lock(&dev_data->ctx, asynchronous, signal);
 
 	error = configure(dev, spi_cfg);
 	if (error == 0) {
@@ -276,37 +276,38 @@ static int init_spi(const struct device *dev)
 		return -EBUSY;
 	}
 
-#ifdef CONFIG_PM_DEVICE
-	dev_data->pm_state = PM_DEVICE_STATE_ACTIVE;
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
+	dev_data->pm_state = DEVICE_PM_ACTIVE_STATE;
 #endif
+	spi_context_unlock_unconditionally(&dev_data->ctx);
 
 	return 0;
 }
 
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 static int spi_nrfx_pm_control(const struct device *dev,
 				uint32_t ctrl_command,
-				uint32_t *state, pm_device_cb cb, void *arg)
+				void *context, device_pm_cb cb, void *arg)
 {
 	int ret = 0;
 	struct spi_nrfx_data *data = get_dev_data(dev);
 	const struct spi_nrfx_config *config = get_dev_config(dev);
 
-	if (ctrl_command == PM_DEVICE_STATE_SET) {
-		uint32_t new_state = *state;
+	if (ctrl_command == DEVICE_PM_SET_POWER_STATE) {
+		uint32_t new_state = *((const uint32_t *)context);
 
 		if (new_state != data->pm_state) {
 			switch (new_state) {
-			case PM_DEVICE_STATE_ACTIVE:
+			case DEVICE_PM_ACTIVE_STATE:
 				ret = init_spi(dev);
 				/* Force reconfiguration before next transfer */
 				data->ctx.config = NULL;
 				break;
 
-			case PM_DEVICE_STATE_LOW_POWER:
-			case PM_DEVICE_STATE_SUSPEND:
-			case PM_DEVICE_STATE_OFF:
-				if (data->pm_state == PM_DEVICE_STATE_ACTIVE) {
+			case DEVICE_PM_LOW_POWER_STATE:
+			case DEVICE_PM_SUSPEND_STATE:
+			case DEVICE_PM_OFF_STATE:
+				if (data->pm_state == DEVICE_PM_ACTIVE_STATE) {
 					nrfx_spi_uninit(&config->spi);
 				}
 				break;
@@ -319,17 +320,17 @@ static int spi_nrfx_pm_control(const struct device *dev,
 			}
 		}
 	} else {
-		__ASSERT_NO_MSG(ctrl_command == PM_DEVICE_STATE_GET);
-		*state = data->pm_state;
+		__ASSERT_NO_MSG(ctrl_command == DEVICE_PM_GET_POWER_STATE);
+		*((uint32_t *)context) = data->pm_state;
 	}
 
 	if (cb) {
-		cb(dev, ret, state, arg);
+		cb(dev, ret, context, arg);
 	}
 
 	return ret;
 }
-#endif /* CONFIG_PM_DEVICE */
+#endif /* CONFIG_DEVICE_POWER_MANAGEMENT */
 
 /*
  * Current factors requiring use of DT_NODELABEL:
@@ -360,9 +361,7 @@ static int spi_nrfx_pm_control(const struct device *dev,
 	{								       \
 		IRQ_CONNECT(DT_IRQN(SPI(idx)), DT_IRQ(SPI(idx), priority),     \
 			    nrfx_isr, nrfx_spi_##idx##_irq_handler, 0);	       \
-		int err = init_spi(dev);				       \
-		spi_context_unlock_unconditionally(&get_dev_data(dev)->ctx);   \
-		return err;					       	       \
+		return init_spi(dev);					       \
 	}								       \
 	static struct spi_nrfx_data spi_##idx##_data = {		       \
 		SPI_CONTEXT_INIT_LOCK(spi_##idx##_data, ctx),		       \
@@ -383,7 +382,7 @@ static int spi_nrfx_pm_control(const struct device *dev,
 			.miso_pull = SPI_NRFX_MISO_PULL(idx),		       \
 		}							       \
 	};								       \
-	DEVICE_DT_DEFINE(SPI(idx),					       \
+	DEVICE_DEFINE(spi_##idx, DT_LABEL(SPI(idx)),			       \
 		      spi_##idx##_init,					       \
 		      spi_nrfx_pm_control,				       \
 		      &spi_##idx##_data,				       \

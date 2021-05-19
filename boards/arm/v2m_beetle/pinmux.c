@@ -12,6 +12,8 @@
 #include <sys/sys_io.h>
 #include <gpio/gpio_cmsdk_ahb.h>
 
+#include "pinmux/pinmux.h"
+
 /**
  * @brief Pinmux driver for ARM V2M Beetle Board
  *

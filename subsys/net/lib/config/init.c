@@ -32,7 +32,7 @@ extern const struct log_backend *log_backend_net_get(void);
 extern int net_init_clock_via_sntp(void);
 
 static K_SEM_DEFINE(waiter, 0, 1);
-static K_SEM_DEFINE(counter, 0, UINT_MAX);
+static struct k_sem counter;
 static atomic_t services_flags;
 
 #if defined(CONFIG_NET_NATIVE)
@@ -361,7 +361,7 @@ int net_config_init_by_iface(struct net_if *iface, const char *app_info,
 
 	/* First make sure that network interface is up */
 	if (check_interface(iface) == false) {
-		k_sem_init(&counter, 1, K_SEM_MAX_LIMIT);
+		k_sem_init(&counter, 1, UINT_MAX);
 
 		while (count-- > 0) {
 			if (!k_sem_count_get(&counter)) {
@@ -375,18 +375,24 @@ int net_config_init_by_iface(struct net_if *iface, const char *app_info,
 			}
 		}
 
+		/* If the above while() loop timeouted, reset the count so that
+		 * the while() loop below will not wait more.
+		 */
+		if (timeout > 0 && count < 0) {
+			count = 0;
+		}
+
 #if defined(CONFIG_NET_NATIVE)
 		net_mgmt_del_event_callback(&mgmt_iface_cb);
 #endif
+	}
 
+	if (count == 0) {
 		/* Network interface did not come up. We will not try
 		 * to setup things in that case.
 		 */
-		if (timeout > 0 && count < 0) {
-			NET_ERR("Timeout while waiting network %s",
-				"interface");
-			return -ENETDOWN;
-		}
+		NET_ERR("Timeout while waiting network %s", "interface");
+		return -ENETDOWN;
 	}
 
 	setup_ipv4(iface);
@@ -400,7 +406,7 @@ int net_config_init_by_iface(struct net_if *iface, const char *app_info,
 		k_sem_take(&waiter, K_MSEC(loop));
 	}
 
-	if (count == -1 && timeout > 0) {
+	if (!count && timeout) {
 		NET_ERR("Timeout while waiting network %s", "setup");
 		return -ETIMEDOUT;
 	}
@@ -412,17 +418,6 @@ int net_config_init(const char *app_info, uint32_t flags,
 		    int32_t timeout)
 {
 	return net_config_init_by_iface(NULL, app_info, flags, timeout);
-}
-
-static void iface_find_cb(struct net_if *iface, void *user_data)
-{
-	struct net_if **iface_to_use = user_data;
-
-	if (*iface_to_use == NULL &&
-	    !net_if_flag_is_set(iface, NET_IF_NO_AUTO_START)) {
-		*iface_to_use = iface;
-		return;
-	}
 }
 
 int net_config_init_app(const struct device *dev, const char *app_info)
@@ -464,11 +459,6 @@ int net_config_init_app(const struct device *dev, const char *app_info)
 		flags |= NET_CONFIG_NEED_IPV4;
 	}
 
-	/* Only try to use a network interface that is auto started */
-	if (iface == NULL) {
-		net_if_foreach(iface_find_cb, &iface);
-	}
-
 	/* Initialize the application automatically if needed */
 	ret = net_config_init_by_iface(iface, app_info, flags,
 				CONFIG_NET_CONFIG_INIT_TIMEOUT * MSEC_PER_SEC);
@@ -483,15 +473,10 @@ int net_config_init_app(const struct device *dev, const char *app_info)
 	/* This is activated late as it requires the network stack to be up
 	 * and running before syslog messages can be sent to network.
 	 */
-	if (IS_ENABLED(CONFIG_LOG_BACKEND_NET) &&
-	    IS_ENABLED(CONFIG_LOG_BACKEND_NET_AUTOSTART)) {
+	if (IS_ENABLED(CONFIG_LOG_BACKEND_NET)) {
 		const struct log_backend *backend = log_backend_net_get();
 
 		if (!log_backend_is_active(backend)) {
-			if (backend->api->init != NULL) {
-				backend->api->init(backend);
-			}
-
 			log_backend_activate(backend, NULL);
 		}
 	}

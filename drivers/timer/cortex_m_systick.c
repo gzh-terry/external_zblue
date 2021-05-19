@@ -35,7 +35,7 @@ static uint32_t last_load;
 
 /*
  * This local variable holds the amount of SysTick HW cycles elapsed
- * and it is updated in sys_clock_isr() and sys_clock_set_timeout().
+ * and it is updated in z_clock_isr() and z_clock_set_timeout().
  *
  * Note:
  *  At an arbitrary point in time the "current" value of the SysTick
@@ -65,7 +65,7 @@ static volatile uint32_t overflow_cyc;
 /* This internal function calculates the amount of HW cycles that have
  * elapsed since the last time the absolute HW cycles counter has been
  * updated. 'cycle_count' may be updated either by the ISR, or when we
- * re-program the SysTick.LOAD register, in sys_clock_set_timeout().
+ * re-program the SysTick.LOAD register, in z_clock_set_timeout().
  *
  * Additionally, the function updates the 'overflow_cyc' counter, that
  * holds the amount of elapsed HW cycles due to (possibly) multiple
@@ -113,7 +113,7 @@ static uint32_t elapsed(void)
 }
 
 /* Callout out of platform assembly, not hooked via IRQ_CONNECT... */
-void sys_clock_isr(void *arg)
+void z_clock_isr(void *arg)
 {
 	ARG_UNUSED(arg);
 	uint32_t dticks;
@@ -129,11 +129,11 @@ void sys_clock_isr(void *arg)
 
 	if (TICKLESS) {
 		/* In TICKLESS mode, the SysTick.LOAD is re-programmed
-		 * in sys_clock_set_timeout(), followed by resetting of
+		 * in z_clock_set_timeout(), followed by resetting of
 		 * the counter (VAL = 0).
 		 *
 		 * If a timer wrap occurs right when we re-program LOAD,
-		 * the ISR is triggered immediately after sys_clock_set_timeout()
+		 * the ISR is triggered immediately after z_clock_set_timeout()
 		 * returns; in that case we shall not increment the cycle_count
 		 * because the value has been updated before LOAD re-program.
 		 *
@@ -142,16 +142,16 @@ void sys_clock_isr(void *arg)
 
 		dticks = (cycle_count - announced_cycles) / CYC_PER_TICK;
 		announced_cycles += dticks * CYC_PER_TICK;
-		sys_clock_announce(dticks);
+		z_clock_announce(dticks);
 	} else {
-		sys_clock_announce(1);
+		z_clock_announce(1);
 	}
 	z_arm_int_exit();
 }
 
-int sys_clock_driver_init(const struct device *dev)
+int z_clock_driver_init(const struct device *device)
 {
-	ARG_UNUSED(dev);
+	ARG_UNUSED(device);
 
 	NVIC_SetPriority(SysTick_IRQn, _IRQ_PRIO_OFFSET);
 	last_load = CYC_PER_TICK - 1;
@@ -164,7 +164,7 @@ int sys_clock_driver_init(const struct device *dev)
 	return 0;
 }
 
-void sys_clock_set_timeout(int32_t ticks, bool idle)
+void z_clock_set_timeout(int32_t ticks, bool idle)
 {
 	/* Fast CPUs and a 24 bit counter mean that even idle systems
 	 * need to wake up multiple times per second.  If the kernel
@@ -172,7 +172,8 @@ void sys_clock_set_timeout(int32_t ticks, bool idle)
 	 * the counter. (Note: we can assume if idle==true that
 	 * interrupts are already disabled)
 	 */
-	if (IS_ENABLED(CONFIG_TICKLESS_KERNEL) && idle && ticks == K_TICKS_FOREVER) {
+	if (IS_ENABLED(CONFIG_TICKLESS_IDLE) && idle
+	    && ticks == K_TICKS_FOREVER) {
 		SysTick->CTRL &= ~SysTick_CTRL_ENABLE_Msk;
 		last_load = TIMER_STOPPED;
 		return;
@@ -182,7 +183,7 @@ void sys_clock_set_timeout(int32_t ticks, bool idle)
 	uint32_t delay;
 
 	ticks = (ticks == K_TICKS_FOREVER) ? MAX_TICKS : ticks;
-	ticks = CLAMP(ticks - 1, 0, (int32_t)MAX_TICKS);
+	ticks = MAX(MIN(ticks - 1, (int32_t)MAX_TICKS), 0);
 
 	k_spinlock_key_t key = k_spin_lock(&lock);
 
@@ -224,7 +225,7 @@ void sys_clock_set_timeout(int32_t ticks, bool idle)
 #endif
 }
 
-uint32_t sys_clock_elapsed(void)
+uint32_t z_clock_elapsed(void)
 {
 	if (!TICKLESS) {
 		return 0;
@@ -237,7 +238,7 @@ uint32_t sys_clock_elapsed(void)
 	return cyc / CYC_PER_TICK;
 }
 
-uint32_t sys_clock_cycle_get_32(void)
+uint32_t z_timer_cycle_get_32(void)
 {
 	k_spinlock_key_t key = k_spin_lock(&lock);
 	uint32_t ret = elapsed() + cycle_count;
@@ -246,7 +247,7 @@ uint32_t sys_clock_cycle_get_32(void)
 	return ret;
 }
 
-void sys_clock_idle_exit(void)
+void z_clock_idle_exit(void)
 {
 	if (last_load == TIMER_STOPPED) {
 		SysTick->CTRL |= SysTick_CTRL_ENABLE_Msk;

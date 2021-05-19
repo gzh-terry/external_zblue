@@ -100,7 +100,7 @@ Next, you'll install some host dependencies using your package manager.
 
          .. code-block:: bash
 
-            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+            /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 
       #. Use ``brew`` to install dependencies:
 
@@ -211,7 +211,7 @@ additional Python dependencies.
 
          .. code-block:: bash
 
-            pip3 install -U west
+            pip3 install west
 
       #. Get the Zephyr source code:
 
@@ -242,7 +242,7 @@ additional Python dependencies.
 
          .. code-block:: bash
 
-            pip3 install -U west
+            pip3 install west
 
       #. Get the Zephyr source code:
 
@@ -292,14 +292,14 @@ to build Zephyr applications.
          .. code-block:: bash
 
             cd ~
-            wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.12.4/zephyr-sdk-0.12.4-x86_64-linux-setup.run
+            wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.11.3/zephyr-sdk-0.11.3-setup.run
 
-      #. Run the installer, installing the SDK in :file:`~/zephyr-sdk-0.12.4`:
+      #. Run the installer, installing the SDK in :file:`~/zephyr-sdk-0.11.3`:
 
          .. code-block:: bash
 
-            chmod +x zephyr-sdk-0.12.4-x86_64-linux-setup.run
-            ./zephyr-sdk-0.12.4-x86_64-linux-setup.run -- -d ~/zephyr-sdk-0.12.4
+            chmod +x zephyr-sdk-0.11.3-setup.run
+            ./zephyr-sdk-0.11.3-setup.run -- -d ~/zephyr-sdk-0.11.3
 
          .. note::
             It is recommended to install the Zephyr SDK at one of the following locations:
@@ -312,7 +312,7 @@ to build Zephyr applications.
             * ``/usr/zephyr-sdk[-x.y.z]``
             * ``/usr/local/zephyr-sdk[-x.y.z]``
 
-            where ``[-x.y.z]`` is optional text, and can be any text, for example ``-0.12.4``.
+            where ``[-x.y.z]`` is optional text, and can be any text, for example ``-0.11.3``.
 
             If installing the Zephyr SDK outside any of those locations, please read: :ref:`zephyr_sdk`
 
@@ -323,7 +323,7 @@ to build Zephyr applications.
 
          .. code-block:: bash
 
-            sudo cp ~/zephyr-sdk-0.12.4/sysroots/x86_64-pokysdk-linux/usr/share/openocd/contrib/60-openocd.rules /etc/udev/rules.d
+            sudo cp ~/zephyr-sdk-0.11.3/sysroots/x86_64-pokysdk-linux/usr/share/openocd/contrib/60-openocd.rules /etc/udev/rules.d
             sudo udevadm control --reload
 
    .. group-tab:: macOS
@@ -398,7 +398,7 @@ Then flash the sample using :ref:`west flash <west-flashing>`:
 
    west flash
 
-You may need to install additional :ref:`host tools <flash-debug-host-tools>`
+You may need to install additional :ref:`host tools <debug-host-tools>`
 required by your board. The ``west flash`` command will print an error if any
 required dependencies are missing.
 
@@ -418,52 +418,7 @@ Here are some next steps for exploring Zephyr:
 * Try other :ref:`samples-and-demos`
 * Learn about :ref:`application` and the :ref:`west <west>` tool
 * Find out about west's :ref:`flashing and debugging <west-build-flash-debug>`
-  features, or more about :ref:`flashing_and_debugging` in general
+  features, or more about :ref:`debugging` in general
 * Check out :ref:`beyond-GSG` for additional setup alternatives and ideas
 * Discover :ref:`project-resources` for getting help from the Zephyr
   community
-
-.. _help:
-
-Asking for Help
-***************
-
-You can ask for help on a mailing list or on Slack. Please send bug reports and
-feature requests to GitHub.
-
-* **Mailing Lists**: users@lists.zephyrproject.org is usually the right list to
-  ask for help. `Search archives and sign up here`_.
-* **Slack**: Zephyr's workspace is https://zephyrproject.slack.com; you can
-  register with this `Slack invite`_.
-* **GitHub**: Use `GitHub issues`_ for bugs and feature requests.
-
-How to Ask
-==========
-
-.. important::
-
-   Please search this documentation and the mailing list archives first. Your
-   question may have an answer there.
-
-Don't just say "this isn't working" or ask "is this working?". Include as much
-detail as you can about:
-
-#. What you want to do
-#. What you tried (commands you typed, etc.)
-#. What happened (output of each command, etc.)
-
-Use Copy/Paste
-==============
-
-Please **copy/paste text** instead of taking a picture or a screenshot of it.
-Text includes source code, terminal commands, and their output.
-
-Doing this makes it easier for people to help you, and also helps other users
-search the archives.
-
-When copy/pasting more than 5 lines of text into Slack, create a `snippet`_.
-
-.. _Search archives and sign up here: https://lists.zephyrproject.org/g/users
-.. _Slack invite: https://tinyurl.com/y5glwylp
-.. _GitHub issues: https://github.com/zephyrproject-rtos/zephyr/issues
-.. _snippet: https://get.slack.help/hc/en-us/articles/204145658-Create-a-snippet

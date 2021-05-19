@@ -10,11 +10,8 @@
 #include <logging/log.h>
 
 #include "usb_transfer.h"
-#include "usb_work_q.h"
 
 LOG_MODULE_REGISTER(usb_transfer, CONFIG_USB_DEVICE_LOG_LEVEL);
-
-#define USB_TRANSFER_SYNC_TIMEOUT 100
 
 struct usb_transfer_sync_priv {
 	int tsize;
@@ -51,7 +48,7 @@ static struct usb_transfer_data ut_data[CONFIG_USB_MAX_NUM_TRANSFERS];
 static struct usb_transfer_data *usb_ep_get_transfer(uint8_t ep)
 {
 	for (int i = 0; i < ARRAY_SIZE(ut_data); i++) {
-		if (ut_data[i].ep == ep && ut_data[i].status != 0) {
+		if (ut_data[i].ep == ep) {
 			return &ut_data[i];
 		}
 	}
@@ -140,7 +137,7 @@ done:
 
 		if (k_is_in_isr()) {
 			/* reschedule completion in thread context */
-			k_work_submit_to_queue(&USB_WORK_Q, &trans->work);
+			k_work_submit(&trans->work);
 			return;
 		}
 
@@ -190,7 +187,7 @@ void usb_transfer_ep_callback(uint8_t ep, enum usb_dc_ep_cb_status_code status)
 		/* Read (out) needs to be done from ep_callback */
 		usb_transfer_work(&trans->work);
 	} else {
-		k_work_submit_to_queue(&USB_WORK_Q, &trans->work);
+		k_work_submit(&trans->work);
 	}
 }
 
@@ -199,11 +196,6 @@ int usb_transfer(uint8_t ep, uint8_t *data, size_t dlen, unsigned int flags,
 {
 	struct usb_transfer_data *trans = NULL;
 	int i, key, ret = 0;
-
-	/* Parallel transfer to same endpoint is not supported. */
-	if (usb_transfer_is_busy(ep)) {
-		return -EBUSY;
-	}
 
 	LOG_DBG("Transfer start, ep 0x%02x, data %p, dlen %zd",
 		ep, data, dlen);
@@ -248,7 +240,7 @@ int usb_transfer(uint8_t ep, uint8_t *data, size_t dlen, unsigned int flags,
 
 	if (flags & USB_TRANS_WRITE) {
 		/* start writing first chunk */
-		k_work_submit_to_queue(&USB_WORK_Q, &trans->work);
+		k_work_submit(&trans->work);
 	} else {
 		/* ready to read, clear NAK */
 		ret = usb_dc_ep_read_continue(ep);
@@ -276,7 +268,7 @@ void usb_cancel_transfer(uint8_t ep)
 	}
 
 	trans->status = -ECANCELED;
-	k_work_submit_to_queue(&USB_WORK_Q, &trans->work);
+	k_work_submit(&trans->work);
 
 done:
 	irq_unlock(key);
@@ -292,7 +284,7 @@ void usb_cancel_transfers(void)
 
 		if (trans->status == -EBUSY) {
 			trans->status = -ECANCELED;
-			k_work_submit_to_queue(&USB_WORK_Q, &trans->work);
+			k_work_submit(&trans->work);
 			LOG_DBG("Cancel transfer for ep: 0x%02x", trans->ep);
 		}
 
@@ -320,23 +312,8 @@ int usb_transfer_sync(uint8_t ep, uint8_t *data, size_t dlen, unsigned int flags
 		return ret;
 	}
 
-	/* Semaphore will be released by the transfer completion callback
-	 * which might not be called when transfer was cancelled
-	 */
-	while (1) {
-		struct usb_transfer_data *trans;
-
-		ret = k_sem_take(&pdata.sem, K_MSEC(USB_TRANSFER_SYNC_TIMEOUT));
-		if (ret == 0) {
-			break;
-		}
-
-		trans = usb_ep_get_transfer(ep);
-		if (!trans || trans->status != -EBUSY) {
-			LOG_WRN("Sync transfer cancelled, ep 0x%02x", ep);
-			return -ECANCELED;
-		}
-	}
+	/* Semaphore will be released by the transfer completion callback */
+	k_sem_take(&pdata.sem, K_FOREVER);
 
 	return pdata.tsize;
 }

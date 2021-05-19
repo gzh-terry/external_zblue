@@ -34,15 +34,11 @@ synchronization.
    scheduling/index.rst
    threads/system_threads.rst
    threads/workqueue.rst
-   threads/nothread.rst
    other/interrupts.rst
    other/polling.rst
    synchronization/semaphores.rst
    synchronization/mutexes.rst
-   synchronization/condvar.rst
    smp/smp.rst
-
-.. _kernel_data_passing_api:
 
 Data Passing
 ************
@@ -86,8 +82,6 @@ argument.
    data_passing/mailboxes.rst
    data_passing/pipes.rst
 
-.. _kernel_memory_management_api:
-
 Memory Management
 *****************
 
@@ -98,6 +92,7 @@ These pages cover memory allocation and management services.
 
    memory/heap.rst
    memory/slabs.rst
+   memory/pools.rst
 
 Timing
 ******
@@ -121,6 +116,7 @@ These pages cover other kernel services.
    other/cpu_idle.rst
    other/atomic.rst
    other/float.rst
+   other/ring_buffers.rst
    other/cxx_support.rst
    other/version.rst
    other/fatal.rst

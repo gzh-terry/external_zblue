@@ -1,5 +1,3 @@
-/* SPDX-License-Identifier: MIT */
-
 /*
  * Copyright © 2005-2014 Rich Felker, et al.
  *
