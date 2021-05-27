@@ -5,11 +5,9 @@
 file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/kconfig/include/generated)
 file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/kconfig/include/config)
 
-# Support multiple SOC_ROOT, remove ZEPHYR_BASE as that is always sourced.
-set(kconfig_soc_root ${SOC_ROOT})
-list(REMOVE_ITEM kconfig_soc_root ${ZEPHYR_BASE})
+# Support multiple SOC_ROOT
 set(OPERATION WRITE)
-foreach(root ${kconfig_soc_root})
+foreach(root ${SOC_ROOT})
   file(${OPERATION} ${KCONFIG_BINARY_DIR}/Kconfig.soc.defconfig
        "osource \"${root}/soc/$(ARCH)/*/Kconfig.defconfig\"\n"
   )
@@ -23,11 +21,9 @@ foreach(root ${kconfig_soc_root})
   set(OPERATION APPEND)
 endforeach()
 
-# Support multiple shields in BOARD_ROOT, remove ZEPHYR_BASE as that is always sourced.
-set(kconfig_board_root ${BOARD_ROOT})
-list(REMOVE_ITEM kconfig_board_root ${ZEPHYR_BASE})
+# Support multiple shields in BOARD_ROOT
 set(OPERATION WRITE)
-foreach(root ${kconfig_board_root})
+foreach(root ${BOARD_ROOT})
   file(${OPERATION} ${KCONFIG_BINARY_DIR}/Kconfig.shield.defconfig
        "osource \"${root}/boards/shields/*/Kconfig.defconfig\"\n"
   )

@@ -18,10 +18,9 @@ extern "C" {
  * pin-muxing and its polarity to enable alternative functionality.
  */
 struct npcx_alt {
-	uint8_t group;
+	uint8_t group:4;
 	uint8_t bit:3;
 	uint8_t inverted:1;
-	uint8_t reserved:4;
 };
 
 /**

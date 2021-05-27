@@ -37,9 +37,7 @@ function RunTest(){
     fi
 
     echo "Starting $testid as device #$idx"
-    conf=${conf:-prj_conf}
-    Execute \
-      ./bs_${BOARD}_tests_bluetooth_bsim_bt_bsim_test_mesh_${conf} \
+    Execute ./bs_${BOARD}_tests_bluetooth_bsim_bt_bsim_test_mesh_prj_conf \
       -v=${verbosity_level} -s=$1 -d=$idx -RealEncryption=1 \
       -testid=$testid
     let idx=idx+1

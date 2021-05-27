@@ -26,9 +26,8 @@ LOG_MODULE_DECLARE(mpu);
  * ID_AA64MMFR0_MSA_FRAC, bits[55:52]
  * ID_AA64MMFR0_MSA, bits [51:48]
  */
-#define ID_AA64MMFR0_MSA_msk		(0xFFUL << 48U)
-#define ID_AA64MMFR0_PMSA_EN		(0x1FUL << 48U)
-#define ID_AA64MMFR0_PMSA_VMSA_EN	(0x2FUL << 48U)
+#define ID_AA64MMFR0_MSA_msk	(0xFFUL << 48U)
+#define ID_AA64MMFR0_PMSA_EN	(0x1FUL << 48U)
 
 /*
  * Global status variable holding the number of HW MPU region indices, which
@@ -130,13 +129,11 @@ static void region_init(const uint32_t index,
 /*
  * @brief MPU default configuration
  *
- * This function here provides the default configuration mechanism
- * for the Memory Protection Unit (MPU).
+ * This function provides the default configuration mechanism for the Memory
+ * Protection Unit (MPU).
  */
-void z_arm64_mm_init(bool is_primary_core)
+static int arm_mpu_init(const struct device *arg)
 {
-	/* This param is only for compatibility with the MMU init */
-	ARG_UNUSED(is_primary_core);
 	uint64_t val;
 	uint32_t r_index;
 
@@ -146,11 +143,10 @@ void z_arm64_mm_init(bool is_primary_core)
 		 "Exception level not EL1, MPU not enabled!\n");
 
 	/* Check whether the processor supports MPU */
-	val = read_id_aa64mmfr0_el1() & ID_AA64MMFR0_MSA_msk;
-	if ((val != ID_AA64MMFR0_PMSA_EN) &&
-	    (val != ID_AA64MMFR0_PMSA_VMSA_EN)) {
+	val = read_id_aa64mmfr0_el1();
+	if ((val & ID_AA64MMFR0_MSA_msk) != ID_AA64MMFR0_PMSA_EN) {
 		__ASSERT(0, "MPU not supported!\n");
-		return;
+		return -1;
 	}
 
 	if (mpu_config.num_regions > get_num_regions()) {
@@ -164,7 +160,7 @@ void z_arm64_mm_init(bool is_primary_core)
 			 "Request to configure: %u regions (supported: %u)\n",
 			 mpu_config.num_regions,
 			 get_num_regions());
-		return;
+		return -1;
 	}
 
 	LOG_DBG("total region count: %d", get_num_regions());
@@ -183,4 +179,9 @@ void z_arm64_mm_init(bool is_primary_core)
 	static_regions_num = mpu_config.num_regions;
 
 	arm_core_mpu_enable();
+
+	return 0;
 }
+
+SYS_INIT(arm_mpu_init, PRE_KERNEL_1,
+	 CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);

@@ -66,11 +66,6 @@
 		#clock-cells = <1>;
 	};
 
-	uuid: uuid@2f50 {
-		compatible = "nxp,lpc-uid";
-		reg = <0x2f50 0x10>;
-	};
-
 	gpio0: gpio@0 {
 		compatible = "nxp,lpc-gpio";
 		reg = <0x100000 0x4000>;
@@ -213,14 +208,6 @@
 		interrupts = <41 0>;
 		status = "disabled";
 		label = "OS_TIMER";
-	};
-
-	rtc: rtc@30000 {
-		compatible = "nxp,lpc-rtc";
-		reg = <0x30000 0x1000>;
-		interrupts = <32 0>;
-		status = "disabled";
-		label = "RTC_0";
 	};
 };
 

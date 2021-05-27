@@ -1,3 +1,5 @@
+/* mesh.c - Bluetooth Mesh Tester */
+
 /*
  * Copyright (c) 2017 Intel Corporation
  *

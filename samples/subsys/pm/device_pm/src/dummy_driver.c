@@ -9,7 +9,7 @@
 #include "dummy_parent.h"
 #include "dummy_driver.h"
 
-enum pm_device_state device_power_state;
+uint32_t device_power_state;
 static const struct device *parent;
 
 static int dummy_open(const struct device *dev)
@@ -85,7 +85,7 @@ static int dummy_close(const struct device *dev)
 	return ret;
 }
 
-static enum pm_device_state dummy_get_power_state(const struct device *dev)
+static uint32_t dummy_get_power_state(const struct device *dev)
 {
 	return device_power_state;
 }
@@ -108,7 +108,7 @@ static int dummy_resume_from_suspend(const struct device *dev)
 
 static int dummy_device_pm_ctrl(const struct device *dev,
 				uint32_t ctrl_command,
-				enum pm_device_state *state)
+				uint32_t *state, pm_device_cb cb, void *arg)
 {
 	int ret = 0;
 
@@ -127,6 +127,8 @@ static int dummy_device_pm_ctrl(const struct device *dev,
 		ret = -EINVAL;
 
 	}
+
+	cb(dev, ret, state, arg);
 
 	return ret;
 }

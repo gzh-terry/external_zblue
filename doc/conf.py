@@ -74,10 +74,9 @@ extensions = [
     "sphinx.ext.todo",
     "sphinx.ext.extlinks",
     "sphinx.ext.autodoc",
-    "sphinx.ext.graphviz",
     "zephyr.application",
     "zephyr.html_redirects",
-    "zephyr.kconfig-role",
+    "only.eager_only",
     "zephyr.dtcompatible-role",
     "zephyr.link-roles",
     "sphinx_tabs.tabs",
@@ -125,7 +124,7 @@ html_theme_options = {
 }
 html_title = "Zephyr Project Documentation"
 html_logo = str(ZEPHYR_BASE / "doc" / "_static" / "images" / "logo.svg")
-html_favicon = str(ZEPHYR_BASE / "doc" / "_static" / "images" / "favicon.png")
+html_favicon = str(ZEPHYR_BASE / "doc" / "images" / "zp_favicon.png")
 html_static_path = [str(ZEPHYR_BASE / "doc" / "_static")]
 html_last_updated_fmt = "%b %d, %Y"
 html_domain_indices = False
@@ -159,7 +158,7 @@ latex_elements = {
 }
 
 latex_documents = [
-    ("index-tex", "zephyr.tex", "Zephyr Project Documentation", "many", "manual"),
+    ("index", "zephyr.tex", "Zephyr Project Documentation", "many", "manual"),
 ]
 
 # -- Options for zephyr.doxyrunner plugin ---------------------------------
@@ -206,7 +205,7 @@ warnings_filter_silent = False
 
 # -- Options for notfound.extension ---------------------------------------
 
-notfound_urls_prefix = f"/{version}/" if is_release else "/latest/"
+notfound_urls_prefix = f"/{version}/"
 
 # -- Options for zephyr.external_content ----------------------------------
 
@@ -222,19 +221,6 @@ external_content_keep = [
     "reference/devicetree/bindings.rst",
     "reference/devicetree/bindings/**/*",
     "reference/devicetree/compatibles/**/*",
-]
-
-# -- Options for sphinx.ext.graphviz --------------------------------------
-
-graphviz_dot = os.environ.get("DOT_EXECUTABLE", "dot")
-graphviz_output_format = "svg"
-graphviz_dot_args = [
-    "-Gbgcolor=transparent",
-    "-Nstyle=filled",
-    "-Nfillcolor=white",
-    "-Ncolor=gray60",
-    "-Nfontcolor=gray25",
-    "-Ecolor=gray60",
 ]
 
 # -- Linkcheck options ----------------------------------------------------

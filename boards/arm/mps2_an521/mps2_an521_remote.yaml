@@ -7,7 +7,4 @@ toolchain:
   - zephyr
   - xtools
 testing:
-  default: true
-  only_tags:
-    - arm
-    - fpu
+  default: false

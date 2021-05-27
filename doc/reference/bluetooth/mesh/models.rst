@@ -3,7 +3,7 @@
 Foundation models
 #################
 
-The Bluetooth mesh specification defines four foundation models that can be
+The Bluetooth Mesh specification defines four foundation models that can be
 used by network administrators to configure and diagnose mesh nodes.
 
 .. toctree::

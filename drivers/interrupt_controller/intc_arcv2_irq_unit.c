@@ -32,8 +32,7 @@ extern void *_VectorTable;
 #define _ARC_V2_IRQ_VECT_BASE _ARC_V2_IRQ_VECT_BASE_S
 #endif
 
-static enum pm_device_state _arc_v2_irq_unit_device_power_state =
-	PM_DEVICE_STATE_ACTIVE;
+static uint32_t _arc_v2_irq_unit_device_power_state = PM_DEVICE_STATE_ACTIVE;
 struct arc_v2_irq_unit_ctx {
 	uint32_t irq_ctrl; /* Interrupt Context Saving Control Register. */
 	uint32_t irq_vect_base; /* Interrupt Vector Base. */
@@ -177,7 +176,7 @@ static int arc_v2_irq_unit_resume(const struct device *dev)
  *
  * @return the power state of interrupt unit
  */
-static enum pm_device_state arc_v2_irq_unit_get_state(const struct device *dev)
+static int arc_v2_irq_unit_get_state(const struct device *dev)
 {
 	ARG_UNUSED(dev);
 
@@ -193,23 +192,27 @@ static enum pm_device_state arc_v2_irq_unit_get_state(const struct device *dev)
  * @return operation result
  */
 static int arc_v2_irq_unit_device_ctrl(const struct device *dev,
-				       uint32_t ctrl_command,
-				       enum pm_device_state *state)
+				       uint32_t ctrl_command, uint32_t *context,
+				       pm_device_cb cb, void *arg)
 {
 	int ret = 0;
 	unsigned int key = arch_irq_lock();
 
 	if (ctrl_command == PM_DEVICE_STATE_SET) {
-		if (*state == PM_DEVICE_STATE_SUSPEND) {
+		if (*((uint32_t *)context) == PM_DEVICE_STATE_SUSPEND) {
 			ret = arc_v2_irq_unit_suspend(dev);
-		} else if (*state == PM_DEVICE_STATE_ACTIVE) {
+		} else if (*((uint32_t *)context) == PM_DEVICE_STATE_ACTIVE) {
 			ret = arc_v2_irq_unit_resume(dev);
 		}
 	} else if (ctrl_command == PM_DEVICE_STATE_GET) {
-		*state = arc_v2_irq_unit_get_state(dev);
+		*((uint32_t *)context) = arc_v2_irq_unit_get_state(dev);
 	}
 
 	arch_irq_unlock(key);
+
+	if (cb) {
+		cb(dev, ret, context, arg);
+	}
 
 	return ret;
 }

@@ -1,3 +1,5 @@
+/*  Bluetooth Mesh */
+
 /*
  * Copyright (c) 2018 Nordic Semiconductor ASA
  * Copyright (c) 2017 Intel Corporation
@@ -53,7 +55,8 @@ enum {
 static struct {
 	ATOMIC_DEFINE(flags, ADV_FLAGS_NUM);
 	struct bt_le_ext_adv *instance;
-	struct net_buf *buf;
+	const struct bt_mesh_send_cb *cb;
+	void *cb_data;
 	uint64_t timestamp;
 	struct k_work_delayable work;
 } adv;
@@ -137,12 +140,12 @@ static int buf_send(struct net_buf *buf)
 		atomic_set_bit(adv.flags, ADV_FLAG_UPDATE_PARAMS);
 	}
 
-	err = adv_start(&adv_param, &start, &ad, 1, NULL, 0);
-	if (!err) {
-		adv.buf = net_buf_ref(buf);
-	}
+	adv.cb = BT_MESH_ADV(buf)->cb;
+	adv.cb_data = BT_MESH_ADV(buf)->cb_data;
 
-	bt_mesh_adv_send_start(duration, err, BT_MESH_ADV(buf));
+	err = adv_start(&adv_param, &start, &ad, 1, NULL, 0);
+	net_buf_unref(buf);
+	bt_mesh_adv_send_start(duration, err, adv.cb, adv.cb_data);
 
 	return err;
 }
@@ -163,16 +166,13 @@ static void send_pending_adv(struct k_work *work)
 
 		BT_MESH_ADV(buf)->busy = 0U;
 		err = buf_send(buf);
-
-		net_buf_unref(buf);
-
 		if (!err) {
 			return; /* Wait for advertising to finish */
 		}
 	}
 
 	/* No more pending buffers */
-	if (IS_ENABLED(CONFIG_BT_MESH_GATT_SERVER)) {
+	if (IS_ENABLED(CONFIG_BT_MESH_PROXY)) {
 		BT_DBG("Proxy Advertising");
 		err = bt_mesh_proxy_adv_start();
 		if (!err) {
@@ -235,7 +235,7 @@ static void adv_sent(struct bt_le_ext_adv *instance,
 	atomic_clear_bit(adv.flags, ADV_FLAG_ACTIVE);
 
 	if (!atomic_test_and_clear_bit(adv.flags, ADV_FLAG_PROXY)) {
-		net_buf_unref(adv.buf);
+		bt_mesh_adv_send_end(0, adv.cb, adv.cb_data);
 	}
 
 	schedule_send();
