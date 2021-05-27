@@ -171,6 +171,7 @@ static int adxl362_set_power_mode(const struct device *dev, uint8_t mode)
 	return adxl362_set_reg(dev, new_power_ctl, ADXL362_REG_POWER_CTL, 1);
 }
 
+#if defined(CONFIG_ADXL362_ACCEL_ODR_RUNTIME)
 /*
  * Output data rate map with allowed frequencies:
  * freq = freq_int + freq_milli / 1000
@@ -211,7 +212,9 @@ static int adxl362_freq_to_odr_val(uint16_t freq_int, uint16_t freq_milli)
 
 	return -EINVAL;
 }
+#endif /* CONFIG_ADXL362_ACCEL_ODR_RUNTIME */
 
+#if defined(CONFIG_ADXL362_ACCEL_RANGE_RUNTIME)
 static const struct adxl362_range {
 	uint16_t range;
 	uint8_t reg_val;
@@ -233,6 +236,7 @@ static int32_t adxl362_range_to_reg_val(uint16_t range)
 
 	return -EINVAL;
 }
+#endif /* CONFIG_ADXL362_ACCEL_RANGE_RUNTIME */
 
 static int adxl362_set_range(const struct device *dev, uint8_t range)
 {
@@ -610,6 +614,11 @@ static int adxl362_channel_get(const struct device *dev,
 	case SENSOR_CHAN_ACCEL_Z: /* Acceleration on the Z axis, in m/s^2. */
 		adxl362_accel_convert(val, data->acc_z,  data->selected_range);
 		break;
+	case SENSOR_CHAN_ACCEL_XYZ: /* Acceleration on the XYZ axis, in m/s^2. */
+		for (size_t i = 0; i < 3; i++) {
+			adxl362_accel_convert(&val[i], data->acc_xyz[i], data->selected_range);
+		}
+		break;
 	case SENSOR_CHAN_DIE_TEMP: /* Temperature in degrees Celsius. */
 		adxl362_temp_convert(val, data->temp);
 		break;
@@ -650,7 +659,7 @@ static int adxl362_chip_init(const struct device *dev)
 	adxl362_setup_activity_detection(dev,
 					 CONFIG_ADXL362_ABS_REF_MODE,
 					 CONFIG_ADXL362_ACTIVITY_THRESHOLD,
-					 1);
+					 CONFIG_ADXL362_ACTIVITY_TIME);
 	if (ret) {
 		return ret;
 	}
@@ -672,7 +681,7 @@ static int adxl362_chip_init(const struct device *dev)
 	adxl362_setup_inactivity_detection(dev,
 					   CONFIG_ADXL362_ABS_REF_MODE,
 					   CONFIG_ADXL362_INACTIVITY_THRESHOLD,
-					   1);
+					   CONFIG_ADXL362_INACTIVITY_TIME);
 	if (ret) {
 		return ret;
 	}
@@ -809,6 +818,6 @@ static const struct adxl362_config adxl362_config = {
 #endif
 };
 
-DEVICE_AND_API_INIT(adxl362, DT_INST_LABEL(0), adxl362_init,
+DEVICE_DT_INST_DEFINE(0, adxl362_init, NULL,
 		    &adxl362_data, &adxl362_config, POST_KERNEL,
 		    CONFIG_SENSOR_INIT_PRIORITY, &adxl362_api_funcs);

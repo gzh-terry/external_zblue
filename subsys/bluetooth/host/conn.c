@@ -28,6 +28,8 @@
 #include "common/log.h"
 
 #include "hci_core.h"
+#include "id.h"
+#include "adv.h"
 #include "conn_internal.h"
 #include "l2cap_internal.h"
 #include "keys.h"
@@ -35,7 +37,10 @@
 #include "ssp.h"
 #include "att_internal.h"
 #include "gatt_internal.h"
-#include "audio/iso_internal.h"
+#include "iso_internal.h"
+
+/* Peripheral timeout to initialize Connection Parameter Update procedure */
+#define CONN_UPDATE_TIMEOUT  K_MSEC(CONFIG_BT_CONN_PARAM_UPDATE_TIMEOUT)
 
 struct tx_meta {
 	struct bt_conn_tx *tx;
@@ -48,21 +53,14 @@ NET_BUF_POOL_DEFINE(acl_tx_pool, CONFIG_BT_L2CAP_TX_BUF_COUNT,
 		    sizeof(struct tx_meta), NULL);
 
 #if CONFIG_BT_L2CAP_TX_FRAG_COUNT > 0
-
-#if defined(CONFIG_BT_CTLR_TX_BUFFER_SIZE)
-#define FRAG_SIZE BT_L2CAP_BUF_SIZE(CONFIG_BT_CTLR_TX_BUFFER_SIZE - 4)
-#else
-#define FRAG_SIZE BT_L2CAP_BUF_SIZE(CONFIG_BT_L2CAP_TX_MTU)
-#endif
-
 /* Dedicated pool for fragment buffers in case queued up TX buffers don't
  * fit the controllers buffer size. We can't use the acl_tx_pool for the
  * fragmentation, since it's possible that pool is empty and all buffers
  * are queued up in the TX queue. In such a situation, trying to allocate
  * another buffer from the acl_tx_pool would result in a deadlock.
  */
-NET_BUF_POOL_FIXED_DEFINE(frag_pool, CONFIG_BT_L2CAP_TX_FRAG_COUNT, FRAG_SIZE,
-			  NULL);
+NET_BUF_POOL_FIXED_DEFINE(frag_pool, CONFIG_BT_L2CAP_TX_FRAG_COUNT,
+			  BT_BUF_ACL_SIZE(CONFIG_BT_BUF_ACL_TX_SIZE), NULL);
 
 #endif /* CONFIG_BT_L2CAP_TX_FRAG_COUNT > 0 */
 
@@ -341,14 +339,57 @@ static void tx_complete_work(struct k_work *work)
 	tx_notify(conn);
 }
 
-static void conn_update_timeout(struct k_work *work)
+static struct bt_conn *conn_lookup_iso(struct bt_conn *conn)
 {
-	struct bt_conn *conn = CONTAINER_OF(work, struct bt_conn, update_work);
+#if defined(CONFIG_BT_ISO)
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(iso_conns); i++) {
+		struct bt_conn *iso_conn = bt_conn_ref(&iso_conns[i]);
+
+		if (!iso_conn) {
+			continue;
+		}
+
+		if (iso_conn == conn) {
+			return iso_conn;
+		}
+
+		if (bt_conn_iso(iso_conn)->acl == conn) {
+			return iso_conn;
+		}
+
+		bt_conn_unref(iso_conn);
+	}
+#endif /* CONFIG_BT_ISO */
+	return NULL;
+}
+
+static void deferred_work(struct k_work *work)
+{
+	struct bt_conn *conn = CONTAINER_OF(work, struct bt_conn, deferred_work);
 	const struct bt_le_conn_param *param;
 
 	BT_DBG("conn %p", conn);
 
 	if (conn->state == BT_CONN_DISCONNECTED) {
+		if (IS_ENABLED(CONFIG_BT_ISO)) {
+			struct bt_conn *iso;
+
+			iso = conn_lookup_iso(conn);
+			if (iso) {
+				iso->err = conn->err;
+
+				bt_iso_disconnected(iso);
+				bt_conn_unref(iso);
+			}
+
+			/* Stop if only ISO was Disconnected */
+			if (conn->type == BT_CONN_TYPE_ISO) {
+				return;
+			}
+		}
+
 		bt_l2cap_disconnected(conn);
 		notify_disconnected(conn);
 
@@ -373,27 +414,23 @@ static void conn_update_timeout(struct k_work *work)
 		return;
 	}
 
-	if (IS_ENABLED(CONFIG_BT_GAP_AUTO_UPDATE_CONN_PARAMS)) {
-		/* if application set own params use those, otherwise
-		 * use defaults.
-		 */
-		if (atomic_test_and_clear_bit(conn->flags,
-					      BT_CONN_SLAVE_PARAM_SET)) {
-			param = BT_LE_CONN_PARAM(conn->le.interval_min,
-						conn->le.interval_max,
-						conn->le.pending_latency,
-						conn->le.pending_timeout);
-			send_conn_le_param_update(conn, param);
-		} else {
+	/* if application set own params use those, otherwise use defaults. */
+	if (atomic_test_and_clear_bit(conn->flags,
+				      BT_CONN_SLAVE_PARAM_SET)) {
+		param = BT_LE_CONN_PARAM(conn->le.interval_min,
+					 conn->le.interval_max,
+					 conn->le.pending_latency,
+					 conn->le.pending_timeout);
+		send_conn_le_param_update(conn, param);
+	} else if (IS_ENABLED(CONFIG_BT_GAP_AUTO_UPDATE_CONN_PARAMS)) {
 #if defined(CONFIG_BT_GAP_PERIPHERAL_PREF_PARAMS)
-			param = BT_LE_CONN_PARAM(
-					CONFIG_BT_PERIPHERAL_PREF_MIN_INT,
-					CONFIG_BT_PERIPHERAL_PREF_MAX_INT,
-					CONFIG_BT_PERIPHERAL_PREF_SLAVE_LATENCY,
-					CONFIG_BT_PERIPHERAL_PREF_TIMEOUT);
-			send_conn_le_param_update(conn, param);
+		param = BT_LE_CONN_PARAM(
+				CONFIG_BT_PERIPHERAL_PREF_MIN_INT,
+				CONFIG_BT_PERIPHERAL_PREF_MAX_INT,
+				CONFIG_BT_PERIPHERAL_PREF_SLAVE_LATENCY,
+				CONFIG_BT_PERIPHERAL_PREF_TIMEOUT);
+		send_conn_le_param_update(conn, param);
 #endif
-		}
 	}
 
 	atomic_set_bit(conn->flags, BT_CONN_SLAVE_PARAM_UPDATE);
@@ -405,7 +442,7 @@ struct bt_conn *bt_conn_new(struct bt_conn *conns, size_t size)
 	int i;
 
 	for (i = 0; i < size; i++) {
-		if (!atomic_get(&conns[i].ref)) {
+		if (atomic_cas(&conns[i].ref, 0, 1)) {
 			conn = &conns[i];
 			break;
 		}
@@ -415,27 +452,17 @@ struct bt_conn *bt_conn_new(struct bt_conn *conns, size_t size)
 		return NULL;
 	}
 
-	(void)memset(conn, 0, sizeof(*conn));
+	(void)memset(conn, 0, offsetof(struct bt_conn, ref));
 
-	atomic_set(&conn->ref, 1);
+	k_work_init_delayable(&conn->deferred_work, deferred_work);
+	k_work_init(&conn->tx_complete_work, tx_complete_work);
 
 	return conn;
 }
 
 static struct bt_conn *acl_conn_new(void)
 {
-	struct bt_conn *conn;
-
-	conn = bt_conn_new(acl_conns, ARRAY_SIZE(acl_conns));
-	if (!conn) {
-		return conn;
-	}
-
-	k_delayed_work_init(&conn->update_work, conn_update_timeout);
-
-	k_work_init(&conn->tx_complete_work, tx_complete_work);
-
-	return conn;
+	return bt_conn_new(acl_conns, ARRAY_SIZE(acl_conns));
 }
 
 #if defined(CONFIG_BT_BREDR)
@@ -568,17 +595,23 @@ struct bt_conn *bt_conn_lookup_addr_sco(const bt_addr_t *peer)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(sco_conns); i++) {
-		if (!atomic_get(&sco_conns[i].ref)) {
+		struct bt_conn *conn = bt_conn_ref(&sco_conns[i]);
+
+		if (!conn) {
 			continue;
 		}
 
-		if (sco_conns[i].type != BT_CONN_TYPE_SCO) {
+		if (conn->type != BT_CONN_TYPE_SCO) {
+			bt_conn_unref(conn);
 			continue;
 		}
 
-		if (!bt_addr_cmp(peer, &sco_conns[i].sco.acl->br.dst)) {
-			return bt_conn_ref(&sco_conns[i]);
+		if (bt_addr_cmp(peer, &conn->sco.acl->br.dst) != 0) {
+			bt_conn_unref(conn);
+			continue;
 		}
+
+		return conn;
 	}
 
 	return NULL;
@@ -589,17 +622,23 @@ struct bt_conn *bt_conn_lookup_addr_br(const bt_addr_t *peer)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(acl_conns); i++) {
-		if (!atomic_get(&acl_conns[i].ref)) {
+		struct bt_conn *conn = bt_conn_ref(&acl_conns[i]);
+
+		if (!conn) {
 			continue;
 		}
 
-		if (acl_conns[i].type != BT_CONN_TYPE_BR) {
+		if (conn->type != BT_CONN_TYPE_BR) {
+			bt_conn_unref(conn);
 			continue;
 		}
 
-		if (!bt_addr_cmp(peer, &acl_conns[i].br.dst)) {
-			return bt_conn_ref(&acl_conns[i]);
+		if (bt_addr_cmp(peer, &conn->br.dst) != 0) {
+			bt_conn_unref(conn);
+			continue;
 		}
+
+		return conn;
 	}
 
 	return NULL;
@@ -876,20 +915,17 @@ void bt_conn_cb_register(struct bt_conn_cb *cb)
 
 void bt_conn_reset_rx_state(struct bt_conn *conn)
 {
-	if (!conn->rx_len) {
+	if (!conn->rx) {
 		return;
 	}
 
 	net_buf_unref(conn->rx);
 	conn->rx = NULL;
-	conn->rx_len = 0U;
 }
 
 void bt_conn_recv(struct bt_conn *conn, struct net_buf *buf, uint8_t flags)
 {
-	struct bt_l2cap_hdr *hdr;
-	uint16_t len;
-
+	uint16_t acl_total_len;
 	/* Make sure we notify any pending TX callbacks before processing
 	 * new data for this connection.
 	 */
@@ -906,40 +942,30 @@ void bt_conn_recv(struct bt_conn *conn, struct net_buf *buf, uint8_t flags)
 	/* Check packet boundary flags */
 	switch (flags) {
 	case BT_ACL_START:
-		hdr = (void *)buf->data;
-		len = sys_le16_to_cpu(hdr->len);
-
-		BT_DBG("First, len %u final %u", buf->len, len);
-
-		if (conn->rx_len) {
+		if (conn->rx) {
 			BT_ERR("Unexpected first L2CAP frame");
 			bt_conn_reset_rx_state(conn);
 		}
 
-		conn->rx_len = (sizeof(*hdr) + len) - buf->len;
-		BT_DBG("rx_len %u", conn->rx_len);
-		if (conn->rx_len) {
-			conn->rx = buf;
-			return;
-		}
+		BT_DBG("First, len %u final %u", buf->len,
+		       (buf->len < sizeof(uint16_t)) ?
+		       0 : sys_get_le16(buf->data));
 
+		conn->rx = buf;
 		break;
 	case BT_ACL_CONT:
-		if (!conn->rx_len) {
+		if (!conn->rx) {
 			BT_ERR("Unexpected L2CAP continuation");
 			bt_conn_reset_rx_state(conn);
 			net_buf_unref(buf);
 			return;
 		}
 
-		if (buf->len > conn->rx_len) {
-			BT_ERR("L2CAP data overflow");
-			bt_conn_reset_rx_state(conn);
+		if (!buf->len) {
+			BT_DBG("Empty ACL_CONT");
 			net_buf_unref(buf);
 			return;
 		}
-
-		BT_DBG("Cont, len %u rx_len %u", buf->len, conn->rx_len);
 
 		if (buf->len > net_buf_tailroom(conn->rx)) {
 			BT_ERR("Not enough buffer space for L2CAP data");
@@ -949,17 +975,7 @@ void bt_conn_recv(struct bt_conn *conn, struct net_buf *buf, uint8_t flags)
 		}
 
 		net_buf_add_mem(conn->rx, buf->data, buf->len);
-		conn->rx_len -= buf->len;
 		net_buf_unref(buf);
-
-		if (conn->rx_len) {
-			return;
-		}
-
-		buf = conn->rx;
-		conn->rx = NULL;
-		conn->rx_len = 0U;
-
 		break;
 	default:
 		/* BT_ACL_START_NO_FLUSH and BT_ACL_COMPLETE are not allowed on
@@ -972,17 +988,32 @@ void bt_conn_recv(struct bt_conn *conn, struct net_buf *buf, uint8_t flags)
 		return;
 	}
 
-	hdr = (void *)buf->data;
-	len = sys_le16_to_cpu(hdr->len);
-
-	if (sizeof(*hdr) + len != buf->len) {
-		BT_ERR("ACL len mismatch (%u != %u)", len, buf->len);
-		net_buf_unref(buf);
+	if (conn->rx->len < sizeof(uint16_t)) {
+		/* Still not enough data recieved to retrieve the L2CAP header
+		 * length field.
+		 */
 		return;
 	}
 
-	BT_DBG("Successfully parsed %u byte L2CAP packet", buf->len);
+	acl_total_len = sys_get_le16(conn->rx->data) + sizeof(struct bt_l2cap_hdr);
 
+	if (conn->rx->len < acl_total_len) {
+		/* L2CAP frame not complete. */
+		return;
+	}
+
+	if (conn->rx->len > acl_total_len) {
+		BT_ERR("ACL len mismatch (%u > %u)",
+		       conn->rx->len, acl_total_len);
+		bt_conn_reset_rx_state(conn);
+		return;
+	}
+
+	/* L2CAP frame complete. */
+	buf = conn->rx;
+	conn->rx = NULL;
+
+	BT_DBG("Successfully parsed %u byte L2CAP packet", buf->len);
 	bt_l2cap_recv(conn, buf);
 }
 
@@ -1019,7 +1050,6 @@ int bt_conn_send_cb(struct bt_conn *conn, struct net_buf *buf,
 
 	if (conn->state != BT_CONN_CONNECTED) {
 		BT_ERR("not connected!");
-		net_buf_unref(buf);
 		return -ENOTCONN;
 	}
 
@@ -1027,14 +1057,12 @@ int bt_conn_send_cb(struct bt_conn *conn, struct net_buf *buf,
 		tx = conn_tx_alloc();
 		if (!tx) {
 			BT_ERR("Unable to allocate TX context");
-			net_buf_unref(buf);
 			return -ENOBUFS;
 		}
 
 		/* Verify that we're still connected after blocking */
 		if (conn->state != BT_CONN_CONNECTED) {
 			BT_WARN("Disconnected while allocating context");
-			net_buf_unref(buf);
 			tx_free(tx);
 			return -ENOTCONN;
 		}
@@ -1293,7 +1321,7 @@ static void conn_cleanup(struct bt_conn *conn)
 
 	bt_conn_reset_rx_state(conn);
 
-	k_delayed_work_submit(&conn->update_work, K_NO_WAIT);
+	k_work_reschedule(&conn->deferred_work, K_NO_WAIT);
 }
 
 static int conn_prepare_events(struct bt_conn *conn,
@@ -1462,46 +1490,33 @@ struct bt_conn *conn_lookup_handle(struct bt_conn *conns, size_t size,
 	int i;
 
 	for (i = 0; i < size; i++) {
-		if (!atomic_get(&conns[i].ref)) {
+		struct bt_conn *conn = bt_conn_ref(&conns[i]);
+
+		if (!conn) {
 			continue;
 		}
 
 		/* We only care about connections with a valid handle */
-		if (!bt_conn_is_handle_valid(&conns[i])) {
+		if (!bt_conn_is_handle_valid(conn)) {
+			bt_conn_unref(conn);
 			continue;
 		}
 
-		if (conns[i].handle == handle) {
-			return bt_conn_ref(&conns[i]);
+		if (conn->handle != handle) {
+			bt_conn_unref(conn);
+			continue;
 		}
+
+		return conn;
 	}
 
 	return NULL;
 }
 
-struct bt_conn *conn_lookup_iso(struct bt_conn *conn)
+void bt_conn_connected(struct bt_conn *conn)
 {
-#if defined(CONFIG_BT_ISO)
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(iso_conns); i++) {
-		if (!atomic_get(&iso_conns[i].ref)) {
-			continue;
-		}
-
-		if (&iso_conns[i] == conn) {
-			return bt_conn_ref(conn);
-		}
-
-		if (iso_conns[i].iso.acl == conn) {
-			return bt_conn_ref(&iso_conns[i]);
-		}
-	}
-
-	return NULL;
-#else
-	return NULL;
-#endif /* CONFIG_BT_ISO */
+	bt_l2cap_connected(conn);
+	notify_connected(conn);
 }
 
 void bt_conn_set_state(struct bt_conn *conn, bt_conn_state_t state)
@@ -1525,12 +1540,14 @@ void bt_conn_set_state(struct bt_conn *conn, bt_conn_state_t state)
 		 * bt_conn_add_le() and keep it until reaching DISCONNECTED
 		 * again.
 		 */
-		bt_conn_ref(conn);
+		if (conn->type != BT_CONN_TYPE_ISO) {
+			bt_conn_ref(conn);
+		}
 		break;
 	case BT_CONN_CONNECT:
 		if (IS_ENABLED(CONFIG_BT_CENTRAL) &&
 		    conn->type == BT_CONN_TYPE_LE) {
-			k_delayed_work_cancel(&conn->update_work);
+			k_work_cancel_delayable(&conn->deferred_work);
 		}
 		break;
 	default:
@@ -1555,25 +1572,18 @@ void bt_conn_set_state(struct bt_conn *conn, bt_conn_state_t state)
 
 		sys_slist_init(&conn->channels);
 
-		bt_l2cap_connected(conn);
-		notify_connected(conn);
+		if (IS_ENABLED(CONFIG_BT_PERIPHERAL) &&
+		    conn->role == BT_CONN_ROLE_SLAVE) {
+			k_work_schedule(&conn->deferred_work,
+					CONN_UPDATE_TIMEOUT);
+		}
+
 		break;
 	case BT_CONN_DISCONNECTED:
 		if (conn->type == BT_CONN_TYPE_SCO) {
 			/* TODO: Notify sco disconnected */
 			bt_conn_unref(conn);
 			break;
-		}
-
-		if (IS_ENABLED(CONFIG_BT_ISO)) {
-			struct bt_conn *iso;
-
-			iso = conn_lookup_iso(conn);
-			if (iso) {
-				bt_iso_disconnected(iso);
-				bt_iso_cleanup(iso);
-				bt_conn_unref(iso);
-			}
 		}
 
 		/* Notify disconnection and queue a dummy buffer to wake
@@ -1586,7 +1596,7 @@ void bt_conn_set_state(struct bt_conn *conn, bt_conn_state_t state)
 
 			/* Cancel Connection Update if it is pending */
 			if (conn->type == BT_CONN_TYPE_LE) {
-				k_delayed_work_cancel(&conn->update_work);
+				k_work_cancel_delayable(&conn->deferred_work);
 			}
 
 			atomic_set_bit(conn->flags, BT_CONN_CLEANUP);
@@ -1663,8 +1673,8 @@ void bt_conn_set_state(struct bt_conn *conn, bt_conn_state_t state)
 		 */
 		if (IS_ENABLED(CONFIG_BT_CENTRAL) &&
 		    conn->type == BT_CONN_TYPE_LE) {
-			k_delayed_work_submit(&conn->update_work,
-				K_MSEC(10 * bt_dev.create_param.timeout));
+			k_work_schedule(&conn->deferred_work,
+					K_MSEC(10 * bt_dev.create_param.timeout));
 		}
 
 		break;
@@ -1731,17 +1741,23 @@ struct bt_conn *bt_conn_lookup_addr_le(uint8_t id, const bt_addr_le_t *peer)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(acl_conns); i++) {
-		if (!atomic_get(&acl_conns[i].ref)) {
+		struct bt_conn *conn = bt_conn_ref(&acl_conns[i]);
+
+		if (!conn) {
 			continue;
 		}
 
-		if (acl_conns[i].type != BT_CONN_TYPE_LE) {
+		if (conn->type != BT_CONN_TYPE_LE) {
+			bt_conn_unref(conn);
 			continue;
 		}
 
-		if (bt_conn_is_peer_addr_le(&acl_conns[i], id, peer)) {
-			return bt_conn_ref(&acl_conns[i]);
+		if (!bt_conn_is_peer_addr_le(conn, id, peer)) {
+			bt_conn_unref(conn);
+			continue;
 		}
+
+		return conn;
 	}
 
 	return NULL;
@@ -1753,21 +1769,28 @@ struct bt_conn *bt_conn_lookup_state_le(uint8_t id, const bt_addr_le_t *peer,
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(acl_conns); i++) {
-		if (!atomic_get(&acl_conns[i].ref)) {
+		struct bt_conn *conn = bt_conn_ref(&acl_conns[i]);
+
+		if (!conn) {
 			continue;
 		}
 
-		if (acl_conns[i].type != BT_CONN_TYPE_LE) {
+		if (conn->type != BT_CONN_TYPE_LE) {
+			bt_conn_unref(conn);
 			continue;
 		}
 
-		if (peer && !bt_conn_is_peer_addr_le(&acl_conns[i], id, peer)) {
+		if (peer && !bt_conn_is_peer_addr_le(conn, id, peer)) {
+			bt_conn_unref(conn);
 			continue;
 		}
 
-		if (acl_conns[i].state == state && acl_conns[i].id == id) {
-			return bt_conn_ref(&acl_conns[i]);
+		if (!(conn->state == state && conn->id == id)) {
+			bt_conn_unref(conn);
+			continue;
 		}
+
+		return conn;
 	}
 
 	return NULL;
@@ -1779,24 +1802,31 @@ void bt_conn_foreach(int type, void (*func)(struct bt_conn *conn, void *data),
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(acl_conns); i++) {
-		if (!atomic_get(&acl_conns[i].ref)) {
+		struct bt_conn *conn = bt_conn_ref(&acl_conns[i]);
+
+		if (!conn) {
 			continue;
 		}
 
-		if (!(acl_conns[i].type & type)) {
+		if (!(conn->type & type)) {
+			bt_conn_unref(conn);
 			continue;
 		}
 
-		func(&acl_conns[i], data);
+		func(conn, data);
+		bt_conn_unref(conn);
 	}
 #if defined(CONFIG_BT_BREDR)
 	if (type & BT_CONN_TYPE_SCO) {
 		for (i = 0; i < ARRAY_SIZE(sco_conns); i++) {
-			if (!atomic_get(&sco_conns[i].ref)) {
+			struct bt_conn *conn = bt_conn_ref(&sco_conns[i]);
+
+			if (!conn) {
 				continue;
 			}
 
-			func(&sco_conns[i], data);
+			func(conn, data);
+			bt_conn_unref(conn);
 		}
 	}
 #endif /* defined(CONFIG_BT_BREDR) */
@@ -1804,11 +1834,14 @@ void bt_conn_foreach(int type, void (*func)(struct bt_conn *conn, void *data),
 #if defined(CONFIG_BT_ISO)
 	if (type & BT_CONN_TYPE_ISO) {
 		for (i = 0; i < ARRAY_SIZE(iso_conns); i++) {
-			if (!atomic_get(&iso_conns[i].ref)) {
+			struct bt_conn *conn = bt_conn_ref(&iso_conns[i]);
+
+			if (!conn) {
 				continue;
 			}
 
-			func(&iso_conns[i], data);
+			func(conn, data);
+			bt_conn_unref(conn);
 		}
 	}
 #endif /* defined(CONFIG_BT_ISO) */
@@ -1816,22 +1849,46 @@ void bt_conn_foreach(int type, void (*func)(struct bt_conn *conn, void *data),
 
 struct bt_conn *bt_conn_ref(struct bt_conn *conn)
 {
-	atomic_val_t old = atomic_inc(&conn->ref);
+	atomic_val_t old;
 
-	BT_DBG("handle %u ref %u -> %u", conn->handle, old,
-	       atomic_get(&conn->ref));
+	/* Reference counter must be checked to avoid incrementing ref from
+	 * zero, then we should return NULL instead.
+	 * Loop on clear-and-set in case someone has modified the reference
+	 * count since the read, and start over again when that happens.
+	 */
+	do {
+		old = atomic_get(&conn->ref);
+
+		if (!old) {
+			return NULL;
+		}
+	} while (!atomic_cas(&conn->ref, old, old + 1));
+
+	BT_DBG("handle %u ref %u -> %u", conn->handle, old, old + 1);
 
 	return conn;
 }
 
 void bt_conn_unref(struct bt_conn *conn)
 {
-	atomic_val_t old = atomic_dec(&conn->ref);
+	atomic_val_t old;
+
+	/* Cleanup ISO before releasing the last reference to prevent other
+	 * threads reallocating the same connection while cleanup is ongoing.
+	 */
+	if (IS_ENABLED(CONFIG_BT_ISO) && conn->type == BT_CONN_TYPE_ISO &&
+	    atomic_get(&conn->ref) == 1) {
+		bt_iso_cleanup(conn);
+	}
+
+	old = atomic_dec(&conn->ref);
 
 	BT_DBG("handle %u ref %u -> %u", conn->handle, old,
 	       atomic_get(&conn->ref));
 
-	if (IS_ENABLED(CONFIG_BT_PERIPHERAL) &&
+	__ASSERT(old > 0, "Conn reference counter is 0");
+
+	if (IS_ENABLED(CONFIG_BT_PERIPHERAL) && conn->type == BT_CONN_TYPE_LE &&
 	    atomic_get(&conn->ref) == 0) {
 		bt_le_adv_resume();
 	}
@@ -1872,6 +1929,17 @@ int bt_conn_get_info(const struct bt_conn *conn, struct bt_conn_info *info)
 #if defined(CONFIG_BT_BREDR)
 	case BT_CONN_TYPE_BR:
 		info->br.dst = &conn->br.dst;
+		return 0;
+#endif
+#if defined(CONFIG_BT_ISO)
+	case BT_CONN_TYPE_ISO:
+		if (!conn->iso.is_bis) {
+			info->le.dst = &conn->iso.acl->le.dst;
+			info->le.src = &bt_dev.id_addr[conn->iso.acl->id];
+		} else {
+			info->le.src = BT_ADDR_LE_NONE;
+			info->le.dst = BT_ADDR_LE_NONE;
+		}
 		return 0;
 #endif
 	}
@@ -1915,6 +1983,60 @@ int bt_conn_get_remote_info(struct bt_conn *conn,
 	}
 }
 
+/* Read Transmit Power Level HCI command */
+static int bt_conn_get_tx_power_level(struct bt_conn *conn, uint8_t type,
+				      int8_t *tx_power_level)
+{
+	int err;
+	struct bt_hci_rp_read_tx_power_level *rp;
+	struct net_buf *rsp;
+	struct bt_hci_cp_read_tx_power_level *cp;
+	struct net_buf *buf;
+
+	buf = bt_hci_cmd_create(BT_HCI_OP_READ_TX_POWER_LEVEL, sizeof(*cp));
+	if (!buf) {
+		return -ENOBUFS;
+	}
+
+	cp = net_buf_add(buf, sizeof(*cp));
+	cp->type = type;
+	cp->handle = sys_cpu_to_le16(conn->handle);
+
+	err = bt_hci_cmd_send_sync(BT_HCI_OP_READ_TX_POWER_LEVEL, buf, &rsp);
+	if (err) {
+		return err;
+	}
+
+	rp = (void *) rsp->data;
+	*tx_power_level = rp->tx_power_level;
+	net_buf_unref(rsp);
+
+	return 0;
+}
+
+int bt_conn_le_get_tx_power_level(struct bt_conn *conn,
+				  struct bt_conn_le_tx_power *tx_power_level)
+{
+	int err;
+
+	if (tx_power_level->phy != 0) {
+		/* Extend the implementation when LE Enhanced Read Transmit
+		 * Power Level HCI command is available for use.
+		 */
+		return -ENOTSUP;
+	}
+
+	err = bt_conn_get_tx_power_level(conn, BT_TX_POWER_LEVEL_CURRENT,
+					 &tx_power_level->current_level);
+	if (err) {
+		return err;
+	}
+
+	err = bt_conn_get_tx_power_level(conn, BT_TX_POWER_LEVEL_MAX,
+					 &tx_power_level->max_level);
+	return err;
+}
+
 static int conn_disconnect(struct bt_conn *conn, uint8_t reason)
 {
 	int err;
@@ -1924,7 +2046,9 @@ static int conn_disconnect(struct bt_conn *conn, uint8_t reason)
 		return err;
 	}
 
-	bt_conn_set_state(conn, BT_CONN_DISCONNECT);
+	if (conn->state == BT_CONN_CONNECTED) {
+		bt_conn_set_state(conn, BT_CONN_DISCONNECT);
+	}
 
 	return 0;
 }
@@ -2043,17 +2167,6 @@ int bt_conn_disconnect(struct bt_conn *conn, uint8_t reason)
 			bt_le_scan_update(false);
 		}
 		return 0;
-	case BT_CONN_CONNECT_DIR_ADV:
-		BT_WARN("Deprecated: Use bt_le_adv_stop instead");
-		conn->err = reason;
-		bt_conn_set_state(conn, BT_CONN_DISCONNECTED);
-		if (IS_ENABLED(CONFIG_BT_PERIPHERAL)) {
-			/* User should unref connection object when receiving
-			 * error in connection callback.
-			 */
-			return bt_le_adv_stop();
-		}
-		return 0;
 	case BT_CONN_CONNECT:
 #if defined(CONFIG_BT_BREDR)
 		if (conn->type == BT_CONN_TYPE_BR) {
@@ -2062,7 +2175,7 @@ int bt_conn_disconnect(struct bt_conn *conn, uint8_t reason)
 #endif /* CONFIG_BT_BREDR */
 
 		if (IS_ENABLED(CONFIG_BT_CENTRAL)) {
-			k_delayed_work_cancel(&conn->update_work);
+			k_work_cancel_delayable(&conn->deferred_work);
 			return bt_le_create_conn_cancel();
 		}
 
@@ -2154,7 +2267,7 @@ int bt_conn_le_create_auto(const struct bt_conn_le_create_param *create_param,
 		return -EINVAL;
 	}
 
-	if (!bt_le_scan_random_addr_check()) {
+	if (!bt_id_scan_random_addr_check()) {
 		return -EINVAL;
 	}
 
@@ -2239,14 +2352,14 @@ int bt_conn_le_create(const bt_addr_le_t *peer,
 	}
 
 	if (atomic_test_bit(bt_dev.flags, BT_DEV_EXPLICIT_SCAN)) {
-		return -EINVAL;
+		return -EAGAIN;
 	}
 
 	if (atomic_test_bit(bt_dev.flags, BT_DEV_INITIATING)) {
 		return -EALREADY;
 	}
 
-	if (!bt_le_scan_random_addr_check()) {
+	if (!bt_id_scan_random_addr_check()) {
 		return -EINVAL;
 	}
 
@@ -2318,7 +2431,7 @@ int bt_le_set_auto_conn(const bt_addr_le_t *addr,
 		return -EINVAL;
 	}
 
-	if (!bt_le_scan_random_addr_check()) {
+	if (!bt_id_scan_random_addr_check()) {
 		return -EINVAL;
 	}
 
@@ -2572,47 +2685,40 @@ int bt_conn_auth_pairing_confirm(struct bt_conn *conn)
 
 uint8_t bt_conn_index(struct bt_conn *conn)
 {
-	uint8_t index;
+	ptrdiff_t index;
 
 	switch (conn->type) {
 #if defined(CONFIG_BT_ISO)
 	case BT_CONN_TYPE_ISO:
 		index = conn - iso_conns;
-		__ASSERT(index < CONFIG_BT_MAX_ISO_CONN,
+		__ASSERT(0 <= index && index < ARRAY_SIZE(iso_conns),
 			"Invalid bt_conn pointer");
 		break;
 #endif
 #if defined(CONFIG_BT_BREDR)
 	case BT_CONN_TYPE_SCO:
 		index = conn - sco_conns;
-		__ASSERT(index < CONFIG_BT_MAX_SCO_CONN,
+		__ASSERT(0 <= index && index < ARRAY_SIZE(sco_conns),
 			"Invalid bt_conn pointer");
 		break;
 #endif
 	default:
 		index = conn - acl_conns;
-		__ASSERT(index < CONFIG_BT_MAX_CONN, "Invalid bt_conn pointer");
+		__ASSERT(0 <= index && index < ARRAY_SIZE(acl_conns),
+			 "Invalid bt_conn pointer");
 		break;
 	}
 
-	return index;
+	return (uint8_t)index;
 }
 
 struct bt_conn *bt_conn_lookup_index(uint8_t index)
 {
-	struct bt_conn *conn;
-
 	if (index >= ARRAY_SIZE(acl_conns)) {
 		return NULL;
 	}
 
-	conn = &acl_conns[index];
-
-	if (!atomic_get(&conn->ref)) {
-		return NULL;
-	}
-
-	return bt_conn_ref(conn);
+	return bt_conn_ref(&acl_conns[index]);
 }
 
 int bt_conn_init(void)
@@ -2635,9 +2741,9 @@ int bt_conn_init(void)
 	/* Initialize background scan */
 	if (IS_ENABLED(CONFIG_BT_CENTRAL)) {
 		for (i = 0; i < ARRAY_SIZE(acl_conns); i++) {
-			struct bt_conn *conn = &acl_conns[i];
+			struct bt_conn *conn = bt_conn_ref(&acl_conns[i]);
 
-			if (!atomic_get(&conn->ref)) {
+			if (!conn) {
 				continue;
 			}
 
@@ -2649,6 +2755,8 @@ int bt_conn_init(void)
 				bt_conn_set_state(conn, BT_CONN_CONNECT_SCAN);
 			}
 #endif /* !defined(CONFIG_BT_WHITELIST) */
+
+			bt_conn_unref(conn);
 		}
 	}
 

@@ -146,14 +146,17 @@ Secure sockets offer the following options for socket management:
 API Reference
 *************
 
+Note that current socket API implementation is not thread safe and caller
+should not do socket operations to same socket from multiple threads unless
+protected by a mutex, semaphore or similar.
+
+
 BSD Sockets
 ===========
 
 .. doxygengroup:: bsd_sockets
-   :project: Zephyr
 
 TLS Credentials
 ===============
 
 .. doxygengroup:: tls_credentials
-   :project: Zephyr

@@ -32,6 +32,7 @@ LOG_MODULE_REGISTER(net_l2_openthread, CONFIG_OPENTHREAD_L2_LOG_LEVEL);
 #include <openthread/joiner.h>
 #include <openthread-system.h>
 #include <openthread-config-generic.h>
+#include <utils/uart.h>
 
 #include <platform-zephyr.h>
 
@@ -67,6 +68,12 @@ LOG_MODULE_REGISTER(net_l2_openthread, CONFIG_OPENTHREAD_L2_LOG_LEVEL);
 #define OT_XPANID CONFIG_OPENTHREAD_XPANID
 #else
 #define OT_XPANID ""
+#endif
+
+#if defined(CONFIG_OPENTHREAD_MASTERKEY)
+#define OT_MASTERKEY CONFIG_OPENTHREAD_MASTERKEY
+#else
+#define OT_MASTERKEY ""
 #endif
 
 #if defined(CONFIG_OPENTHREAD_JOINER_PSKD)
@@ -125,6 +132,18 @@ static void ipv6_addr_event_handler(struct net_mgmt_event_callback *cb,
 }
 #endif
 
+static int ncp_hdlc_send(const uint8_t *buf, uint16_t len)
+{
+	otError err;
+
+	err = otPlatUartSend(buf, len);
+	if (err != OT_ERROR_NONE) {
+		return 0;
+	}
+
+	return len;
+}
+
 void otPlatRadioGetIeeeEui64(otInstance *instance, uint8_t *ieee_eui64)
 {
 	ARG_UNUSED(instance);
@@ -147,7 +166,7 @@ static void ot_state_changed_handler(uint32_t flags, void *context)
 	struct openthread_context *ot_context = context;
 
 	NET_INFO("State changed! Flags: 0x%08" PRIx32 " Current role: %d",
-		    flags, otThreadGetDeviceRole(ot_context->instance));
+		 flags, otThreadGetDeviceRole(ot_context->instance));
 
 	if (flags & OT_CHANGED_IP6_ADDRESS_REMOVED) {
 		NET_DBG("Ipv6 address removed");
@@ -194,9 +213,7 @@ static void ot_receive_handler(otMessage *aMessage, void *context)
 	pkt_buf = pkt->buffer;
 
 	while (1) {
-		read_len = otMessageRead(aMessage,
-					 offset,
-					 pkt_buf->data,
+		read_len = otMessageRead(aMessage, offset, pkt_buf->data,
 					 net_buf_tailroom(pkt_buf));
 		if (!read_len) {
 			break;
@@ -316,6 +333,8 @@ int openthread_send(struct net_if *iface, struct net_pkt *pkt)
 		net_pkt_hexdump(pkt, "IPv6 packet to send");
 	}
 
+	net_capture_pkt(iface, pkt);
+
 	if (notify_new_tx_frame(pkt) != 0) {
 		net_pkt_unref(pkt);
 	}
@@ -326,9 +345,18 @@ int openthread_send(struct net_if *iface, struct net_pkt *pkt)
 int openthread_start(struct openthread_context *ot_context)
 {
 	otInstance *ot_instance = ot_context->instance;
-	otError error;
+	otError error = OT_ERROR_NONE;
 
 	openthread_api_mutex_lock(ot_context);
+
+	NET_INFO("OpenThread version: %s", otGetVersionString());
+
+	if (IS_ENABLED(CONFIG_OPENTHREAD_COPROCESSOR)) {
+		NET_DBG("OpenThread co-processor.");
+		goto exit;
+	}
+
+	otIp6SetEnabled(ot_context->instance, true);
 
 	/* Sleepy End Device specific configuration. */
 	if (IS_ENABLED(CONFIG_OPENTHREAD_MTD_SED)) {
@@ -367,15 +395,21 @@ int openthread_start(struct openthread_context *ot_context)
 		NET_DBG("Loading OpenThread default configuration.");
 
 		otExtendedPanId xpanid;
+		otMasterKey     masterkey;
 
 		otThreadSetNetworkName(ot_instance, OT_NETWORK_NAME);
 		otLinkSetChannel(ot_instance, OT_CHANNEL);
 		otLinkSetPanId(ot_instance, OT_PANID);
 		net_bytes_from_str(xpanid.m8, 8, (char *)OT_XPANID);
 		otThreadSetExtendedPanId(ot_instance, &xpanid);
+
+		if (strlen(OT_MASTERKEY)) {
+			net_bytes_from_str(masterkey.m8, OT_MASTER_KEY_SIZE,
+					   (char *)OT_MASTERKEY);
+			otThreadSetMasterKey(ot_instance, &masterkey);
+		}
 	}
 
-	NET_INFO("OpenThread version: %s", otGetVersionString());
 	NET_INFO("Network name: %s",
 		 log_strdup(otThreadGetNetworkName(ot_instance)));
 
@@ -394,6 +428,10 @@ exit:
 int openthread_stop(struct openthread_context *ot_context)
 {
 	otError error;
+
+	if (IS_ENABLED(CONFIG_OPENTHREAD_COPROCESSOR)) {
+		return 0;
+	}
 
 	openthread_api_mutex_lock(ot_context);
 
@@ -428,33 +466,26 @@ static int openthread_init(struct net_if *iface)
 		platformShellInit(ot_context->instance);
 	}
 
-	if (IS_ENABLED(CONFIG_OPENTHREAD_NCP)) {
-		otNcpInit(ot_context->instance);
-	}
-
-	if (!IS_ENABLED(CONFIG_OPENTHREAD_RAW)) {
-		otIp6SetEnabled(ot_context->instance, true);
-	}
-
-	if (!IS_ENABLED(CONFIG_OPENTHREAD_NCP)) {
+	if (IS_ENABLED(CONFIG_OPENTHREAD_COPROCESSOR)) {
+		otPlatUartEnable();
+		otNcpHdlcInit(ot_context->instance, ncp_hdlc_send);
+	} else {
 		otIp6SetReceiveFilterEnabled(ot_context->instance, true);
 		otIp6SetReceiveCallback(ot_context->instance,
 					ot_receive_handler, ot_context);
-		otSetStateChangedCallback(
-					ot_context->instance,
-					&ot_state_changed_handler,
-					ot_context);
-	}
+		otSetStateChangedCallback(ot_context->instance,
+					  &ot_state_changed_handler,
+					  ot_context);
 
-	net_mgmt_init_event_callback(&ip6_addr_cb, ipv6_addr_event_handler,
-				     NET_EVENT_IPV6_ADDR_ADD |
-				     NET_EVENT_IPV6_MADDR_ADD);
-	net_mgmt_add_event_callback(&ip6_addr_cb);
+		net_mgmt_init_event_callback(
+			&ip6_addr_cb, ipv6_addr_event_handler,
+			NET_EVENT_IPV6_ADDR_ADD | NET_EVENT_IPV6_MADDR_ADD);
+		net_mgmt_add_event_callback(&ip6_addr_cb);
+	}
 
 	ot_tid = k_thread_create(&ot_thread_data, ot_stack_area,
 				 K_KERNEL_STACK_SIZEOF(ot_stack_area),
-				 openthread_process,
-				 ot_context, NULL, NULL,
+				 openthread_process, ot_context, NULL, NULL,
 				 OT_PRIORITY, 0, K_NO_WAIT);
 	k_thread_name_set(&ot_thread_data, "openthread");
 
@@ -531,6 +562,11 @@ void openthread_set_state_changed_cb(otStateChangedCallback cb)
 void openthread_api_mutex_lock(struct openthread_context *ot_context)
 {
 	(void)k_mutex_lock(&ot_context->api_lock, K_FOREVER);
+}
+
+int openthread_api_mutex_try_lock(struct openthread_context *ot_context)
+{
+	return k_mutex_lock(&ot_context->api_lock, K_NO_WAIT);
 }
 
 void openthread_api_mutex_unlock(struct openthread_context *ot_context)

@@ -1,7 +1,7 @@
 .. _audio_dmic_api:
 
-DMIC
-####
+Audio DMIC
+##########
 
 Overview
 ********
@@ -19,4 +19,3 @@ API Reference
 *************
 
 .. doxygengroup:: audio_dmic_interface
-   :project: Zephyr

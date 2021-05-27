@@ -18,3 +18,5 @@ supported:
   - nvs
   - can
   - pwm
+  - adc
+  - dac

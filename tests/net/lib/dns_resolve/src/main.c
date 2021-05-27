@@ -39,6 +39,7 @@ LOG_MODULE_REGISTER(net_test, CONFIG_DNS_RESOLVER_LOG_LEVEL);
 #define NAME_IPV6 "2001:db8::1"
 
 #define DNS_TIMEOUT 500 /* ms */
+#define THREAD_SLEEP 10
 
 #if defined(CONFIG_NET_IPV6)
 /* Interface 1 addresses */
@@ -153,7 +154,7 @@ static int sender_iface(const struct device *dev, struct net_pkt *pkt)
 		/* We need to cancel the query manually so that we
 		 * will not get a timeout.
 		 */
-		k_delayed_work_cancel(&ctx->queries[slot].timer);
+		k_work_cancel_delayable(&ctx->queries[slot].timer);
 
 		DBG("Calling cb %p with user data %p\n",
 		    ctx->queries[slot].cb,
@@ -187,7 +188,7 @@ NET_DEVICE_INIT_INSTANCE(net_iface1_test,
 			 "iface1",
 			 iface1,
 			 net_iface_dev_init,
-			 device_pm_control_nop,
+			 NULL,
 			 &net_iface1_data,
 			 NULL,
 			 CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,
@@ -346,7 +347,7 @@ static void test_dns_query_server_count(void)
 	int i, count = 0;
 
 	for (i = 0; i < CONFIG_DNS_RESOLVER_MAX_SERVERS; i++) {
-		if (!ctx->is_used) {
+		if (ctx->state != DNS_RESOLVE_CONTEXT_ACTIVE) {
 			continue;
 		}
 
@@ -367,7 +368,7 @@ static void test_dns_query_ipv4_server_count(void)
 	int i, count = 0, port = 0;
 
 	for (i = 0; i < CONFIG_DNS_RESOLVER_MAX_SERVERS; i++) {
-		if (!ctx->is_used) {
+		if (ctx->state != DNS_RESOLVE_CONTEXT_ACTIVE) {
 			continue;
 		}
 
@@ -397,7 +398,7 @@ static void test_dns_query_ipv6_server_count(void)
 	int i, count = 0, port = 0;
 
 	for (i = 0; i < CONFIG_DNS_RESOLVER_MAX_SERVERS; i++) {
-		if (!ctx->is_used) {
+		if (ctx->state != DNS_RESOLVE_CONTEXT_ACTIVE) {
 			continue;
 		}
 
@@ -510,7 +511,7 @@ static void verify_cancelled(void)
 			count++;
 		}
 
-		if (k_delayed_work_remaining_get(&ctx->queries[i].timer) > 0) {
+		if (k_work_delayable_busy_get(&ctx->queries[i].timer) != 0) {
 			timer_not_stopped++;
 		}
 	}
@@ -616,7 +617,8 @@ static void test_dns_query_ipv4(void)
 
 	DBG("Query id %u\n", current_dns_id);
 
-	k_yield(); /* mandatory so that net_if send func gets to run */
+	/* Let the network stack to proceed */
+	k_msleep(THREAD_SLEEP);
 
 	if (k_sem_take(&wait_data2, WAIT_TIME)) {
 		zassert_true(false, "Timeout while waiting data");
