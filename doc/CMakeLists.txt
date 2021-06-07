@@ -118,23 +118,6 @@ set(FIX_TEX_SCRIPT ${ZEPHYR_BASE}/doc/_scripts/fix_tex.py)
 # Generated Kconfig .rst documents
 #
 
-file(WRITE ${KCONFIG_BINARY_DIR}/Kconfig.soc.defconfig
-     "osource \"${ZEPHYR_BASE}/soc/$(ARCH)/*/Kconfig.defconfig\"\n"
-)
-file(WRITE ${KCONFIG_BINARY_DIR}/Kconfig.soc
-     "osource \"${ZEPHYR_BASE}/soc/$(ARCH)/*/Kconfig.soc\"\n"
-)
-file(WRITE ${KCONFIG_BINARY_DIR}/Kconfig.shield.defconfig
-     "osource \"${ZEPHYR_BASE}/boards/shields/*/Kconfig.defconfig\"\n"
-)
-file(WRITE ${KCONFIG_BINARY_DIR}/Kconfig.shield
-     "osource \"${ZEPHYR_BASE}/boards/shields/*/Kconfig.shield\"\n"
-)
-file(WRITE ${KCONFIG_BINARY_DIR}/Kconfig.soc.arch
-     "osource \"${ZEPHYR_BASE}/soc/$(ARCH)/Kconfig\"\n"
-     "osource \"${ZEPHYR_BASE}/soc/$(ARCH)/*/Kconfig\"\n"
-)
-
 foreach(module_name ${ZEPHYR_MODULE_NAMES})
   zephyr_string(SANITIZE TOUPPER MODULE_NAME_UPPER ${module_name})
   list(APPEND
@@ -240,7 +223,7 @@ set(SPHINX_BUILD_HTML_COMMAND
   ZEPHYR_BASE=${ZEPHYR_BASE}
   ZEPHYR_BUILD=${CMAKE_CURRENT_BINARY_DIR}
   DOXYGEN_EXECUTABLE=${DOXYGEN_EXECUTABLE}
-  ${SPHINXBUILD} -W -t ${DOC_TAG} -b html -c ${CMAKE_CURRENT_LIST_DIR} ${ALLSPHINXOPTS} ${RST_OUT} ${SPHINX_OUTPUT_DIR_HTML})
+  ${SPHINXBUILD} -t ${DOC_TAG} -b html -c ${CMAKE_CURRENT_LIST_DIR} ${ALLSPHINXOPTS} ${RST_OUT} ${SPHINX_OUTPUT_DIR_HTML})
 
 # The sphinx-html target is provided as a convenience for incremental
 # re-builds of content files without regenerating the entire docs
@@ -271,7 +254,7 @@ set(SPHINX_BUILD_LATEX_COMMAND
   ZEPHYR_BASE=${ZEPHYR_BASE}
   ZEPHYR_BUILD=${CMAKE_CURRENT_BINARY_DIR}
   DOXYGEN_EXECUTABLE=${DOXYGEN_EXECUTABLE}
-  ${SPHINXBUILD} -W -t ${DOC_TAG} -b latex -c ${CMAKE_CURRENT_LIST_DIR} -t svgconvert ${ALLSPHINXOPTS} ${RST_OUT} ${SPHINX_OUTPUT_DIR_LATEX})
+  ${SPHINXBUILD} -t ${DOC_TAG} -b latex -c ${CMAKE_CURRENT_LIST_DIR} -t svgconvert ${ALLSPHINXOPTS} ${RST_OUT} ${SPHINX_OUTPUT_DIR_LATEX})
 
 # The sphinx-latex target works similarly to sphinx-html, and carries
 # the same warnings.

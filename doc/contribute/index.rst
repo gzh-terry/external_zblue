@@ -366,14 +366,19 @@ issues, you can add option --no-verify to the git push command.
 A more complete alternative to this is using check_compliance.py script from
 ci-tools repo.
 
-
-Coding Guidelines
-*****************
+Other Guidelines
+****************
 
 Beyond the :ref:`coding_style` that Zephyr enforces for all code that is
 submitted for inclusion, the project targets compliance with a series of
 coding guidelines. Refer to the :ref:`coding_guidelines` section of the
 documentation for additional details.
+
+.. toctree::
+   :maxdepth: 1
+
+   coding_guidelines/index.rst
+   documentation/index.rst
 
 .. _Contribution Tools:
 
