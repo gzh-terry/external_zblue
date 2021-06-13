@@ -1,7 +1,7 @@
 .. _random_api:
 
-Random Number Generation
-########################
+Random
+######
 
 The random API subsystem provides random number generation APIs in both
 cryptographically and non-cryptographically secure instances. Which
@@ -90,3 +90,4 @@ API Reference
 *************
 
 .. doxygengroup:: random_api
+   :project: Zephyr

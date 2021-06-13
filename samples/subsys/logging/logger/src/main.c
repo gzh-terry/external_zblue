@@ -69,16 +69,15 @@ static uint32_t timestamp_freq(void)
  *
  * @return Source ID.
  */
-static int16_t log_source_id_get(const char *name)
+static int log_source_id_get(const char *name)
 {
 
-	for (int16_t i = 0; i < log_src_cnt_get(CONFIG_LOG_DOMAIN_ID); i++) {
+	for (int i = 0; i < log_src_cnt_get(CONFIG_LOG_DOMAIN_ID); i++) {
 		if (strcmp(log_source_name_get(CONFIG_LOG_DOMAIN_ID, i), name)
 		    == 0) {
 			return i;
 		}
 	}
-
 	return -1;
 }
 
@@ -279,7 +278,7 @@ static void external_log_system_showcase(void)
 
 static void log_demo_thread(void *p1, void *p2, void *p3)
 {
-	bool usermode = k_is_user_context();
+	bool usermode = _is_user_context();
 
 	k_sleep(K_MSEC(100));
 

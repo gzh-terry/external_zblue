@@ -16,7 +16,6 @@
 #include <toolchain.h>
 #include <linker/sections.h>
 #include <arch/cpu.h>
-#include <arch/arc/asm-compat/assembler.h>
 
 GTEXT(arch_cpu_idle)
 GTEXT(arch_cpu_atomic_idle)
@@ -37,15 +36,27 @@ SECTION_VAR(BSS, z_arc_cpu_sleep_mode)
 SECTION_FUNC(TEXT, arch_cpu_idle)
 
 #ifdef CONFIG_TRACING
-	PUSHR blink
+	push_s blink
 	jl    sys_trace_idle
-	POPR blink
+	pop_s blink
 #endif
 
-	/* z_arc_cpu_sleep_mode is 32 bit despite of platform bittnes */
 	ld r1, [z_arc_cpu_sleep_mode]
 	or r1, r1, (1 << 4) /* set IRQ-enabled bit */
+/*
+ * It's found that (in nsim_hs_smp), when cpu
+ * is sleeping, no response to inter-processor interrupt
+ * although it's pending and interrupts are enabled.
+ * (Here fire SNPS JIRA issue P10019563-41294 to trace)
+ * here is a workround
+ */
+#if defined(CONFIG_SOC_NSIM) && defined(CONFIG_SMP)
+	seti r1
+_z_arc_idle_loop:
+	b _z_arc_idle_loop
+#else
 	sleep r1
+#endif
 	j_s [blink]
 	nop
 
@@ -59,12 +70,11 @@ SECTION_FUNC(TEXT, arch_cpu_idle)
 SECTION_FUNC(TEXT, arch_cpu_atomic_idle)
 
 #ifdef CONFIG_TRACING
-	PUSHR blink
+	push_s blink
 	jl    sys_trace_idle
-	POPR blink
+	pop_s blink
 #endif
 
-	/* z_arc_cpu_sleep_mode is 32 bit despite of platform bittnes */
 	ld r1, [z_arc_cpu_sleep_mode]
 	or r1, r1, (1 << 4) /* set IRQ-enabled bit */
 	sleep r1

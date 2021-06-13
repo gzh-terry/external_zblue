@@ -128,8 +128,8 @@ static int i2c_gpio_init(const struct device *dev)
 		return -EINVAL;
 	}
 
-	err = gpio_pin_configure(context->scl_gpio, config->scl_pin,
-				 config->scl_flags | GPIO_OUTPUT_HIGH);
+	err = gpio_config(context->scl_gpio, config->scl_pin,
+			  config->scl_flags | GPIO_OUTPUT_HIGH);
 	if (err) {
 		LOG_ERR("failed to configure SCL GPIO pin (err %d)", err);
 		return err;
@@ -141,11 +141,11 @@ static int i2c_gpio_init(const struct device *dev)
 		return -EINVAL;
 	}
 
-	err = gpio_pin_configure(context->sda_gpio, config->sda_pin,
-				 config->sda_flags | GPIO_INPUT | GPIO_OUTPUT_HIGH);
+	err = gpio_config(context->sda_gpio, config->sda_pin,
+			  config->sda_flags | GPIO_INPUT | GPIO_OUTPUT_HIGH);
 	if (err == -ENOTSUP) {
-		err = gpio_pin_configure(context->sda_gpio, config->sda_pin,
-					 config->sda_flags | GPIO_OUTPUT_HIGH);
+		err = gpio_config(context->sda_gpio, config->sda_pin,
+				  config->sda_flags | GPIO_OUTPUT_HIGH);
 	}
 	if (err) {
 		LOG_ERR("failed to configure SDA GPIO pin (err %d)", err);
@@ -182,11 +182,10 @@ static const struct i2c_gpio_config i2c_gpio_dev_cfg_##_num = {		\
 	.bitrate	= DT_INST_PROP(_num, clock_frequency),		\
 };									\
 									\
-DEVICE_DT_INST_DEFINE(_num,						\
+DEVICE_AND_API_INIT(i2c_gpio_##_num, DT_INST_LABEL(_num),		\
 	    i2c_gpio_init,						\
-	    NULL,							\
 	    &i2c_gpio_dev_data_##_num,					\
 	    &i2c_gpio_dev_cfg_##_num,					\
-	    POST_KERNEL, CONFIG_I2C_INIT_PRIORITY, &api);
+	    PRE_KERNEL_2, CONFIG_I2C_INIT_PRIORITY, &api);
 
 DT_INST_FOREACH_STATUS_OKAY(DEFINE_I2C_GPIO)

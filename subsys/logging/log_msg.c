@@ -8,8 +8,8 @@
 #include <logging/log_msg.h>
 #include <logging/log_ctrl.h>
 #include <logging/log_core.h>
-#include <sys/__assert.h>
 #include <string.h>
+#include <assert.h>
 
 BUILD_ASSERT((sizeof(struct log_msg_ids) == sizeof(uint16_t)),
 	     "Structure must fit in 2 bytes");
@@ -109,13 +109,13 @@ static void msg_free(struct log_msg *msg)
 	/* Free any transient string found in arguments. */
 	if (log_msg_is_std(msg) && nargs) {
 		uint32_t i;
-		uint32_t smask = 0U;
+		uint32_t smask = 0;
 
-		for (i = 0U; i < nargs; i++) {
+		for (i = 0; i < nargs; i++) {
 			void *buf = (void *)log_msg_arg_get(msg, i);
 
 			if (log_is_strdup(buf)) {
-				if (smask == 0U) {
+				if (smask == 0) {
 					/* Do string arguments scan only when
 					 * string duplication candidate detected
 					 * since it is time consuming and free
@@ -125,7 +125,7 @@ static void msg_free(struct log_msg *msg)
 					smask = z_log_get_s_mask(
 							log_msg_str_get(msg),
 							nargs);
-					if (smask == 0U) {
+					if (smask == 0) {
 						/* if no string argument is
 						 * detected then stop searching
 						 * for candidates.
@@ -149,11 +149,6 @@ static void msg_free(struct log_msg *msg)
 		if (log_is_strdup(str)) {
 			log_free((void *)(str));
 		}
-	} else {
-		/* Message does not contain any arguments that might be a transient
-		 * string. No action required.
-		 */
-		;
 	}
 
 	if (msg->hdr.params.generic.ext == 1) {
@@ -172,13 +167,13 @@ union log_msg_chunk *log_msg_no_space_handle(void)
 	if (IS_ENABLED(CONFIG_LOG_MODE_OVERFLOW)) {
 		do {
 			more = log_process(true);
-			z_log_dropped();
+			log_dropped();
 			err = k_mem_slab_alloc(&log_msg_pool,
 					       (void **)&msg,
 					       K_NO_WAIT);
 		} while ((err != 0) && more);
 	} else {
-		z_log_dropped();
+		log_dropped();
 	}
 	return msg;
 
@@ -449,7 +444,7 @@ static void log_msg_hexdump_data_op(struct log_msg *msg,
 		}
 	}
 
-	while ((req_len > 0) && (cont != NULL)) {
+	while (req_len > 0) {
 		chunk_len = HEXDUMP_BYTES_CONT_MSG - offset;
 		cpy_len = req_len > chunk_len ? chunk_len : req_len;
 

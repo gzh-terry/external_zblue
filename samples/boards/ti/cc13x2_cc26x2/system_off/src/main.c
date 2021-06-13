@@ -10,7 +10,7 @@
 #include <init.h>
 #include <device.h>
 #include <drivers/gpio.h>
-#include <pm/pm.h>
+#include <power/power.h>
 
 #include <driverlib/ioc.h>
 
@@ -64,10 +64,12 @@ void main(void)
 	status = GPIO_getEventMultiDio(GPIO_DIO_ALL_MASK);
 	GPIO_clearEventMultiDio(status);
 
-	/*
-	 * Force the SOFT_OFF state.
+	/* Above we disabled entry to deep sleep based on duration of
+	 * controlled delay.  Here we need to override that, then
+	 * force a sleep so that the deep sleep takes effect.
 	 */
-	pm_power_state_force((struct pm_state_info){PM_STATE_SOFT_OFF, 0, 0});
+	sys_pm_force_power_state(SYS_POWER_STATE_DEEP_SLEEP_1);
+	k_sleep(K_MSEC(1));
 
 	printk("ERROR: System off failed\n");
 	while (true) {

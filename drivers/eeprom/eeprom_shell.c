@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2019 Vestas Wind Systems A/S
- * Copyright (c) 2021 Lemonbeat GmbH
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -32,15 +31,20 @@ static const struct args_index args_indx = {
 
 static int cmd_read(const struct shell *shell, size_t argc, char **argv)
 {
+	uint8_t buf[CONFIG_EEPROM_SHELL_BUFFER_SIZE];
 	const struct device *eeprom;
-	size_t addr;
+	off_t offset;
 	size_t len;
-	size_t pending;
-	size_t upto;
 	int err;
 
-	addr = strtoul(argv[args_indx.offset], NULL, 0);
+	offset = strtoul(argv[args_indx.offset], NULL, 0);
 	len = strtoul(argv[args_indx.length], NULL, 0);
+
+	if (len > sizeof(buf)) {
+		shell_error(shell, "Read buffer size (%d bytes) exceeded",
+			    sizeof(buf));
+		return -EINVAL;
+	}
 
 	eeprom = device_get_binding(argv[args_indx.device]);
 	if (!eeprom) {
@@ -49,23 +53,16 @@ static int cmd_read(const struct shell *shell, size_t argc, char **argv)
 	}
 
 	shell_print(shell, "Reading %d bytes from EEPROM, offset %d...", len,
-		    addr);
+		    offset);
 
-	for (upto = 0; upto < len; upto += pending) {
-		uint8_t data[SHELL_HEXDUMP_BYTES_IN_LINE];
-
-		pending = MIN(len - upto, SHELL_HEXDUMP_BYTES_IN_LINE);
-		err = eeprom_read(eeprom, addr, data, pending);
-		if (err) {
-			shell_error(shell, "EEPROM read failed (err %d)", err);
-			return err;
-		}
-
-		shell_hexdump_line(shell, addr, data, pending);
-		addr += pending;
+	err = eeprom_read(eeprom, offset, buf, len);
+	if (err) {
+		shell_error(shell, "EEPROM read failed (err %d)", err);
+		return err;
 	}
 
-	shell_print(shell, "");
+	shell_hexdump(shell, buf, len);
+
 	return 0;
 }
 
@@ -150,22 +147,25 @@ static int cmd_fill(const struct shell *shell, size_t argc, char **argv)
 	uint8_t rd_buf[CONFIG_EEPROM_SHELL_BUFFER_SIZE];
 	const struct device *eeprom;
 	unsigned long pattern;
-	size_t addr;
-	size_t initial_offset;
+	off_t offset;
 	size_t len;
-	size_t pending;
-	size_t upto;
 	int err;
 
-	initial_offset = strtoul(argv[args_indx.offset], NULL, 0);
+	offset = strtoul(argv[args_indx.offset], NULL, 0);
 	len = strtoul(argv[args_indx.length], NULL, 0);
+
+	if (len > sizeof(wr_buf)) {
+		shell_error(shell, "Write buffer size (%d bytes) exceeded",
+			    sizeof(wr_buf));
+		return -EINVAL;
+	}
 
 	pattern = strtoul(argv[args_indx.pattern], NULL, 0);
 	if (pattern > UINT8_MAX) {
 		shell_error(shell, "Error parsing pattern byte");
 		return -EINVAL;
 	}
-	memset(wr_buf, pattern, MIN(len, CONFIG_EEPROM_SHELL_BUFFER_SIZE));
+	memset(wr_buf, pattern, len);
 
 	eeprom = device_get_binding(argv[args_indx.device]);
 	if (!eeprom) {
@@ -176,36 +176,23 @@ static int cmd_fill(const struct shell *shell, size_t argc, char **argv)
 	shell_print(shell, "Writing %d bytes of 0x%02x to EEPROM...", len,
 		    pattern);
 
-	addr = initial_offset;
-
-	for (upto = 0; upto < len; upto += pending) {
-		pending = MIN(len - upto, CONFIG_EEPROM_SHELL_BUFFER_SIZE);
-		err = eeprom_write(eeprom, addr, wr_buf, pending);
-		if (err) {
-			shell_error(shell, "EEPROM write failed (err %d)", err);
-			return err;
-		}
-		addr += pending;
+	err = eeprom_write(eeprom, offset, wr_buf, len);
+	if (err) {
+		shell_error(shell, "EEPROM write failed (err %d)", err);
+		return err;
 	}
-
-	addr = initial_offset;
 
 	shell_print(shell, "Verifying...");
 
-	for (upto = 0; upto < len; upto += pending) {
-		pending = MIN(len - upto, CONFIG_EEPROM_SHELL_BUFFER_SIZE);
-		err = eeprom_read(eeprom, addr, rd_buf, pending);
-		if (err) {
-			shell_error(shell, "EEPROM read failed (err %d)", err);
-			return err;
-		}
+	err = eeprom_read(eeprom, offset, rd_buf, len);
+	if (err) {
+		shell_error(shell, "EEPROM read failed (err %d)", err);
+		return err;
+	}
 
-		if (memcmp(wr_buf, rd_buf, pending) != 0) {
-			shell_error(shell, "Verify failed");
-			return -EIO;
-		}
-
-		addr += pending;
+	if (memcmp(wr_buf, rd_buf, len) != 0) {
+		shell_error(shell, "Verify failed");
+		return -EIO;
 	}
 
 	shell_print(shell, "Verify OK");

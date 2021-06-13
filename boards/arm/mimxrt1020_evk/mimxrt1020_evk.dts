@@ -15,13 +15,9 @@
 	aliases {
 		led0 = &green_led;
 		sw0 = &user_button;
-		usbd0 = &usb1;
 	};
 
 	chosen {
-		zephyr,sram = &sdram0;
-		zephyr,itcm = &itcm;
-		zephyr,dtcm = &dtcm;
 		zephyr,console = &lpuart1;
 		zephyr,shell-uart = &lpuart1;
 	};
@@ -29,7 +25,7 @@
 	sdram0: memory@80000000 {
 		/* ISSI IS42S16160J-6TLI */
 		device_type = "memory";
-		reg = <0x80000000 DT_SIZE_M(32)>;
+		reg = <0x80000000 0x2000000>;
 	};
 
 	leds {
@@ -81,9 +77,9 @@
 arduino_serial: &lpuart2 {};
 
 &flexspi {
-	reg = <0x402a8000 0x4000>, <0x60000000 DT_SIZE_M(8)>;
+	reg = <0x402a8000 0x4000>, <0x60000000 0x800000>;
 	is25wp064: is25wp064@0 {
-		compatible = "nxp,imx-flexspi-nor";
+		compatible = "issi,is25wp064", "jedec,spi-nor";
 		size = <67108864>;
 		label = "IS25WP064";
 		reg = <0>;
@@ -115,10 +111,4 @@ arduino_serial: &lpuart2 {};
 
 &usb1 {
 	status = "okay";
-};
-
-&usdhc1 {
-	status = "okay";
-	cd-gpios = <&gpio1 23 GPIO_ACTIVE_LOW>;
-	no-1-8-v;
 };

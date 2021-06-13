@@ -21,26 +21,21 @@ LOG_MODULE_DECLARE(lis2dh, CONFIG_SENSOR_LOG_LEVEL);
 static inline void setup_int1(const struct device *dev,
 			      bool enable)
 {
-	const struct lis2dh_config *cfg = dev->config;
+	struct lis2dh_data *lis2dh = dev->data;
 
-	gpio_pin_interrupt_configure_dt(&cfg->gpio_drdy,
-					enable
-					? GPIO_INT_EDGE_TO_ACTIVE
-					: GPIO_INT_DISABLE);
+	gpio_pin_interrupt_configure(lis2dh->gpio_int1,
+				     LIS2DH_INT1_GPIOS_PIN,
+				     enable
+				     ? GPIO_INT_EDGE_TO_ACTIVE
+				     : GPIO_INT_DISABLE);
 }
 
 static int lis2dh_trigger_drdy_set(const struct device *dev,
 				   enum sensor_channel chan,
 				   sensor_trigger_handler_t handler)
 {
-	const struct lis2dh_config *cfg = dev->config;
 	struct lis2dh_data *lis2dh = dev->data;
 	int status;
-
-	if (cfg->gpio_drdy.port == NULL) {
-		LOG_ERR("trigger_set DRDY int not supported");
-		return -ENOTSUP;
-	}
 
 	setup_int1(dev, false);
 
@@ -111,32 +106,28 @@ static int lis2dh_start_trigger_int1(const struct device *dev)
 					 LIS2DH_EN_DRDY1_INT1);
 }
 
+#if DT_INST_PROP_HAS_IDX(0, irq_gpios, 1)
 #define LIS2DH_ANYM_CFG (LIS2DH_INT_CFG_ZHIE_ZUPE | LIS2DH_INT_CFG_YHIE_YUPE |\
 			 LIS2DH_INT_CFG_XHIE_XUPE)
 
 static inline void setup_int2(const struct device *dev,
 			      bool enable)
 {
-	const struct lis2dh_config *cfg = dev->config;
+	struct lis2dh_data *lis2dh = dev->data;
 
-	gpio_pin_interrupt_configure_dt(&cfg->gpio_int,
-					enable
-					? GPIO_INT_EDGE_TO_ACTIVE
-					: GPIO_INT_DISABLE);
+	gpio_pin_interrupt_configure(lis2dh->gpio_int2,
+				     LIS2DH_INT2_GPIOS_PIN,
+				     enable
+				     ? GPIO_INT_EDGE_TO_ACTIVE
+				     : GPIO_INT_DISABLE);
 }
 
 static int lis2dh_trigger_anym_set(const struct device *dev,
 				   sensor_trigger_handler_t handler)
 {
-	const struct lis2dh_config *cfg = dev->config;
 	struct lis2dh_data *lis2dh = dev->data;
 	int status;
 	uint8_t reg_val;
-
-	if (cfg->gpio_int.port == NULL) {
-		LOG_ERR("trigger_set AnyMotion int not supported");
-		return -ENOTSUP;
-	}
 
 	setup_int2(dev, false);
 
@@ -175,6 +166,7 @@ static int lis2dh_start_trigger_int2(const struct device *dev)
 	return lis2dh->hw_tf->write_reg(dev, LIS2DH_REG_INT2_CFG,
 					LIS2DH_ANYM_CFG);
 }
+#endif /* DT_INST_PROP_HAS_IDX(0, irq_gpios, 1) */
 
 int lis2dh_trigger_set(const struct device *dev,
 		       const struct sensor_trigger *trig,
@@ -183,8 +175,10 @@ int lis2dh_trigger_set(const struct device *dev,
 	if (trig->type == SENSOR_TRIG_DATA_READY &&
 	    trig->chan == SENSOR_CHAN_ACCEL_XYZ) {
 		return lis2dh_trigger_drdy_set(dev, trig->chan, handler);
+#if DT_INST_PROP_HAS_IDX(0, irq_gpios, 1)
 	} else if (trig->type == SENSOR_TRIG_DELTA) {
 		return lis2dh_trigger_anym_set(dev, handler);
+#endif /* DT_INST_PROP_HAS_IDX(0, irq_gpios, 1) */
 	}
 
 	return -ENOTSUP;
@@ -261,6 +255,7 @@ static void lis2dh_gpio_int1_callback(const struct device *dev,
 #endif
 }
 
+#if DT_INST_PROP_HAS_IDX(0, irq_gpios, 1)
 static void lis2dh_gpio_int2_callback(const struct device *dev,
 				      struct gpio_callback *cb, uint32_t pins)
 {
@@ -277,16 +272,15 @@ static void lis2dh_gpio_int2_callback(const struct device *dev,
 	k_work_submit(&lis2dh->work);
 #endif
 }
+#endif /* DT_INST_PROP_HAS_IDX(0, irq_gpios, 1) */
 
 static void lis2dh_thread_cb(const struct device *dev)
 {
 	struct lis2dh_data *lis2dh = dev->data;
-	const struct lis2dh_config *cfg = dev->config;
 	int status;
 
-	if (cfg->gpio_drdy.port &&
-			unlikely(atomic_test_and_clear_bit(&lis2dh->trig_flags,
-			START_TRIG_INT1))) {
+	if (unlikely(atomic_test_and_clear_bit(&lis2dh->trig_flags,
+		     START_TRIG_INT1))) {
 		status = lis2dh_start_trigger_int1(dev);
 
 		if (unlikely(status < 0)) {
@@ -295,9 +289,9 @@ static void lis2dh_thread_cb(const struct device *dev)
 		return;
 	}
 
-	if (cfg->gpio_int.port &&
-			unlikely(atomic_test_and_clear_bit(&lis2dh->trig_flags,
-			START_TRIG_INT2))) {
+#if DT_INST_PROP_HAS_IDX(0, irq_gpios, 1)
+	if (unlikely(atomic_test_and_clear_bit(&lis2dh->trig_flags,
+		     START_TRIG_INT2))) {
 		status = lis2dh_start_trigger_int2(dev);
 
 		if (unlikely(status < 0)) {
@@ -305,10 +299,10 @@ static void lis2dh_thread_cb(const struct device *dev)
 		}
 		return;
 	}
+#endif /* DT_INST_PROP_HAS_IDX(0, irq_gpios, 1) */
 
-	if (cfg->gpio_drdy.port &&
-			atomic_test_and_clear_bit(&lis2dh->trig_flags,
-			TRIGGED_INT1)) {
+	if (atomic_test_and_clear_bit(&lis2dh->trig_flags,
+				      TRIGGED_INT1)) {
 		struct sensor_trigger drdy_trigger = {
 			.type = SENSOR_TRIG_DATA_READY,
 			.chan = lis2dh->chan_drdy,
@@ -321,9 +315,9 @@ static void lis2dh_thread_cb(const struct device *dev)
 		return;
 	}
 
-	if (cfg->gpio_int.port &&
-			atomic_test_and_clear_bit(&lis2dh->trig_flags,
-			TRIGGED_INT2)) {
+#if DT_INST_PROP_HAS_IDX(0, irq_gpios, 1)
+	if (atomic_test_and_clear_bit(&lis2dh->trig_flags,
+				      TRIGGED_INT2)) {
 		struct sensor_trigger anym_trigger = {
 			.type = SENSOR_TRIG_DELTA,
 			.chan = lis2dh->chan_drdy,
@@ -347,6 +341,7 @@ static void lis2dh_thread_cb(const struct device *dev)
 
 		return;
 	}
+#endif /* DT_INST_PROP_HAS_IDX(0, irq_gpios, 1) */
 }
 
 #ifdef CONFIG_LIS2DH_TRIGGER_OWN_THREAD
@@ -372,31 +367,23 @@ static void lis2dh_work_cb(struct k_work *work)
 int lis2dh_init_interrupt(const struct device *dev)
 {
 	struct lis2dh_data *lis2dh = dev->data;
-	const struct lis2dh_config *cfg = dev->config;
 	int status;
+#if DT_INST_PROP_HAS_IDX(0, irq_gpios, 1)
 	uint8_t raw[2];
-
-	/*
-	 * Setup INT1 (for DRDY) if defined in DT
-	 */
+#endif
 
 	/* setup data ready gpio interrupt */
-	if (!device_is_ready(cfg->gpio_drdy.port)) {
-		/* API may return false even when ptr is NULL */
-		if (cfg->gpio_drdy.port != NULL) {
-			LOG_ERR("device %s is not ready", cfg->gpio_drdy.port->name);
-			return -ENODEV;
-		}
-
-		LOG_DBG("gpio_drdy not defined in DT");
-		status = 0;
-		goto check_gpio_int;
+	lis2dh->gpio_int1 = device_get_binding(LIS2DH_INT1_GPIO_DEV_NAME);
+	if (lis2dh->gpio_int1 == NULL) {
+		LOG_ERR("Cannot get pointer to %s device",
+			    LIS2DH_INT1_GPIO_DEV_NAME);
+		return -EINVAL;
 	}
 
 	lis2dh->dev = dev;
 
 #if defined(CONFIG_LIS2DH_TRIGGER_OWN_THREAD)
-	k_sem_init(&lis2dh->gpio_sem, 0, K_SEM_MAX_LIMIT);
+	k_sem_init(&lis2dh->gpio_sem, 0, UINT_MAX);
 
 	k_thread_create(&lis2dh->thread, lis2dh->thread_stack,
 			CONFIG_LIS2DH_THREAD_STACK_SIZE,
@@ -408,72 +395,62 @@ int lis2dh_init_interrupt(const struct device *dev)
 #endif
 
 	/* data ready int1 gpio configuration */
-	status = gpio_pin_configure_dt(&cfg->gpio_drdy, GPIO_INPUT);
+	status = gpio_pin_configure(lis2dh->gpio_int1, LIS2DH_INT1_GPIOS_PIN,
+				    GPIO_INPUT | LIS2DH_INT1_GPIOS_FLAGS);
 	if (status < 0) {
-		LOG_ERR("Could not configure %s.%02u",
-			cfg->gpio_drdy.port->name, cfg->gpio_drdy.pin);
+		LOG_ERR("Could not configure gpio %d",
+			     LIS2DH_INT1_GPIOS_PIN);
 		return status;
 	}
 
 	gpio_init_callback(&lis2dh->gpio_int1_cb,
 			   lis2dh_gpio_int1_callback,
-			   BIT(cfg->gpio_drdy.pin));
+			   BIT(LIS2DH_INT1_GPIOS_PIN));
 
-	status = gpio_add_callback(cfg->gpio_drdy.port, &lis2dh->gpio_int1_cb);
+	status = gpio_add_callback(lis2dh->gpio_int1, &lis2dh->gpio_int1_cb);
 	if (status < 0) {
 		LOG_ERR("Could not add gpio int1 callback");
 		return status;
 	}
 
-	LOG_INF("%s: int1 on %s.%02u", dev->name,
-				       cfg->gpio_drdy.port->name,
-				       cfg->gpio_drdy.pin);
+	LOG_INF("int1 on pin=%d", LIS2DH_INT1_GPIOS_PIN);
 
-check_gpio_int:
-	/*
-	 * Setup INT2 (for Any Motion) if defined in DT
-	 */
-
+#if DT_INST_PROP_HAS_IDX(0, irq_gpios, 1)
 	/* setup any motion gpio interrupt */
-	if (!device_is_ready(cfg->gpio_int.port)) {
-		/* API may return false even when ptr is NULL */
-		if (cfg->gpio_int.port != NULL) {
-			LOG_ERR("device %s is not ready", cfg->gpio_int.port->name);
-			return -ENODEV;
-		}
-
-		LOG_DBG("gpio_int not defined in DT");
-		status = 0;
-		goto end;
+	lis2dh->gpio_int2 = device_get_binding(LIS2DH_INT2_GPIO_DEV_NAME);
+	if (lis2dh->gpio_int2 == NULL) {
+		LOG_ERR("Cannot get pointer to %s device",
+			    LIS2DH_INT2_GPIO_DEV_NAME);
+		return -EINVAL;
 	}
 
 	/* any motion int2 gpio configuration */
-	status = gpio_pin_configure_dt(&cfg->gpio_int, GPIO_INPUT);
+	status = gpio_pin_configure(lis2dh->gpio_int2, LIS2DH_INT2_GPIOS_PIN,
+				    GPIO_INPUT | LIS2DH_INT2_GPIOS_FLAGS);
 	if (status < 0) {
-		LOG_ERR("Could not configure %s.%02u",
-			cfg->gpio_int.port->name, cfg->gpio_int.pin);
+		LOG_ERR("Could not configure gpio %d",
+			     LIS2DH_INT2_GPIOS_PIN);
 		return status;
 	}
 
 	gpio_init_callback(&lis2dh->gpio_int2_cb,
 			   lis2dh_gpio_int2_callback,
-			   BIT(cfg->gpio_int.pin));
+			   BIT(LIS2DH_INT2_GPIOS_PIN));
 
 	/* callback is going to be enabled by trigger setting function */
-	status = gpio_add_callback(cfg->gpio_int.port, &lis2dh->gpio_int2_cb);
+	status = gpio_add_callback(lis2dh->gpio_int2, &lis2dh->gpio_int2_cb);
 	if (status < 0) {
 		LOG_ERR("Could not add gpio int2 callback (%d)", status);
 		return status;
 	}
 
-	LOG_INF("%s: int2 on %s.%02u", dev->name,
-				       cfg->gpio_int.port->name,
-				       cfg->gpio_int.pin);
+	LOG_INF("int2 on pin=%d", LIS2DH_INT2_GPIOS_PIN);
 
 	/* disable interrupt 2 in case of warm (re)boot */
 	status = lis2dh->hw_tf->write_reg(dev, LIS2DH_REG_INT2_CFG, 0);
 	if (status < 0) {
-		LOG_ERR("Interrupt 2 disable reg write failed (%d)", status);
+		LOG_ERR("Interrupt 2 disable reg write failed (%d)",
+			    status);
 		return status;
 	}
 
@@ -497,7 +474,7 @@ check_gpio_int:
 		LOG_ERR("INT2 latch enable reg write failed (%d)", status);
 		return status;
 	}
+#endif /* DT_INST_PROP_HAS_IDX(0, irq_gpios, 1) */
 
-end:
 	return status;
 }
