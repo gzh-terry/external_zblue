@@ -14,12 +14,6 @@
 #define FLASH_DEVICE DT_LABEL(DT_INST(0, nordic_qspi_nor))
 #define FLASH_TEST_REGION_OFFSET 0xff000
 #define TEST_AREA_MAX DT_PROP(DT_INST(0, nordic_qspi_nor), size)
-
-#elif defined(CONFIG_FLASH_MCUX_FLEXSPI_NOR)
-
-#define FLASH_DEVICE DT_LABEL(DT_INST(0, nxp_imx_flexspi_nor))
-#define FLASH_TEST_REGION_OFFSET FLASH_AREA_OFFSET(storage)
-#define TEST_AREA_MAX ((FLASH_AREA_SIZE(storage)) + (FLASH_TEST_REGION_OFFSET))
 #else
 
 /* SoC emebded NVM */
@@ -30,8 +24,8 @@
 #define TEST_AREA_MAX (FLASH_TEST_REGION_OFFSET +\
 		       FLASH_AREA_SIZE(image_1_nonsecure))
 #else
-#define FLASH_TEST_REGION_OFFSET FLASH_AREA_OFFSET(storage)
-#define TEST_AREA_MAX (FLASH_TEST_REGION_OFFSET + FLASH_AREA_SIZE(storage))
+#define FLASH_TEST_REGION_OFFSET FLASH_AREA_OFFSET(image_1)
+#define TEST_AREA_MAX (FLASH_TEST_REGION_OFFSET + FLASH_AREA_SIZE(image_1))
 #endif
 
 #endif
@@ -48,7 +42,7 @@ static void test_setup(void)
 	int rc;
 
 	flash_dev = device_get_binding(FLASH_DEVICE);
-	const struct flash_parameters *flash_params =
+	const struct flash_parameters *qspi_flash_parameters =
 			flash_get_parameters(flash_dev);
 
 	/* For tests purposes use page (in nrf_qspi_nor page = 64 kB) */
@@ -75,7 +69,7 @@ static void test_setup(void)
 	bool is_buf_clear = true;
 
 	for (off_t i = 0; i < EXPECTED_SIZE; i++) {
-		if (buf[i] != flash_params->erase_value) {
+		if (buf[i] != qspi_flash_parameters->erase_value) {
 			is_buf_clear = false;
 			break;
 		}

@@ -85,9 +85,7 @@ z_x86_syscall_entry_stub:
 
 	/* Load kernel's page table */
 	pushq	%rax
-
-	/* NOTE: Presumes phys=virt */
-	movq	$Z_MEM_PHYS_ADDR(z_x86_kernel_ptables), %rax
+	movq	$z_x86_kernel_ptables, %rax
 	movq	%rax, %cr3
 	popq	%rax
 	movq	$0, -8(%rsp)	/* Delete stashed RAX data */
@@ -288,20 +286,24 @@ z_x86_userspace_enter:
 	 */
 	movq	%r9, %rsp
 
-	/* Push callee-saved regs and go back into C code to erase the stack
-	 * buffer and set US bit in page tables for it
-	 */
-	pushq	%rdx
-	pushq	%rsi
+	/* Need RDI temporarily */
 	pushq	%rdi
-	pushq	%r8
-	pushq	%r10
-	callq	z_x86_current_stack_perms
-	popq	%r10
-	popq	%r8
+
+	/* Compute size of user stack in 8-byte chunks and put in RCX */
+	movq	%r9, %rdi	/* Start address for rep stosq in RDI */
+	movq	%r8, %rcx	/* Ending address */
+	subq	%rdi, %rcx	/* Subtract starting address */
+	shrq	$3, %rcx	/* Divide by 8 */
+
+	movq	$0xAAAAAAAAAAAAAAAA, %rax	/* Fill value */
+	/* Copy 8 bytes of memory at a time, starting at ES:RDI, with whatever
+	 * is in RAX. Repeat this RCX times.  Stack sizes are always at least
+	 * 8-byte aligned.
+	 */
+	cld
+	rep stosq
+
 	popq	%rdi
-	popq	%rsi
-	popq	%rdx
 
 	/* Reset to the beginning of the user stack */
 	movq	%r8, %rsp

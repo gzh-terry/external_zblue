@@ -28,8 +28,6 @@ LOG_MODULE_REGISTER(net_core, CONFIG_NET_CORE_LOG_LEVEL);
 #include <net/dns_resolve.h>
 #include <net/gptp.h>
 #include <net/websocket.h>
-#include <net/ethernet.h>
-#include <net/capture.h>
 
 #if defined(CONFIG_NET_LLDP)
 #include <net/lldp.h>
@@ -63,7 +61,7 @@ static inline enum net_verdict process_data(struct net_pkt *pkt,
 	int ret;
 	bool locally_routed = false;
 
-	ret = net_packet_socket_input(pkt, ETH_P_ALL);
+	ret = net_packet_socket_input(pkt);
 	if (ret != NET_CONTINUE) {
 		return ret;
 	}
@@ -99,12 +97,6 @@ static inline enum net_verdict process_data(struct net_pkt *pkt,
 		}
 	}
 
-	/* L2 processed, now we can pass IPPROTO_RAW to packet socket: */
-	ret = net_packet_socket_input(pkt, IPPROTO_RAW);
-	if (ret != NET_CONTINUE) {
-		return ret;
-	}
-
 	ret = net_canbus_socket_input(pkt);
 	if (ret != NET_CONTINUE) {
 		return ret;
@@ -137,19 +129,7 @@ static inline enum net_verdict process_data(struct net_pkt *pkt,
 
 static void processing_data(struct net_pkt *pkt, bool is_loopback)
 {
-again:
 	switch (process_data(pkt, is_loopback)) {
-	case NET_CONTINUE:
-		if (IS_ENABLED(CONFIG_NET_L2_VIRTUAL)) {
-			/* If we have a tunneling packet, feed it back
-			 * to the stack in this case.
-			 */
-			goto again;
-		} else {
-			NET_DBG("Dropping pkt %p", pkt);
-			net_pkt_unref(pkt);
-		}
-		break;
 	case NET_OK:
 		NET_DBG("Consumed pkt %p", pkt);
 		break;
@@ -364,11 +344,13 @@ static void net_rx(struct net_if *iface, struct net_pkt *pkt)
 	net_pkt_print();
 }
 
-void net_process_rx_packet(struct net_pkt *pkt)
+static void process_rx_packet(struct k_work *work)
 {
-	net_pkt_set_rx_stats_tick(pkt, k_cycle_get_32());
+	struct net_pkt *pkt;
 
-	net_capture_pkt(net_pkt_iface(pkt), pkt);
+	pkt = CONTAINER_OF(work, struct net_pkt, work);
+
+	net_pkt_set_rx_stats_tick(pkt, k_cycle_get_32());
 
 	net_rx(net_pkt_iface(pkt), pkt);
 }
@@ -377,6 +359,8 @@ static void net_queue_rx(struct net_if *iface, struct net_pkt *pkt)
 {
 	uint8_t prio = net_pkt_priority(pkt);
 	uint8_t tc = net_rx_priority2tc(prio);
+
+	k_work_init(net_pkt_work(pkt), process_rx_packet);
 
 #if defined(CONFIG_NET_STATISTICS)
 	net_stats_update_tc_recv_pkt(iface, tc);
@@ -388,11 +372,7 @@ static void net_queue_rx(struct net_if *iface, struct net_pkt *pkt)
 	NET_DBG("TC %d with prio %d pkt %p", tc, prio, pkt);
 #endif
 
-	if (NET_TC_RX_COUNT == 0) {
-		net_process_rx_packet(pkt);
-	} else {
-		net_tc_submit_to_rx_queue(tc, pkt);
-	}
+	net_tc_submit_to_rx_queue(tc, pkt);
 }
 
 /* Called by driver when an IP packet has been received */
@@ -402,7 +382,7 @@ int net_recv_data(struct net_if *iface, struct net_pkt *pkt)
 		return -EINVAL;
 	}
 
-	if (net_pkt_is_empty(pkt)) {
+	if (!pkt->frags) {
 		return -ENODATA;
 	}
 

@@ -355,7 +355,6 @@ SECTIONS
     _etext = .;
   } >ram :ram_phdr
 #include <linker/common-rom.ld>
-#include <linker/thread-local-storage.ld>
 
   .noinit :  ALIGN(4)
   {
@@ -425,11 +424,6 @@ SECTIONS
     _lit4_end = ABSOLUTE(.);
   } >ram :ram_phdr
 #include <linker/common-ram.ld>
-
-  .tm_clone_table :
-  {
-    *(.tm_clone_table)
-  } >ram :ram_phdr
 
   .bss (NOLOAD) : ALIGN(8)
   {

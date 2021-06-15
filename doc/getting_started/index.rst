@@ -53,30 +53,11 @@ Install dependencies
 
 Next, you'll install some host dependencies using your package manager.
 
-The current minimum required version for the main dependencies are:
-
-.. list-table::
-   :header-rows: 1
-
-   * - Tool
-     - Min. Version
-
-   * - `CMake <https://cmake.org/>`_
-     - 3.13.1
-
-   * - `Python <https://www.python.org/>`_
-     - 3.6
-
-   * - `Devicetree compiler <https://www.devicetree.org/>`_
-     - 1.4.6
-
 .. tabs::
 
    .. group-tab:: Ubuntu
 
-      .. _install_dependencies_ubuntu:
-
-      #. Use ``apt`` to install the required dependencies:
+      #. Use ``apt`` to install dependencies:
 
          .. code-block:: bash
 
@@ -85,27 +66,43 @@ The current minimum required version for the main dependencies are:
               python3-dev python3-pip python3-setuptools python3-tk python3-wheel xz-utils file \
               make gcc gcc-multilib g++-multilib libsdl2-dev
 
-      #. Verify the versions of the main dependencies installed on your system by entering::
+      #. Verify the version of cmake installed on your system using::
 
             cmake --version
-            python3 --version
-            dtc --version
 
-         Check those against the versions in the table in the beginning of this section.
-         Refer to the :ref:`installation_linux` page for additional information on updating
-         the dependencies manually.
+         If it's not version 3.13.1 or higher, follow these steps to
+         add the `Kitware third-party apt repository <https://apt.kitware.com/>`__
+         to get an updated version of cmake.
+
+         a) Add the Kitware signing key:
+
+            .. code-block:: bash
+
+               wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | sudo apt-key add -
+
+         b) Add the Kitware apt repository for your OS release. For Ubuntu
+            18.04 LTS:
+
+            .. code-block:: bash
+
+               sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main'
+
+         c) Then install the updated cmake with ``apt``:
+
+            .. code-block:: bash
+
+               sudo apt update
+               sudo apt install cmake
 
    .. group-tab:: macOS
-
-      .. _install_dependencies_macos:
 
       #. Install `Homebrew <https://brew.sh/>`_:
 
          .. code-block:: bash
 
-            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+            /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 
-      #. Use ``brew`` to install the required dependencies:
+      #. Use ``brew`` to install dependencies:
 
          .. code-block:: bash
 
@@ -133,29 +130,27 @@ The current minimum required version for the main dependencies are:
 
       |p|
 
-      .. _install_dependencies_windows:
+      #. `Install chocolatey`_
 
-      #. `Install chocolatey`_.
+      #. Open an **Administrator** ``cmd.exe`` window: press the Windows key,
+         type "cmd.exe", right-click the result, and choose "Run as
+         Administrator".
 
-      #. Open a ``cmd.exe`` window as **Administrator**. To do so, press the Windows key,
-         type "cmd.exe", right-click the result, and choose :guilabel:`Run as
-         Administrator`.
-
-      #. Disable global confirmation to avoid having to confirm the
+      #. Disable global confirmation to avoid having to confirm
          installation of individual programs:
 
          .. code-block:: console
 
             choco feature enable -n allowGlobalConfirmation
 
-      #. Use ``choco`` to install the required dependencies:
+      #. Use ``choco`` to install dependencies:
 
          .. code-block:: console
 
             choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System'
             choco install ninja gperf python git
 
-      #. Close the window and open a new ``cmd.exe`` window **as a regular user** to continue.
+      #. Open a new ``cmd.exe`` window **as a regular user** to continue.
 
 .. _Chocolatey: https://chocolatey.org/
 .. _Install chocolatey: https://chocolatey.org/install
@@ -216,7 +211,7 @@ additional Python dependencies.
 
          .. code-block:: bash
 
-            pip3 install -U west
+            pip3 install west
 
       #. Get the Zephyr source code:
 
@@ -247,7 +242,7 @@ additional Python dependencies.
 
          .. code-block:: bash
 
-            pip3 install -U west
+            pip3 install west
 
       #. Get the Zephyr source code:
 
@@ -297,14 +292,14 @@ to build Zephyr applications.
          .. code-block:: bash
 
             cd ~
-            wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.12.4/zephyr-sdk-0.12.4-x86_64-linux-setup.run
+            wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.11.3/zephyr-sdk-0.11.3-setup.run
 
-      #. Run the installer, installing the SDK in :file:`~/zephyr-sdk-0.12.4`:
+      #. Run the installer, installing the SDK in :file:`~/zephyr-sdk-0.11.3`:
 
          .. code-block:: bash
 
-            chmod +x zephyr-sdk-0.12.4-x86_64-linux-setup.run
-            ./zephyr-sdk-0.12.4-x86_64-linux-setup.run -- -d ~/zephyr-sdk-0.12.4
+            chmod +x zephyr-sdk-0.11.3-setup.run
+            ./zephyr-sdk-0.11.3-setup.run -- -d ~/zephyr-sdk-0.11.3
 
          .. note::
             It is recommended to install the Zephyr SDK at one of the following locations:
@@ -317,7 +312,7 @@ to build Zephyr applications.
             * ``/usr/zephyr-sdk[-x.y.z]``
             * ``/usr/local/zephyr-sdk[-x.y.z]``
 
-            where ``[-x.y.z]`` is optional text, and can be any text, for example ``-0.12.4``.
+            where ``[-x.y.z]`` is optional text, and can be any text, for example ``-0.11.3``.
 
             If installing the Zephyr SDK outside any of those locations, please read: :ref:`zephyr_sdk`
 
@@ -328,7 +323,7 @@ to build Zephyr applications.
 
          .. code-block:: bash
 
-            sudo cp ~/zephyr-sdk-0.12.4/sysroots/x86_64-pokysdk-linux/usr/share/openocd/contrib/60-openocd.rules /etc/udev/rules.d
+            sudo cp ~/zephyr-sdk-0.11.3/sysroots/x86_64-pokysdk-linux/usr/share/openocd/contrib/60-openocd.rules /etc/udev/rules.d
             sudo udevadm control --reload
 
    .. group-tab:: macOS
@@ -403,7 +398,7 @@ Then flash the sample using :ref:`west flash <west-flashing>`:
 
    west flash
 
-You may need to install additional :ref:`host tools <flash-debug-host-tools>`
+You may need to install additional :ref:`host tools <debug-host-tools>`
 required by your board. The ``west flash`` command will print an error if any
 required dependencies are missing.
 
@@ -423,52 +418,7 @@ Here are some next steps for exploring Zephyr:
 * Try other :ref:`samples-and-demos`
 * Learn about :ref:`application` and the :ref:`west <west>` tool
 * Find out about west's :ref:`flashing and debugging <west-build-flash-debug>`
-  features, or more about :ref:`flashing_and_debugging` in general
+  features, or more about :ref:`debugging` in general
 * Check out :ref:`beyond-GSG` for additional setup alternatives and ideas
 * Discover :ref:`project-resources` for getting help from the Zephyr
   community
-
-.. _help:
-
-Asking for Help
-***************
-
-You can ask for help on a mailing list or on Slack. Please send bug reports and
-feature requests to GitHub.
-
-* **Mailing Lists**: users@lists.zephyrproject.org is usually the right list to
-  ask for help. `Search archives and sign up here`_.
-* **Slack**: Zephyr's workspace is https://zephyrproject.slack.com; you can
-  register with this `Slack invite`_.
-* **GitHub**: Use `GitHub issues`_ for bugs and feature requests.
-
-How to Ask
-==========
-
-.. important::
-
-   Please search this documentation and the mailing list archives first. Your
-   question may have an answer there.
-
-Don't just say "this isn't working" or ask "is this working?". Include as much
-detail as you can about:
-
-#. What you want to do
-#. What you tried (commands you typed, etc.)
-#. What happened (output of each command, etc.)
-
-Use Copy/Paste
-==============
-
-Please **copy/paste text** instead of taking a picture or a screenshot of it.
-Text includes source code, terminal commands, and their output.
-
-Doing this makes it easier for people to help you, and also helps other users
-search the archives.
-
-When copy/pasting more than 5 lines of text into Slack, create a `snippet`_.
-
-.. _Search archives and sign up here: https://lists.zephyrproject.org/g/users
-.. _Slack invite: https://tinyurl.com/y5glwylp
-.. _GitHub issues: https://github.com/zephyrproject-rtos/zephyr/issues
-.. _snippet: https://get.slack.help/hc/en-us/articles/204145658-Create-a-snippet

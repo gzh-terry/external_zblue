@@ -80,7 +80,6 @@
 		sw1 = &button1;
 		sw2 = &button2;
 		sw3 = &button3;
-		bootloader-led0 = &led0;
 	};
 };
 
@@ -135,7 +134,10 @@
 };
 
 &flash0 {
-
+	/*
+	 * For more information, see:
+	 * https://docs.zephyrproject.org/latest/guides/dts/legacy-macros.html#legacy-flash-partitions
+	 */
 	partitions {
 		compatible = "fixed-partitions";
 		#address-cells = <1>;

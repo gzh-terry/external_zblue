@@ -76,14 +76,10 @@ void main(void)
 		return;
 	}
 
-	LOG_INF("Found USB Headphones Device");
-
 	if (!mic_dev) {
 		LOG_ERR("Can not get USB Microphone Device");
 		return;
 	}
-
-	LOG_INF("Found USB Microphone Device");
 
 	usb_audio_register(hp_dev, &hp_ops);
 
@@ -94,6 +90,4 @@ void main(void)
 		LOG_ERR("Failed to enable USB");
 		return;
 	}
-
-	LOG_INF("USB enabled");
 }

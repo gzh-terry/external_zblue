@@ -1,5 +1,4 @@
 /* memerror-vector.S  --  Memory Error Exception Vector and Handler */
-/* SPDX-License-Identifier: MIT */
 
 /*
  * Copyright (c) 2006-2013 Tensilica Inc.

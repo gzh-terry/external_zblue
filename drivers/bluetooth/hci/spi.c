@@ -77,7 +77,7 @@ static K_SEM_DEFINE(sem_initialised, 0, 1);
 static K_SEM_DEFINE(sem_request, 0, 1);
 static K_SEM_DEFINE(sem_busy, 1, 1);
 
-static K_KERNEL_STACK_DEFINE(spi_rx_stack, 512);
+static K_KERNEL_STACK_DEFINE(spi_rx_stack, 256);
 static struct k_thread spi_rx_thread_data;
 
 #if defined(CONFIG_BT_DEBUG_HCI_DRIVER)
@@ -307,8 +307,6 @@ static int bt_spi_send_aci_config_data_controller_mode(void)
 
 static void bt_spi_rx_thread(void)
 {
-	bool discardable = false;
-	k_timeout_t timeout = K_FOREVER;
 	struct net_buf *buf;
 	uint8_t header_master[5] = { SPI_READ, 0x00, 0x00, 0x00, 0x00 };
 	uint8_t header_slave[5];
@@ -369,19 +367,9 @@ static void bt_spi_rx_thread(void)
 					bt_spi_handle_vendor_evt(rxmsg);
 					continue;
 				default:
-					if (rxmsg[1] == BT_HCI_EVT_LE_META_EVENT &&
-					    (rxmsg[3] == BT_HCI_EVT_LE_ADVERTISING_REPORT ||
-					     rxmsg[3] == BT_HCI_EVT_LE_EXT_ADVERTISING_REPORT)) {
-						discardable = true;
-						timeout = K_NO_WAIT;
-					}
-
 					buf = bt_buf_get_evt(rxmsg[EVT_HEADER_EVENT],
-							     discardable, timeout);
-					if (!buf) {
-						BT_DBG("Discard adv report due to insufficient buf");
-						continue;
-					}
+							     false, K_FOREVER);
+					break;
 				}
 
 				net_buf_add_mem(buf, &rxmsg[1],
@@ -580,4 +568,4 @@ static int bt_spi_init(const struct device *unused)
 	return 0;
 }
 
-SYS_INIT(bt_spi_init, POST_KERNEL, CONFIG_BT_SPI_INIT_PRIORITY);
+SYS_INIT(bt_spi_init, POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE);

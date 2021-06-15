@@ -18,7 +18,6 @@ LOG_MODULE_REGISTER(net_test, CONFIG_NET_MGMT_EVENT_LOG_LEVEL);
 #include <net/net_pkt.h>
 #include <ztest.h>
 
-#define THREAD_SLEEP 50 /* ms */
 #define TEST_INFO_STRING "mgmt event info"
 
 #define TEST_MGMT_REQUEST		0x17AB1234
@@ -91,7 +90,7 @@ static struct dummy_api fake_iface_api = {
 };
 
 NET_DEVICE_INIT(net_event_test, "net_event_test",
-		fake_dev_init, NULL,
+		fake_dev_init, device_pm_control_nop,
 		NULL, NULL, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,
 		&fake_iface_api, DUMMY_L2, NET_L2_GET_CTX_TYPE(DUMMY_L2), 127);
 
@@ -118,15 +117,12 @@ static void thrower_thread(void)
 
 			if (with_info) {
 				net_mgmt_event_notify_with_info(
-					event2throw,
-					net_if_get_first_by_type(
-						      &NET_L2_GET_NAME(DUMMY)),
+					event2throw, net_if_get_default(),
 					info_data,
 					TEST_MGMT_EVENT_INFO_SIZE);
 			} else {
 				net_mgmt_event_notify(event2throw,
-					net_if_get_first_by_type(
-						&NET_L2_GET_NAME(DUMMY)));
+						      net_if_get_default());
 			}
 
 		}
@@ -170,8 +166,7 @@ static int sending_event(uint32_t times, bool receiver, bool info)
 
 	k_sem_give(&thrower_lock);
 
-	/* Let the network stack to proceed */
-	k_msleep(THREAD_SLEEP);
+	k_yield();
 
 	if (receiver) {
 		TC_PRINT("\tReceived 0x%08X %u times\n",
@@ -214,10 +209,9 @@ static int test_synchronous_event_listener(uint32_t times, bool on_iface)
 	k_sem_give(&thrower_lock);
 
 	if (on_iface) {
-		ret = net_mgmt_event_wait_on_iface(
-			net_if_get_first_by_type(&NET_L2_GET_NAME(DUMMY)),
-			event_mask, NULL, NULL,
-			NULL, K_SECONDS(1));
+		ret = net_mgmt_event_wait_on_iface(net_if_get_default(),
+						   event_mask, NULL, NULL,
+						   NULL, K_SECONDS(1));
 	} else {
 		ret = net_mgmt_event_wait(event_mask, NULL, NULL, NULL, NULL,
 					  K_SECONDS(1));
@@ -270,12 +264,7 @@ static int test_core_event(uint32_t event, bool (*func)(void))
 
 	zassert_true(func(), "func() check failed");
 
-	if (IS_ENABLED(CONFIG_NET_TC_THREAD_PREEMPTIVE)) {
-		/* Let the network stack to proceed */
-		k_msleep(THREAD_SLEEP);
-	} else {
-		k_yield();
-	}
+	k_yield();
 
 	zassert_true(rx_calls > 0 && rx_calls != -1, "rx_calls empty");
 	zassert_equal(rx_event, event, "rx_event check failed, "
@@ -289,9 +278,8 @@ static int test_core_event(uint32_t event, bool (*func)(void))
 
 static bool _iface_ip6_add(void)
 {
-	if (net_if_ipv6_addr_add(
-		    net_if_get_first_by_type(&NET_L2_GET_NAME(DUMMY)),
-		    &addr6, NET_ADDR_MANUAL, 0)) {
+	if (net_if_ipv6_addr_add(net_if_get_default(),
+				 &addr6, NET_ADDR_MANUAL, 0)) {
 		return true;
 	}
 
@@ -300,9 +288,7 @@ static bool _iface_ip6_add(void)
 
 static bool _iface_ip6_del(void)
 {
-	if (net_if_ipv6_addr_rm(
-		    net_if_get_first_by_type(&NET_L2_GET_NAME(DUMMY)),
-		    &addr6)) {
+	if (net_if_ipv6_addr_rm(net_if_get_default(), &addr6)) {
 		return true;
 	}
 
