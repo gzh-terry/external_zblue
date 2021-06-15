@@ -689,11 +689,6 @@ static int audio_custom_handler(struct usb_setup_packet *pSetup, int32_t *len,
 
 	uint8_t iface = (pSetup->wIndex) & 0xFF;
 
-	if (REQTYPE_GET_RECIP(pSetup->bmRequestType) !=
-	    REQTYPE_RECIP_INTERFACE) {
-		return -EINVAL;
-	}
-
 	audio_dev_data = get_audio_dev_data_by_iface(iface);
 	if (audio_dev_data == NULL) {
 		return -EINVAL;
@@ -729,15 +724,29 @@ static int audio_custom_handler(struct usb_setup_packet *pSetup, int32_t *len,
 						USB_FORMAT_TYPE_I_DESC_SIZE);
 	}
 
-	if (pSetup->bRequest == REQ_SET_INTERFACE) {
-		if (ep_desc->bEndpointAddress & USB_EP_DIR_MASK) {
-			audio_dev_data->tx_enable = pSetup->wValue;
-		} else {
-			audio_dev_data->rx_enable = pSetup->wValue;
+	if (REQTYPE_GET_RECIP(pSetup->bmRequestType) ==
+	    REQTYPE_RECIP_INTERFACE) {
+		switch (pSetup->bRequest) {
+		case REQ_SET_INTERFACE:
+			if (ep_desc->bEndpointAddress & USB_EP_DIR_MASK) {
+				audio_dev_data->tx_enable = pSetup->wValue;
+			} else {
+				audio_dev_data->rx_enable = pSetup->wValue;
+			}
+			return -EINVAL;
+		case REQ_GET_INTERFACE:
+			if (ep_desc->bEndpointAddress & USB_EP_DIR_MASK) {
+				*data[0] = audio_dev_data->tx_enable;
+			} else {
+				*data[0] = audio_dev_data->rx_enable;
+			}
+			return 0;
+		default:
+			break;
 		}
 	}
 
-	return -EINVAL;
+	return -ENOTSUP;
 }
 
 /**

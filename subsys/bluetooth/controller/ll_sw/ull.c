@@ -59,11 +59,10 @@
 #include "ull_master_internal.h"
 #include "ull_conn_internal.h"
 #include "lll_conn_iso.h"
+#include "ull_conn_iso_internal.h"
 #include "ull_conn_iso_types.h"
 #include "ull_iso_types.h"
 #include "ull_central_iso_internal.h"
-
-#include "ull_conn_iso_internal.h"
 #include "ull_peripheral_iso_internal.h"
 
 #if defined(CONFIG_BT_CTLR_USER_EXT)
@@ -255,18 +254,8 @@
  *       ULL_HIGH operations queue elements are required to buffer the
  *       requested ticker operations.
  */
-#if defined(CONFIG_BT_CENTRAL) && defined(CONFIG_BT_CTLR_ADV_EXT) && \
-	defined(CONFIG_BT_CTLR_PHY_CODED)
-#define TICKER_USER_ULL_HIGH_OPS (4 + TICKER_USER_ULL_HIGH_VENDOR_OPS + \
-				  TICKER_USER_ULL_HIGH_FLASH_OPS + 1)
-#else /* !CONFIG_BT_CENTRAL || !CONFIG_BT_CTLR_ADV_EXT ||
-       * !CONFIG_BT_CTLR_PHY_CODED
-       */
 #define TICKER_USER_ULL_HIGH_OPS (3 + TICKER_USER_ULL_HIGH_VENDOR_OPS + \
 				  TICKER_USER_ULL_HIGH_FLASH_OPS + 1)
-#endif /* !CONFIG_BT_CENTRAL || !CONFIG_BT_CTLR_ADV_EXT ||
-	* !CONFIG_BT_CTLR_PHY_CODED
-	*/
 
 #define TICKER_USER_LLL_OPS      (3 + TICKER_USER_LLL_VENDOR_OPS + 1)
 

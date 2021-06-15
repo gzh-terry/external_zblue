@@ -13,16 +13,14 @@ endif()
 
 set_ifndef(LINKERFLAGPREFIX -Wl)
 
-if(NOT "${ZEPHYR_TOOLCHAIN_VARIANT}" STREQUAL "host")
-  if(CONFIG_EXCEPTIONS)
-    # When building with C++ Exceptions, it is important that crtbegin and crtend
-    # are linked at specific locations.
-    # The location is so important that we cannot let this be controlled by normal
-    # link libraries, instead we must control the link command specifically as
-    # part of toolchain.
-    set(CMAKE_CXX_LINK_EXECUTABLE
-        "<CMAKE_CXX_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> ${LIBGCC_DIR}/crtbegin.o <OBJECTS> -o <TARGET> <LINK_LIBRARIES> ${LIBGCC_DIR}/crtend.o")
-  endif()
+if(CONFIG_EXCEPTIONS)
+  # When building with C++ Exceptions, it is important that crtbegin and crtend
+  # are linked at specific locations.
+  # The location is so important that we cannot let this be controlled by normal
+  # link libraries, instead we must control the link command specifically as
+  # part of toolchain.
+  set(CMAKE_CXX_LINK_EXECUTABLE
+      "<CMAKE_CXX_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> ${LIBGCC_DIR}/crtbegin.o <OBJECTS> -o <TARGET> <LINK_LIBRARIES> ${LIBGCC_DIR}/crtend.o")
 endif()
 
 # Run $LINKER_SCRIPT file through the C preprocessor, producing ${linker_script_gen}

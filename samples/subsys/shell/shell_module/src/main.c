@@ -178,9 +178,7 @@ static int cmd_version(const struct shell *shell, size_t argc, char **argv)
 static void login_init(void)
 {
 	printk("Shell Login Demo\nHint: password = %s\n", DEFAULT_PASSWORD);
-	if (!CONFIG_SHELL_CMD_ROOT[0]) {
-		shell_set_root_cmd("login");
-	}
+	shell_set_root_cmd("login");
 }
 
 static int check_passwd(char *passwd)

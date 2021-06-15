@@ -56,8 +56,6 @@
 #define REGION_SRAM_SIZE REGION_4M
 #elif CONFIG_SRAM_SIZE == 32768
 #define REGION_SRAM_SIZE REGION_32M
-#elif CONFIG_SRAM_SIZE == 65536
-#define REGION_SRAM_SIZE REGION_64M
 #else
 #error "Unsupported sram size configuration"
 #endif

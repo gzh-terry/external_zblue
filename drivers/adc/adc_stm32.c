@@ -26,12 +26,11 @@
 LOG_MODULE_REGISTER(adc_stm32);
 
 #include <drivers/clock_control/stm32_clock_control.h>
-#include <pinmux/pinmux_stm32.h>
+#include <pinmux/stm32/pinmux_stm32.h>
 
 #if !defined(CONFIG_SOC_SERIES_STM32F0X) && \
 	!defined(CONFIG_SOC_SERIES_STM32G0X) && \
-	!defined(CONFIG_SOC_SERIES_STM32L0X) && \
-	!defined(CONFIG_SOC_SERIES_STM32WLX)
+	!defined(CONFIG_SOC_SERIES_STM32L0X)
 #define RANK(n)		LL_ADC_REG_RANK_##n
 static const uint32_t table_rank[] = {
 	RANK(1),
@@ -151,8 +150,7 @@ static const uint32_t table_samp_time[] = {
 };
 #endif /* ADC5_V1_1 */
 #elif defined(CONFIG_SOC_SERIES_STM32L0X) || \
-	defined(CONFIG_SOC_SERIES_STM32G0X) || \
-	defined(CONFIG_SOC_SERIES_STM32WLX)
+	defined(CONFIG_SOC_SERIES_STM32G0X)
 static const uint16_t acq_time_tbl[8] = {2, 4, 8, 13, 20, 40, 80, 161};
 static const uint32_t table_samp_time[] = {
 	SMP_TIME(1,   _5),
@@ -269,42 +267,12 @@ static void adc_stm32_start_conversion(const struct device *dev)
 	defined(CONFIG_SOC_SERIES_STM32WBX) || \
 	defined(CONFIG_SOC_SERIES_STM32G0X) || \
 	defined(CONFIG_SOC_SERIES_STM32G4X) || \
-	defined(CONFIG_SOC_SERIES_STM32H7X) || \
-	defined(CONFIG_SOC_SERIES_STM32WLX)
+	defined(CONFIG_SOC_SERIES_STM32H7X)
 	LL_ADC_REG_StartConversion(adc);
 #else
 	LL_ADC_REG_StartConversionSWStart(adc);
 #endif
 }
-
-#if !defined(CONFIG_SOC_SERIES_STM32F2X) && \
-	!defined(CONFIG_SOC_SERIES_STM32F4X) && \
-	!defined(CONFIG_SOC_SERIES_STM32F7X) && \
-	!defined(CONFIG_SOC_SERIES_STM32F1X) && \
-	!defined(CONFIG_SOC_SERIES_STM32L1X)
-static void adc_stm32_calib(const struct device *dev)
-{
-	const struct adc_stm32_cfg *config =
-		(const struct adc_stm32_cfg *)dev->config;
-	ADC_TypeDef *adc = config->base;
-
-#if defined(CONFIG_SOC_SERIES_STM32F3X) || \
-	defined(CONFIG_SOC_SERIES_STM32L4X) || \
-	defined(CONFIG_SOC_SERIES_STM32WBX) || \
-	defined(CONFIG_SOC_SERIES_STM32G4X)
-	LL_ADC_StartCalibration(adc, LL_ADC_SINGLE_ENDED);
-#elif defined(CONFIG_SOC_SERIES_STM32F0X) || \
-	defined(CONFIG_SOC_SERIES_STM32G0X) || \
-	defined(CONFIG_SOC_SERIES_STM32L0X) || \
-	defined(CONFIG_SOC_SERIES_STM32WLX)
-	LL_ADC_StartCalibration(adc);
-#elif defined(CONFIG_SOC_SERIES_STM32H7X)
-	LL_ADC_StartCalibration(adc, LL_ADC_CALIB_OFFSET, LL_ADC_SINGLE_ENDED);
-#endif
-	while (LL_ADC_IsCalibrationOnGoing(adc)) {
-	}
-}
-#endif
 
 static int start_read(const struct device *dev,
 		      const struct adc_sequence *sequence)
@@ -378,8 +346,7 @@ static int start_read(const struct device *dev,
 #if defined(CONFIG_SOC_SERIES_STM32F0X) || \
 	defined(CONFIG_SOC_SERIES_STM32L0X)
 	LL_ADC_REG_SetSequencerChannels(adc, channel);
-#elif defined(CONFIG_SOC_SERIES_STM32G0X) || \
-	defined(CONFIG_SOC_SERIES_STM32WLX)
+#elif defined(CONFIG_SOC_SERIES_STM32G0X)
 	/* STM32G0 in "not fully configurable" sequencer mode */
 	LL_ADC_REG_SetSequencerChannels(adc, channel);
 	while (LL_ADC_IsActiveFlag_CCRDY(adc) == 0) {
@@ -413,19 +380,6 @@ static int start_read(const struct device *dev,
 	LL_ADC_SetResolution(adc, resolution);
 #endif
 
-	if (sequence->calibrate) {
-#if !defined(CONFIG_SOC_SERIES_STM32F2X) && \
-	!defined(CONFIG_SOC_SERIES_STM32F4X) && \
-	!defined(CONFIG_SOC_SERIES_STM32F7X) && \
-	!defined(CONFIG_SOC_SERIES_STM32F1X) && \
-	!defined(CONFIG_SOC_SERIES_STM32L1X)
-		adc_stm32_calib(dev);
-#else
-		LOG_ERR("Calibration not supported");
-		return -ENOTSUP;
-#endif
-	}
-
 #if defined(CONFIG_SOC_SERIES_STM32F0X) || \
 	defined(CONFIG_SOC_SERIES_STM32F3X) || \
 	defined(CONFIG_SOC_SERIES_STM32L0X) || \
@@ -433,8 +387,7 @@ static int start_read(const struct device *dev,
 	defined(CONFIG_SOC_SERIES_STM32WBX) || \
 	defined(CONFIG_SOC_SERIES_STM32G0X) || \
 	defined(CONFIG_SOC_SERIES_STM32G4X) || \
-	defined(CONFIG_SOC_SERIES_STM32H7X) || \
-	defined(CONFIG_SOC_SERIES_STM32WLX)
+	defined(CONFIG_SOC_SERIES_STM32H7X)
 	LL_ADC_EnableIT_EOC(adc);
 #elif defined(CONFIG_SOC_SERIES_STM32F1X)
 	LL_ADC_EnableIT_EOS(adc);
@@ -627,6 +580,34 @@ static int adc_stm32_channel_setup(const struct device *dev,
 	return 0;
 }
 
+#if !defined(CONFIG_SOC_SERIES_STM32F2X) && \
+	!defined(CONFIG_SOC_SERIES_STM32F4X) && \
+	!defined(CONFIG_SOC_SERIES_STM32F7X) && \
+	!defined(CONFIG_SOC_SERIES_STM32F1X) && \
+	!defined(CONFIG_SOC_SERIES_STM32L1X)
+static void adc_stm32_calib(const struct device *dev)
+{
+	const struct adc_stm32_cfg *config =
+		(const struct adc_stm32_cfg *)dev->config;
+	ADC_TypeDef *adc = config->base;
+
+#if defined(CONFIG_SOC_SERIES_STM32F3X) || \
+	defined(CONFIG_SOC_SERIES_STM32L4X) || \
+	defined(CONFIG_SOC_SERIES_STM32WBX) || \
+	defined(CONFIG_SOC_SERIES_STM32G4X)
+	LL_ADC_StartCalibration(adc, LL_ADC_SINGLE_ENDED);
+#elif defined(CONFIG_SOC_SERIES_STM32F0X) || \
+	defined(CONFIG_SOC_SERIES_STM32G0X) || \
+	defined(CONFIG_SOC_SERIES_STM32L0X)
+	LL_ADC_StartCalibration(adc);
+#elif defined(CONFIG_SOC_SERIES_STM32H7X)
+	LL_ADC_StartCalibration(adc, LL_ADC_CALIB_OFFSET, LL_ADC_SINGLE_ENDED);
+#endif
+	while (LL_ADC_IsCalibrationOnGoing(adc)) {
+	}
+}
+#endif
+
 static int adc_stm32_init(const struct device *dev)
 {
 	struct adc_stm32_data *data = dev->data;
@@ -685,15 +666,13 @@ static int adc_stm32_init(const struct device *dev)
 	defined(CONFIG_SOC_SERIES_STM32WBX) || \
 	defined(CONFIG_SOC_SERIES_STM32G0X) || \
 	defined(CONFIG_SOC_SERIES_STM32G4X) || \
-	defined(CONFIG_SOC_SERIES_STM32H7X) || \
-	defined(CONFIG_SOC_SERIES_STM32WLX)
+	defined(CONFIG_SOC_SERIES_STM32H7X)
 	LL_ADC_EnableInternalRegulator(adc);
 	k_busy_wait(LL_ADC_DELAY_INTERNAL_REGUL_STAB_US);
 #endif
 
 #if defined(CONFIG_SOC_SERIES_STM32F0X) || \
-	defined(CONFIG_SOC_SERIES_STM32L0X) || \
-	defined(CONFIG_SOC_SERIES_STM32WLX)
+	defined(CONFIG_SOC_SERIES_STM32L0X)
 	LL_ADC_SetClock(adc, LL_ADC_CLOCK_SYNC_PCLK_DIV4);
 #elif defined(CONFIG_SOC_SERIES_STM32F3X) || \
 	defined(CONFIG_SOC_SERIES_STM32L4X) || \
@@ -726,8 +705,7 @@ static int adc_stm32_init(const struct device *dev)
 	defined(CONFIG_SOC_SERIES_STM32WBX) || \
 	defined(CONFIG_SOC_SERIES_STM32G0X) || \
 	defined(CONFIG_SOC_SERIES_STM32G4X) || \
-	defined(CONFIG_SOC_SERIES_STM32H7X) || \
-	defined(CONFIG_SOC_SERIES_STM32WLX)
+	defined(CONFIG_SOC_SERIES_STM32H7X)
 	if (LL_ADC_IsActiveFlag_ADRDY(adc)) {
 		LL_ADC_ClearFlag_ADRDY(adc);
 	}
@@ -747,8 +725,7 @@ static int adc_stm32_init(const struct device *dev)
 	defined(CONFIG_SOC_SERIES_STM32WBX) || \
 	defined(CONFIG_SOC_SERIES_STM32G0X) || \
 	defined(CONFIG_SOC_SERIES_STM32G4X) || \
-	defined(CONFIG_SOC_SERIES_STM32H7X) || \
-	defined(CONFIG_SOC_SERIES_STM32WLX)
+	defined(CONFIG_SOC_SERIES_STM32H7X)
 	/*
 	 * ADC modules on these series have to wait for some cycles to be
 	 * enabled.
@@ -773,8 +750,7 @@ static int adc_stm32_init(const struct device *dev)
 	defined(CONFIG_SOC_SERIES_STM32WBX) || \
 	defined(CONFIG_SOC_SERIES_STM32G0X) || \
 	defined(CONFIG_SOC_SERIES_STM32G4X) || \
-	defined(CONFIG_SOC_SERIES_STM32H7X) || \
-	defined(CONFIG_SOC_SERIES_STM32WLX)
+	defined(CONFIG_SOC_SERIES_STM32H7X)
 	/*
 	 * Enabling ADC modules in L4, WB, G0 and G4 series may fail if they are
 	 * still not stabilized, this will wait for a short time to ensure ADC
@@ -799,33 +775,6 @@ static int adc_stm32_init(const struct device *dev)
 	/* Calibration of F1 must starts after two cycles after ADON is set. */
 	LL_ADC_StartCalibration(adc);
 	LL_ADC_REG_SetTriggerSource(adc, LL_ADC_REG_TRIG_SOFTWARE);
-#endif
-
-#ifdef CONFIG_SOC_SERIES_STM32H7X
-	/*
-	 * To ensure linearity the factory calibration values
-	 * should be loaded on initialization.
-	 */
-	uint32_t channel_offset = 0U;
-	uint32_t linear_calib_buffer = 0U;
-
-	if (adc == ADC1) {
-		channel_offset = 0UL;
-	} else if (adc == ADC2) {
-		channel_offset = 8UL;
-	} else   /*Case ADC3*/ {
-		channel_offset = 16UL;
-	}
-	/* Read factory calibration factors */
-	for (uint32_t count = 0UL; count < ADC_LINEAR_CALIB_REG_COUNT; count++) {
-		linear_calib_buffer = *(uint32_t *)(
-			ADC_LINEAR_CALIB_REG_1_ADDR + channel_offset + count
-		);
-		LL_ADC_SetCalibrationLinearFactor(
-			adc, LL_ADC_CALIB_LINEARITY_WORD1 << count,
-			linear_calib_buffer
-		);
-	}
 #endif
 	adc_context_unlock_unconditionally(&data->ctx);
 

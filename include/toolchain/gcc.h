@@ -51,6 +51,7 @@
 /* C++11 has static_assert built in */
 #ifdef __cplusplus
 #define BUILD_ASSERT(EXPR, MSG...) static_assert(EXPR, "" MSG)
+#define BUILD_ASSERT_MSG(EXPR, MSG) __DEPRECATED_MACRO BUILD_ASSERT(EXPR, MSG)
 
 /*
  * GCC 4.6 and higher have the C11 _Static_assert built in, and its
@@ -59,8 +60,10 @@
 #elif (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)) || \
 	(__STDC_VERSION__) >= 201100
 #define BUILD_ASSERT(EXPR, MSG...) _Static_assert(EXPR, "" MSG)
+#define BUILD_ASSERT_MSG(EXPR, MSG) __DEPRECATED_MACRO BUILD_ASSERT(EXPR, MSG)
 #else
 #define BUILD_ASSERT(EXPR, MSG...)
+#define BUILD_ASSERT_MSG(EXPR, MSG)
 #endif
 
 #include <toolchain/common.h>
@@ -193,9 +196,6 @@ do {                                                                    \
 #endif
 #ifndef __attribute_const__
 #define __attribute_const__ __attribute__((__const__))
-#endif
-#ifndef __must_check
-#define __must_check __attribute__((warn_unused_result))
 #endif
 #define ARG_UNUSED(x) (void)(x)
 

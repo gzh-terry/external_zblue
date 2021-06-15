@@ -195,12 +195,13 @@ static int uart_rcar_configure(const struct device *dev,
 	reg_val &= ~(SCLSR_TO | SCLSR_ORER);
 	uart_rcar_write_16(config, SCLSR, reg_val);
 
-	/* Select internal clock */
+	/* Clock selection */
 	reg_val = uart_rcar_read_16(config, SCSCR);
-	reg_val &= ~(SCSCR_CKE1 | SCSCR_CKE0);
+	reg_val &= ~(SCSCR_CKE1 | SCSCR_CKE0 | SCSCR_TIE | SCSCR_RIE |
+		     SCSCR_TE | SCSCR_RE | SCSCR_TOIE);
 	uart_rcar_write_16(config, SCSCR, reg_val);
 
-	/* Serial Configuration (8N1) & Clock divider selection */
+	/* Serial Configuration (8N1) & Clock Source selection */
 	reg_val = uart_rcar_read_16(config, SCSMR);
 	reg_val &= ~(SCSMR_C_A | SCSMR_CHR | SCSMR_PE | SCSMR_O_E | SCSMR_STOP |
 		     SCSMR_CKS1 | SCSMR_CKS0);
@@ -215,7 +216,7 @@ static int uart_rcar_configure(const struct device *dev,
 		     SCFCR_MCE | SCFCR_TFRST | SCFCR_RFRST);
 	uart_rcar_write_16(config, SCFCR, reg_val);
 
-	/* Enable Transmit & Receive + disable Interrupts */
+	/* Enable Transmit & Receive */
 	reg_val = uart_rcar_read_16(config, SCSCR);
 	reg_val |= (SCSCR_TE | SCSCR_RE);
 	reg_val &= ~(SCSCR_TIE | SCSCR_RIE | SCSCR_TEIE | SCSCR_REIE |
@@ -227,7 +228,6 @@ static int uart_rcar_configure(const struct device *dev,
 	return 0;
 }
 
-#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 static int uart_rcar_config_get(const struct device *dev,
 				struct uart_config *cfg)
 {
@@ -237,7 +237,6 @@ static int uart_rcar_config_get(const struct device *dev,
 
 	return 0;
 }
-#endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
 
 static int uart_rcar_init(const struct device *dev)
 {
@@ -264,10 +263,8 @@ static int uart_rcar_init(const struct device *dev)
 static const struct uart_driver_api uart_rcar_driver_api = {
 	.poll_in = uart_rcar_poll_in,
 	.poll_out = uart_rcar_poll_out,
-#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 	.configure = uart_rcar_configure,
 	.config_get = uart_rcar_config_get,
-#endif
 };
 
 /* Device Instantiation */

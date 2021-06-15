@@ -12,7 +12,7 @@ properties:
       required: true
 
     interrupts:
-      required: false
+      required: true
 
     label:
       required: true

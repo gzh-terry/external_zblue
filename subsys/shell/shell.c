@@ -107,9 +107,8 @@ static inline enum shell_state state_get(const struct shell *shell)
 static inline const struct shell_static_entry *
 selected_cmd_get(const struct shell *shell)
 {
-	if (IS_ENABLED(CONFIG_SHELL_CMDS_SELECT)
-	    || (CONFIG_SHELL_CMD_ROOT[0] != 0)) {
-		return shell->ctx->selected_cmd;
+	if (IS_ENABLED(CONFIG_SHELL_CMDS_SELECT)) {
+	       return shell->ctx->selected_cmd;
 	}
 
 	return NULL;
@@ -268,8 +267,7 @@ static bool tab_prepare(const struct shell *shell,
 	/* terminate arguments with NULL */
 	(*argv)[*argc] = NULL;
 
-	if ((IS_ENABLED(CONFIG_SHELL_CMDS_SELECT) || (CONFIG_SHELL_CMD_ROOT[0] != 0))
-	    && (*argc > 0) &&
+	if (IS_ENABLED(CONFIG_SHELL_CMDS_SELECT) && (*argc > 0) &&
 	    (strcmp("select", (*argv)[0]) == 0) &&
 	    !z_shell_in_select_mode(shell)) {
 		*argv = *argv + 1;
@@ -829,11 +827,7 @@ static void alt_metakeys_handle(const struct shell *shell, char data)
 			z_shell_cmd_line_erase(shell);
 			z_shell_fprintf(shell, SHELL_WARNING,
 					"Restored default root commands\n");
-			if (CONFIG_SHELL_CMD_ROOT[0]) {
-				shell->ctx->selected_cmd = root_cmd_find(CONFIG_SHELL_CMD_ROOT);
-			} else {
-				shell->ctx->selected_cmd = NULL;
-			}
+			shell->ctx->selected_cmd = NULL;
 			z_shell_print_prompt_and_cmd(shell);
 		}
 	}
@@ -1155,9 +1149,6 @@ static int instance_init(const struct shell *shell, const void *p_config,
 
 	memset(shell->ctx, 0, sizeof(*shell->ctx));
 	shell->ctx->prompt = shell->default_prompt;
-	if (CONFIG_SHELL_CMD_ROOT[0]) {
-		shell->ctx->selected_cmd = root_cmd_find(CONFIG_SHELL_CMD_ROOT);
-	}
 
 	history_init(shell);
 
@@ -1267,8 +1258,7 @@ void shell_thread(void *shell_handle, void *arg_log_backend,
 		return;
 	}
 
-	if (IS_ENABLED(CONFIG_SHELL_LOG_BACKEND) && log_backend
-	    && !IS_ENABLED(CONFIG_SHELL_START_OBSCURED)) {
+	if (IS_ENABLED(CONFIG_SHELL_LOG_BACKEND) && log_backend) {
 		z_shell_log_backend_enable(shell->log_backend, (void *)shell,
 					   log_level);
 	}

@@ -433,7 +433,7 @@ Configuration Options
 
 Related configuration options:
 
-* :kconfig:`CONFIG_MAX_DOMAIN_PARTITIONS`
+* :option:`CONFIG_MAX_DOMAIN_PARTITIONS`
 
 API Reference
 *************

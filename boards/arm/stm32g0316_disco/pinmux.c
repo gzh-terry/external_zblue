@@ -9,6 +9,8 @@
 #include <stm32_ll_bus.h>
 #include <stm32_ll_system.h>
 
+#include <pinmux/stm32/pinmux_stm32.h>
+
 static int pinmux_stm32_init(const struct device *port)
 {
 	ARG_UNUSED(port);

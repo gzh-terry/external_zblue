@@ -440,14 +440,12 @@ static int uarte_nrfx_configure(const struct device *dev,
 	return 0;
 }
 
-#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 static int uarte_nrfx_config_get(const struct device *dev,
 				 struct uart_config *cfg)
 {
 	*cfg = get_dev_data(dev)->uart_config;
 	return 0;
 }
-#endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
 
 
 static int uarte_nrfx_err_check(const struct device *dev)
@@ -1334,14 +1332,7 @@ static void uarte_nrfx_isr_async(const struct device *dev)
 		rxstarted_isr(dev);
 	}
 
-	/* RXTO must be handled after ENDRX which should notify the buffer.
-	 * Skip if ENDRX is set when RXTO is set. It means that
-	 * ENDRX occurred after check for ENDRX in isr which may happen when
-	 * UARTE interrupt got preempted. Events are not cleared
-	 * and isr will be called again. ENDRX will be handled first.
-	 */
-	if (nrf_uarte_event_check(uarte, NRF_UARTE_EVENT_RXTO) &&
-	    !nrf_uarte_event_check(uarte, NRF_UARTE_EVENT_ENDRX)) {
+	if (nrf_uarte_event_check(uarte, NRF_UARTE_EVENT_RXTO)) {
 		nrf_uarte_event_clear(uarte, NRF_UARTE_EVENT_RXTO);
 		rxto_isr(dev);
 	}
@@ -1606,10 +1597,8 @@ static const struct uart_driver_api uart_nrfx_uarte_driver_api = {
 	.poll_in		= uarte_nrfx_poll_in,
 	.poll_out		= uarte_nrfx_poll_out,
 	.err_check		= uarte_nrfx_err_check,
-#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 	.configure              = uarte_nrfx_configure,
 	.config_get             = uarte_nrfx_config_get,
-#endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
 #ifdef CONFIG_UART_ASYNC_API
 	.callback_set		= uarte_nrfx_callback_set,
 	.tx			= uarte_nrfx_tx,
@@ -1671,13 +1660,13 @@ static int uarte_instance_init(const struct device *dev,
 	nrf_gpio_cfg_output(config->pseltxd);
 
 	if (config->pselrxd !=  NRF_UARTE_PSEL_DISCONNECTED) {
-		nrf_gpio_cfg_input(config->pselrxd, NRF_GPIO_PIN_PULLUP);
+		nrf_gpio_cfg_input(config->pselrxd, NRF_GPIO_PIN_NOPULL);
 	}
 
 	nrf_uarte_txrx_pins_set(uarte, config->pseltxd, config->pselrxd);
 
 	if (config->pselcts != NRF_UARTE_PSEL_DISCONNECTED) {
-		nrf_gpio_cfg_input(config->pselcts, NRF_GPIO_PIN_PULLUP);
+		nrf_gpio_cfg_input(config->pselcts, NRF_GPIO_PIN_NOPULL);
 	}
 
 	if (config->pselrts != NRF_UARTE_PSEL_DISCONNECTED) {
@@ -1764,7 +1753,7 @@ static void uarte_nrfx_pins_enable(const struct device *dev, bool enable)
 		nrf_gpio_pin_write(tx_pin, 1);
 		nrf_gpio_cfg_output(tx_pin);
 		if (rx_pin != NRF_UARTE_PSEL_DISCONNECTED) {
-			nrf_gpio_cfg_input(rx_pin, NRF_GPIO_PIN_PULLUP);
+			nrf_gpio_cfg_input(rx_pin, NRF_GPIO_PIN_NOPULL);
 		}
 
 		if (IS_RTS_PIN_SET(get_dev_config(dev)->flags)) {
@@ -1774,7 +1763,7 @@ static void uarte_nrfx_pins_enable(const struct device *dev, bool enable)
 
 		if (IS_CTS_PIN_SET(get_dev_config(dev)->flags)) {
 			nrf_gpio_cfg_input(cts_pin,
-					   NRF_GPIO_PIN_PULLUP);
+					   NRF_GPIO_PIN_NOPULL);
 		}
 	} else {
 		nrf_gpio_cfg_default(tx_pin);

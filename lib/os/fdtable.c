@@ -304,7 +304,8 @@ int fcntl(int fd, int cmd, ...)
 	}
 
 	/* Handle fdtable commands. */
-	if (cmd == F_DUPFD) {
+	switch (cmd) {
+	case F_DUPFD:
 		/* Not implemented so far. */
 		errno = EINVAL;
 		return -1;
