@@ -13,8 +13,8 @@ counting semaphore.
 Concepts
 ********
 
-Any number of semaphores can be defined. Each semaphore is referenced
-by its memory address.
+Any number of semaphores can be defined (limited only by available RAM). Each
+semaphore is referenced by its memory address.
 
 A semaphore has the following key properties:
 
@@ -129,7 +129,6 @@ API Reference
 **************
 
 .. doxygengroup:: semaphore_apis
-   :project: Zephyr
 
 User Mode Semaphore API Reference
 *********************************
@@ -139,4 +138,3 @@ thread when user mode enabled. When user mode isn't enabled, sys_sem behaves
 like k_sem.
 
 .. doxygengroup:: user_semaphore_apis
-   :project: Zephyr

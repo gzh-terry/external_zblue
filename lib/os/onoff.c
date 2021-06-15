@@ -217,11 +217,13 @@ static int process_recheck(struct onoff_manager *mgr)
 	    && !sys_slist_is_empty(&mgr->clients)) {
 		evt = EVT_START;
 	} else if ((state == ONOFF_STATE_ON)
-		   && (mgr->refs == 0)) {
+		   && (mgr->refs == 0U)) {
 		evt = EVT_STOP;
 	} else if ((state == ONOFF_STATE_ERROR)
 		   && !sys_slist_is_empty(&mgr->clients)) {
 		evt = EVT_RESET;
+	} else {
+		;
 	}
 
 	return evt;
@@ -406,6 +408,8 @@ static void process_event(struct onoff_manager *mgr,
 		} else if ((mgr->flags & ONOFF_FLAG_RECHECK) != 0) {
 			mgr->flags &= ~ONOFF_FLAG_RECHECK;
 			evt = EVT_RECHECK;
+		} else {
+			;
 		}
 
 		state = mgr->flags & ONOFF_STATE_MASK;

@@ -16,8 +16,6 @@
 
 #define GIC_RDIST_BASE	DT_REG_ADDR_BY_IDX(DT_INST(0, arm_gic), 1)
 
-#define GIC_GET_RDIST(cpuid)		gic_rdists[cpuid]
-
 /* SGI base is at 64K offset from Redistributor */
 #define GICR_SGI_BASE_OFF		0x10000
 
@@ -34,6 +32,10 @@
 #define GICD_CTLR_ENABLE_G0		0
 #define GICD_CTLR_ENABLE_G1NS		1
 #define GICD_CTLR_ENABLE_G1S		2
+#define GICD_CTRL_ARE_S			4
+#define GICD_CTRL_ARE_NS		5
+#define GICD_CTRL_NS			6
+#define GICD_CGRL_E1NWF			7
 
 /* GICD_CTLR Register write progress bit */
 #define GICD_CTLR_RWP			31

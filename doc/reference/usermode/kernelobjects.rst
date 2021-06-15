@@ -75,7 +75,7 @@ Dynamic Objects
 ***************
 
 Kernel objects may also be allocated at runtime if
-:option:`CONFIG_DYNAMIC_OBJECTS` is enabled. In this case, the
+:kconfig:`CONFIG_DYNAMIC_OBJECTS` is enabled. In this case, the
 :c:func:`k_object_alloc` API may be used to instantiate an object from
 the calling thread's resource pool. Such allocations may be freed in two
 ways:
@@ -122,7 +122,7 @@ includes:
 * A bitfield indicating permissions on that object. All threads have a
   numerical ID assigned to them at build time, used to index the permission
   bitfield for an object to see if that thread has permission on it. The size
-  of this bitfield is controlled by the :option:`CONFIG_MAX_THREAD_BYTES`
+  of this bitfield is controlled by the :kconfig:`CONFIG_MAX_THREAD_BYTES`
   option and the build system will generate an error if this value is too low.
 * A type field indicating what kind of object this is, which is some
   instance of :c:enum:`k_objects`.
@@ -162,13 +162,13 @@ ways to do this.
 
 * A thread that has permission on an object, or is running in supervisor mode,
   may grant permission on that object to another thread via the
-  :c:func:`k_object_access_grant` API. The convenience function
-  :c:func:`k_thread_access_grant` may also be used, which accepts a
-  NULL-terminated list of kernel objects and calls
+  :c:func:`k_object_access_grant` API. The convenience pseudo-function
+  :c:func:`k_thread_access_grant` may also be used, which accepts an arbitrary
+  number of pointers to kernel objects and calls
   :c:func:`k_object_access_grant` on each of them. The thread being granted
-  permission, or the object whose access is being granted, do not need to be in
-  an initialized state. If the caller is from user mode, the caller must have
-  permissions on both the kernel object and the target thread object.
+  permission, or the object whose access is being granted, do not need to be
+  in an initialized state. If the caller is from user mode, the caller must
+  have permissions on both the kernel object and the target thread object.
 
 * Supervisor threads may declare a particular kernel object to be a public
   object, usable by all current and future threads with the
@@ -263,11 +263,10 @@ Configuration Options
 
 Related configuration options:
 
-* :option:`CONFIG_USERSPACE`
-* :option:`CONFIG_MAX_THREAD_BYTES`
+* :kconfig:`CONFIG_USERSPACE`
+* :kconfig:`CONFIG_MAX_THREAD_BYTES`
 
 API Reference
 *************
 
 .. doxygengroup:: usermode_apis
-   :project: Zephyr

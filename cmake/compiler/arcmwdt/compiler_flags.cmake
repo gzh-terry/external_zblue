@@ -31,6 +31,7 @@ set_compiler_property(PROPERTY warning_base
                       -Wno-main-return-type
                       -Wno-unaligned-pointer-conversion
                       -Wno-incompatible-pointer-types-discards-qualifiers
+                      -Wno-typedef-redefinition
 )
 
 check_set_compiler_property(APPEND PROPERTY warning_base -Wno-pointer-sign)
@@ -171,6 +172,9 @@ set_compiler_property(PROPERTY security_fortify "")
 
 # Required C++ flags when using mwdt
 set_property(TARGET compiler-cpp PROPERTY required "")
+
+# Compiler flag for turning off thread-safe initialization of local statics
+set_property(TARGET compiler-cpp PROPERTY no_threadsafe_statics "-fno-threadsafe-statics")
 
 #################################
 # This section covers asm flags #

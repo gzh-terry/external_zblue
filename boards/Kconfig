@@ -25,6 +25,9 @@ endchoice
 
 # Parse shields references
 # Don't do it as a menuconfig, as shield selection is a CMake feature.
+# This loads custom shields Kconfig (from BOARD_ROOT)
+osource "$(KCONFIG_BINARY_DIR)/Kconfig.shield"
+# This loads Zephyr base shield defconfigs
 rsource "shields/*/Kconfig.shield"
 
 menu "Board Options"
@@ -43,6 +46,15 @@ config QEMU_ICOUNT_SHIFT
 	help
 	  The virtual CPU will execute one instruction every 2^N nanoseconds
 	  of virtual time, where N is the value provided here.
+
+config QEMU_IVSHMEM_PLAIN_MEM_SIZE
+	int "QEMU ivshmem-plain shared memory size in mega-bytes"
+	default 1
+	depends on QEMU_TARGET && IVSHMEM && !IVSHMEM_DOORBELL
+	help
+	  This sets the size of the shared memory when using ivshmem-plain
+	  device in Qemu. Note that it's in mega-bytes, so 1 means 1M for Qemu
+	  etc..
 
 # There might not be any board options, hence the optional source
 osource "$(BOARD_DIR)/Kconfig"

@@ -254,12 +254,12 @@ To use the LwM2M library, start by creating an LwM2M client context
 	/* LwM2M client context */
 	static struct lwm2m_ctx client;
 
-Create callback functions for LwM2M resources that you wish to have actions
-for:
+Create callback functions for LwM2M resource exuctions:
 
 .. code-block:: c
 
-	static int device_reboot_cb(uint16_t obj_inst_id)
+	static int device_reboot_cb(uint16_t obj_inst_id, uint8_t *args,
+				    uint16_t args_len)
 	{
 		LOG_INF("Device rebooting.");
 		LOG_PANIC();
@@ -361,13 +361,13 @@ endpoint name.  This is important as it needs to be unique per LwM2M server:
 .. code-block:: c
 
 	(void)memset(&client, 0x0, sizeof(client));
-	lwm2m_rd_client_start(&client, "unique-endpoint-name", rd_client_event);
+	lwm2m_rd_client_start(&client, "unique-endpoint-name", 0, rd_client_event);
 
 Using LwM2M library with DTLS
 *****************************
 
 The Zephyr LwM2M library can be used with DTLS transport for secure
-communication by selecting :option:`CONFIG_LWM2M_DTLS_SUPPORT`.  In the client
+communication by selecting :kconfig:`CONFIG_LWM2M_DTLS_SUPPORT`.  In the client
 initialization we need to create a PSK and identity.  These need to match
 the security information loaded onto the LwM2M server.  Normally, the
 endpoint name is used to lookup the related security information:
@@ -406,7 +406,7 @@ value of 1 is ok here).
 
 	(void)memset(&client, 0x0, sizeof(client));
 	client.tls_tag = 1; /* <---- */
-	lwm2m_rd_client_start(&client, "endpoint-name", rd_client_event);
+	lwm2m_rd_client_start(&client, "endpoint-name", 0, rd_client_event);
 
 For a more detailed LwM2M client sample see: :ref:`lwm2m-client-sample`.
 
@@ -416,7 +416,6 @@ API Reference
 *************
 
 .. doxygengroup:: lwm2m_api
-   :project: Zephyr
 
 .. _LwM2M:
    https://www.omaspecworks.org/what-is-oma-specworks/iot/lightweight-m2m-lwm2m/

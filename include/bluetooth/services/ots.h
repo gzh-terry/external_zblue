@@ -545,6 +545,20 @@ struct bt_ots_cb {
 	uint32_t (*obj_read)(struct bt_ots *ots, struct bt_conn *conn,
 			     uint64_t id, uint8_t **data, uint32_t len,
 			     uint32_t offset);
+
+	/** @brief Object name written callback
+	 *
+	 *  This callback is called when the object name is written.
+	 *  This is a notification to the application that the object name
+	 *  has been updated by the OTS service implementation.
+	 *
+	 *  @param ots    OTS instance.
+	 *  @param conn   The connection that wrote object name.
+	 *  @param id     Object ID.
+	 *  @param name   Object name.
+	 */
+	void (*obj_name_written)(struct bt_ots *ots, struct bt_conn *conn,
+			     uint64_t id, const char *name);
 };
 
 /** @brief Descriptor for OTS initialization. */

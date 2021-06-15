@@ -87,7 +87,7 @@ on its behalf, it raises an interrupt. When a thread does an operation that is
 not handled by the serial flow of the software itself, it raises an exception.
 Both, interrupts and exceptions, pass control to a handler. The handler is
 known as an :abbr:`ISR (Interrupt Service Routine)` in the case of
-interrupts. The handler perform the work required the exception or the
+interrupts. The handler performs the work required by the exception or the
 interrupt.  For interrupts, that work is device-specific. For exceptions, it
 depends on the exception, but most often the core kernel itself is responsible
 for providing the handler.
@@ -137,7 +137,7 @@ parameter.
   executing. A common interrupt handler demuxer is installed for all entries of
   the real interrupt vector table, which then fetches the device's ISR and
   parameter from the separate table. This approach is commonly used in the ARC
-  and ARM architectures via the :option:`CONFIG_GEN_ISR_TABLES` implementation.
+  and ARM architectures via the :kconfig:`CONFIG_GEN_ISR_TABLES` implementation.
   You can find examples of the stubs by looking at :code:`_interrupt_enter()` in
   x86, :code:`_IntExit()` in ARM, :code:`_isr_wrapper()` in ARM, or the full
   implementation description for ARC in :zephyr_file:`arch/arc/core/isr_wrapper.S`.
@@ -266,7 +266,7 @@ to stack corruption.
 
 .. note::
 
-  If running a coop-only system, i.e. if :option:`CONFIG_NUM_PREEMPT_PRIORITIES`
+  If running a coop-only system, i.e. if :kconfig:`CONFIG_NUM_PREEMPT_PRIORITIES`
   is 0, no preemptive context switch ever happens. The interrupt code can be
   optimized to not take any scheduling decision when this is the case.
 
@@ -298,8 +298,32 @@ gracefully exits its entry point function.
 
 This means implementing an architecture-specific version of
 :c:func:`k_thread_abort`, and setting the Kconfig option
-:option:`CONFIG_ARCH_HAS_THREAD_ABORT` as needed for the architecture (e.g. see
+:kconfig:`CONFIG_ARCH_HAS_THREAD_ABORT` as needed for the architecture (e.g. see
 :zephyr_file:`arch/arm/core/aarch32/cortex_m/Kconfig`).
+
+Thread Local Storage
+********************
+
+To enable thread local storage on a new architecture:
+
+#. Implement :c:func:`arch_tls_stack_setup` to setup the TLS storage area in
+   stack. Refer to the toolchain documentation on how the storage area needs
+   to be structured. Some helper functions can be used:
+
+   * Function :c:func:`z_tls_data_size` returns the size
+     needed for thread local variables (excluding any extra data required by
+     toolchain and architecture).
+   * Function :c:func:`z_tls_copy` prepares the TLS storage area for
+     thread local variables. This only copies the variable themselves and
+     does not do architecture and/or toolchain specific data.
+
+#. In the context switching, grab the ``tls`` field inside the new thread's
+   ``struct k_thread`` and put it into an appropriate register (or some
+   other variable) for access to the TLS storage area. Refer to toolchain
+   and architecture documentation on which registers to use.
+#. In kconfig, add ``select CONFIG_ARCH_HAS_THREAD_LOCAL_STORAGE`` to
+   kconfig related to the new architecture.
+#. Run the ``tests/kernel/threads/tls`` to make sure the new code works.
 
 Device Drivers
 **************
@@ -345,27 +369,6 @@ Cortex-M has the SYSTICK exception. Finally, ARCv2 has the timer0/1 device.
 Kernel timeouts are handled in the context of the system clock timer driver's
 interrupt handler.
 
-Tickless Idle
--------------
-
-The kernel has support for tickless idle. Tickless idle is the concept where no
-system clock timer interrupt is to be delivered to the CPU when the kernel is
-about to go idle and the closest timeout expiry is passed a certain threshold.
-When this condition happens, the system clock is reprogrammed far in the future
-instead of for a periodic tick. For this to work, the system clock timer driver
-must support it.
-
-Tickless idle is optional but strongly recommended to achieve low-power
-consumption.
-
-The kernel has built-in support for going into tickless idle.
-
-The system clock timer driver must implement some hooks to support tickless
-idle. See existing drivers for examples.
-
-The interrupt entry stub (:code:`_interrupt_enter`, :code:`_isr_wrapper`) needs
-to be adapted to handle exiting tickless idle. See examples in the code for
-existing architectures.
 
 Console Over Serial Line
 ========================
@@ -375,7 +378,7 @@ port, since it is so useful for debugging. It is a simple polling, output-only,
 serial port driver on which to send the console (:code:`printk`,
 :code:`printf`) output.
 
-It is not required, and a RAM console (:option:`CONFIG_RAM_CONSOLE`)
+It is not required, and a RAM console (:kconfig:`CONFIG_RAM_CONSOLE`)
 can be used to send all output to a circular buffer that can be read
 by a debugger instead.
 
@@ -388,10 +391,14 @@ expected to be implemented as part of an architecture port.
 
 * Atomic operators.
 
+  * If instructions do exist for a given architecture, the implementation is
+    configured using the :kconfig:`CONFIG_ATOMIC_OPERATIONS_ARCH` Kconfig
+    option.
+
   * If instructions do not exist for a given architecture,
     a generic version that wraps :c:func:`irq_lock` or :c:func:`irq_unlock`
     around non-atomic operations exists. It is configured using the
-    :option:`CONFIG_ATOMIC_OPERATIONS_C` Kconfig option.
+    :kconfig:`CONFIG_ATOMIC_OPERATIONS_C` Kconfig option.
 
 * Find-least-significant-bit-set and find-most-significant-bit-set.
 
@@ -464,7 +471,7 @@ Memory Management
 *****************
 
 If the target platform enables paging and requires drivers to memory-map
-their I/O regions, :option:`CONFIG_MMU` needs to be enabled and the
+their I/O regions, :kconfig:`CONFIG_MMU` needs to be enabled and the
 :c:func:`arch_mem_map` API implemented.
 
 Stack Objects
@@ -487,7 +494,7 @@ Two types of thread stacks exist:
 - "thread" stacks which typically use more memory, but are capable of hosting
   thread running in user mode, as well as any use-cases for kernel stacks.
 
-If :c:option:`CONFIG_USERSPACE` is not enabled, "thread" and "kernel" stacks
+If :c:kconfig:`CONFIG_USERSPACE` is not enabled, "thread" and "kernel" stacks
 are equivalent.
 
 Additional macros may be defined in the architecture layer to specify
@@ -566,17 +573,17 @@ of the system after this happens:
   it's possible to overshoot the guard and corrupt adjacent data structures
   before the hardware detects this situation.
 
-To enable the :option:`CONFIG_HW_STACK_PROTECTION` feature, the system must
+To enable the :kconfig:`CONFIG_HW_STACK_PROTECTION` feature, the system must
 provide some kind of hardware-based stack overflow protection, and enable the
-:option:`CONFIG_ARCH_HAS_STACK_PROTECTION` option.
+:kconfig:`CONFIG_ARCH_HAS_STACK_PROTECTION` option.
 
 Two forms of HW-based stack overflow detection are supported: dedicated
 CPU features for this purpose, or special read-only guard regions immediately
 preceding stack buffers.
 
-:option:`CONFIG_HW_STACK_PROTECTION` only catches stack overflows for
+:kconfig:`CONFIG_HW_STACK_PROTECTION` only catches stack overflows for
 supervisor threads. This is not required to catch stack overflow from user
-threads; :option:`CONFIG_USERSPACE` is orthogonal.
+threads; :kconfig:`CONFIG_USERSPACE` is orthogonal.
 
 This feature only detects supervisor mode stack overflows, including stack
 overflows when handling system calls. It doesn't guarantee that the kernel has
@@ -585,7 +592,7 @@ a fatal error, with no assertions about the integrity of the overall system
 possible.
 
 Stack overflows in user mode are recoverable (from the kernel's perspective)
-and require no special configuration; :option:`CONFIG_HW_STACK_PROTECTION`
+and require no special configuration; :kconfig:`CONFIG_HW_STACK_PROTECTION`
 only applies to catching overflows when the CPU is in sueprvisor mode.
 
 CPU-based stack overflow detection
@@ -644,7 +651,7 @@ User mode enabled
 Enabling user mode activates two new requirements:
 
 * A separate fixed-sized privilege mode stack, specified by
-  :option:`CONFIG_PRIVILEGED_STACK_SIZE`, must be allocated that the user
+  :kconfig:`CONFIG_PRIVILEGED_STACK_SIZE`, must be allocated that the user
   thread cannot access. It is used as the stack by the kernel when handling
   system calls. If stack guards are implemented, a stack guard region must
   be able to be placed before it, with support for carve-outs if necessary.
@@ -659,7 +666,7 @@ Enabling user mode activates two new requirements:
 This becomes more complicated if the memory protection hardware requires that
 all memory regions be sized to a power of two, and aligned to their own size.
 This is common on older MPUs and is known with
-:option:`CONFIG_MPU_REQUIRES_POWER_OF_TWO_ALIGNMENT`.
+:kconfig:`CONFIG_MPU_REQUIRES_POWER_OF_TWO_ALIGNMENT`.
 
 ``thread.stack_info`` always tracks the user-accessible part of the stack
 object, it must always be correct to program a memory protection region with
@@ -724,7 +731,7 @@ privilege elevation stack must be allocated elsewhere.
 :c:macro:`ARCH_THREAD_STACK_OBJ_ALIGN()` should both be defined to
 :c:macro:`Z_POW2_CEIL()`. :c:macro:`K_THREAD_STACK_RESERVED` must be 0.
 
-For the privilege stacks, the :option:`CONFIG_GEN_PRIV_STACKS` must be,
+For the privilege stacks, the :kconfig:`CONFIG_GEN_PRIV_STACKS` must be,
 enabled. For every thread stack found in the system, a corresponding fixed-
 size kernel stack used for handling system calls is generated. The address
 of the privilege stacks can be looked up quickly at runtime based on the
@@ -760,7 +767,7 @@ User Mode Threads
 *****************
 
 To support user mode threads, several kernel-to-arch APIs need to be
-implemented, and the system must enable the :option:`CONFIG_ARCH_HAS_USERSPACE`
+implemented, and the system must enable the :kconfig:`CONFIG_ARCH_HAS_USERSPACE`
 option. Please see the documentation for each of these functions for more
 details:
 
@@ -800,8 +807,6 @@ on MMU systems and uncommon on MPU systems:
 
 * :c:func:`arch_mem_domain_partition_remove`
 
-* :c:func:`arch_mem_domain_destroy`
-
 Please see the doxygen documentation of these APIs for details.
 
 In addition to implementing these APIs, there are some other tasks as well:
@@ -837,46 +842,40 @@ Timing
 ======
 
 .. doxygengroup:: arch-timing
-   :project: Zephyr
 
 Threads
 =======
 
 .. doxygengroup:: arch-threads
-   :project: Zephyr
+
+.. doxygengroup:: arch-tls
 
 Power Management
 ================
 
 .. doxygengroup:: arch-pm
-   :project: Zephyr
 
 Symmetric Multi-Processing
 ==========================
 
 .. doxygengroup:: arch-smp
-   :project: Zephyr
 
 Interrupts
 ==========
 
 .. doxygengroup:: arch-irq
-   :project: Zephyr
 
 Userspace
 =========
 
 .. doxygengroup:: arch-userspace
-   :project: Zephyr
 
 Memory Management
 =================
 
 .. doxygengroup:: arch-mmu
-   :project: Zephyr
 
 Miscellaneous Architecture APIs
 ===============================
 
 .. doxygengroup:: arch-misc
-   :project: Zephyr
