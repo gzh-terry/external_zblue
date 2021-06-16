@@ -76,6 +76,10 @@ static int gpio_mcux_configure(const struct device *dev,
 		return -ENOTSUP;
 	}
 
+	/* Set PCR mux to GPIO for the pin we are configuring */
+	mask |= PORT_PCR_MUX_MASK;
+	pcr |= PORT_PCR_MUX(kPORT_MuxAsGpio);
+
 	/* Now do the PORT module. Figure out the pullup/pulldown
 	 * configuration, but don't write it to the PCR register yet.
 	 */
@@ -257,7 +261,7 @@ static const struct gpio_driver_api gpio_mcux_driver_api = {
 		IRQ_CONNECT(DT_INST_IRQN(n),				\
 			    DT_INST_IRQ(n, priority),			\
 			    gpio_mcux_port_isr,				\
-			    DEVICE_GET(gpio_mcux_port##n), 0);		\
+			    DEVICE_DT_INST_GET(n), 0);			\
 									\
 		irq_enable(DT_INST_IRQN(n));				\
 	} while (0)
@@ -278,8 +282,9 @@ static const struct gpio_driver_api gpio_mcux_driver_api = {
 									\
 	static struct gpio_mcux_data gpio_mcux_port## n ##_data;	\
 									\
-	DEVICE_AND_API_INIT(gpio_mcux_port## n, DT_INST_LABEL(n),	\
+	DEVICE_DT_INST_DEFINE(n,					\
 			    gpio_mcux_port## n ##_init,			\
+			    NULL,					\
 			    &gpio_mcux_port## n ##_data,		\
 			    &gpio_mcux_port## n##_config,		\
 			    POST_KERNEL,				\

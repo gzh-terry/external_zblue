@@ -22,15 +22,15 @@
 
 /*  initial stack frame */
 struct init_stack_frame {
-	uint32_t pc;
+	uintptr_t pc;
 #ifdef CONFIG_ARC_HAS_SECURE
 	uint32_t sec_stat;
 #endif
-	uint32_t status32;
-	uint32_t r3;
-	uint32_t r2;
-	uint32_t r1;
-	uint32_t r0;
+	uintptr_t status32;
+	uintptr_t r3;
+	uintptr_t r2;
+	uintptr_t r1;
+	uintptr_t r0;
 };
 
 #ifdef CONFIG_USERSPACE
@@ -109,6 +109,30 @@ static struct init_stack_frame *get_iframe(struct k_thread *thread,
 }
 
 /*
+ * Pre-populate values in the registers inside _callee_saved_stack struct
+ * so these registers have pre-defined values when new thread begins
+ * execution. For example, setting up the thread pointer for thread local
+ * storage here so the thread starts with thread pointer already set up.
+ */
+static inline void arch_setup_callee_saved_regs(struct k_thread *thread,
+						uintptr_t stack_ptr)
+{
+	_callee_saved_stack_t *regs = UINT_TO_POINTER(stack_ptr);
+
+	ARG_UNUSED(regs);
+
+#ifdef CONFIG_THREAD_LOCAL_STORAGE
+#ifdef CONFIG_ISA_ARCV2
+	/* R26 is used for thread pointer for ARCv2 */
+	regs->r26 = thread->tls;
+#else
+	/* R30 is used for thread pointer for ARCv3 */
+	regs->r30 = thread->tls;
+#endif /* CONFIG_ISA_ARCV2 */
+#endif
+}
+
+/*
  * The initial context is a basic stack frame that contains arguments for
  * z_thread_entry() return address, that points at z_thread_entry()
  * and status register.
@@ -131,23 +155,23 @@ void arch_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
 	 * level/mask can't be set from user space that's not worse than
 	 * executing a loop without yielding.
 	 */
-	iframe->status32 = _ARC_V2_STATUS32_US;
+	iframe->status32 = _ARC_V2_STATUS32_US | _ARC_V2_STATUS32_DZ;
 	if (is_user(thread)) {
 		iframe->pc = (uint32_t)z_user_thread_entry_wrapper;
 	} else {
 		iframe->pc = (uint32_t)z_thread_entry_wrapper;
 	}
 #else
-	iframe->status32 = 0;
-	iframe->pc = ((uint32_t)z_thread_entry_wrapper);
+	iframe->status32 = _ARC_V2_STATUS32_DZ;
+	iframe->pc = ((uintptr_t)z_thread_entry_wrapper);
 #endif /* CONFIG_USERSPACE */
 #ifdef CONFIG_ARC_SECURE_FIRMWARE
 	iframe->sec_stat = z_arc_v2_aux_reg_read(_ARC_V2_SEC_STAT);
 #endif
-	iframe->r0 = (uint32_t)entry;
-	iframe->r1 = (uint32_t)p1;
-	iframe->r2 = (uint32_t)p2;
-	iframe->r3 = (uint32_t)p3;
+	iframe->r0 = (uintptr_t)entry;
+	iframe->r1 = (uintptr_t)p1;
+	iframe->r2 = (uintptr_t)p2;
+	iframe->r3 = (uintptr_t)p3;
 
 #ifdef CONFIG_ARC_STACK_CHECKING
 #ifdef CONFIG_ARC_SECURE_FIRMWARE
@@ -163,7 +187,10 @@ void arch_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
 	thread->switch_handle = thread;
 	thread->arch.relinquish_cause = _CAUSE_COOP;
 	thread->callee_saved.sp =
-		(uint32_t)iframe - ___callee_saved_stack_t_SIZEOF;
+		(uintptr_t)iframe - ___callee_saved_stack_t_SIZEOF;
+
+	arch_setup_callee_saved_regs(thread, thread->callee_saved.sp);
+
 	/* initial values in all other regs/k_thread entries are irrelevant */
 }
 
@@ -210,7 +237,7 @@ int arch_float_disable(struct k_thread *thread)
 }
 
 
-int arch_float_enable(struct k_thread *thread)
+int arch_float_enable(struct k_thread *thread, unsigned int options)
 {
 	unsigned int key;
 

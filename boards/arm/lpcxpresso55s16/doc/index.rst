@@ -71,12 +71,14 @@ hardware features:
 +-----------+------------+-------------------------------------+
 | SENSOR    | off-chip   | fxos8700 trigger                    |
 +-----------+------------+-------------------------------------+
+| CLOCK     | on-chip    | clock_control                       |
++-----------+------------+-------------------------------------+
 
 Other hardware features are not currently enabled.
 
 Currently available targets for this board are:
 
-- *lpcxpresso55s16_ns* non-secure (NS) address space
+- *lpcxpresso55s16*
 
 Connections and IOs
 ===================
@@ -174,7 +176,7 @@ Here is an example for the :ref:`hello_world` application.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world
-   :board: lpcxpresso55s16_ns
+   :board: lpcxpresso55s16
    :goals: flash
 
 Open a serial terminal, reset the board (press the RESET button), and you should
@@ -183,7 +185,7 @@ see the following message in the terminal:
 .. code-block:: console
 
    ***** Booting Zephyr OS v2.2.0 *****
-   Hello World! lpcxpresso55s16_ns
+   Hello World! lpcxpresso55s16
 
 Debugging
 =========

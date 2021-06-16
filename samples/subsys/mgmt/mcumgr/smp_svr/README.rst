@@ -22,6 +22,7 @@ This sample application supports the following mcumgr transports by default:
     * ``img_mgmt``
     * ``os_mgmt``
     * ``stat_mgmt``
+    * ``shell_mgmt``
 
 Caveats
 *******
@@ -109,7 +110,7 @@ Zephyr. The ``smp_svr`` sample comes in different flavours.
 
    .. group-tab:: Serial
 
-      To build the serial sample with file-system support:
+      To build the serial sample with file-system and shell management support:
 
       .. code-block:: console
 
@@ -117,7 +118,19 @@ Zephyr. The ``smp_svr`` sample comes in different flavours.
             -b frdm_k64f \
             samples/subsys/mgmt/mcumgr/smp_svr \
             -- \
-            -DOVERLAY_CONFIG='overlay-serial.conf;overlay-fs.conf'
+            -DOVERLAY_CONFIG='overlay-serial.conf;overlay-fs.conf;overlay-shell-mgmt.conf'
+
+   .. group-tab:: USB CDC_ACM
+
+      To build the serial sample with USB CDC_ACM backend:
+
+      .. code-block:: console
+
+         west build \
+            -b nrf52840dk_nrf52840 \
+            samples/subsys/mgmt/mcumgr/smp_svr \
+            -- \
+            -DOVERLAY_CONFIG=overlay-cdc.conf
 
    .. group-tab:: Shell
 
@@ -171,8 +184,7 @@ Flashing the sample image
 *************************
 
 Upload the :file:`zephyr.signed.bin` file from the previous to image slot-0 of your
-board.  The location of image slot-0 varies by board, as described in
-:ref:`mcuboot_partitions`.
+board.  See :ref:`flash_map_api` for details on flash partitioning.
 
 To upload the initial image file to an empty slot-0, we simply use ``west flash``
 like normal. ``west flash`` will automatically detect slot-0 address and confirm
@@ -321,3 +333,16 @@ on the next reset unless the image is confirmed. To confirm the new image:
 Note that if you try to send the very same image that is already flashed in
 slot-0 then the procedure will not complete successfully since the hash values
 for both slots will be identical.
+
+Download file from File System
+******************************
+
+SMP server supports downloading files from File System on device via
+:file:`mcumgr`. This is useful with FS log backend, when files are stored in
+non-volatile memory. Build and flash both MCUboot and smp_svr applications and
+then use :file:`mcumgr` with :file:`download` command, e.g.:
+
+.. code-block:: console
+
+   mcumgr --conntype serial --connstring='dev=/dev/ttyACM0,baud=115200' \
+   fs download /lfs/log.0000 ~/log.txt

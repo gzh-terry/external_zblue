@@ -80,7 +80,7 @@ int lis2dw12_trigger_set(const struct device *dev,
 			  sensor_trigger_handler_t handler)
 {
 	struct lis2dw12_data *lis2dw12 = dev->data;
-	union axis3bit16_t raw;
+	int16_t raw[3];
 	int state = (handler != NULL) ? PROPERTY_ENABLE : PROPERTY_DISABLE;
 
 	switch (trig->type) {
@@ -88,7 +88,7 @@ int lis2dw12_trigger_set(const struct device *dev,
 		lis2dw12->drdy_handler = handler;
 		if (state) {
 			/* dummy read: re-trigger interrupt */
-			lis2dw12_acceleration_raw_get(lis2dw12->ctx, raw.u8bit);
+			lis2dw12_acceleration_raw_get(lis2dw12->ctx, raw);
 		}
 		return lis2dw12_enable_int(dev, SENSOR_TRIG_DATA_READY, state);
 		break;
@@ -245,7 +245,7 @@ int lis2dw12_init_interrupt(const struct device *dev)
 	lis2dw12->dev = dev;
 
 #if defined(CONFIG_LIS2DW12_TRIGGER_OWN_THREAD)
-	k_sem_init(&lis2dw12->gpio_sem, 0, UINT_MAX);
+	k_sem_init(&lis2dw12->gpio_sem, 0, K_SEM_MAX_LIMIT);
 
 	k_thread_create(&lis2dw12->thread, lis2dw12->thread_stack,
 		       CONFIG_LIS2DW12_THREAD_STACK_SIZE,

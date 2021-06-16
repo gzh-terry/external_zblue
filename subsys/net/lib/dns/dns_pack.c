@@ -106,7 +106,8 @@ static int skip_fqdn(uint8_t *answer, int buf_sz)
 	return i;
 }
 
-int dns_unpack_answer(struct dns_msg_t *dns_msg, int dname_ptr, uint32_t *ttl)
+int dns_unpack_answer(struct dns_msg_t *dns_msg, int dname_ptr, uint32_t *ttl,
+		      enum dns_rr_type *type)
 {
 	int dname_len;
 	uint16_t rem_size;
@@ -155,8 +156,9 @@ int dns_unpack_answer(struct dns_msg_t *dns_msg, int dname_ptr, uint32_t *ttl)
 		DNS_COMMON_UINT_SIZE + /* type length */
 		DNS_TTL_LEN +
 		DNS_RDLENGTH_LEN;
+	*type = dns_answer_type(dname_len, answer);
 
-	switch (dns_answer_type(dname_len, answer)) {
+	switch (*type) {
 	case DNS_RR_TYPE_A:
 	case DNS_RR_TYPE_AAAA:
 		set_dns_msg_response(dns_msg, DNS_RESPONSE_IP, pos, len);
@@ -557,7 +559,10 @@ int dns_unpack_query(struct dns_msg_t *dns_msg, struct net_buf *buf,
 	}
 
 	query_type = dns_unpack_query_qtype(end_of_label);
-	if (query_type != DNS_RR_TYPE_A && query_type != DNS_RR_TYPE_AAAA) {
+	if (query_type != DNS_RR_TYPE_A && query_type != DNS_RR_TYPE_AAAA
+		&& query_type != DNS_RR_TYPE_PTR
+		&& query_type != DNS_RR_TYPE_SRV
+		&& query_type != DNS_RR_TYPE_TXT) {
 		return -EINVAL;
 	}
 

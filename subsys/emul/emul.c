@@ -10,7 +10,7 @@
 LOG_MODULE_REGISTER(emul);
 
 #include <device.h>
-#include <emul.h>
+#include <drivers/emul.h>
 #include <string.h>
 
 /**
@@ -46,10 +46,12 @@ int emul_init_for_bus_from_list(const struct device *dev,
 	const struct emul_link_for_bus *const end =
 		cfg->children + cfg->num_children;
 
+	LOG_INF("Registering %d emulator(s) for %s", cfg->num_children,
+		dev->name);
 	for (elp = cfg->children; elp < end; elp++) {
 		const struct emul *emul = emul_find_by_link(elp);
 
-		__ASSERT_NO_MSG(emul);
+		__ASSERT(emul, "Cannot find emulator for '%s'", elp->label);
 
 		int rc = emul->init(emul, dev);
 
