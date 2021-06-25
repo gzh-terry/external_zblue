@@ -52,10 +52,11 @@ void test_main(void)
 #endif
 
 	int key = arch_irq_lock();
-	__ASSERT(arch_irq_unlocked(key),
-		"IRQs locked in main()");
+	__ASSERT(!arch_irq_unlocked(key),
+		"IRQs unlocked in main()");
 
-	arch_irq_unlock(key);
+	/* Enable interrupts unconditionally */
+	arch_irq_unlock(0);
 
 	/* Determine an NVIC IRQ line that is not currently in use. */
 	int i, flag = test_flag;
@@ -96,26 +97,24 @@ void test_main(void)
 		}
 	}
 
-	if (i >= 0) {
+	__ASSERT(i >= 0,
+		"No available IRQ line to use in the test\n");
 
-		printk("Available IRQ line: %u\n", i);
+	printk("Available IRQ line: %u\n", i);
 
-		arch_irq_connect_dynamic(i, 0 /* highest priority */,
-			arm_isr_handler,
-			NULL,
-			0);
+	arch_irq_connect_dynamic(i, 0 /* highest priority */,
+		arm_isr_handler,
+		NULL,
+		0);
 
-		NVIC_EnableIRQ(i);
+	NVIC_EnableIRQ(i);
 
-		__DSB();
-		__ISB();
+	__DSB();
+	__ISB();
 
-		flag = test_flag;
+	flag = test_flag;
 
-		__ASSERT(flag > 0, "Test flag not set by IRQ\n");
+	__ASSERT(flag > 0, "Test flag not set by IRQ\n");
 
-		printk("ARM no multithreading test successful\n");
-	} else {
-		__ASSERT(0, "No available IRQ line to use in the test\n");
-	}
+	printk("ARM no multithreading test successful\n");
 }

@@ -15,7 +15,6 @@
 #include <bluetooth/gatt.h>
 #include <bluetooth/services/ots.h>
 #include "ots_internal.h"
-#include "ots_dir_list_internal.h"
 
 #include <logging/log.h>
 
@@ -198,25 +197,14 @@ static void oacp_read_proc_cb(struct bt_gatt_ots_l2cap *l2cap_ctx,
 		}
 
 		ots->cur_obj->state.type = BT_GATT_OTS_OBJECT_IDLE_STATE;
-
-		if (IS_ENABLED(CONFIG_BT_OTS_DIR_LIST_OBJ) &&
-		    ots->cur_obj->id == OTS_OBJ_ID_DIR_LIST) {
-			return;
-		}
-
 		ots->cb->obj_read(ots, conn, ots->cur_obj->id, NULL, 0,
 				  offset);
 		return;
 	}
 
 	len = read_op->oacp_params.len - read_op->sent_len;
-	if (IS_ENABLED(CONFIG_BT_OTS_DIR_LIST_OBJ) &&
-	    ots->cur_obj->id == OTS_OBJ_ID_DIR_LIST) {
-		len = bt_ots_dir_list_content_get(ots->dir_list, &obj_chunk, len, offset);
-	} else {
-		len = ots->cb->obj_read(ots, conn, ots->cur_obj->id, &obj_chunk,
-					len, offset);
-	}
+	len = ots->cb->obj_read(ots, conn, ots->cur_obj->id, &obj_chunk, len,
+				offset);
 
 	ots->l2cap.tx_done = oacp_read_proc_cb;
 	err = bt_gatt_ots_l2cap_send(&ots->l2cap, obj_chunk, len);
@@ -243,10 +231,7 @@ static void oacp_read_proc_execute(struct bt_ots *ots,
 	LOG_DBG("Executing Read procedure with offset: 0x%08X and "
 		"length: 0x%08X", params->offset, params->len);
 
-	if (IS_ENABLED(CONFIG_BT_OTS_DIR_LIST_OBJ) &&
-	    ots->cur_obj->id == OTS_OBJ_ID_DIR_LIST) {
-		oacp_read_proc_cb(&ots->l2cap, conn);
-	} else if (ots->cb->obj_read) {
+	if (ots->cb->obj_read) {
 		oacp_read_proc_cb(&ots->l2cap, conn);
 	} else {
 		ots->cur_obj->state.type = BT_GATT_OTS_OBJECT_IDLE_STATE;
@@ -256,10 +241,10 @@ static void oacp_read_proc_execute(struct bt_ots *ots,
 }
 
 static void oacp_ind_cb(struct bt_conn *conn,
-			struct bt_gatt_indicate_params *params,
+			const struct bt_gatt_attr *attr,
 			uint8_t err)
 {
-	struct bt_ots *ots = (struct bt_ots *) params->attr->user_data;
+	struct bt_ots *ots = (struct bt_ots *) attr->user_data;
 
 	LOG_DBG("Received OACP Indication ACK with status: 0x%04X", err);
 

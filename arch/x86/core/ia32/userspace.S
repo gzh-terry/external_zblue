@@ -9,7 +9,6 @@
 #include <offsets_short.h>
 #include <syscall.h>
 #include <sys/mem_manage.h>
-#include <x86_mmu.h>
 
 /* Exports */
 GTEXT(z_x86_syscall_entry_stub)
@@ -39,7 +38,7 @@ GDATA(_k_syscall_table)
  *  4  isr or exc handler
  *  0  return address
  */
-SECTION_FUNC(PINNED_TEXT, z_x86_trampoline_to_kernel)
+SECTION_FUNC(TEXT, z_x86_trampoline_to_kernel)
 	/* Check interrupted code segment to see if we came from ring 3
 	 * and hence on the trampoline stack
 	 */
@@ -51,7 +50,7 @@ SECTION_FUNC(PINNED_TEXT, z_x86_trampoline_to_kernel)
 	pushl	%edi
 
 	/* Switch to kernel page table */
-	movl	$Z_MEM_PHYS_ADDR(z_x86_kernel_ptables), %esi
+	movl	$z_x86_kernel_ptables, %esi
 	movl	%esi, %cr3
 
 	/* Save old trampoline stack pointer in %edi */
@@ -99,7 +98,7 @@ SECTION_FUNC(PINNED_TEXT, z_x86_trampoline_to_kernel)
  *
  * This function is conditionally macroed to KPTI_IRET/KPTI_IRET_USER
  */
-SECTION_FUNC(PINNED_TEXT, z_x86_trampoline_to_user)
+SECTION_FUNC(TEXT, z_x86_trampoline_to_user)
 	/* Check interrupted code segment to see if we came from ring 3
 	 * and hence on the trampoline stack
 	 */
@@ -108,7 +107,7 @@ SECTION_FUNC(PINNED_TEXT, z_x86_trampoline_to_user)
 
 	/* Otherwise, fall through ... */
 
-SECTION_FUNC(PINNED_TEXT, z_x86_trampoline_to_user_always)
+SECTION_FUNC(TEXT, z_x86_trampoline_to_user_always)
 	/* Stash EDI, need a free register */
 	pushl	%edi
 
@@ -156,7 +155,7 @@ SECTION_FUNC(TEXT, z_x86_syscall_entry_stub)
 	pushl	%edi
 
 	/* Switch to kernel page table */
-	movl	$Z_MEM_PHYS_ADDR(z_x86_kernel_ptables), %esi
+	movl	$z_x86_kernel_ptables, %esi
 	movl	%esi, %cr3
 
 	/* Save old trampoline stack pointer in %edi */
@@ -306,18 +305,42 @@ SECTION_FUNC(TEXT, z_x86_userspace_enter)
 	 * want to leak any information.
 	 */
 	mov	%edi, %esp
+#ifdef CONFIG_X86_PAE
+	/* Skip over the toplevel PDPT stored here */
+	subl	$0x20, %esp
+#endif /* CONFIG_X86_PAE */
 
-	/* Erase and enable US bit in page tables for the stack buffer */
+	/* Stash some registers we are going to need to erase the user
+	 * stack.
+	 */
 	push	%ecx
+	push	%edi
 	push	%eax
-	push	%edx
-	call	z_x86_current_stack_perms
-	pop	%edx
+
+	/* Compute size of user stack in 4-byte chunks and put in ECX */
+	mov	%ebx, %ecx
+	sub	%edi, %ecx
+	shr	$2, %ecx	/* Divide by 4 */
+
+#ifdef CONFIG_INIT_STACKS
+	mov	$0xAAAAAAAA, %eax
+#else
+	xor	%eax, %eax
+#endif
+	/* Copy 4 bytes of memory at a time, starting at ES:EDI, with whatever
+	 * is in EAX. Repeat this ECX times.  Stack sizes are always at least
+	 * 4-byte aligned.
+	 */
+	cld
+	rep stosl
+
+	/* Restore registers */
 	pop	%eax
+	pop	%edi
 	pop	%ecx
 
-	/* Set stack pointer to the base of the freshly-erased user stack.
-	 * Now that this is set we won't need EBX any more.
+	/* Now set stack pointer to the base of the user stack. Now that this
+	 * is set we won't need EBX any more.
 	 */
 	mov	%ebx, %esp
 

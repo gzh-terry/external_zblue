@@ -46,7 +46,9 @@ struct bt_mesh_health_cli {
 			       size_t fault_count);
 
 	/* Internal parameters for tracking message responses. */
-	struct bt_mesh_msg_ack_ctx ack_ctx;
+	struct k_sem          op_sync;
+	uint32_t                 op_pending;
+	void                 *op_param;
 };
 
 

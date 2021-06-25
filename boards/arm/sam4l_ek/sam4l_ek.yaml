@@ -9,7 +9,5 @@ toolchain:
   - gnuarmemb
   - xtools
 supported:
-  - gpio
-  - i2c
   - spi
   - usart

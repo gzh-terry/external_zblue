@@ -83,10 +83,7 @@ static int is_flash_locked(FLASH_TypeDef *regs)
 
 static void write_enable(FLASH_TypeDef *regs)
 {
-	/* Only used for half-page programming on L1x */
-#if !defined(CONFIG_SOC_SERIES_STM32L1X)
 	regs->PECR |= FLASH_PECR_PROG;
-#endif
 }
 
 static void write_disable(FLASH_TypeDef *regs)
@@ -210,13 +207,11 @@ int flash_stm32_write_range(const struct device *dev, unsigned int offset,
 			    const void *data, unsigned int len)
 {
 	int i, rc = 0;
-	flash_prg_t value;
+	const flash_prg_t *values = (const flash_prg_t *)data;
 
 	for (i = 0; i < len / sizeof(flash_prg_t); i++) {
-		memcpy(&value,
-		       (const uint8_t *)data + i * sizeof(flash_prg_t),
-		       sizeof(flash_prg_t));
-		rc = write_value(dev, offset + i * sizeof(flash_prg_t), value);
+		rc = write_value(dev, offset + i * sizeof(flash_prg_t),
+				 values[i]);
 		if (rc < 0) {
 			return rc;
 		}

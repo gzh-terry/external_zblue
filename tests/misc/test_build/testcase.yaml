@@ -1,6 +1,5 @@
 tests:
   buildsystem.debug.build:
-    platform_exclude: lpcxpresso55s69_ns
     build_only: true
     extra_args: CONF_FILE=debug.conf
     tags: debug

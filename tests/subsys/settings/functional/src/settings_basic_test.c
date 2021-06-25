@@ -560,7 +560,7 @@ static void test_direct_loading_filter(void)
 	strcpy(buffer, prefix);
 	strcat(buffer, "/to_delete");
 	settings_save_one(buffer, "1", 2);
-	(void) settings_delete(buffer);
+	settings_delete(buffer);
 
 	/* Saving all the data */
 	for (ldata = data_duplicates; ldata->n; ++ldata) {

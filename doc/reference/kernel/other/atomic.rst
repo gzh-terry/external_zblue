@@ -13,7 +13,7 @@ by threads and ISRs in an uninterruptible manner.
 Concepts
 ********
 
-Any number of atomic variables can be defined (limited only by available RAM).
+Any number of atomic variables can be defined.
 
 Using the kernel's atomic APIs to manipulate an atomic variable
 guarantees that the desired operation occurs correctly,
@@ -107,7 +107,7 @@ Configuration Options
 Related configuration options:
 
 * :option:`CONFIG_ATOMIC_OPERATIONS_BUILTIN`
-* :option:`CONFIG_ATOMIC_OPERATIONS_ARCH`
+* :option:`CONFIG_ATOMIC_OPERATIONS_CUSTOM`
 * :option:`CONFIG_ATOMIC_OPERATIONS_C`
 
 API Reference
@@ -117,3 +117,4 @@ API Reference
     All atomic services APIs can be used by both threads and ISRs.
 
 .. doxygengroup:: atomic_apis
+   :project: Zephyr

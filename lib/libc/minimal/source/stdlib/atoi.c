@@ -1,5 +1,3 @@
-/* SPDX-License-Identifier: MIT */
-
 /*
  * Copyright © 2005-2014 Rich Felker, et al.
  *
@@ -43,12 +41,6 @@ int atoi(const char *s)
 		break;	/* artifact to quiet coverity warning */
 	case '+':
 		s++;
-	default:
-		/* Add an empty default with break, this is a defensive programming.
-		 * Static analysis tool won't raise a violation if default is empty,
-		 * but has that comment.
-		 */
-		break;
 	}
 	/* Compute n as a negative number to avoid overflow on INT_MIN */
 	while (isdigit(*s)) {

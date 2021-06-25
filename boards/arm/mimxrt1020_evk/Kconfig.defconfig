@@ -12,13 +12,17 @@ choice CODE_LOCATION
 	default CODE_FLEXSPI
 endchoice
 
-config DISK_DRIVER_SDMMC
-	default y if DISK_DRIVERS
+choice DATA_LOCATION
+	default DATA_SEMC
+endchoice
 
 if NETWORKING
 
 config NET_L2_ETHERNET
 	default y
+
+config ETH_MCUX_0
+	default y if NET_L2_ETHERNET
 
 endif # NETWORKING
 

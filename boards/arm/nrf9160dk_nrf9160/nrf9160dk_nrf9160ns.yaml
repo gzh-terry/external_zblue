@@ -7,10 +7,8 @@ toolchain:
   - xtools
   - zephyr
 ram: 128
-flash: 192
+flash: 256
 supported:
-  - arduino_gpio
-  - arduino_i2c
   - i2c
   - pwm
   - watchdog

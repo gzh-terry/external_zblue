@@ -6,7 +6,7 @@
 
 /dts-v1/;
 
-#include <nxp/MK66FN2M0VMD18.dtsi>
+#include <nxp/nxp_k66.dtsi>
 
 / {
 	model = "SEGGER MK66F IP Switch board";
@@ -42,19 +42,6 @@
 	clock-frequency = <120000000>;
 };
 
-&sim {
-	pllfll-select = <KINETIS_SIM_PLLFLLSEL_MCGPLLCLK>;
-	er32k-select = <KINETIS_SIM_ER32KSEL_RTC>;
-
-	bus_clk {
-		clock-div = <3>;
-	};
-
-	flash_clk {
-		clock-div = <7>;
-	};
-};
-
 &gpioa {
 	status = "okay";
 };
@@ -64,7 +51,10 @@
 };
 
 &flash0 {
-
+	/*
+	 * For more information, see:
+	 * https://docs.zephyrproject.org/latest/guides/dts/legacy-macros.html#legacy-flash-partitions
+	 */
 	partitions {
 		compatible = "fixed-partitions";
 		#address-cells = <1>;
@@ -103,10 +93,6 @@
 
 &enet {
 	status = "okay";
-	pinctrl-0 = <&RMII0_RXD1_PTA12 &RMII0_RXD0_PTA13
-		     &RMII0_CRS_DV_PTA14 &RMII0_TXEN_PTA15
-		     &RMII0_TXD0_PTA16 &RMII0_TXD1_PTA17
-		     &ENET_1588_CLKIN_PTE26 /* used for RMII ref clk */>;
 
 	fixed-link {
 		speed = <100>;
@@ -116,37 +102,8 @@
 
 &spi1 {
 	status = "okay";
-	pinctrl-0 = <&SPI1_PCS0_PTB10 &SPI1_SCK_PTB11
-		     &SPI1_SOUT_PTB16 &SPI1_SIN_PTB17>;
 
 	clock-frequency = <44000000>;
-	cs-gpios = <&gpioe 4 GPIO_ACTIVE_LOW>;
-
-	ksz8794: dsa@0 {
-		compatible = "microchip,ksz8794";
-		reg = <0>;
-
-		label = "dsa";
-		spi-max-frequency = <44000000>;
-		reset-gpios = <&gpiob 22 GPIO_ACTIVE_LOW>;
-
-		spi-cpol;
-		spi-cpha;
-		dsa-master-port = <&enet>;
-		dsa-slave-ports = <3>;
-
-		lan3: lan_3 {
-			label = "lan3";
-		};
-
-		lan2: lan_2 {
-			label = "lan2";
-		};
-
-		lan1: lan_1 {
-			label = "lan1";
-		};
-	};
 };
 
 &gpioa {

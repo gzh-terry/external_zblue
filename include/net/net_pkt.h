@@ -60,11 +60,18 @@ struct net_pkt_cursor {
  * net_pkt_clone() function.
  */
 struct net_pkt {
-	/**
-	 * The fifo is used by RX/TX threads and by socket layer. The net_pkt
-	 * is queued via fifo to the processing thread.
-	 */
-	intptr_t fifo;
+	union {
+		/** Internal variable that is used when packet is sent
+		 * or received.
+		 */
+		struct k_work work;
+		/** Socket layer will queue received net_pkt into a k_fifo.
+		 * Since this happens after consuming net_pkt's k_work on
+		 * RX path, it is then fine to have both attributes sharing
+		 * the same memory area.
+		 */
+		intptr_t sock_recv_fifo;
+	};
 
 	/** Slab pointer from where it belongs to */
 	struct k_mem_slab *slab;
@@ -90,15 +97,12 @@ struct net_pkt {
 	struct net_if *orig_iface; /* Original network interface */
 #endif
 
-#if defined(CONFIG_NET_PKT_TIMESTAMP)
-	/** Timestamp if available. */
-	struct net_ptp_time timestamp;
-#endif
-
-#if defined(CONFIG_NET_PKT_RXTIME_STATS) || defined(CONFIG_NET_PKT_TXTIME_STATS)
+#if defined(CONFIG_NET_PKT_TIMESTAMP) || \
+				defined(CONFIG_NET_PKT_RXTIME_STATS) ||	\
+				defined(CONFIG_NET_PKT_TXTIME_STATS)
 	struct {
-		/** Create time in cycles */
-		uint32_t create_time;
+		/** Timestamp if available. */
+		struct net_ptp_time timestamp;
 
 #if defined(CONFIG_NET_PKT_TXTIME_STATS_DETAIL) || \
 	defined(CONFIG_NET_PKT_RXTIME_STATS_DETAIL)
@@ -114,7 +118,7 @@ struct net_pkt {
 #endif /* CONFIG_NET_PKT_TXTIME_STATS_DETAIL ||
 	  CONFIG_NET_PKT_RXTIME_STATS_DETAIL */
 	};
-#endif /* CONFIG_NET_PKT_RXTIME_STATS || CONFIG_NET_PKT_TXTIME_STATS */
+#endif /* CONFIG_NET_PKT_TIMESTAMP */
 
 #if defined(CONFIG_NET_PKT_TXTIME)
 	/** Network packet TX time in the future (in nanoseconds) */
@@ -128,9 +132,13 @@ struct net_pkt {
 	struct net_linkaddr lladdr_src;
 	struct net_linkaddr lladdr_dst;
 
-#if defined(CONFIG_NET_TCP2)
-	/** Allow placing the packet into sys_slist_t */
-	sys_snode_t next;
+#if defined(CONFIG_NET_TCP1) || defined(CONFIG_NET_TCP2)
+	union {
+		sys_snode_t sent_list;
+
+		/** Allow placing the packet into sys_slist_t */
+		sys_snode_t next;
+	};
 #endif
 
 	uint8_t ip_hdr_len;	/* pre-filled in order to avoid func call */
@@ -181,9 +189,6 @@ struct net_pkt {
 					* segment.
 					*/
 #endif
-	uint8_t captured : 1; /* Set to 1 if this packet is already being
-			       * captured
-			       */
 
 	union {
 		/* IPv6 hop limit or IPv4 ttl for this network packet.
@@ -237,15 +242,7 @@ struct net_pkt {
 #if defined(CONFIG_IEEE802154)
 	uint8_t ieee802154_rssi; /* Received Signal Strength Indication */
 	uint8_t ieee802154_lqi;  /* Link Quality Indicator */
-	uint8_t ieee802154_arb : 1; /* ACK Request Bit is set in the frame */
 	uint8_t ieee802154_ack_fpb : 1; /* Frame Pending Bit was set in the ACK */
-	uint8_t ieee802154_frame_retry : 1; /* The frame is being retransmitted. */
-#if defined(CONFIG_IEEE802154_2015)
-	uint8_t ieee802154_fv2015 : 1; /* Frame version is IEEE 802.15.4-2015 */
-	uint8_t ieee802154_ack_seb : 1; /* Security Enabled Bit was set in the ACK */
-	uint32_t ieee802154_ack_fc; /* Frame counter set in the ACK */
-	uint8_t ieee802154_ack_keyid; /* Key index set in the ACK */
-#endif
 #endif
 #if defined(CONFIG_NET_L2_CANBUS)
 	union {
@@ -257,6 +254,11 @@ struct net_pkt {
 };
 
 /** @cond ignore */
+
+static inline struct k_work *net_pkt_work(struct net_pkt *pkt)
+{
+	return &pkt->work;
+}
 
 /* The interface real ll address */
 static inline struct net_linkaddr *net_pkt_lladdr_if(struct net_pkt *pkt)
@@ -329,16 +331,6 @@ static inline bool net_pkt_is_gptp(struct net_pkt *pkt)
 static inline void net_pkt_set_gptp(struct net_pkt *pkt, bool is_gptp)
 {
 	pkt->gptp_pkt = is_gptp;
-}
-
-static inline bool net_pkt_is_captured(struct net_pkt *pkt)
-{
-	return !!(pkt->captured);
-}
-
-static inline void net_pkt_set_captured(struct net_pkt *pkt, bool is_captured)
-{
-	pkt->captured = is_captured;
 }
 
 static inline uint8_t net_pkt_ip_hdr_len(struct net_pkt *pkt)
@@ -806,33 +798,6 @@ static inline void net_pkt_set_timestamp(struct net_pkt *pkt,
 }
 #endif /* CONFIG_NET_PKT_TIMESTAMP */
 
-#if defined(CONFIG_NET_PKT_RXTIME_STATS) || defined(CONFIG_NET_PKT_TXTIME_STATS)
-static inline uint32_t net_pkt_create_time(struct net_pkt *pkt)
-{
-	return pkt->create_time;
-}
-
-static inline void net_pkt_set_create_time(struct net_pkt *pkt,
-					   uint32_t create_time)
-{
-	pkt->create_time = create_time;
-}
-#else
-static inline uint32_t net_pkt_create_time(struct net_pkt *pkt)
-{
-	ARG_UNUSED(pkt);
-
-	return 0U;
-}
-
-static inline void net_pkt_set_create_time(struct net_pkt *pkt,
-					   uint32_t create_time)
-{
-	ARG_UNUSED(pkt);
-	ARG_UNUSED(create_time);
-}
-#endif /* CONFIG_NET_PKT_RXTIME_STATS || CONFIG_NET_PKT_TXTIME_STATS */
-
 #if defined(CONFIG_NET_PKT_TXTIME)
 static inline uint64_t net_pkt_txtime(struct net_pkt *pkt)
 {
@@ -935,11 +900,6 @@ static inline uint8_t *net_pkt_ip_data(struct net_pkt *pkt)
 	return pkt->frags->data;
 }
 
-static inline bool net_pkt_is_empty(struct net_pkt *pkt)
-{
-	return !pkt->buffer || !net_pkt_data(pkt) || pkt->buffer->len == 0;
-}
-
 static inline struct net_linkaddr *net_pkt_lladdr_src(struct net_pkt *pkt)
 {
 	return &pkt->lladdr_src;
@@ -987,16 +947,6 @@ static inline void net_pkt_set_ieee802154_lqi(struct net_pkt *pkt,
 	pkt->ieee802154_lqi = lqi;
 }
 
-static inline bool net_pkt_ieee802154_arb(struct net_pkt *pkt)
-{
-	return pkt->ieee802154_arb;
-}
-
-static inline void net_pkt_set_ieee802154_arb(struct net_pkt *pkt, bool arb)
-{
-	pkt->ieee802154_arb = arb;
-}
-
 static inline bool net_pkt_ieee802154_ack_fpb(struct net_pkt *pkt)
 {
 	return pkt->ieee802154_ack_fpb;
@@ -1007,62 +957,7 @@ static inline void net_pkt_set_ieee802154_ack_fpb(struct net_pkt *pkt,
 {
 	pkt->ieee802154_ack_fpb = fpb;
 }
-
-static inline bool net_pkt_ieee802154_frame_retry(struct net_pkt *pkt)
-{
-	return pkt->ieee802154_frame_retry;
-}
-
-static inline void net_pkt_set_ieee802154_frame_retry(struct net_pkt *pkt,
-						     bool frame_retry)
-{
-	pkt->ieee802154_frame_retry = frame_retry;
-}
-
-#if defined(CONFIG_IEEE802154_2015)
-static inline bool net_pkt_ieee802154_fv2015(struct net_pkt *pkt)
-{
-	return pkt->ieee802154_fv2015;
-}
-
-static inline void net_pkt_set_ieee802154_fv2015(struct net_pkt *pkt, bool fv2015)
-{
-	pkt->ieee802154_fv2015 = fv2015;
-}
-
-static inline bool net_pkt_ieee802154_ack_seb(struct net_pkt *pkt)
-{
-	return pkt->ieee802154_ack_seb;
-}
-
-static inline void net_pkt_set_ieee802154_ack_seb(struct net_pkt *pkt, bool seb)
-{
-	pkt->ieee802154_ack_seb = seb;
-}
-
-static inline uint32_t net_pkt_ieee802154_ack_fc(struct net_pkt *pkt)
-{
-	return pkt->ieee802154_ack_fc;
-}
-
-static inline void net_pkt_set_ieee802154_ack_fc(struct net_pkt *pkt,
-						 uint32_t fc)
-{
-	pkt->ieee802154_ack_fc = fc;
-}
-
-static inline uint8_t net_pkt_ieee802154_ack_keyid(struct net_pkt *pkt)
-{
-	return pkt->ieee802154_ack_keyid;
-}
-
-static inline void net_pkt_set_ieee802154_ack_keyid(struct net_pkt *pkt,
-						    uint8_t keyid)
-{
-	pkt->ieee802154_ack_keyid = keyid;
-}
-#endif /* CONFIG_IEEE802154_2015 */
-#endif /* CONFIG_IEEE802154 || CONFIG_IEEE802154_RAW_MODE */
+#endif
 
 #if defined(CONFIG_NET_IPV4_AUTO)
 static inline bool net_pkt_ipv4_auto(struct net_pkt *pkt)
@@ -1668,9 +1563,6 @@ void net_pkt_append_buffer(struct net_pkt *pkt, struct net_buf *buffer);
 /**
  * @brief Get available buffer space from a pkt
  *
- * @note Reserved bytes (headroom) in any of the fragments are not considered to
- *       be available.
- *
  * @param pkt The net_pkt which buffer availability should be evaluated
  *
  * @return the amount of buffer available
@@ -1679,9 +1571,6 @@ size_t net_pkt_available_buffer(struct net_pkt *pkt);
 
 /**
  * @brief Get available buffer space for payload from a pkt
- *
- * @note Reserved bytes (headroom) in any of the fragments are not considered to
- *       be available.
  *
  * @details Unlike net_pkt_available_buffer(), this will take into account
  *          the headers space.
@@ -2003,16 +1892,6 @@ uint16_t net_pkt_get_current_offset(struct net_pkt *pkt);
  * @return true if that is the case, false otherwise.
  */
 bool net_pkt_is_contiguous(struct net_pkt *pkt, size_t size);
-
-/**
- * Get the contiguous buffer space
- *
- * @param pkt Network packet
- *
- * @return The available contiguous buffer space in bytes starting from the
- *         current cursor position. 0 in case of an error.
- */
-size_t net_pkt_get_contiguous_len(struct net_pkt *pkt);
 
 struct net_pkt_data_access {
 #if !defined(CONFIG_NET_HEADERS_ALWAYS_CONTIGUOUS)
