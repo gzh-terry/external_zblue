@@ -24,7 +24,7 @@
 #include <drivers/clock_control/stm32_clock_control.h>
 #include <sys/util.h>
 #include <drivers/gpio.h>
-#include <pinmux/stm32/pinmux_stm32.h>
+#include <pinmux/pinmux_stm32.h>
 #include "stm32_hsem.h"
 
 #define LOG_LEVEL CONFIG_USB_DRIVER_LOG_LEVEL
@@ -1042,8 +1042,7 @@ void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef *hpcd)
 		ep_state->cb(EP0_OUT, USB_DC_EP_SETUP);
 
 		if (!(setup->wLength == 0U) &&
-		    !(REQTYPE_GET_DIR(setup->bmRequestType) ==
-		    REQTYPE_DIR_TO_HOST)) {
+		    usb_reqtype_is_to_device(setup)) {
 			usb_dc_ep_start_read(EP0_OUT,
 					     usb_dc_stm32_state.ep_buf[EP0_IDX],
 					     setup->wLength);

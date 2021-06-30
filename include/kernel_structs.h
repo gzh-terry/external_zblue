@@ -23,11 +23,15 @@
 #if !defined(_ASMLANGUAGE)
 #include <sys/atomic.h>
 #include <zephyr/types.h>
-#include <sched_priq.h>
+#include <kernel/sched_priq.h>
 #include <sys/dlist.h>
 #include <sys/util.h>
 #include <sys/sys_heap.h>
 #include <arch/structs.h>
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 #define K_NUM_PRIORITIES \
@@ -183,7 +187,7 @@ bool z_smp_cpu_mobile(void);
 
 #define _current_cpu ({ __ASSERT_NO_MSG(!z_smp_cpu_mobile()); \
 			arch_curr_cpu(); })
-#define _current k_current_get()
+#define _current z_current_get()
 
 #else
 #define _current_cpu (&_kernel.cpus[0])
@@ -229,6 +233,10 @@ struct _timeout {
 	int32_t dticks;
 #endif
 };
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _ASMLANGUAGE */
 
