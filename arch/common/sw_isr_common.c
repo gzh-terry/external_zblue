@@ -54,9 +54,9 @@ unsigned int get_parent_offset(unsigned int parent_irq,
 					unsigned int length)
 {
 	unsigned int i;
-	unsigned int offset = 0U;
+	unsigned int offset = 0;
 
-	for (i = 0U; i < length; ++i) {
+	for (i = 0; i < length; ++i) {
 		if (list[i].irq == parent_irq) {
 			offset = list[i].offset;
 			break;
@@ -91,7 +91,7 @@ void z_isr_install(unsigned int irq, void (*routine)(const void *),
 
 	level = irq_get_level(irq);
 
-	if (level == 2U) {
+	if (level == 2) {
 		parent_irq = irq_parent_level_2(irq);
 		parent_offset = get_parent_offset(parent_irq,
 			lvl2_irq_list,
@@ -99,7 +99,7 @@ void z_isr_install(unsigned int irq, void (*routine)(const void *),
 		table_idx = parent_offset + irq_from_level_2(irq);
 	}
 #ifdef CONFIG_3RD_LEVEL_INTERRUPTS
-	else if (level == 3U) {
+	else if (level == 3) {
 		parent_irq = irq_parent_level_3(irq);
 		parent_offset = get_parent_offset(parent_irq,
 			lvl3_irq_list,

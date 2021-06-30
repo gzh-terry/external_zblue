@@ -10,4 +10,3 @@ target_sources(app PRIVATE
     src/test_uart_poll.c
     )
 target_sources_ifdef(CONFIG_UART_INTERRUPT_DRIVEN app PRIVATE src/test_uart_fifo.c)
-target_sources_ifdef(CONFIG_UART_INTERRUPT_DRIVEN app PRIVATE src/test_uart_pending.c)

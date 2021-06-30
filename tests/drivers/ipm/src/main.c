@@ -30,10 +30,9 @@ extern struct ipm_driver_api ipm_dummy_api;
 
 /* Set up the dummy IPM driver */
 struct ipm_dummy_driver_data ipm_dummy0_driver_data;
-DEVICE_DEFINE(ipm_dummy0, "ipm_dummy0", ipm_dummy_init,
-		NULL, &ipm_dummy0_driver_data, NULL,
-		POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,
-		&ipm_dummy_api);
+DEVICE_AND_API_INIT(ipm_dummy0, "ipm_dummy0", ipm_dummy_init,
+	    &ipm_dummy0_driver_data, NULL,
+	    POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT, &ipm_dummy_api);
 
 /* Sending side of the console IPM driver, will forward anything sent
  * to printf() since we selected IPM_CONSOLE_STDOUT
@@ -42,9 +41,9 @@ static struct ipm_console_sender_config_info sender_config = {
 	.bind_to = "ipm_dummy0",
 	.flags = SOURCE
 };
-DEVICE_DEFINE(ipm_console_send0, "ipm_send0", ipm_console_sender_init,
-	      NULL, NULL, &sender_config,
-	      APPLICATION, INIT_PRIO_IPM_SEND, NULL);
+DEVICE_INIT(ipm_console_send0, "ipm_send0", ipm_console_sender_init,
+	    NULL, &sender_config,
+	    APPLICATION, INIT_PRIO_IPM_SEND);
 
 /* Receiving side of the console IPM driver. These numbers are
  * more or less arbitrary
@@ -68,9 +67,9 @@ static struct ipm_console_receiver_config_info receiver_config = {
 };
 
 struct ipm_console_receiver_runtime_data receiver_data;
-DEVICE_DEFINE(ipm_console_recv0, "ipm_recv0", ipm_console_receiver_init,
-	      NULL, &receiver_data, &receiver_config,
-	      APPLICATION, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT, NULL);
+DEVICE_INIT(ipm_console_recv0, "ipm_recv0", ipm_console_receiver_init,
+	    &receiver_data, &receiver_config,
+	    APPLICATION, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
 
 static const char thestr[] = "everything is awesome\n";
 
@@ -79,8 +78,7 @@ void main(void)
 	int rv, i;
 	const struct device *ipm;
 
-	TC_SUITE_START("test_ipm");
-	TC_START(__func__);
+	TC_START("Test IPM");
 	ipm = device_get_binding("ipm_dummy0");
 
 	/* Try sending a raw string to the IPM device to show that the
@@ -106,6 +104,5 @@ void main(void)
 
 	rv = TC_PASS;
 	TC_END_RESULT(rv);
-	TC_SUITE_END("test_ipm", rv);
 	TC_END_REPORT(rv);
 }

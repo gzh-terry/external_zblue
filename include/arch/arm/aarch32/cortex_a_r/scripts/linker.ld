@@ -174,7 +174,6 @@ SECTIONS
     _image_rodata_start = .;
 
 #include <linker/common-rom.ld>
-#include <linker/thread-local-storage.ld>
 
     SECTION_PROLOGUE(_RODATA_SECTION_NAME,,)
     {
@@ -295,7 +294,7 @@ SECTIONS
     __data_rom_start = LOADADDR(_DATA_SECTION_NAME);
 
 #include <linker/common-ram.ld>
-#include <linker/kobject-data.ld>
+#include <linker/kobject.ld>
 #include <linker/cplusplus-ram.ld>
 
     __data_ram_end = .;

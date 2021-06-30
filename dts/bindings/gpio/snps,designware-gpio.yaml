@@ -11,6 +11,11 @@ properties:
     reg:
       required: true
 
+    bits:
+      type: int
+      description: gpio bits
+      required: true
+
     interrupts:
       required: true
 

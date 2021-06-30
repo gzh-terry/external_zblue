@@ -8,16 +8,14 @@ identifier: lpcxpresso55s69_ns
 name: NXP LPCXpresso55S69
 type: mcu
 arch: arm
-ram: 136
-flash: 96
+ram: 64
+flash: 256
 toolchain:
   - zephyr
   - gnuarmemb
   - xtools
 supported:
-  - adc
   - arduino_spi
-  - dma
   - gpio
   - spi
   - watchdog

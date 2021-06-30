@@ -379,11 +379,9 @@ void pthread_exit(void *retval)
 
 	SYS_SLIST_FOR_EACH_NODE(&self->key_list, node_l) {
 		thread_spec_data = (pthread_thread_data *)node_l;
-		if (thread_spec_data != NULL) {
-			key_obj = thread_spec_data->key;
-			if (key_obj->destructor != NULL) {
-				(key_obj->destructor)(thread_spec_data->spec_data);
-			}
+		key_obj = thread_spec_data->key;
+		if ((key_obj->destructor != NULL) && (thread_spec_data != NULL)) {
+			(key_obj->destructor)(thread_spec_data->spec_data);
 		}
 	}
 

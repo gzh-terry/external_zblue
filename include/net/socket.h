@@ -7,7 +7,6 @@
 
 /*
  * Copyright (c) 2017-2018 Linaro Limited
- * Copyright (c) 2021 Nordic Semiconductor
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -55,14 +54,8 @@ struct zsock_pollfd {
 
 /** zsock_recv: Read data without removing it from socket input queue */
 #define ZSOCK_MSG_PEEK 0x02
-/** zsock_recv: return the real length of the datagram, even when it was longer
- *  than the passed buffer
- */
-#define ZSOCK_MSG_TRUNC 0x20
 /** zsock_recv/zsock_send: Override operation to non-blocking */
 #define ZSOCK_MSG_DONTWAIT 0x40
-/** zsock_recv: block until the full amount of data can be returned */
-#define ZSOCK_MSG_WAITALL 0x100
 
 /* Well-known values, e.g. from Linux man 2 shutdown:
  * "The constants SHUT_RD, SHUT_WR, SHUT_RDWR have the value 0, 1, 2,
@@ -126,18 +119,6 @@ struct zsock_pollfd {
  *    - 1 - server
  */
 #define TLS_DTLS_ROLE 6
-/** Socket option for setting the supported Application Layer Protocols.
- *  It accepts and returns a const char array of NULL terminated strings
- *  representing the supported application layer protocols listed during
- *  the TLS handshake.
- */
-#define TLS_ALPN_LIST 7
-/** Socket option to set DTLS handshake timeout. The timeout starts at min,
- *  and upon retransmission the timeout is doubled util max is reached.
- *  Min and max arguments are separate options. The time unit is ms.
- */
-#define TLS_DTLS_HANDSHAKE_TIMEOUT_MIN 8
-#define TLS_DTLS_HANDSHAKE_TIMEOUT_MAX 9
 
 /** @} */
 
@@ -211,7 +192,7 @@ __syscall void *zsock_get_context_object(int sock);
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/socket.html>`__
  * for normative description.
  * This function is also exposed as ``socket()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  *
  * If CONFIG_USERSPACE is enabled, the caller will be granted access to the
@@ -230,7 +211,7 @@ __syscall int zsock_socket(int family, int type, int proto);
  * <https://pubs.opengroup.org/onlinepubs/009695399/functions/socketpair.html>`__
  * for normative description.
  * This function is also exposed as ``socketpair()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 __syscall int zsock_socketpair(int family, int type, int proto, int *sv);
@@ -242,7 +223,7 @@ __syscall int zsock_socketpair(int family, int type, int proto, int *sv);
  * @rst
  * Close a network socket.
  * This function is also exposed as ``close()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined (in which case it
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined (in which case it
  * may conflict with generic POSIX ``close()`` function).
  * @endrst
  */
@@ -258,7 +239,7 @@ __syscall int zsock_close(int sock);
  * for normative description, but currently this function has no effect in
  * Zephyr and provided solely for compatibility with existing code.
  * This function is also exposed as ``shutdown()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 __syscall int zsock_shutdown(int sock, int how);
@@ -272,7 +253,7 @@ __syscall int zsock_shutdown(int sock, int how);
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/bind.html>`__
  * for normative description.
  * This function is also exposed as ``bind()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 __syscall int zsock_bind(int sock, const struct sockaddr *addr,
@@ -287,7 +268,7 @@ __syscall int zsock_bind(int sock, const struct sockaddr *addr,
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/connect.html>`__
  * for normative description.
  * This function is also exposed as ``connect()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 __syscall int zsock_connect(int sock, const struct sockaddr *addr,
@@ -302,7 +283,7 @@ __syscall int zsock_connect(int sock, const struct sockaddr *addr,
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/listen.html>`__
  * for normative description.
  * This function is also exposed as ``listen()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 __syscall int zsock_listen(int sock, int backlog);
@@ -316,7 +297,7 @@ __syscall int zsock_listen(int sock, int backlog);
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/accept.html>`__
  * for normative description.
  * This function is also exposed as ``accept()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 __syscall int zsock_accept(int sock, struct sockaddr *addr, socklen_t *addrlen);
@@ -330,7 +311,7 @@ __syscall int zsock_accept(int sock, struct sockaddr *addr, socklen_t *addrlen);
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/sendto.html>`__
  * for normative description.
  * This function is also exposed as ``sendto()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 __syscall ssize_t zsock_sendto(int sock, const void *buf, size_t len,
@@ -346,7 +327,7 @@ __syscall ssize_t zsock_sendto(int sock, const void *buf, size_t len,
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/send.html>`__
  * for normative description.
  * This function is also exposed as ``send()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 static inline ssize_t zsock_send(int sock, const void *buf, size_t len,
@@ -364,7 +345,7 @@ static inline ssize_t zsock_send(int sock, const void *buf, size_t len,
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/sendmsg.html>`__
  * for normative description.
  * This function is also exposed as ``sendmsg()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 __syscall ssize_t zsock_sendmsg(int sock, const struct msghdr *msg,
@@ -379,7 +360,7 @@ __syscall ssize_t zsock_sendmsg(int sock, const struct msghdr *msg,
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/recvfrom.html>`__
  * for normative description.
  * This function is also exposed as ``recvfrom()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 __syscall ssize_t zsock_recvfrom(int sock, void *buf, size_t max_len,
@@ -395,7 +376,7 @@ __syscall ssize_t zsock_recvfrom(int sock, void *buf, size_t max_len,
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/recv.html>`__
  * for normative description.
  * This function is also exposed as ``recv()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 static inline ssize_t zsock_recv(int sock, void *buf, size_t max_len,
@@ -412,7 +393,7 @@ static inline ssize_t zsock_recv(int sock, void *buf, size_t max_len,
  * This functions allow to (only) configure a socket for blocking or
  * non-blocking operation (O_NONBLOCK).
  * This function is also exposed as ``fcntl()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined (in which case
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined (in which case
  * it may conflict with generic POSIX ``fcntl()`` function).
  * @endrst
  */
@@ -428,7 +409,7 @@ __syscall int zsock_fcntl(int sock, int cmd, int flags);
  * for normative description. (In Zephyr this function works only with
  * sockets, not arbitrary file descriptors.)
  * This function is also exposed as ``poll()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined (in which case
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined (in which case
  * it may conflict with generic POSIX ``poll()`` function).
  * @endrst
  */
@@ -446,7 +427,7 @@ __syscall int zsock_poll(struct zsock_pollfd *fds, int nfds, int timeout);
  * available in Linux (some options are dummy and provided to ease porting
  * of existing code).
  * This function is also exposed as ``getsockopt()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 __syscall int zsock_getsockopt(int sock, int level, int optname,
@@ -464,7 +445,7 @@ __syscall int zsock_getsockopt(int sock, int level, int optname,
  * available in Linux (some options are dummy and provided to ease porting
  * of existing code).
  * This function is also exposed as ``setsockopt()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 __syscall int zsock_setsockopt(int sock, int level, int optname,
@@ -479,7 +460,7 @@ __syscall int zsock_setsockopt(int sock, int level, int optname,
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/getsockname.html>`__
  * for normative description.
  * This function is also exposed as ``getsockname()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 __syscall int zsock_getsockname(int sock, struct sockaddr *addr,
@@ -494,7 +475,7 @@ __syscall int zsock_getsockname(int sock, struct sockaddr *addr,
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/gethostname.html>`__
  * for normative description.
  * This function is also exposed as ``gethostname()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 __syscall int zsock_gethostname(char *buf, size_t len);
@@ -508,7 +489,7 @@ __syscall int zsock_gethostname(char *buf, size_t len);
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/inet_ntop.html>`__
  * for normative description.
  * This function is also exposed as ``inet_ntop()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 static inline char *zsock_inet_ntop(sa_family_t family, const void *src,
@@ -526,7 +507,7 @@ static inline char *zsock_inet_ntop(sa_family_t family, const void *src,
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/inet_pton.html>`__
  * for normative description.
  * This function is also exposed as ``inet_pton()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 __syscall int zsock_inet_pton(sa_family_t family, const char *src, void *dst);
@@ -564,7 +545,7 @@ __syscall int z_zsock_getaddrinfo_internal(const char *host,
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/getaddrinfo.html>`__
  * for normative description.
  * This function is also exposed as ``getaddrinfo()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 int zsock_getaddrinfo(const char *host, const char *service,
@@ -580,7 +561,7 @@ int zsock_getaddrinfo(const char *host, const char *service,
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/freeaddrinfo.html>`__
  * for normative description.
  * This function is also exposed as ``freeaddrinfo()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 void zsock_freeaddrinfo(struct zsock_addrinfo *ai);
@@ -594,7 +575,7 @@ void zsock_freeaddrinfo(struct zsock_addrinfo *ai);
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/gai_strerror.html>`__
  * for normative description.
  * This function is also exposed as ``gai_strerror()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 const char *zsock_gai_strerror(int errcode);
@@ -626,7 +607,7 @@ const char *zsock_gai_strerror(int errcode);
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/getnameinfo.html>`__
  * for normative description.
  * This function is also exposed as ``getnameinfo()``
- * if :kconfig:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
+ * if :option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined.
  * @endrst
  */
 int zsock_getnameinfo(const struct sockaddr *addr, socklen_t addrlen,
@@ -688,22 +669,8 @@ static inline ssize_t recv(int sock, void *buf, size_t max_len, int flags)
 	return zsock_recv(sock, buf, max_len, flags);
 }
 
-/*
- * Need this wrapper because newer GCC versions got too smart and "typecheck"
- * even macros, so '#define fcntl zsock_fcntl' leads to error.
- */
-static inline int zsock_fcntl_wrapper(int sock, int cmd, ...)
-{
-	va_list args;
-	int flags;
-
-	va_start(args, cmd);
-	flags = va_arg(args, int);
-	va_end(args);
-	return zsock_fcntl(sock, cmd, flags);
-}
-
-#define fcntl zsock_fcntl_wrapper
+/* This conflicts with fcntl.h, so code must include fcntl.h before socket.h: */
+#define fcntl zsock_fcntl
 
 static inline ssize_t sendto(int sock, const void *buf, size_t len, int flags,
 			     const struct sockaddr *dest_addr,
@@ -797,9 +764,7 @@ static inline char *inet_ntop(sa_family_t family, const void *src, char *dst,
 #define POLLNVAL ZSOCK_POLLNVAL
 
 #define MSG_PEEK ZSOCK_MSG_PEEK
-#define MSG_TRUNC ZSOCK_MSG_TRUNC
 #define MSG_DONTWAIT ZSOCK_MSG_DONTWAIT
-#define MSG_WAITALL ZSOCK_MSG_WAITALL
 
 #define SHUT_RD ZSOCK_SHUT_RD
 #define SHUT_WR ZSOCK_SHUT_WR
@@ -813,16 +778,7 @@ static inline char *inet_ntop(sa_family_t family, const void *src, char *dst,
 #define EAI_MEMORY DNS_EAI_MEMORY
 #define EAI_SYSTEM DNS_EAI_SYSTEM
 #define EAI_SERVICE DNS_EAI_SERVICE
-#define EAI_SOCKTYPE DNS_EAI_SOCKTYPE
-#define EAI_FAMILY DNS_EAI_FAMILY
 #endif /* defined(CONFIG_NET_SOCKETS_POSIX_NAMES) */
-
-#define IFNAMSIZ Z_DEVICE_MAX_NAME_LEN
-
-/** Interface description structure */
-struct ifreq {
-	char ifr_name[IFNAMSIZ]; /* Interface name */
-};
 
 /** sockopt: Socket-level option */
 #define SOL_SOCKET 1
@@ -830,26 +786,11 @@ struct ifreq {
 /* Socket options for SOL_SOCKET level */
 /** sockopt: Enable server address reuse (ignored, for compatibility) */
 #define SO_REUSEADDR 2
-/** sockopt: Type of the socket */
-#define SO_TYPE 3
 /** sockopt: Async error (ignored, for compatibility) */
 #define SO_ERROR 4
 
-/**
- * sockopt: Receive timeout
- * Applies to receive functions like recv(), but not to connect()
- */
-#define SO_RCVTIMEO 20
-/** sockopt: Send timeout */
-#define SO_SNDTIMEO 21
-
-/** sockopt: Bind a socket to an interface */
-#define SO_BINDTODEVICE	25
-
 /** sockopt: Timestamp TX packets */
 #define SO_TIMESTAMPING 37
-/** sockopt: Protocol used with the socket */
-#define SO_PROTOCOL 38
 
 /* Socket options for IPPROTO_TCP level */
 /** sockopt: Disable TCP buffering (ignored, for compatibility) */

@@ -13,9 +13,10 @@ Configuration Options
 
 Related configuration options:
 
-* :kconfig:`CONFIG_DAC`
+* :option:`CONFIG_DAC`
 
 API Reference
 *************
 
 .. doxygengroup:: dac_interface
+   :project: Zephyr

@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <fs/fcb.h>
 #include <string.h>
+#include <assert.h>
 
 #include "settings/settings.h"
 #include "settings/settings_fcb.h"
@@ -305,7 +306,7 @@ static int settings_fcb_save_priv(struct settings_store *cs, const char *name,
 	struct settings_fcb *cf = (struct settings_fcb *)cs;
 	struct fcb_entry_ctx loc;
 	int len;
-	int rc = -EINVAL;
+	int rc;
 	int i;
 	uint8_t wbs;
 

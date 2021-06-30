@@ -33,22 +33,22 @@ static int lps22hh_sample_fetch(const struct device *dev,
 				enum sensor_channel chan)
 {
 	struct lps22hh_data *data = dev->data;
-	uint32_t raw_press;
-	int16_t raw_temp;
+	union axis1bit32_t raw_press;
+	union axis1bit16_t raw_temp;
 
 	__ASSERT_NO_MSG(chan == SENSOR_CHAN_ALL);
 
-	if (lps22hh_pressure_raw_get(data->ctx, &raw_press) < 0) {
+	if (lps22hh_pressure_raw_get(data->ctx, raw_press.u8bit) < 0) {
 		LOG_DBG("Failed to read sample");
 		return -EIO;
 	}
-	if (lps22hh_temperature_raw_get(data->ctx, &raw_temp) < 0) {
+	if (lps22hh_temperature_raw_get(data->ctx, raw_temp.u8bit) < 0) {
 		LOG_DBG("Failed to read sample");
 		return -EIO;
 	}
 
-	data->sample_press = raw_press;
-	data->sample_temp = raw_temp;
+	data->sample_press = raw_press.i32bit;
+	data->sample_temp = raw_temp.i16bit;
 
 	return 0;
 }
@@ -56,13 +56,11 @@ static int lps22hh_sample_fetch(const struct device *dev,
 static inline void lps22hh_press_convert(struct sensor_value *val,
 					 int32_t raw_val)
 {
-	int32_t press_tmp = raw_val >> 8; /* raw value is left aligned (24 msb) */
-
 	/* Pressure sensitivity is 4096 LSB/hPa */
-	/* Also convert hPa into kPa */
-
-	val->val1 = press_tmp / 40960;
-	val->val2 = (press_tmp % 40960) * 1000000 / 40960;
+	/* Convert raw_val to val in kPa */
+	val->val1 = (raw_val >> 12) / 10;
+	val->val2 = (raw_val >> 12) % 10 * 100000 +
+		(((int32_t)((raw_val) & 0x0FFF) * 100000L) >> 12);
 }
 
 static inline void lps22hh_temp_convert(struct sensor_value *val,
@@ -236,6 +234,6 @@ static const struct lps22hh_config lps22hh_config = {
 #endif
 };
 
-DEVICE_DT_INST_DEFINE(0, lps22hh_init, NULL,
+DEVICE_AND_API_INIT(lps22hh, DT_INST_LABEL(0), lps22hh_init,
 		    &lps22hh_data, &lps22hh_config, POST_KERNEL,
 		    CONFIG_SENSOR_INIT_PRIORITY, &lps22hh_api_funcs);

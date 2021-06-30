@@ -147,13 +147,13 @@ static int connect_socket(sa_family_t family, const char *server, int port,
 	return ret;
 }
 
-static int run_queries(void)
+void main(void)
 {
 	struct sockaddr_in6 addr6;
 	struct sockaddr_in addr4;
 	int sock4 = -1, sock6 = -1;
 	int32_t timeout = 3 * MSEC_PER_SEC;
-	int ret = 0;
+	int ret;
 	int port = HTTP_PORT;
 
 	if (IS_ENABLED(CONFIG_NET_SOCKETS_SOCKOPT_TLS)) {
@@ -164,7 +164,7 @@ static int run_queries(void)
 		if (ret < 0) {
 			LOG_ERR("Failed to register public certificate: %d",
 				ret);
-			return ret;
+			exit(1);
 		}
 
 		port = HTTPS_PORT;
@@ -184,7 +184,7 @@ static int run_queries(void)
 
 	if (sock4 < 0 && sock6 < 0) {
 		LOG_ERR("Cannot create HTTP connection.");
-		return -ECONNABORTED;
+		exit(1);
 	}
 
 	if (sock4 >= 0 && IS_ENABLED(CONFIG_NET_IPV4)) {
@@ -240,7 +240,7 @@ static int run_queries(void)
 
 	if (sock4 < 0 && sock6 < 0) {
 		LOG_ERR("Cannot create HTTP connection.");
-		return -ECONNABORTED;
+		exit(1);
 	}
 
 	if (sock4 >= 0 && IS_ENABLED(CONFIG_NET_IPV4)) {
@@ -302,7 +302,7 @@ static int run_queries(void)
 
 	if (sock4 < 0 && sock6 < 0) {
 		LOG_ERR("Cannot create HTTP connection.");
-		return -ECONNABORTED;
+		exit(1);
 	}
 
 	if (sock4 >= 0 && IS_ENABLED(CONFIG_NET_IPV4)) {
@@ -353,34 +353,5 @@ static int run_queries(void)
 		close(sock6);
 	}
 
-	return ret;
-}
-
-void main(void)
-{
-	int iterations = CONFIG_NET_SAMPLE_SEND_ITERATIONS;
-	int i = 0;
-	int ret;
-
-	while (iterations == 0 || i < iterations) {
-		ret = run_queries();
-		if (ret < 0) {
-			exit(1);
-		}
-
-		if (iterations > 0) {
-			i++;
-			if (i >= iterations) {
-				break;
-			}
-		} else {
-			break;
-		}
-	}
-
-	if (iterations == 0) {
-		k_sleep(K_FOREVER);
-	}
-
-	exit(0);
+	k_sleep(K_FOREVER);
 }

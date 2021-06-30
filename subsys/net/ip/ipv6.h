@@ -139,9 +139,7 @@ int net_ipv6_send_na(struct net_if *iface, const struct in6_addr *src,
 static inline bool net_ipv6_is_nexthdr_upper_layer(uint8_t nexthdr)
 {
 	return (nexthdr == IPPROTO_ICMPV6 || nexthdr == IPPROTO_UDP ||
-		nexthdr == IPPROTO_TCP ||
-		(IS_ENABLED(CONFIG_NET_L2_VIRTUAL) &&
-		 ((nexthdr == IPPROTO_IPV6) || (nexthdr == IPPROTO_IPIP))));
+		nexthdr == IPPROTO_TCP);
 }
 
 /**
@@ -404,7 +402,7 @@ struct net_ipv6_reassembly {
 	 * Timeout for cancelling the reassembly. The timer is used
 	 * also to detect if this reassembly slot is used or not.
 	 */
-	struct k_work_delayable timer;
+	struct k_delayed_work timer;
 
 	/** Pointers to pending fragments */
 	struct net_pkt *pkt[NET_IPV6_FRAGMENTS_MAX_PKT];

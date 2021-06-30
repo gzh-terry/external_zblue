@@ -117,14 +117,6 @@ The Zephyr nucleo_g474re board configuration supports the following hardware fea
 +-----------+------------+-------------------------------------+
 | PWM       | on-chip    | pwm                                 |
 +-----------+------------+-------------------------------------+
-| ADC       | on-chip    | adc                                 |
-+-----------+------------+-------------------------------------+
-| FLASH     | on-chip    | flash memory                        |
-+-----------+------------+-------------------------------------+
-| COUNTER   | on-chip    | rtc                                 |
-+-----------+------------+-------------------------------------+
-| SPI       | on-chip    | spi                                 |
-+-----------+------------+-------------------------------------+
 
 Other hardware features are not yet supported on this Zephyr port.
 
@@ -152,7 +144,7 @@ Default Zephyr Peripheral Mapping:
 - I2C_1_SCL : PB8
 - I2C_1_SDA : PB9
 - SPI_1_NSS : PB6
-- SPI_1_SCK : PA5
+- SPI_1_SCK : PB3
 - SPI_1_MISO : PA6
 - SPI_1_MOSI : PA7
 - SPI_2_NSS : PB12
@@ -166,7 +158,8 @@ Default Zephyr Peripheral Mapping:
 - PWM_3_CH1 : PB4
 - USER_PB : PC13
 - LD2 : PA5
-- ADC1_IN1 : PA0
+- USB DM : PA11
+- USB DP : PA12
 
 System Clock
 ------------

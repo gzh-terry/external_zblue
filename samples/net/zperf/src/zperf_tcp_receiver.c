@@ -41,14 +41,14 @@ static void tcp_received(struct net_context *context,
 {
 	const struct shell *shell = tcp_shell;
 	struct session *session;
-	int64_t time;
+	uint32_t time;
 
 	if (!shell) {
 		printk("Shell is not set!\n");
 		return;
 	}
 
-	time = k_uptime_ticks();
+	time = k_cycle_get_32();
 
 	session = get_tcp_session(context);
 	if (!session) {
@@ -63,7 +63,7 @@ static void tcp_received(struct net_context *context,
 		shell_fprintf(shell, SHELL_NORMAL,
 			      "New TCP session started\n");
 		zperf_reset_session_stats(session);
-		session->start_time = k_uptime_ticks();
+		session->start_time = k_cycle_get_32();
 		session->state = STATE_ONGOING;
 		__fallthrough;
 	case STATE_ONGOING:
@@ -75,19 +75,18 @@ static void tcp_received(struct net_context *context,
 
 		if (pkt == NULL && status == 0) { /* EOF */
 			uint32_t rate_in_kbps;
-			uint32_t duration;
-
-			duration = k_ticks_to_us_ceil32(time -
-							session->start_time);
+			uint32_t duration = HW_CYCLES_TO_USEC(
+				time_delta(session->start_time, time));
 
 			session->state = STATE_COMPLETED;
 
 			/* Compute baud rate */
 			if (duration != 0U) {
 				rate_in_kbps = (uint32_t)
-					((session->length * 8ULL *
+					(((uint64_t)session->length *
+					  (uint64_t)8 *
 					  (uint64_t)USEC_PER_SEC) /
-					 ((uint64_t)duration * 1024ULL));
+					 ((uint64_t)duration * 1024U));
 			} else {
 				rate_in_kbps = 0U;
 			}
@@ -178,10 +177,9 @@ void zperf_tcp_receiver_init(const struct shell *shell, int port)
 			if (ret < 0) {
 				shell_fprintf(shell, SHELL_WARNING,
 					      "Unable to set IPv4\n");
-				goto use_existing_ipv4;
+				return;
 			}
 		} else {
-		use_existing_ipv4:
 			/* Use existing IP */
 			in4_addr = zperf_get_default_if_in4_addr();
 			if (!in4_addr) {
@@ -216,10 +214,9 @@ void zperf_tcp_receiver_init(const struct shell *shell, int port)
 			if (ret < 0) {
 				shell_fprintf(shell, SHELL_WARNING,
 					      "Unable to set IPv6\n");
-				goto use_existing_ipv6;
+				return;
 			}
 		} else {
-		use_existing_ipv6:
 			/* Use existing IP */
 			in6_addr = zperf_get_default_if_in6_addr();
 			if (!in6_addr) {
