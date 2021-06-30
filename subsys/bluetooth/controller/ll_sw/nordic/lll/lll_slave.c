@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <stdbool.h>
+#include <stdint.h>
 
 #include <toolchain.h>
-#include <zephyr/types.h>
+
 #include <sys/util.h>
 
 #include "hal/ccm.h"
@@ -35,7 +35,7 @@
 #include "hal/debug.h"
 
 static int init_reset(void);
-static int prepare_cb(struct lll_prepare_param *prepare_param);
+static int prepare_cb(struct lll_prepare_param *p);
 
 int lll_slave_init(void)
 {
@@ -63,23 +63,20 @@ int lll_slave_reset(void)
 
 void lll_slave_prepare(void *param)
 {
-	struct lll_prepare_param *p = param;
-	struct lll_conn *lll = p->param;
-	uint16_t elapsed;
+	struct lll_prepare_param *p;
+	struct lll_conn *lll;
 	int err;
 
 	err = lll_hfclock_on();
 	LL_ASSERT(err >= 0);
 
-	/* Instants elapsed */
-	elapsed = p->lazy + 1;
+	p = param;
 
-	/* Save the (latency + 1) for use in event */
-	lll->latency_prepare += elapsed;
+	lll = p->param;
 
 	/* Accumulate window widening */
 	lll->slave.window_widening_prepare_us +=
-	    lll->slave.window_widening_periodic_us * elapsed;
+	    lll->slave.window_widening_periodic_us * (p->lazy + 1);
 	if (lll->slave.window_widening_prepare_us >
 	    lll->slave.window_widening_max_us) {
 		lll->slave.window_widening_prepare_us =
@@ -96,30 +93,42 @@ static int init_reset(void)
 	return 0;
 }
 
-static int prepare_cb(struct lll_prepare_param *prepare_param)
+static int prepare_cb(struct lll_prepare_param *p)
 {
-	struct lll_conn *lll = prepare_param->param;
-	uint32_t ticks_at_event, ticks_at_start;
-	struct evt_hdr *evt;
+	uint32_t ticks_at_event;
+	uint32_t ticks_at_start;
 	uint16_t event_counter;
 	uint32_t remainder_us;
 	uint8_t data_chan_use;
+	struct lll_conn *lll;
+	struct ull_hdr *ull;
 	uint32_t remainder;
 	uint32_t hcto;
 
 	DEBUG_RADIO_START_S(1);
 
+	lll = p->param;
+
+	/* Check if stopped (on disconnection between prepare and pre-empt)
+	 */
+	if (unlikely(lll->handle == 0xFFFF)) {
+		radio_isr_set(lll_isr_early_abort, lll);
+		radio_disable();
+
+		return 0;
+	}
+
 	/* Reset connection event global variables */
 	lll_conn_prepare_reset();
 
-	/* Deduce the latency */
-	lll->latency_event = lll->latency_prepare - 1;
+	/* Calculate the current event latency */
+	lll->latency_event = lll->latency_prepare + p->lazy;
 
 	/* Calculate the current event counter value */
 	event_counter = lll->event_counter + lll->latency_event;
 
 	/* Update event counter to next value */
-	lll->event_counter = lll->event_counter + lll->latency_prepare;
+	lll->event_counter = (event_counter + 1);
 
 	/* Reset accumulated latencies */
 	lll->latency_prepare = 0;
@@ -156,6 +165,24 @@ static int prepare_cb(struct lll_prepare_param *prepare_param)
 		lll->slave.window_size_prepare_us;
 	lll->slave.window_size_prepare_us = 0;
 
+	/* Ensure that empty flag reflects the state of the Tx queue, as a
+	 * peripheral if this is the first connection event and as no prior PDU
+	 * is transmitted, an incorrect acknowledgment by peer should not
+	 * dequeue a PDU that has not been transmitted on air.
+	 */
+	if (!lll->empty) {
+		memq_link_t *link;
+
+		/* Check for any Tx PDU at the head of the queue */
+		link = memq_peek(lll->memq_tx.head, lll->memq_tx.tail, NULL);
+		if (!link) {
+			/* Update empty flag to reflect that no valid non-empty
+			 * PDU was transmitted prior to this connection event.
+			 */
+			lll->empty = 1U;
+		}
+	}
+
 	/* Start setting up Radio h/w */
 	radio_reset();
 #if defined(CONFIG_BT_CTLR_TX_PWR_DYNAMIC_CONTROL)
@@ -185,14 +212,14 @@ static int prepare_cb(struct lll_prepare_param *prepare_param)
 	radio_switch_complete_and_tx(0, 0, 0, 0);
 #endif /* !CONFIG_BT_CTLR_PHY */
 
-	ticks_at_event = prepare_param->ticks_at_expire;
-	evt = HDR_LLL2EVT(lll);
-	ticks_at_event += lll_evt_offset_get(evt);
+	ticks_at_event = p->ticks_at_expire;
+	ull = HDR_LLL2ULL(lll);
+	ticks_at_event += lll_event_offset_get(ull);
 
 	ticks_at_start = ticks_at_event;
 	ticks_at_start += HAL_TICKER_US_TO_TICKS(EVENT_OVERHEAD_START_US);
 
-	remainder = prepare_param->remainder;
+	remainder = p->remainder;
 	remainder_us = radio_tmr_start(0, ticks_at_start, remainder);
 
 	radio_tmr_aa_capture();
@@ -241,7 +268,7 @@ static int prepare_cb(struct lll_prepare_param *prepare_param)
 #if defined(CONFIG_BT_CTLR_XTAL_ADVANCED) && \
 	(EVENT_OVERHEAD_PREEMPT_US <= EVENT_OVERHEAD_PREEMPT_MIN_US)
 	/* check if preempt to start has changed */
-	if (lll_preempt_calc(evt, (TICKER_ID_CONN_BASE + lll->handle),
+	if (lll_preempt_calc(ull, (TICKER_ID_CONN_BASE + lll->handle),
 			     ticks_at_event)) {
 		radio_isr_set(lll_isr_abort, lll);
 		radio_disable();

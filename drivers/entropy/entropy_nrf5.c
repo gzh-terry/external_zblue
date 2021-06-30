@@ -227,11 +227,11 @@ static void isr(const void *arg)
 	}
 }
 
-static int entropy_nrf5_get_entropy(const struct device *device, uint8_t *buf,
+static int entropy_nrf5_get_entropy(const struct device *dev, uint8_t *buf,
 				    uint16_t len)
 {
 	/* Check if this API is called on correct driver instance. */
-	__ASSERT_NO_MSG(&entropy_nrf5_data == DEV_DATA(device));
+	__ASSERT_NO_MSG(&entropy_nrf5_data == DEV_DATA(dev));
 
 	while (len) {
 		uint16_t bytes;
@@ -324,22 +324,23 @@ static int entropy_nrf5_get_entropy_isr(const struct device *dev,
 	return cnt;
 }
 
-static int entropy_nrf5_init(const struct device *device);
+static int entropy_nrf5_init(const struct device *dev);
 
 static const struct entropy_driver_api entropy_nrf5_api_funcs = {
 	.get_entropy = entropy_nrf5_get_entropy,
 	.get_entropy_isr = entropy_nrf5_get_entropy_isr
 };
 
-DEVICE_AND_API_INIT(entropy_nrf5, DT_INST_LABEL(0),
-		    entropy_nrf5_init, &entropy_nrf5_data, NULL,
+DEVICE_DT_INST_DEFINE(0,
+		    entropy_nrf5_init, NULL,
+		    &entropy_nrf5_data, NULL,
 		    PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    &entropy_nrf5_api_funcs);
 
-static int entropy_nrf5_init(const struct device *device)
+static int entropy_nrf5_init(const struct device *dev)
 {
 	/* Check if this API is called on correct driver instance. */
-	__ASSERT_NO_MSG(&entropy_nrf5_data == DEV_DATA(device));
+	__ASSERT_NO_MSG(&entropy_nrf5_data == DEV_DATA(dev));
 
 	/* Locking semaphore initialized to 1 (unlocked) */
 	k_sem_init(&entropy_nrf5_data.sem_lock, 1, 1);

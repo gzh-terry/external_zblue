@@ -15,8 +15,8 @@ synchronously or asynchronously.
 Concepts
 ********
 
-Any number of mailboxes can be defined. Each mailbox is referenced
-by its memory address.
+Any number of mailboxes can be defined (limited only by available RAM). Each
+mailbox is referenced by its memory address.
 
 A mailbox has the following key properties:
 
@@ -629,10 +629,9 @@ Configuration Options
 
 Related configuration options:
 
-* :option:`CONFIG_NUM_MBOX_ASYNC_MSGS`
+* :kconfig:`CONFIG_NUM_MBOX_ASYNC_MSGS`
 
 API Reference
 *************
 
 .. doxygengroup:: mailbox_apis
-   :project: Zephyr

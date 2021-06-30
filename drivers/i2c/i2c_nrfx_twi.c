@@ -19,7 +19,7 @@ struct i2c_nrfx_twi_data {
 	struct k_sem completion_sync;
 	volatile nrfx_err_t res;
 	uint32_t dev_config;
-#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
+#ifdef CONFIG_PM_DEVICE
 	uint32_t pm_state;
 #endif
 };
@@ -114,23 +114,32 @@ static int i2c_nrfx_twi_transfer(const struct device *dev,
 				 I2C_TRANSFER_TIMEOUT_MSEC);
 		if (ret != 0) {
 			/* Whatever the frequency, completion_sync should have
-			 * been give by the event handler.
+			 * been given by the event handler.
 			 *
-			 * If it hasn't it's probably due to an hardware issue
+			 * If it hasn't, it's probably due to an hardware issue
 			 * on the I2C line, for example a short between SDA and
 			 * GND.
+			 * This is issue has also been when trying to use the
+			 * I2C bus during MCU internal flash erase.
 			 *
-			 * Note to fully recover from this issue one should
-			 * reinit nrfx twi.
+			 * In many situation, a retry is sufficient.
+			 * However, some time the I2C device get stuck and need
+			 * help to recover.
+			 * Therefore we always call nrfx_twi_bus_recover() to
+			 * make sure everything has been done to restore the
+			 * bus from this error.
 			 */
 			LOG_ERR("Error on I2C line occurred for message %d", i);
+			nrfx_twi_disable(&get_dev_config(dev)->twi);
+			nrfx_twi_bus_recover(get_dev_config(dev)->config.scl,
+					     get_dev_config(dev)->config.sda);
 			ret = -EIO;
 			break;
 		}
 
 		res = get_dev_data(dev)->res;
 		if (res != NRFX_SUCCESS) {
-			LOG_ERR("Error %d occurred for message %d", res, i);
+			LOG_ERR("Error 0x%08X occurred for message %d", res, i);
 			ret = -EIO;
 			break;
 		}
@@ -205,27 +214,27 @@ static int init_twi(const struct device *dev)
 			    dev->name);
 		return -EBUSY;
 	}
-#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
-	get_dev_data(dev)->pm_state = DEVICE_PM_ACTIVE_STATE;
+#ifdef CONFIG_PM_DEVICE
+	get_dev_data(dev)->pm_state = PM_DEVICE_STATE_ACTIVE;
 #endif
 
 	return 0;
 }
 
-#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
+#ifdef CONFIG_PM_DEVICE
 static int twi_nrfx_pm_control(const struct device *dev,
 				uint32_t ctrl_command,
-				void *context, device_pm_cb cb, void *arg)
+				uint32_t *state, pm_device_cb cb, void *arg)
 {
 	int ret = 0;
 	uint32_t pm_current_state = get_dev_data(dev)->pm_state;
 
-	if (ctrl_command == DEVICE_PM_SET_POWER_STATE) {
-		uint32_t new_state = *((const uint32_t *)context);
+	if (ctrl_command == PM_DEVICE_STATE_SET) {
+		uint32_t new_state = *state;
 
 		if (new_state != pm_current_state) {
 			switch (new_state) {
-			case DEVICE_PM_ACTIVE_STATE:
+			case PM_DEVICE_STATE_ACTIVE:
 				init_twi(dev);
 				if (get_dev_data(dev)->dev_config) {
 					i2c_nrfx_twi_configure(
@@ -234,10 +243,10 @@ static int twi_nrfx_pm_control(const struct device *dev,
 				}
 				break;
 
-			case DEVICE_PM_LOW_POWER_STATE:
-			case DEVICE_PM_SUSPEND_STATE:
-			case DEVICE_PM_OFF_STATE:
-				if (pm_current_state == DEVICE_PM_ACTIVE_STATE) {
+			case PM_DEVICE_STATE_LOW_POWER:
+			case PM_DEVICE_STATE_SUSPEND:
+			case PM_DEVICE_STATE_OFF:
+				if (pm_current_state == PM_DEVICE_STATE_ACTIVE) {
 					nrfx_twi_uninit(&get_dev_config(dev)->twi);
 				}
 				break;
@@ -250,17 +259,17 @@ static int twi_nrfx_pm_control(const struct device *dev,
 			}
 		}
 	} else {
-		__ASSERT_NO_MSG(ctrl_command == DEVICE_PM_GET_POWER_STATE);
-		*((uint32_t *)context) = get_dev_data(dev)->pm_state;
+		__ASSERT_NO_MSG(ctrl_command == PM_DEVICE_STATE_GET);
+		*state = get_dev_data(dev)->pm_state;
 	}
 
 	if (cb) {
-		cb(dev, ret, context, arg);
+		cb(dev, ret, state, arg);
 	}
 
 	return ret;
 }
-#endif /* CONFIG_DEVICE_POWER_MANAGEMENT */
+#endif /* CONFIG_PM_DEVICE */
 
 #define I2C_NRFX_TWI_INVALID_FREQUENCY  ((nrf_twi_frequency_t)-1)
 #define I2C_NRFX_TWI_FREQUENCY(bitrate)					       \
@@ -296,8 +305,7 @@ static int twi_nrfx_pm_control(const struct device *dev,
 			.frequency = I2C_FREQUENCY(idx),		       \
 		}							       \
 	};								       \
-	DEVICE_DEFINE(twi_##idx,					       \
-		      DT_LABEL(I2C(idx)),				       \
+	DEVICE_DT_DEFINE(I2C(idx),					       \
 		      twi_##idx##_init,					       \
 		      twi_nrfx_pm_control,				       \
 		      &twi_##idx##_data,				       \

@@ -43,14 +43,14 @@ int lps22hh_trigger_set(const struct device *dev,
 			  sensor_trigger_handler_t handler)
 {
 	struct lps22hh_data *lps22hh = dev->data;
-	union axis1bit32_t raw_press;
+	uint32_t raw_press;
 
 	if (trig->chan == SENSOR_CHAN_ALL) {
 		lps22hh->handler_drdy = handler;
 		if (handler) {
 			/* dummy read: re-trigger interrupt */
 			if (lps22hh_pressure_raw_get(lps22hh->ctx,
-			    raw_press.u8bit) < 0) {
+			    &raw_press) < 0) {
 				LOG_DBG("Failed to read sample");
 				return -EIO;
 			}
@@ -136,7 +136,7 @@ int lps22hh_init_interrupt(const struct device *dev)
 	}
 
 #if defined(CONFIG_LPS22HH_TRIGGER_OWN_THREAD)
-	k_sem_init(&lps22hh->gpio_sem, 0, UINT_MAX);
+	k_sem_init(&lps22hh->gpio_sem, 0, K_SEM_MAX_LIMIT);
 
 	k_thread_create(&lps22hh->thread, lps22hh->thread_stack,
 		       CONFIG_LPS22HH_THREAD_STACK_SIZE,

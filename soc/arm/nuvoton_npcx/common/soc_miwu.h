@@ -34,15 +34,12 @@ enum miwu_group {
 
 /* Interrupt modes supported by npcx miwu modules */
 enum miwu_int_mode {
-	NPCX_MIWU_MODE_DISABLED,
 	NPCX_MIWU_MODE_LEVEL,
 	NPCX_MIWU_MODE_EDGE,
 };
 
 /* Interrupt trigger modes supported by npcx miwu modules */
 enum miwu_int_trig {
-
-	NPCX_MIWU_TRIG_NONE, /** No trigger detection */
 	NPCX_MIWU_TRIG_LOW,  /** Edge failing or active low detection */
 	NPCX_MIWU_TRIG_HIGH, /** Edge rising or active high detection */
 	NPCX_MIWU_TRIG_BOTH, /** Both edge rising and failing detection */
@@ -89,7 +86,7 @@ struct miwu_io_params {
  * Beware such structure should not be allocated on stack and its size must
  * equal struct gpio_callback.
  *
- * Note: To help setting it, see soc_miwu_init_gpio_callback() below
+ * Note: To help setting it, see npcx_miwu_init_gpio_callback() below
  */
 struct miwu_io_callback {
 	/** Node of single-linked list */
@@ -106,7 +103,7 @@ struct miwu_io_callback {
  * Used to register a generic hardware device callback in the driver instance
  * callback list. Beware such structure should not be allocated on stack.
  *
- * Note: To help setting it, see soc_miwu_init_dev_callback() below
+ * Note: To help setting it, see npcx_miwu_init_dev_callback() below
  */
 struct miwu_dev_callback {
 	/** Node of single-linked list */
@@ -124,14 +121,28 @@ struct miwu_dev_callback {
  *
  * @param A pointer on wake-up input source
  */
-void soc_miwu_irq_enable(const struct npcx_wui *wui);
+void npcx_miwu_irq_enable(const struct npcx_wui *wui);
 
 /**
  * @brief Disable interrupt of the wake-up input source
  *
  * @param wui A pointer on wake-up input source
  */
-void soc_miwu_irq_disable(const struct npcx_wui *wui);
+void npcx_miwu_irq_disable(const struct npcx_wui *wui);
+
+/**
+ * @brief Connect io to the wake-up input source
+ *
+ * @param wui A pointer on wake-up input source
+ */
+void npcx_miwu_io_enable(const struct npcx_wui *wui);
+
+/**
+ * @brief Disconnect io to the wake-up input source
+ *
+ * @param wui A pointer on wake-up input source
+ */
+void npcx_miwu_io_disable(const struct npcx_wui *wui);
 
 /**
  * @brief Get interrupt state of the wake-up input source
@@ -140,7 +151,16 @@ void soc_miwu_irq_disable(const struct npcx_wui *wui);
  *
  * @retval 0 if interrupt is disabled, otherwise interrupt is enabled
  */
-unsigned int soc_miwu_irq_get_state(const struct npcx_wui *wui);
+bool npcx_miwu_irq_get_state(const struct npcx_wui *wui);
+
+/**
+ * @brief Get & clear interrupt pending bit of the wake-up input source
+ *
+ * @param wui A pointer on wake-up input source
+ *
+ * @retval 1 if interrupt is pending
+ */
+bool npcx_miwu_irq_get_and_clear_pending(const struct npcx_wui *wui);
 
 /**
  * @brief Configure interrupt type of the wake-up input source
@@ -152,7 +172,7 @@ unsigned int soc_miwu_irq_get_state(const struct npcx_wui *wui);
  * @retval 0 If successful
  * @retval -EINVAL Invalid parameters
  */
-int soc_miwu_interrupt_configure(const struct npcx_wui *wui,
+int npcx_miwu_interrupt_configure(const struct npcx_wui *wui,
 		enum miwu_int_mode mode, enum miwu_int_trig trig);
 
 /**
@@ -162,7 +182,7 @@ int soc_miwu_interrupt_configure(const struct npcx_wui *wui,
  * @param io_wui Pointer to wake-up input IO source
  * @param port GPIO port issued a callback function
  */
-void soc_miwu_init_gpio_callback(struct miwu_io_callback *callback,
+void npcx_miwu_init_gpio_callback(struct miwu_io_callback *callback,
 				const struct npcx_wui *io_wui, int port);
 
 /**
@@ -173,7 +193,7 @@ void soc_miwu_init_gpio_callback(struct miwu_io_callback *callback,
  * @param handler A function called when its device input event issued
  * @param source Pointer to device instance issued a callback function
  */
-void soc_miwu_init_dev_callback(struct miwu_dev_callback *callback,
+void npcx_miwu_init_dev_callback(struct miwu_dev_callback *callback,
 				const struct npcx_wui *dev_wui,
 				miwu_dev_callback_handler_t handler,
 				const struct device *source);
@@ -187,7 +207,7 @@ void soc_miwu_init_dev_callback(struct miwu_dev_callback *callback,
  * @retval 0 If successful.
  * @retval -EINVAL Invalid parameters
  */
-int soc_miwu_manage_gpio_callback(struct miwu_io_callback *callback, bool set);
+int npcx_miwu_manage_gpio_callback(struct miwu_io_callback *callback, bool set);
 
 
 /**
@@ -199,7 +219,7 @@ int soc_miwu_manage_gpio_callback(struct miwu_io_callback *callback, bool set);
  * @retval 0 If successful.
  * @retval -EINVAL Invalid parameters
  */
-int soc_miwu_manage_dev_callback(struct miwu_dev_callback *cb, bool set);
+int npcx_miwu_manage_dev_callback(struct miwu_dev_callback *cb, bool set);
 
 #ifdef __cplusplus
 }
