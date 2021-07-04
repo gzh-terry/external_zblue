@@ -105,10 +105,6 @@ The Zephyr nucleo_f429zi board configuration supports the following hardware fea
 +-----------+------------+-------------------------------------+
 | WATCHDOG  | on-chip    | independent watchdog                |
 +-----------+------------+-------------------------------------+
-| ADC       | on-chip    | adc                                 |
-+-----------+------------+-------------------------------------+
-| DAC       | on-chip    | DAC Controller                      |
-+-----------+------------+-------------------------------------+
 
 Other hardware features are not yet supported on this Zephyr port.
 
@@ -156,7 +152,7 @@ and a ST morpho connector. Board is configured as follows
 - UART_3 TX/RX : PD8/PD9 (ST-Link Virtual Port Com)
 - UART_6 TX/RX : PG14/PG9 (Arduino Serial)
 - I2C1 SCL/SDA : PB8/PB9 (Arduino I2C)
-- SPI1 NSS/SCK/MISO/MOSI : PD14/PA5/PA6/PA7 (Arduino SPI)
+- SPI1 NSS/SCK/MISO/MOSI : PA4/PA5/PA6/PA7 (Arduino SPI)
 - PWM_2_CH1 : PE13
 - ETH : PA1, PA2, PA7, PB13, PC1, PC4, PC5, PG11, PG13
 - USER_PB : PC13
@@ -165,7 +161,6 @@ and a ST morpho connector. Board is configured as follows
 - LD3 : PB14
 - USB DM : PA11
 - USB DP : PA12
-- ADC1 : PA0
 
 System Clock
 ------------
@@ -191,7 +186,7 @@ Flash partitions for MCUBoot bootloader
 ***************************************
 
 The on-board STM32F429ZI MCU has 2MBs of internal flash memory. To use `MCUboot`_,
-define a :ref:`Zephyr partition table <flash_map_api>` for the flash memory in
+define a :ref:`Zephyr partition table <legacy_flash_partitions>` for the flash memory in
 its devicetree file ``nucleo_f429zi.dts``. As a reference, a partition table for
 MCUBoot is already defined in the devicetree file, with these settings:
 

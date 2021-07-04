@@ -11,15 +11,8 @@
 
 #include <device.h>
 #include <init.h>
-#include <stm32_ll_bus.h>
-#include <stm32_ll_pwr.h>
 #include <arch/cpu.h>
 #include <arch/arm/aarch32/cortex_m/cmsis.h>
-#include <stm32l5xx_ll_icache.h>
-#include <logging/log.h>
-
-#define LOG_LEVEL CONFIG_SOC_LOG_LEVEL
-LOG_MODULE_REGISTER(soc);
 
 /**
  * @brief Perform basic hardware initialization at boot.
@@ -34,11 +27,6 @@ static int stm32l5_init(const struct device *arg)
 	uint32_t key;
 
 	ARG_UNUSED(arg);
-
-	/* Enable ICACHE */
-	while (LL_ICACHE_IsActiveFlag_BUSY()) {
-	}
-	LL_ICACHE_Enable();
 
 	key = irq_lock();
 
@@ -56,9 +44,7 @@ static int stm32l5_init(const struct device *arg)
 	/* Enable Scale 0 to achieve 110MHz */
 	LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_PWR);
 	LL_PWR_SetRegulVoltageScaling(LL_PWR_REGU_VOLTAGE_SCALE0);
-
-	/* Disable USB Type-C dead battery pull-down behavior */
-	LL_PWR_DisableUCPDDeadBattery();
+	LL_APB1_GRP1_DisableClock(LL_APB1_GRP1_PERIPH_PWR);
 
 	return 0;
 }

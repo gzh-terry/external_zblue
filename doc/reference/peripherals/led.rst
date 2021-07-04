@@ -14,8 +14,8 @@ Configuration Options
 
 Related configuration options:
 
-* :kconfig:`CONFIG_LED`
-* :kconfig:`CONFIG_LED_STRIP`
+* :option:`CONFIG_LED`
+* :option:`CONFIG_LED_STRIP`
 
 API Reference
 *************
@@ -24,8 +24,10 @@ LED
 ===
 
 .. doxygengroup:: led_interface
+   :project: Zephyr
 
 LED Strip
 =========
 
 .. doxygengroup:: led_strip_interface
+   :project: Zephyr

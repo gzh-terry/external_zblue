@@ -6,11 +6,9 @@ toolchain:
   - gnuarmemb
   - xtools
   - zephyr
-ram: 88
+ram: 64
 flash: 256
 supported:
-  - arduino_gpio
-  - arduino_i2c
   - gpio
   - i2c
   - pwm

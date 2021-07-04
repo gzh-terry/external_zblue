@@ -20,4 +20,3 @@ supported:
   - counter
   - spi
   - dac
-  - watchdog

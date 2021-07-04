@@ -28,12 +28,6 @@
 extern "C" {
 #endif
 
-/**
- * @defgroup doubly-linked-list_apis Doubly-linked list
- * @ingroup datastructure_apis
- * @{
- */
-
 struct _dnode {
 	union {
 		struct _dnode *head; /* ptr to head of list (sys_dlist_t) */
@@ -47,7 +41,6 @@ struct _dnode {
 
 typedef struct _dnode sys_dlist_t;
 typedef struct _dnode sys_dnode_t;
-
 
 /**
  * @brief Provide the primitive to iterate on a list
@@ -409,12 +402,10 @@ static inline sys_dnode_t *sys_dlist_peek_tail(sys_dlist_t *list)
 
 static inline void sys_dlist_append(sys_dlist_t *list, sys_dnode_t *node)
 {
-	sys_dnode_t *const tail = list->tail;
-
 	node->next = list;
-	node->prev = tail;
+	node->prev = list->tail;
 
-	tail->next = node;
+	list->tail->next = node;
 	list->tail = node;
 }
 
@@ -431,12 +422,10 @@ static inline void sys_dlist_append(sys_dlist_t *list, sys_dnode_t *node)
 
 static inline void sys_dlist_prepend(sys_dlist_t *list, sys_dnode_t *node)
 {
-	sys_dnode_t *const head = list->head;
-
-	node->next = head;
+	node->next = list->head;
 	node->prev = list;
 
-	head->prev = node;
+	list->head->prev = node;
 	list->head = node;
 }
 
@@ -450,11 +439,9 @@ static inline void sys_dlist_prepend(sys_dlist_t *list, sys_dnode_t *node)
  */
 static inline void sys_dlist_insert(sys_dnode_t *successor, sys_dnode_t *node)
 {
-	sys_dnode_t *const prev = successor->prev;
-
-	node->prev = prev;
+	node->prev = successor->prev;
 	node->next = successor;
-	prev->next = node;
+	successor->prev->next = node;
 	successor->prev = node;
 }
 
@@ -507,11 +494,8 @@ static inline void sys_dlist_insert_at(sys_dlist_t *list, sys_dnode_t *node,
 
 static inline void sys_dlist_remove(sys_dnode_t *node)
 {
-	sys_dnode_t *const prev = node->prev;
-	sys_dnode_t *const next = node->next;
-
-	prev->next = next;
-	next->prev = prev;
+	node->prev->next = node->next;
+	node->next->prev = node->prev;
 	sys_dnode_init(node);
 }
 
@@ -536,8 +520,6 @@ static inline sys_dnode_t *sys_dlist_get(sys_dlist_t *list)
 
 	return node;
 }
-
-/** @} */
 
 #ifdef __cplusplus
 }

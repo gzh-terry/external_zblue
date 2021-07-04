@@ -62,7 +62,7 @@ Here's a quick summary of resources to help you find your way around:
   subgroups`_ have their own archives and sign-up pages.
 * **Nightly CI Build Status**: https://lists.zephyrproject.org/g/builds
   The builds@lists.zephyrproject.org mailing list archives the CI
-  (buildkite) nightly build results.
+  (shippable) nightly build results.
 * **Chat**: Zephyr's Slack workspace is https://zephyrproject.slack.com.  Use
   this `Slack Invite`_ to register.
 * **Contributing**: see the `Contribution Guide`_
@@ -73,7 +73,7 @@ Here's a quick summary of resources to help you find your way around:
   tracked separately at https://zephyrprojectsec.atlassian.net.
 * **Zephyr Project Website**: https://zephyrproject.org
 
-.. _Slack Invite: https://tinyurl.com/2vue8666
+.. _Slack Invite: https://tinyurl.com/y5glwylp
 .. _supported boards: http://docs.zephyrproject.org/latest/boards/index.html
 .. _Zephyr Documentation: http://docs.zephyrproject.org
 .. _Introduction to Zephyr: http://docs.zephyrproject.org/latest/introduction/index.html
@@ -84,4 +84,4 @@ Here's a quick summary of resources to help you find your way around:
 .. _Zephyr mailing list subgroups: https://lists.zephyrproject.org/g/main/subgroups
 .. _Sample and Demo Code Examples: http://docs.zephyrproject.org/latest/samples/index.html
 .. _Security: http://docs.zephyrproject.org/latest/security/index.html
-.. _Asking for Help Tips: https://docs.zephyrproject.org/latest/getting_started/index.html#asking-for-help
+.. _Asking for Help Tips: https://docs.zephyrproject.org/latest/guides/getting-help.html

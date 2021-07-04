@@ -39,9 +39,6 @@ check_set_compiler_property(APPEND PROPERTY warning_base -Wno-pointer-sign)
 # Prohibit void pointer arithmetic. Illegal in C99
 check_set_compiler_property(APPEND PROPERTY warning_base -Wpointer-arith)
 
-# not portable
-check_set_compiler_property(APPEND PROPERTY warning_base -Wexpansion-to-defined)
-
 if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "9.1.0")
   set_compiler_property(APPEND PROPERTY warning_base
                         # FIXME: Remove once #16587 is fixed
@@ -92,7 +89,7 @@ check_set_compiler_property(APPEND PROPERTY warning_dw_3
                             -Wvla
 )
 
-check_set_compiler_property(PROPERTY warning_extended -Wno-unused-but-set-variable)
+set_compiler_property(PROPERTY warning_extended -Wno-unused-but-set-variable)
 
 check_set_compiler_property(PROPERTY warning_error_implicit_int -Werror=implicit-int)
 
@@ -114,7 +111,6 @@ set_compiler_property(PROPERTY cstd -std=)
 
 if (NOT CONFIG_NEWLIB_LIBC AND
     NOT COMPILER STREQUAL "xcc" AND
-    NOT ZEPHYR_TOOLCHAIN_VARIANT STREQUAL "espressif" AND
     NOT CONFIG_NATIVE_APPLICATION)
   set_compiler_property(PROPERTY nostdinc -nostdinc)
   set_compiler_property(APPEND PROPERTY nostdinc_include ${NOSTDINC})
@@ -128,8 +124,7 @@ set_property(TARGET compiler-cpp PROPERTY dialect_cpp98 "-std=c++98")
 set_property(TARGET compiler-cpp PROPERTY dialect_cpp11 "-std=c++11" "-Wno-register")
 set_property(TARGET compiler-cpp PROPERTY dialect_cpp14 "-std=c++14" "-Wno-register")
 set_property(TARGET compiler-cpp PROPERTY dialect_cpp17 "-std=c++17" "-Wno-register")
-set_property(TARGET compiler-cpp PROPERTY dialect_cpp2a "-std=c++2a"
-  "-Wno-register" "-Wno-volatile")
+set_property(TARGET compiler-cpp PROPERTY dialect_cpp2a "-std=c++2a" "-Wno-register")
 
 # Disable exeptions flag in C++
 set_property(TARGET compiler-cpp PROPERTY no_exceptions "-fno-exceptions")
@@ -167,10 +162,6 @@ set_compiler_property(PROPERTY freestanding -ffreestanding)
 # Flag to enable debugging
 set_compiler_property(PROPERTY debug -g)
 
-# GCC 11 by default emits DWARF version 5 which cannot be parsed by
-# pyelftools. Can be removed once pyelftools supports v5.
-check_set_compiler_property(APPEND PROPERTY debug -gdwarf-4)
-
 set_compiler_property(PROPERTY no_common -fno-common)
 
 # GCC compiler flags for imacros. The specific header must be appended by user.
@@ -181,11 +172,5 @@ set_compiler_property(PROPERTY sanitize_address -fsanitize=address)
 
 set_compiler_property(PROPERTY sanitize_undefined -fsanitize=undefined)
 
-# GCC compiler flag for turning off thread-safe initialization of local statics
-set_property(TARGET compiler-cpp PROPERTY no_threadsafe_statics "-fno-threadsafe-statics")
-
 # Required ASM flags when using gcc
 set_property(TARGET asm PROPERTY required "-xassembler-with-cpp")
-
-# gcc flag for colourful diagnostic messages
-set_compiler_property(PROPERTY diagnostic -fdiagnostics-color=always)

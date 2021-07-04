@@ -1,7 +1,7 @@
 .. _audio_dmic_api:
 
-Audio DMIC
-##########
+DMIC
+####
 
 Overview
 ********
@@ -13,9 +13,10 @@ Configuration Options
 
 Related configuration options:
 
-* :kconfig:`CONFIG_AUDIO_DMIC`
+* :option:`CONFIG_AUDIO_DMIC`
 
 API Reference
 *************
 
 .. doxygengroup:: audio_dmic_interface
+   :project: Zephyr

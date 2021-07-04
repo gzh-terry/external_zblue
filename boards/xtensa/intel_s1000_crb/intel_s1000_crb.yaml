@@ -6,8 +6,6 @@ toolchain:
   - xcc
   - xtools
   - zephyr
-supported:
-  - i2s
 testing:
   ignore_tags:
     - net

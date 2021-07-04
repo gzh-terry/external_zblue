@@ -583,7 +583,6 @@ static inline bool uart_xlnx_ps_cfg2ll_hwctrl(
 	return true;
 }
 
-#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 /**
  * @brief Configures the UART device at run-time.
  *
@@ -640,7 +639,6 @@ static int uart_xlnx_ps_configure(const struct device *dev,
 
 	return 0;
 };
-#endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
 
 /**
  * @brief Converts a Mode Register bit mask to a parity configuration
@@ -789,7 +787,6 @@ static inline enum uart_config_flow_control uart_xlnx_ps_ll2cfg_hwctrl(
 	return UART_CFG_FLOW_CTRL_NONE;
 }
 
-#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 /**
  * @brief Returns the current configuration of the UART at run-time.
  *
@@ -827,7 +824,6 @@ static int uart_xlnx_ps_config_get(const struct device *dev,
 
 	return 0;
 }
-#endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
 
 #if CONFIG_UART_INTERRUPT_DRIVEN
 
@@ -1151,10 +1147,8 @@ static void uart_xlnx_ps_isr(const struct device *dev)
 static const struct uart_driver_api uart_xlnx_ps_driver_api = {
 	.poll_in = uart_xlnx_ps_poll_in,
 	.poll_out = uart_xlnx_ps_poll_out,
-#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 	.configure = uart_xlnx_ps_configure,
 	.config_get = uart_xlnx_ps_config_get,
-#endif
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	.fifo_fill = uart_xlnx_ps_fifo_fill,
 	.fifo_read = uart_xlnx_ps_fifo_read,
@@ -1179,11 +1173,13 @@ static const struct uart_driver_api uart_xlnx_ps_driver_api = {
 	.irq_config_func = uart_xlnx_ps_irq_config_##port,
 
 #define UART_XLNX_PS_IRQ_CONF_FUNC(port) \
+DEVICE_DECLARE(uart_xlnx_ps_##port); \
+\
 static void uart_xlnx_ps_irq_config_##port(const struct device *dev) \
 { \
 	IRQ_CONNECT(DT_INST_IRQN(port), \
 	DT_INST_IRQ(port, priority), \
-	uart_xlnx_ps_isr, DEVICE_DT_INST_GET(port), \
+	uart_xlnx_ps_isr, DEVICE_GET(uart_xlnx_ps_##port), \
 	0); \
 	irq_enable(DT_INST_IRQN(port)); \
 }
@@ -1209,9 +1205,8 @@ static struct uart_xlnx_ps_dev_config uart_xlnx_ps_dev_cfg_##port = { \
 }
 
 #define UART_XLNX_PS_INIT(port) \
-DEVICE_DT_INST_DEFINE(port, \
+DEVICE_AND_API_INIT(uart_xlnx_ps_##port, DT_INST_LABEL(port), \
 	uart_xlnx_ps_init, \
-	NULL, \
 	&uart_xlnx_ps_dev_data_##port, \
 	&uart_xlnx_ps_dev_cfg_##port, \
 	PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE, \

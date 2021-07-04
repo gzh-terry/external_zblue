@@ -107,7 +107,7 @@ int open(const char *name, int flags, ...)
 		return -1;
 	}
 
-	fs_file_t_init(&ptr->file);
+	(void)memset(&ptr->file, 0, sizeof(ptr->file));
 
 	rc = fs_open(&ptr->file, name, zmode);
 
@@ -122,8 +122,6 @@ int open(const char *name, int flags, ...)
 
 	return fd;
 }
-
-FUNC_ALIAS(open, _open, int);
 
 static int fs_close_vmeth(void *obj)
 {
@@ -230,7 +228,7 @@ DIR *opendir(const char *dirname)
 		return NULL;
 	}
 
-	fs_dir_t_init(&ptr->dir);
+	(void)memset(&ptr->dir, 0, sizeof(ptr->dir));
 
 	rc = fs_opendir(&ptr->dir, dirname);
 	if (rc < 0) {
