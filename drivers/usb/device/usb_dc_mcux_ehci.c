@@ -67,9 +67,9 @@ extern void USB_DeviceEhciIsrFunction(void *deviceHandle);
 /* The max MPS is 1023 for FS, 1024 for HS. */
 #if defined(CONFIG_NOCACHE_MEMORY)
 #define EP_BUF_NONCACHED
-__nocache K_HEAP_DEFINE(ep_buf_pool, 1024 * EP_BUF_NUMOF_BLOCKS);
+__nocache K_MEM_POOL_DEFINE(ep_buf_pool, 16, 1024, EP_BUF_NUMOF_BLOCKS, 4);
 #else
-K_HEAP_DEFINE(ep_buf_pool, 1024 * EP_BUF_NUMOF_BLOCKS);
+K_MEM_POOL_DEFINE(ep_buf_pool, 16, 1024, EP_BUF_NUMOF_BLOCKS, 4);
 #endif
 
 static usb_ep_ctrl_data_t s_ep_ctrl[NUM_OF_EP_MAX];
@@ -207,13 +207,12 @@ int usb_dc_ep_configure(const struct usb_dc_ep_cfg_data *const cfg)
 
 	block = &(eps->block);
 	if (block->data) {
-		k_heap_free(&ep_buf_pool, block->data);
+		k_mem_pool_free(block);
 		block->data = NULL;
 	}
 
-	block->data = k_heap_alloc(&ep_buf_pool, cfg->ep_mps, K_NO_WAIT);
-	if (block->data == NULL) {
-		LOG_ERR("Failed to allocate memory");
+	if (k_mem_pool_alloc(&ep_buf_pool, block, cfg->ep_mps, K_MSEC(10))) {
+		LOG_ERR("Memory allocation time-out");
 		return -ENOMEM;
 	}
 

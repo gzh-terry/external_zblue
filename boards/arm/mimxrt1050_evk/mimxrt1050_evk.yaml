@@ -16,7 +16,6 @@ ram: 32768
 flash: 65536
 supported:
   - arduino_gpio
-  - arduino_serial
   - counter
   - display
   - gpio
@@ -26,4 +25,3 @@ supported:
   - spi
   - usb_device
   - kscan:touch
-  - watchdog

@@ -310,8 +310,3 @@ void otPlatSettingsWipe(otInstance *aInstance)
 
 	(void)ot_setting_delete_subtree(-1, -1);
 }
-
-void otPlatSettingsDeinit(otInstance *aInstance)
-{
-	ARG_UNUSED(aInstance);
-}

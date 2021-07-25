@@ -133,12 +133,6 @@ or:
         pld load 0 m3_for_arty_a7_reference.bit;\
         shutdown"
 
-.. note::
-
-   The pre-built FPGA bitstream only works for Arty boards equipped with an
-   Artix-35T FPGA. For other Arty variants (e.g. the Arty A7-100) the bitstream
-   must be rebuilt.
-
 Next, build and flash applications as usual (see :ref:`build_an_application` and
 :ref:`application_run` for more details).
 
@@ -184,7 +178,7 @@ the next time the FPGA is configured.
 
 The steps to persist the application within the FPGA bitstream are covered by
 the ARM Cortex-M1/M3 DesignStart FPGA Xilinx edition user guide. If the
-:kconfig:`CONFIG_BUILD_OUTPUT_BIN` is enabled and the `SiFive elf2hex`_ package
+:option:`CONFIG_BUILD_OUTPUT_BIN` is enabled and the `SiFive elf2hex`_ package
 is available, the build system will automatically generate a Verilog memory hex
 dump :file:`zephyr.mem` file suitable for initialising the block RAM using
 `Xilinx Vivado`_.

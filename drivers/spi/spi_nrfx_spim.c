@@ -20,8 +20,8 @@ struct spi_nrfx_data {
 	const struct device *dev;
 	size_t chunk_len;
 	bool   busy;
-#ifdef CONFIG_PM_DEVICE
-	enum pm_device_state pm_state;
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
+	uint32_t pm_state;
 #endif
 #if (CONFIG_SPI_NRFX_RAM_BUFFER_SIZE > 0)
 	uint8_t   buffer[CONFIG_SPI_NRFX_RAM_BUFFER_SIZE];
@@ -31,7 +31,6 @@ struct spi_nrfx_data {
 struct spi_nrfx_config {
 	nrfx_spim_t	   spim;
 	size_t		   max_chunk_len;
-	uint32_t	   max_freq;
 	nrfx_spim_config_t config;
 };
 
@@ -109,7 +108,6 @@ static int configure(const struct device *dev,
 {
 	struct spi_context *ctx = &get_dev_data(dev)->ctx;
 	const nrfx_spim_t *spim = &get_dev_config(dev)->spim;
-	nrf_spim_frequency_t freq;
 
 	if (spi_context_configured(ctx, spi_cfg)) {
 		/* Already configured. No need to do it again. */
@@ -146,14 +144,11 @@ static int configure(const struct device *dev,
 	ctx->config = spi_cfg;
 	spi_context_cs_configure(ctx);
 
-	/* Limit the frequency to that supported by the SPIM instance */
-	freq = get_nrf_spim_frequency(MIN(spi_cfg->frequency,
-					  get_dev_config(dev)->max_freq));
-
 	nrf_spim_configure(spim->p_reg,
 			   get_nrf_spim_mode(spi_cfg->operation),
 			   get_nrf_spim_bit_order(spi_cfg->operation));
-	nrf_spim_frequency_set(spim->p_reg, freq);
+	nrf_spim_frequency_set(spim->p_reg,
+			       get_nrf_spim_frequency(spi_cfg->frequency));
 
 	return 0;
 }
@@ -165,7 +160,7 @@ static void transfer_next_chunk(const struct device *dev)
 	struct spi_context *ctx = &dev_data->ctx;
 	int error = 0;
 
-	size_t chunk_len = spi_context_max_continuous_chunk(ctx);
+	size_t chunk_len = spi_context_longest_current_buf(ctx);
 
 	if (chunk_len > 0) {
 		nrfx_spim_xfer_desc_t xfer;
@@ -227,7 +222,7 @@ static int transceive(const struct device *dev,
 	struct spi_nrfx_data *dev_data = get_dev_data(dev);
 	int error;
 
-	spi_context_lock(&dev_data->ctx, asynchronous, signal, spi_cfg);
+	spi_context_lock(&dev_data->ctx, asynchronous, signal);
 
 	error = configure(dev, spi_cfg);
 	if (error == 0) {
@@ -323,38 +318,38 @@ static int init_spim(const struct device *dev)
 		return -EBUSY;
 	}
 
-#ifdef CONFIG_PM_DEVICE
-	data->pm_state = PM_DEVICE_STATE_ACTIVE;
-	get_dev_data(dev)->pm_state = PM_DEVICE_STATE_ACTIVE;
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
+	data->pm_state = DEVICE_PM_ACTIVE_STATE;
 #endif
+	spi_context_unlock_unconditionally(&data->ctx);
 
 	return 0;
 }
 
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 static int spim_nrfx_pm_control(const struct device *dev,
 				uint32_t ctrl_command,
-				enum pm_device_state *state)
+				void *context, device_pm_cb cb, void *arg)
 {
 	int ret = 0;
 	struct spi_nrfx_data *data = get_dev_data(dev);
 	const struct spi_nrfx_config *config = get_dev_config(dev);
 
-	if (ctrl_command == PM_DEVICE_STATE_SET) {
-		enum pm_device_state new_state = *state;
+	if (ctrl_command == DEVICE_PM_SET_POWER_STATE) {
+		uint32_t new_state = *((const uint32_t *)context);
 
 		if (new_state != data->pm_state) {
 			switch (new_state) {
-			case PM_DEVICE_STATE_ACTIVE:
+			case DEVICE_PM_ACTIVE_STATE:
 				ret = init_spim(dev);
 				/* Force reconfiguration before next transfer */
 				data->ctx.config = NULL;
 				break;
 
-			case PM_DEVICE_STATE_LOW_POWER:
-			case PM_DEVICE_STATE_SUSPEND:
-			case PM_DEVICE_STATE_OFF:
-				if (data->pm_state == PM_DEVICE_STATE_ACTIVE) {
+			case DEVICE_PM_LOW_POWER_STATE:
+			case DEVICE_PM_SUSPEND_STATE:
+			case DEVICE_PM_OFF_STATE:
+				if (data->pm_state == DEVICE_PM_ACTIVE_STATE) {
 					nrfx_spim_uninit(&config->spim);
 				}
 				break;
@@ -367,13 +362,17 @@ static int spim_nrfx_pm_control(const struct device *dev,
 			}
 		}
 	} else {
-		__ASSERT_NO_MSG(ctrl_command == PM_DEVICE_STATE_GET);
-		*state = data->pm_state;
+		__ASSERT_NO_MSG(ctrl_command == DEVICE_PM_GET_POWER_STATE);
+		*((uint32_t *)context) = data->pm_state;
+	}
+
+	if (cb) {
+		cb(dev, ret, context, arg);
 	}
 
 	return ret;
 }
-#endif /* CONFIG_PM_DEVICE */
+#endif /* CONFIG_DEVICE_POWER_MANAGEMENT */
 
 /*
  * We use NODELABEL here because the nrfx API requires us to call
@@ -413,9 +412,7 @@ static int spim_nrfx_pm_control(const struct device *dev,
 		IRQ_CONNECT(NRFX_IRQ_NUMBER_GET(NRF_SPIM##idx),		       \
 			    DT_IRQ(SPIM(idx), priority),		       \
 			    nrfx_isr, nrfx_spim_##idx##_irq_handler, 0);       \
-		int err = init_spim(dev);				       \
-		spi_context_unlock_unconditionally(&get_dev_data(dev)->ctx);   \
-		return err;						       \
+		return init_spim(dev);					       \
 	}								       \
 	static struct spi_nrfx_data spi_##idx##_data = {		       \
 		SPI_CONTEXT_INIT_LOCK(spi_##idx##_data, ctx),		       \
@@ -425,7 +422,6 @@ static int spim_nrfx_pm_control(const struct device *dev,
 	static const struct spi_nrfx_config spi_##idx##z_config = {	       \
 		.spim = NRFX_SPIM_INSTANCE(idx),			       \
 		.max_chunk_len = (1 << SPIM##idx##_EASYDMA_MAXCNT_SIZE) - 1,   \
-		.max_freq = SPIM##idx##_MAX_DATARATE * 1000000,		       \
 		.config = {						       \
 			.sck_pin   = SPIM_PROP(idx, sck_pin),		       \
 			.mosi_pin  = SPIM_PROP(idx, mosi_pin),		       \
@@ -439,7 +435,8 @@ static int spim_nrfx_pm_control(const struct device *dev,
 			SPI_NRFX_SPIM_EXTENDED_CONFIG(idx)		       \
 		}							       \
 	};								       \
-	DEVICE_DT_DEFINE(SPIM(idx),					       \
+	DEVICE_DEFINE(spi_##idx,					       \
+		      SPIM_PROP(idx, label),				       \
 		      spi_##idx##_init,					       \
 		      spim_nrfx_pm_control,				       \
 		      &spi_##idx##_data,				       \

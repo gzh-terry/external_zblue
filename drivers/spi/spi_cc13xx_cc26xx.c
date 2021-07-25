@@ -11,8 +11,7 @@
 LOG_MODULE_REGISTER(spi_cc13xx_cc26xx);
 
 #include <drivers/spi.h>
-#include <pm/device.h>
-#include <pm/pm.h>
+#include <power/power.h>
 
 #include <driverlib/prcm.h>
 #include <driverlib/ssi.h>
@@ -33,8 +32,8 @@ struct spi_cc13xx_cc26xx_config {
 
 struct spi_cc13xx_cc26xx_data {
 	struct spi_context ctx;
-#ifdef CONFIG_PM_DEVICE
-	enum pm_device_state pm_state;
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
+	uint32_t pm_state;
 #endif
 };
 
@@ -147,10 +146,11 @@ static int spi_cc13xx_cc26xx_transceive(const struct device *dev,
 	uint32_t txd, rxd;
 	int err;
 
-	spi_context_lock(ctx, false, NULL, config);
+	spi_context_lock(ctx, false, NULL);
 
-#ifdef CONFIG_PM
-	pm_constraint_set(PM_STATE_STANDBY);
+#if defined(CONFIG_SYS_POWER_MANAGEMENT) && \
+	defined(CONFIG_SYS_POWER_SLEEP_STATES)
+	sys_pm_ctrl_disable_state(SYS_POWER_STATE_SLEEP_2);
 #endif
 
 	err = spi_cc13xx_cc26xx_configure(dev, config);
@@ -185,8 +185,9 @@ static int spi_cc13xx_cc26xx_transceive(const struct device *dev,
 	spi_context_cs_control(ctx, false);
 
 done:
-#ifdef CONFIG_PM
-	pm_constraint_release(PM_STATE_STANDBY);
+#if defined(CONFIG_SYS_POWER_MANAGEMENT) && \
+	defined(CONFIG_SYS_POWER_SLEEP_STATES)
+	sys_pm_ctrl_enable_state(SYS_POWER_STATE_SLEEP_2);
 #endif
 	spi_context_release(ctx, err);
 	return err;
@@ -210,13 +211,13 @@ static int spi_cc13xx_cc26xx_release(const struct device *dev,
 	return 0;
 }
 
-#ifdef CONFIG_PM_DEVICE
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 static int spi_cc13xx_cc26xx_set_power_state(const struct device *dev,
-					     enum pm_device_state new_state)
+					     uint32_t new_state)
 {
 	int ret = 0;
 
-	if ((new_state == PM_DEVICE_STATE_ACTIVE) &&
+	if ((new_state == DEVICE_PM_ACTIVE_STATE) &&
 		(new_state != get_dev_data(dev)->pm_state)) {
 		if (get_dev_config(dev)->base ==
 			DT_INST_REG_ADDR(0)) {
@@ -226,11 +227,11 @@ static int spi_cc13xx_cc26xx_set_power_state(const struct device *dev,
 		}
 		get_dev_data(dev)->pm_state = new_state;
 	} else {
-		__ASSERT_NO_MSG(new_state == PM_DEVICE_STATE_LOW_POWER ||
-			new_state == PM_DEVICE_STATE_SUSPEND ||
-			new_state == PM_DEVICE_STATE_OFF);
+		__ASSERT_NO_MSG(new_state == DEVICE_PM_LOW_POWER_STATE ||
+			new_state == DEVICE_PM_SUSPEND_STATE ||
+			new_state == DEVICE_PM_OFF_STATE);
 
-		if (get_dev_data(dev)->pm_state == PM_DEVICE_STATE_ACTIVE) {
+		if (get_dev_data(dev)->pm_state == DEVICE_PM_ACTIVE_STATE) {
 			SSIDisable(get_dev_config(dev)->base);
 			/*
 			 * Release power dependency
@@ -252,25 +253,30 @@ static int spi_cc13xx_cc26xx_set_power_state(const struct device *dev,
 
 static int spi_cc13xx_cc26xx_pm_control(const struct device *dev,
 					uint32_t ctrl_command,
-					enum pm_device_state *state)
+					void *context, device_pm_cb cb,
+					void *arg)
 {
 	int ret = 0;
 
-	if (ctrl_command == PM_DEVICE_STATE_SET) {
-		uint32_t new_state = *state;
+	if (ctrl_command == DEVICE_PM_SET_POWER_STATE) {
+		uint32_t new_state = *((const uint32_t *)context);
 
 		if (new_state != get_dev_data(dev)->pm_state) {
 			ret = spi_cc13xx_cc26xx_set_power_state(dev,
 				new_state);
 		}
 	} else {
-		__ASSERT_NO_MSG(ctrl_command == PM_DEVICE_STATE_GET);
-		*state = get_dev_data(dev)->pm_state;
+		__ASSERT_NO_MSG(ctrl_command == DEVICE_PM_GET_POWER_STATE);
+		*((uint32_t *)context) = get_dev_data(dev)->pm_state;
+	}
+
+	if (cb) {
+		cb(dev, ret, context, arg);
 	}
 
 	return ret;
 }
-#endif /* CONFIG_PM_DEVICE */
+#endif /* CONFIG_DEVICE_POWER_MANAGEMENT */
 
 
 static const struct spi_driver_api spi_cc13xx_cc26xx_driver_api = {
@@ -278,7 +284,7 @@ static const struct spi_driver_api spi_cc13xx_cc26xx_driver_api = {
 	.release = spi_cc13xx_cc26xx_release,
 };
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_SYS_POWER_MANAGEMENT
 #define SPI_CC13XX_CC26XX_POWER_SPI(n)					  \
 	do {								  \
 		/* Set Power dependencies & constraints */		  \
@@ -323,20 +329,27 @@ static const struct spi_driver_api spi_cc13xx_cc26xx_driver_api = {
 	} while (0)
 #endif
 
+#ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 #define SPI_CC13XX_CC26XX_DEVICE_INIT(n)				    \
-	DEVICE_DT_INST_DEFINE(n,						    \
+	DEVICE_DEFINE(spi_cc13xx_cc26xx_##n, DT_INST_LABEL(n),		    \
 		spi_cc13xx_cc26xx_init_##n,				    \
 		spi_cc13xx_cc26xx_pm_control,				    \
 		&spi_cc13xx_cc26xx_data_##n, &spi_cc13xx_cc26xx_config_##n, \
 		POST_KERNEL, CONFIG_SPI_INIT_PRIORITY,			    \
 		&spi_cc13xx_cc26xx_driver_api)
 
-#ifdef CONFIG_PM_DEVICE
 #define SPI_CC13XX_CC26XX_INIT_PM_STATE					    \
 	do {								    \
-		get_dev_data(dev)->pm_state = PM_DEVICE_STATE_ACTIVE;	    \
+		get_dev_data(dev)->pm_state = DEVICE_PM_ACTIVE_STATE;	    \
 	} while (0)
 #else
+#define SPI_CC13XX_CC26XX_DEVICE_INIT(n)				    \
+	DEVICE_AND_API_INIT(spi_cc13xx_cc26xx_##n, DT_INST_LABEL(n),	    \
+		    spi_cc13xx_cc26xx_init_##n, &spi_cc13xx_cc26xx_data_##n,\
+		    &spi_cc13xx_cc26xx_config_##n, POST_KERNEL,		    \
+		    CONFIG_SPI_INIT_PRIORITY,				    \
+		    &spi_cc13xx_cc26xx_driver_api)
+
 #define SPI_CC13XX_CC26XX_INIT_PM_STATE
 #endif
 

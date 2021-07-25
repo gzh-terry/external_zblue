@@ -4,13 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <sys/byteorder.h>
+#include <zephyr/types.h>
 #include <sys/util.h>
 
 #include "util/mem.h"
 #include "util/memq.h"
 #include "util/mayfly.h"
-#include "util/util.h"
 
 #include "hal/ticker.h"
 
@@ -19,19 +18,14 @@
 #include "pdu.h"
 
 #include "lll.h"
-#include "lll/lll_vendor.h"
+#include "lll_vendor.h"
 #include "lll_scan.h"
 #include "lll_scan_aux.h"
-#include "lll/lll_df_types.h"
-#include "lll_sync.h"
-#include "lll_sync_iso.h"
 
 #include "ull_scan_types.h"
-#include "ull_sync_types.h"
 
 #include "ull_internal.h"
 #include "ull_scan_internal.h"
-#include "ull_sync_internal.h"
 
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_HCI_DRIVER)
 #define LOG_MODULE_NAME bt_ctlr_ull_scan_aux
@@ -43,12 +37,9 @@ static int init_reset(void);
 static inline struct ll_scan_aux_set *aux_acquire(void);
 static inline void aux_release(struct ll_scan_aux_set *aux);
 static inline uint8_t aux_handle_get(struct ll_scan_aux_set *aux);
-static inline struct ll_sync_set *sync_create_get(struct ll_scan_set *scan);
-static void last_disabled_cb(void *param);
-static void done_disabled_cb(void *param);
 static void flush(struct ll_scan_aux_set *aux, struct node_rx_hdr *rx);
 static void ticker_cb(uint32_t ticks_at_expire, uint32_t remainder,
-		      uint16_t lazy, uint8_t force, void *param);
+		      uint16_t lazy, void *param);
 static void ticker_op_cb(uint32_t status, void *param);
 static void ticker_op_aux_failure(void *param);
 
@@ -79,109 +70,32 @@ int ull_scan_aux_reset(void)
 	return 0;
 }
 
-void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
+void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx, uint8_t phy)
 {
 	struct pdu_adv_aux_ptr *aux_ptr;
 	struct pdu_adv_com_ext_adv *p;
-	uint32_t ticks_slot_overhead;
 	struct ll_scan_aux_set *aux;
+	uint32_t ticks_slot_overhead;
 	uint32_t window_widening_us;
-	uint32_t ticks_slot_offset;
-	uint32_t ticks_aux_offset;
-	struct pdu_adv_ext_hdr *h;
-	struct ll_scan_set *scan;
-	struct ll_sync_set *sync;
 	struct lll_scan_aux *lll;
-	struct pdu_adv_adi *adi;
 	struct node_rx_ftr *ftr;
+	uint32_t ticks_slot_offset;
+	struct pdu_adv_hdr *h;
 	uint32_t ready_delay_us;
+	struct pdu_adv *pdu;
 	uint32_t aux_offset_us;
 	uint32_t ticker_status;
-	struct pdu_adv *pdu;
 	uint8_t aux_handle;
 	uint8_t *ptr;
-	uint8_t phy;
 
 	ftr = &rx->rx_ftr;
-
-	switch (rx->type) {
-	case NODE_RX_TYPE_EXT_1M_REPORT:
-		lll = NULL;
+	lll = ftr->param;
+	aux = lll->hdr.parent;
+	if (((uint8_t *)aux < (uint8_t *)ll_scan_aux_pool) ||
+	    ((uint8_t *)aux > ((uint8_t *)ll_scan_aux_pool +
+			    (sizeof(struct ll_scan_aux_set) *
+			     (CONFIG_BT_CTLR_SCAN_AUX_SET - 1))))) {
 		aux = NULL;
-		scan = HDR_LLL2ULL(ftr->param);
-		sync = sync_create_get(scan);
-		phy = BT_HCI_LE_EXT_SCAN_PHY_1M;
-		break;
-	case NODE_RX_TYPE_EXT_CODED_REPORT:
-		lll = NULL;
-		aux = NULL;
-		scan = HDR_LLL2ULL(ftr->param);
-		sync = sync_create_get(scan);
-		phy = BT_HCI_LE_EXT_SCAN_PHY_CODED;
-		break;
-	case NODE_RX_TYPE_EXT_AUX_REPORT:
-		lll = ftr->param;
-		aux = HDR_LLL2ULL(lll);
-		scan = HDR_LLL2ULL(aux->rx_head->rx_ftr.param);
-		sync = (void *)scan;
-		scan = ull_scan_is_valid_get(scan);
-		phy = lll->phy;
-		if (scan) {
-			/* Here we are scanner context */
-			sync = sync_create_get(scan);
-			switch (phy) {
-			case PHY_1M:
-				rx->type = NODE_RX_TYPE_EXT_1M_REPORT;
-				break;
-			case PHY_2M:
-				rx->type = NODE_RX_TYPE_EXT_2M_REPORT;
-				break;
-			case PHY_CODED:
-				rx->type = NODE_RX_TYPE_EXT_CODED_REPORT;
-				break;
-			default:
-				LL_ASSERT(0);
-				return;
-			}
-
-#if defined(CONFIG_BT_CTLR_SYNC_PERIODIC)
-		} else {
-			/* Here we are periodic sync context */
-			rx->type = NODE_RX_TYPE_SYNC_REPORT;
-			rx->handle = ull_sync_handle_get(sync);
-
-			/* lll and aux are auxiliary channel context,
-			 * reuse the existing aux context to scan the chain.
-			 * hence lll and aux are not released or set to NULL.
-			 */
-			sync = NULL;
-		}
-		break;
-
-	case NODE_RX_TYPE_SYNC_REPORT:
-		{
-			struct ll_sync_set *ull_sync;
-			struct lll_sync *lll_sync;
-
-			/* set the sync handle corresponding to the LLL context
-			 * passed in the node rx footer field.
-			 */
-			lll_sync = ftr->param;
-			ull_sync = HDR_LLL2ULL(lll_sync);
-			rx->handle = ull_sync_handle_get(ull_sync);
-
-			lll = NULL;
-			aux = NULL;
-			scan = NULL;
-			sync = NULL;
-			phy =  lll_sync->phy;
-#endif /* CONFIG_BT_CTLR_SYNC_PERIODIC */
-
-		}
-		break;
-	default:
-		LL_ASSERT(0);
-		return;
 	}
 
 	rx->link = link;
@@ -193,21 +107,14 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 		goto ull_scan_aux_rx_flush;
 	}
 
-	h = (void *)p->ext_hdr_adv_data;
-	if (!h->aux_ptr && !sync) {
+	h = (void *)p->ext_hdr_adi_adv_data;
+	if (!h->aux_ptr) {
 		goto ull_scan_aux_rx_flush;
 	}
 
-	ptr = h->data;
+	ptr = (uint8_t *)h + sizeof(*h);
 
 	if (h->adv_addr) {
-#if defined(CONFIG_BT_CTLR_SYNC_PERIODIC)
-		if (sync && (pdu->tx_addr == scan->per_scan.adv_addr_type) &&
-		    !memcmp(ptr, scan->per_scan.adv_addr, BDADDR_SIZE)) {
-			scan->per_scan.state = LL_SYNC_STATE_ADDR_MATCH;
-		}
-#endif /* CONFIG_BT_CTLR_SYNC_PERIODIC */
-
 		ptr += BDADDR_SIZE;
 	}
 
@@ -215,33 +122,15 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 		ptr += BDADDR_SIZE;
 	}
 
-	adi = NULL;
 	if (h->adi) {
+		struct pdu_adv_adi *adi;
+
 		adi = (void *)ptr;
 		ptr += sizeof(*adi);
 	}
 
-	aux_ptr = NULL;
-	if (h->aux_ptr) {
-		aux_ptr = (void *)ptr;
-		ptr += sizeof(*aux_ptr);
-	}
-
-	if (h->sync_info) {
-		struct pdu_adv_sync_info *si;
-
-		si = (void *)ptr;
-		ptr += sizeof(*si);
-
-#if defined(CONFIG_BT_CTLR_SYNC_PERIODIC)
-		if (sync && adi && (adi->sid == scan->per_scan.sid) &&
-		    (scan->per_scan.state == LL_SYNC_STATE_ADDR_MATCH)) {
-			ull_sync_setup(scan, aux, rx, si);
-		}
-#endif /* CONFIG_BT_CTLR_SYNC_PERIODIC */
-	}
-
-	if (!aux_ptr || !aux_ptr->offs) {
+	aux_ptr = (void *)ptr;
+	if (!aux_ptr->offs) {
 		goto ull_scan_aux_rx_flush;
 	}
 
@@ -256,11 +145,14 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 
 		ull_hdr_init(&aux->ull);
 		lll_hdr_init(lll, aux);
+	} else {
+		LL_ASSERT(0);
 	}
 
 	/* Enqueue the rx in aux context */
 	if (aux->rx_last) {
-		aux->rx_last->rx_ftr.extra = rx;
+		ftr = &aux->rx_last->rx_ftr;
+		ftr->extra = rx;
 	} else {
 		aux->rx_head = rx;
 	}
@@ -269,22 +161,18 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 	lll->chan = aux_ptr->chan_idx;
 	lll->phy = BIT(aux_ptr->phy);
 
-	aux_offset_us = ftr->radio_end_us - PKT_AC_US(pdu->len, phy);
+	aux_offset_us = ftr->radio_end_us - PKT_AC_US(pdu->len, 0, phy);
 	if (aux_ptr->offs_units) {
-		lll->window_size_us = OFFS_UNIT_300_US;
+		lll->window_size_us = 300U;
 	} else {
-		lll->window_size_us = OFFS_UNIT_30_US;
+		lll->window_size_us = 30U;
 	}
 	aux_offset_us += (uint32_t)aux_ptr->offs * lll->window_size_us;
 
-	/* CA field contains the clock accuracy of the advertiser;
-	 * 0 - 51 ppm to 500 ppm
-	 * 1 - 0 ppm to 50 ppm
-	 */
 	if (aux_ptr->ca) {
-		window_widening_us = SCA_DRIFT_50_PPM_US(aux_offset_us);
+		window_widening_us = aux_offset_us / 2000U;
 	} else {
-		window_widening_us = SCA_DRIFT_500_PPM_US(aux_offset_us);
+		window_widening_us = aux_offset_us / 20000U;
 	}
 
 	lll->window_size_us += (EVENT_TICKER_RES_MARGIN_US +
@@ -292,50 +180,34 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 
 	ready_delay_us = lll_radio_rx_ready_delay_get(lll->phy, 1);
 
+	aux_offset_us -= EVENT_OVERHEAD_START_US;
 	aux_offset_us -= EVENT_JITTER_US;
 	aux_offset_us -= ready_delay_us;
 	aux_offset_us -= window_widening_us;
 
 	/* TODO: active_to_start feature port */
-	aux->ull.ticks_active_to_start = 0;
-	aux->ull.ticks_prepare_to_start =
+	aux->evt.ticks_active_to_start = 0;
+	aux->evt.ticks_xtal_to_start =
 		HAL_TICKER_US_TO_TICKS(EVENT_OVERHEAD_XTAL_US);
-	aux->ull.ticks_preempt_to_start =
+	aux->evt.ticks_preempt_to_start =
 		HAL_TICKER_US_TO_TICKS(EVENT_OVERHEAD_PREEMPT_MIN_US);
-	aux->ull.ticks_slot =
+	aux->evt.ticks_slot =
 		HAL_TICKER_US_TO_TICKS(EVENT_OVERHEAD_START_US +
 				       ready_delay_us +
 				       PKT_AC_US(PDU_AC_EXT_PAYLOAD_SIZE_MAX,
-						 lll->phy) +
+						 0, lll->phy) +
 				       EVENT_OVERHEAD_END_US);
 
-	ticks_slot_offset = MAX(aux->ull.ticks_active_to_start,
-				aux->ull.ticks_prepare_to_start);
+	ticks_slot_offset = MAX(aux->evt.ticks_active_to_start,
+				aux->evt.ticks_xtal_to_start);
+
 	if (IS_ENABLED(CONFIG_BT_CTLR_LOW_LAT)) {
 		ticks_slot_overhead = ticks_slot_offset;
 	} else {
 		ticks_slot_overhead = 0U;
 	}
-	ticks_slot_offset += HAL_TICKER_US_TO_TICKS(EVENT_OVERHEAD_START_US);
 
-	ticks_aux_offset = HAL_TICKER_US_TO_TICKS(aux_offset_us);
-
-	/* Yield the primary scan window ticks in ticker */
-	if (scan) {
-		uint8_t handle;
-
-		handle = ull_scan_handle_get(scan);
-
-		ticker_status = ticker_yield_abs(TICKER_INSTANCE_ID_CTLR,
-						 TICKER_USER_ID_ULL_HIGH,
-						 (TICKER_ID_SCAN_BASE + handle),
-						 (ftr->ticks_anchor +
-						  ticks_aux_offset -
-						  ticks_slot_offset),
-						 NULL, NULL);
-		LL_ASSERT((ticker_status == TICKER_STATUS_SUCCESS) ||
-			  (ticker_status == TICKER_STATUS_BUSY));
-	}
+	/* TODO: unreserve the primary scan window ticks in ticker */
 
 	aux_handle = aux_handle_get(aux);
 
@@ -343,11 +215,11 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 				     TICKER_USER_ID_ULL_HIGH,
 				     TICKER_ID_SCAN_AUX_BASE + aux_handle,
 				     ftr->ticks_anchor - ticks_slot_offset,
-				     ticks_aux_offset,
+				     HAL_TICKER_US_TO_TICKS(aux_offset_us),
 				     TICKER_NULL_PERIOD,
 				     TICKER_NULL_REMAINDER,
 				     TICKER_NULL_LAZY,
-				     (aux->ull.ticks_slot +
+				     (aux->evt.ticks_slot +
 				      ticks_slot_overhead),
 				     ticker_cb, aux, ticker_op_cb, aux);
 	LL_ASSERT((ticker_status == TICKER_STATUS_SUCCESS) ||
@@ -356,21 +228,8 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 	return;
 
 ull_scan_aux_rx_flush:
-#if defined(CONFIG_BT_CTLR_SYNC_PERIODIC)
-	if (sync) {
-		scan->per_scan.state = LL_SYNC_STATE_IDLE;
-	}
-#endif /* CONFIG_BT_CTLR_SYNC_PERIODIC */
-
 	if (aux) {
-		struct ull_hdr *hdr;
-
-		/* Setup the disabled callback to flush the auxiliary PDUs */
-		hdr = &aux->ull;
-		LL_ASSERT(!hdr->disabled_cb);
-
-		hdr->disabled_param = rx;
-		hdr->disabled_cb = last_disabled_cb;
+		flush(aux, rx);
 
 		return;
 	}
@@ -381,18 +240,10 @@ ull_scan_aux_rx_flush:
 
 void ull_scan_aux_done(struct node_rx_event_done *done)
 {
-	struct ll_scan_aux_set *aux;
-	struct ull_hdr *hdr;
+	struct lll_scan_aux *lll = (void *)HDR_ULL2LLL(done->param);
+	struct ll_scan_aux_set *aux = (void *)HDR_LLL2EVT(lll);
 
-	/* Get reference to ULL context */
-	aux = CONTAINER_OF(done->param, struct ll_scan_aux_set, ull);
-
-	/* Setup the disabled callback to flush the auxiliary PDUs */
-	hdr = &aux->ull;
-	LL_ASSERT(!hdr->disabled_cb);
-
-	hdr->disabled_param = aux;
-	hdr->disabled_cb = done_disabled_cb;
+	flush(aux, NULL);
 }
 
 uint8_t ull_scan_aux_lll_handle_get(struct lll_scan_aux *lll)
@@ -426,31 +277,6 @@ static inline uint8_t aux_handle_get(struct ll_scan_aux_set *aux)
 			     sizeof(struct ll_scan_aux_set));
 }
 
-static inline struct ll_sync_set *sync_create_get(struct ll_scan_set *scan)
-{
-#if defined(CONFIG_BT_CTLR_SYNC_PERIODIC)
-	return scan->per_scan.sync;
-#else /* !CONFIG_BT_CTLR_SYNC_PERIODIC */
-	return NULL;
-#endif /* !CONFIG_BT_CTLR_SYNC_PERIODIC */
-}
-
-static void last_disabled_cb(void *param)
-{
-	struct ll_scan_aux_set *aux;
-	struct node_rx_hdr *rx;
-
-	rx = param;
-	aux = HDR_LLL2ULL(rx->rx_ftr.param);
-
-	flush(aux, rx);
-}
-
-static void done_disabled_cb(void *param)
-{
-	flush(param, NULL);
-}
-
 static void flush(struct ll_scan_aux_set *aux, struct node_rx_hdr *rx)
 {
 	if (aux->rx_last) {
@@ -474,7 +300,7 @@ static void flush(struct ll_scan_aux_set *aux, struct node_rx_hdr *rx)
 }
 
 static void ticker_cb(uint32_t ticks_at_expire, uint32_t remainder,
-		      uint16_t lazy, uint8_t force, void *param)
+		      uint16_t lazy, void *param)
 {
 	static memq_link_t link;
 	static struct mayfly mfy = {0, 0, &link, NULL, lll_scan_aux_prepare};
@@ -493,7 +319,6 @@ static void ticker_cb(uint32_t ticks_at_expire, uint32_t remainder,
 	p.ticks_at_expire = ticks_at_expire;
 	p.remainder = 0; /* FIXME: remainder; */
 	p.lazy = lazy;
-	p.force = force;
 	p.param = &aux->lll;
 	mfy.param = &p;
 

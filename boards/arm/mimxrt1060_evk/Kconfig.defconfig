@@ -13,14 +13,13 @@ choice CODE_LOCATION
 	default CODE_FLEXSPI
 endchoice
 
-config DISK_DRIVER_SDMMC
-	default y if DISK_DRIVERS
+choice DATA_LOCATION
+	default DATA_SEMC
+endchoice
 
-config FLASH_MCUX_FLEXSPI_NOR
-	default y if FLASH && BOARD_MIMXRT1060_EVK
-
-config FLASH_MCUX_FLEXSPI_XIP
-	default y if FLASH && BOARD_MIMXRT1060_EVK
+config DISK_ACCESS_USDHC1
+	default y
+	depends on DISK_ACCESS_USDHC
 
 config I2C
 	default y if KSCAN
@@ -36,12 +35,18 @@ config KSCAN_FT5336
 config KSCAN_FT5336_INTERRUPT
 	default y
 
+config KSCAN_INIT_PRIORITY
+	default 60
+
 endif # KSCAN
 
 if NETWORKING
 
 config NET_L2_ETHERNET
 	default y
+
+config ETH_MCUX_0
+	default y if NET_L2_ETHERNET
 
 endif # NETWORKING
 

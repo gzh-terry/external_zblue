@@ -1,5 +1,5 @@
 [SPI]
-SPISizeMegabits = 4
+SPISizeMegabits = 128
 Flashmap = true
 FlshmapAddr = 0
 

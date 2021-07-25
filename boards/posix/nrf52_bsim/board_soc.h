@@ -28,8 +28,9 @@
 #include <stddef.h>
 #include "irq.h"
 #include "irq_sources.h"
-#include <nrfx.h>
+#include "NRF_regs.h"
 #include "cmsis.h"
+#include "nrf_soc_if.h"
 
 #define OFFLOAD_SW_IRQ SWI0_EGU0_IRQn
 

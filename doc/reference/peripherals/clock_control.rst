@@ -14,9 +14,10 @@ Configuration Options
 
 Related configuration options:
 
-* :kconfig:`CONFIG_CLOCK_CONTROL`
+* :option:`CONFIG_CLOCK_CONTROL`
 
 API Reference
 *************
 
 .. doxygengroup:: clock_control_interface
+   :project: Zephyr

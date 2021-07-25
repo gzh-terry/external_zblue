@@ -7,22 +7,19 @@
 #define DT_DRV_COMPAT espressif_esp32_uart
 
 /* Include esp-idf headers first to avoid redefining BIT() macro */
-#include <esp32/rom/ets_sys.h>
+#include <rom/ets_sys.h>
 #include <soc/dport_reg.h>
 
-#include <esp32/rom/gpio.h>
+#include <rom/gpio.h>
 
 #include <soc/gpio_sig_map.h>
-#include <soc/uart_reg.h>
 
 #include <device.h>
 #include <soc.h>
 #include <drivers/uart.h>
-#include <drivers/interrupt_controller/intc_esp32.h>
 #include <drivers/clock_control.h>
 #include <errno.h>
 #include <sys/util.h>
-#include <esp_attr.h>
 
 
 /*
@@ -66,7 +63,7 @@ struct uart_esp32_regs_t {
 struct uart_esp32_config {
 
 	struct uart_device_config dev_conf;
-	const struct device *clock_dev;
+	const char *clock_name;
 
 	const struct {
 		int tx_out;
@@ -82,19 +79,22 @@ struct uart_esp32_config {
 		int cts;
 	} pins;
 
-	const clock_control_subsys_t clock_subsys;
+	const clock_control_subsys_t peripheral_id;
 
-	int irq_source;
+	const struct {
+		int source;
+		int line;
+	} irq;
 };
 
 /* driver data */
 struct uart_esp32_data {
 	struct uart_config uart_config;
+	const struct device *clock_dev;
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	uart_irq_callback_user_data_t irq_cb;
 	void *irq_cb_data;
 #endif
-	int irq_line;
 };
 
 #define DEV_CFG(dev) \
@@ -130,10 +130,6 @@ struct uart_esp32_data {
 #define DPORT_UART0_CLK_EN DPORT_UART_CLK_EN
 #define DPORT_UART0_RST DPORT_UART_RST
 
-#ifdef CONFIG_UART_INTERRUPT_DRIVEN
-void uart_esp32_isr(void *arg);
-#endif
-
 static int uart_esp32_poll_in(const struct device *dev, unsigned char *p_char)
 {
 
@@ -145,7 +141,7 @@ static int uart_esp32_poll_in(const struct device *dev, unsigned char *p_char)
 	return 0;
 }
 
-static IRAM_ATTR void uart_esp32_poll_out(const struct device *dev,
+static void uart_esp32_poll_out(const struct device *dev,
 				unsigned char c)
 {
 	/* Wait for space in FIFO */
@@ -165,7 +161,6 @@ static int uart_esp32_err_check(const struct device *dev)
 	return err;
 }
 
-#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 static int uart_esp32_config_get(const struct device *dev,
 				 struct uart_config *cfg)
 {
@@ -191,14 +186,13 @@ static int uart_esp32_config_get(const struct device *dev,
 	}
 	return 0;
 }
-#endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
 
 static int uart_esp32_set_baudrate(const struct device *dev, int baudrate)
 {
 	uint32_t sys_clk_freq = 0;
 
-	if (clock_control_get_rate(DEV_CFG(dev)->clock_dev,
-				   DEV_CFG(dev)->clock_subsys,
+	if (clock_control_get_rate(DEV_DATA(dev)->clock_dev,
+				   DEV_CFG(dev)->peripheral_id,
 				   &sys_clk_freq)) {
 		return -EINVAL;
 	}
@@ -254,7 +248,7 @@ static int uart_esp32_configure(const struct device *dev,
 		      | (UART_TX_FIFO_THRESH << UART_TXFIFO_EMPTY_THRHD_S);
 
 	uart_esp32_configure_pins(dev);
-	clock_control_on(DEV_CFG(dev)->clock_dev, DEV_CFG(dev)->clock_subsys);
+	clock_control_on(DEV_DATA(dev)->clock_dev, DEV_CFG(dev)->peripheral_id);
 
 	/*
 	 * Reset RX Buffer by reading all received bytes
@@ -322,11 +316,16 @@ static int uart_esp32_configure(const struct device *dev,
 
 static int uart_esp32_init(const struct device *dev)
 {
+	struct uart_esp32_data *data = DEV_DATA(dev);
+
+	data->clock_dev = device_get_binding(DEV_CFG(dev)->clock_name);
+
+	__ASSERT_NO_MSG(data->clock_dev);
+
 	uart_esp32_configure(dev, &DEV_DATA(dev)->uart_config);
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
-	DEV_DATA(dev)->irq_line =
-		esp_intr_alloc(DEV_CFG(dev)->irq_source, 0, uart_esp32_isr, (void *)dev, NULL);
+	DEV_CFG(dev)->dev_conf.irq_config_func(dev);
 #endif
 	return 0;
 }
@@ -432,9 +431,8 @@ static void uart_esp32_irq_callback_set(const struct device *dev,
 	DEV_DATA(dev)->irq_cb_data = cb_data;
 }
 
-void uart_esp32_isr(void *arg)
+void uart_esp32_isr(const struct device *dev)
 {
-	const struct device *dev = (const struct device *)arg;
 	struct uart_esp32_data *data = DEV_DATA(dev);
 
 	/* Verify if the callback has been registered */
@@ -445,14 +443,12 @@ void uart_esp32_isr(void *arg)
 
 #endif /* CONFIG_UART_INTERRUPT_DRIVEN */
 
-static const DRAM_ATTR struct uart_driver_api uart_esp32_api = {
+static const struct uart_driver_api uart_esp32_api = {
 	.poll_in = uart_esp32_poll_in,
 	.poll_out = uart_esp32_poll_out,
 	.err_check = uart_esp32_err_check,
-#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 	.configure =  uart_esp32_configure,
 	.config_get = uart_esp32_config_get,
-#endif
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	.fifo_fill = uart_esp32_fifo_fill,
 	.fifo_read = uart_esp32_fifo_read,
@@ -471,14 +467,42 @@ static const DRAM_ATTR struct uart_driver_api uart_esp32_api = {
 #endif  /* CONFIG_UART_INTERRUPT_DRIVEN */
 };
 
+
+#ifdef CONFIG_UART_INTERRUPT_DRIVEN
+#define ESP32_UART_IRQ_HANDLER_DECL(idx) \
+	static void uart_esp32_irq_config_func_##idx(const struct device *dev)
+
+#define ESP32_UART_IRQ_HANDLER_FUNC(idx) \
+	.irq_config_func = uart_esp32_irq_config_func_##idx,
+
+#define ESP32_UART_IRQ_HANDLER(idx)					     \
+	static void uart_esp32_irq_config_func_##idx(const struct device *dev) \
+	{								     \
+		esp32_rom_intr_matrix_set(0, ETS_UART##idx##_INTR_SOURCE,    \
+					  INST_##idx##_ESPRESSIF_ESP32_UART_IRQ_0); \
+		IRQ_CONNECT(INST_##idx##_ESPRESSIF_ESP32_UART_IRQ_0,	     \
+			    1,						     \
+			    uart_esp32_isr,				     \
+			    DEVICE_GET(uart_esp32_##idx),		     \
+			    0);						     \
+		irq_enable(INST_##idx##_ESPRESSIF_ESP32_UART_IRQ_0);	     \
+	}
+#else
+#define ESP32_UART_IRQ_HANDLER_DECL(idx)
+#define ESP32_UART_IRQ_HANDLER_FUNC(idx)
+#define ESP32_UART_IRQ_HANDLER(idx)
+
+#endif
 #define ESP32_UART_INIT(idx)						       \
-static const DRAM_ATTR struct uart_esp32_config uart_esp32_cfg_port_##idx = {	       \
+ESP32_UART_IRQ_HANDLER_DECL(idx);					       \
+static const struct uart_esp32_config uart_esp32_cfg_port_##idx = {	       \
 	.dev_conf = {							       \
 		.base =							       \
-		    (uint8_t *)DT_REG_ADDR(DT_NODELABEL(uart##idx)), \
+		    (uint8_t *)DT_INST_REG_ADDR(idx), \
+		ESP32_UART_IRQ_HANDLER_FUNC(idx)			       \
 	},								       \
 											   \
-	.clock_dev = DEVICE_DT_GET(DT_CLOCKS_CTLR(DT_NODELABEL(uart##idx))),		       \
+	.clock_name = DT_INST_CLOCKS_LABEL(idx),			       \
 											   \
 	.signals = {							       \
 		.tx_out = U##idx##TXD_OUT_IDX,				       \
@@ -488,48 +512,43 @@ static const DRAM_ATTR struct uart_esp32_config uart_esp32_cfg_port_##idx = {	  
 	},								       \
 									       \
 	.pins = {							       \
-		.tx = DT_PROP(DT_NODELABEL(uart##idx), tx_pin),	       \
-		.rx = DT_PROP(DT_NODELABEL(uart##idx), rx_pin),	       \
+		.tx = DT_INST_PROP(idx, tx_pin),	       \
+		.rx = DT_INST_PROP(idx, rx_pin),	       \
 		IF_ENABLED(						       \
-			DT_PROP(DT_NODELABEL(uart##idx), hw_flow_control),  \
-			(.rts = DT_PROP(DT_NODELABEL(uart##idx), rts_pin),  \
-			.cts = DT_PROP(DT_NODELABEL(uart##idx), cts_pin),   \
+			DT_INST_PROP(idx, hw_flow_control),  \
+			(.rts = DT_INST_PROP(idx, rts_pin),  \
+			.cts = DT_INST_PROP(idx, cts_pin),   \
 			))						       \
 	},								       \
 											   \
-	.clock_subsys = (clock_control_subsys_t)DT_CLOCKS_CELL(DT_NODELABEL(uart##idx), offset), \
-	.irq_source = DT_IRQN(DT_NODELABEL(uart##idx))			       \
+	.peripheral_id = (clock_control_subsys_t)DT_INST_CLOCKS_CELL(idx, offset), \
+	.irq = {							       \
+		.source = ETS_UART##idx##_INTR_SOURCE,			       \
+		.line = INST_##idx##_ESPRESSIF_ESP32_UART_IRQ_0,	       \
+	}								       \
 };									       \
 									       \
 static struct uart_esp32_data uart_esp32_data_##idx = {			       \
 	.uart_config = {						       \
-		.baudrate = DT_PROP(DT_NODELABEL(uart##idx), current_speed),\
+		.baudrate = DT_INST_PROP(idx, current_speed),\
 		.parity = UART_CFG_PARITY_NONE,				       \
 		.stop_bits = UART_CFG_STOP_BITS_1,			       \
 		.data_bits = UART_CFG_DATA_BITS_8,			       \
 		.flow_ctrl = IS_ENABLED(				       \
-			DT_PROP(DT_NODELABEL(uart##idx), hw_flow_control)) ?\
+			DT_INST_PROP(idx, hw_flow_control)) ?\
 			UART_CFG_FLOW_CTRL_RTS_CTS : UART_CFG_FLOW_CTRL_NONE   \
 	}								       \
 };									       \
 									       \
-DEVICE_DT_DEFINE(DT_NODELABEL(uart##idx),				       \
-		    &uart_esp32_init,					       \
-		    NULL,				       \
+DEVICE_AND_API_INIT(uart_esp32_##idx,					       \
+		    DT_INST_LABEL(idx),		       \
+		    uart_esp32_init,					       \
 		    &uart_esp32_data_##idx,				       \
 		    &uart_esp32_cfg_port_##idx,				       \
 		    PRE_KERNEL_1,					       \
 		    CONFIG_KERNEL_INIT_PRIORITY_DEVICE,			       \
-		    &uart_esp32_api);
+		    &uart_esp32_api);					       \
+									       \
+ESP32_UART_IRQ_HANDLER(idx)
 
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(uart0), okay)
-ESP32_UART_INIT(0);
-#endif
-
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(uart1), okay)
-ESP32_UART_INIT(1);
-#endif
-
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(uart2), okay)
-ESP32_UART_INIT(2);
-#endif
+DT_INST_FOREACH_STATUS_OKAY(ESP32_UART_INIT)

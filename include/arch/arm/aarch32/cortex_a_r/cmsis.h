@@ -36,8 +36,6 @@ extern "C" {
 #include <core_cr4.h>
 #elif defined(CONFIG_CPU_CORTEX_R5)
 #include <core_cr5.h>
-#elif defined(CONFIG_CPU_CORTEX_R7)
-#include <core_cr7.h>
 #else
 #error "Unknown device"
 #endif

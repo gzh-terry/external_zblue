@@ -17,9 +17,10 @@ Configuration Options
 
 Related configuration options:
 
-* :kconfig:`CONFIG_EEPROM`
+* :option:`CONFIG_EEPROM`
 
 API Reference
 *************
 
 .. doxygengroup:: eeprom_interface
+   :project: Zephyr

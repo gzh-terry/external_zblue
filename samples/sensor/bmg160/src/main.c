@@ -17,10 +17,6 @@
 #define MAX_TEST_TIME	15000
 #define SLEEPTIME	300
 
-#if !DT_HAS_COMPAT_STATUS_OKAY(bosch_bmg160)
-#error "No bosch,bmg160 compatible node found in the device tree"
-#endif
-
 static void print_gyro_data(const struct device *bmg160)
 {
 	struct sensor_value val[3];
@@ -172,13 +168,14 @@ static void test_trigger_mode(const struct device *bmg160)
 
 void main(void)
 {
-	const struct device *bmg160 = DEVICE_DT_GET_ANY(bosch_bmg160);
+	const struct device *bmg160;
 #if defined(CONFIG_BMG160_RANGE_RUNTIME)
 	struct sensor_value attr;
 #endif
 
-	if (!device_is_ready(bmg160)) {
-		printf("Device %s is not ready.\n", bmg160->name);
+	bmg160 = device_get_binding("bmg160");
+	if (!bmg160) {
+		printf("Device not found.\n");
 		return;
 	}
 

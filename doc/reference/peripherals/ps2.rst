@@ -19,9 +19,10 @@ Configuration Options
 
 Related configuration options:
 
-* :kconfig:`CONFIG_PS2`
+* :option:`CONFIG_PS2`
 
 API Reference
 *************
 
 .. doxygengroup:: ps2_interface
+   :project: Zephyr

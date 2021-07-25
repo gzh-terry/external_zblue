@@ -27,8 +27,9 @@
 
 LOG_MODULE_REGISTER(main);
 
-/* Button value. */
-static uint16_t but_val;
+extern uint16_t but_val;
+extern const struct device *led_dev;
+extern bool led_state;
 
 /* Prototype */
 static ssize_t recv(struct bt_conn *conn,
@@ -37,15 +38,18 @@ static ssize_t recv(struct bt_conn *conn,
 
 /* ST Custom Service  */
 static struct bt_uuid_128 st_service_uuid = BT_UUID_INIT_128(
-	BT_UUID_128_ENCODE(0x0000fe40, 0xcc7a, 0x482a, 0x984a, 0x7f2ed5b3e58f));
+	0x8f, 0xe5, 0xb3, 0xd5, 0x2e, 0x7f, 0x4a, 0x98,
+	0x2a, 0x48, 0x7a, 0xcc, 0x40, 0xfe, 0x00, 0x00);
 
 /* ST LED service */
 static struct bt_uuid_128 led_char_uuid = BT_UUID_INIT_128(
-	BT_UUID_128_ENCODE(0x0000fe41, 0x8e22, 0x4541, 0x9d4c, 0x21edae82ed19));
+	0x19, 0xed, 0x82, 0xae, 0xed, 0x21, 0x4c, 0x9d,
+	0x41, 0x45, 0x22, 0x8e, 0x41, 0xfe, 0x00, 0x00);
 
 /* ST Notify button service */
 static struct bt_uuid_128 but_notif_uuid = BT_UUID_INIT_128(
-	BT_UUID_128_ENCODE(0x0000fe42, 0x8e22, 0x4541, 0x9d4c, 0x21edae82ed19));
+	0x19, 0xed, 0x82, 0xae, 0xed, 0x21, 0x4c, 0x9d,
+	0x41, 0x45, 0x22, 0x8e, 0x42, 0xfe, 0x00, 0x00);
 
 #define DEVICE_NAME CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
@@ -105,33 +109,17 @@ static ssize_t recv(struct bt_conn *conn,
 		    const struct bt_gatt_attr *attr, const void *buf,
 		    uint16_t len, uint16_t offset, uint8_t flags)
 {
-	led_update();
+	if (led_dev) {
+		if (led_state) {
+			LOG_INF("Turn off LED");
+		} else {
+			LOG_INF("Turn on LED");
+		}
+		led_state = !led_state;
+		led_on_off(led_state);
+	}
 
 	return 0;
-}
-
-static void button_callback(const struct device *gpiob, struct gpio_callback *cb,
-		     uint32_t pins)
-{
-	int err;
-
-	LOG_INF("Button pressed");
-	if (conn) {
-		if (notify_enable) {
-			err = bt_gatt_notify(NULL, &stsensor_svc.attrs[4],
-					     &but_val, sizeof(but_val));
-			if (err) {
-				LOG_ERR("Notify error: %d", err);
-			} else {
-				LOG_INF("Send notify ok");
-				but_val = (but_val == 0) ? 0x100 : 0;
-			}
-		} else {
-			LOG_INF("Notify not enabled");
-		}
-	} else {
-		LOG_INF("BLE not connected");
-	}
 }
 
 static void bt_ready(int err)
@@ -182,7 +170,7 @@ void main(void)
 {
 	int err;
 
-	err = button_init(button_callback);
+	err = button_init();
 	if (err) {
 		return;
 	}

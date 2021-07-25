@@ -16,9 +16,10 @@ Configuration Options
 
 Related configuration options:
 
-* :kconfig:`CONFIG_I2S`
+* :option:`CONFIG_I2S`
 
 API Reference
 *************
 
 .. doxygengroup:: i2s_interface
+   :project: Zephyr

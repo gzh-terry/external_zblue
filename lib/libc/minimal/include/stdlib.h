@@ -10,14 +10,12 @@
 #define ZEPHYR_LIB_LIBC_MINIMAL_INCLUDE_STDLIB_H_
 
 #include <stddef.h>
-#include <limits.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-unsigned long strtoul(const char *nptr, char **endptr, int base);
-long strtol(const char *nptr, char **endptr, int base);
+unsigned long int strtoul(const char *str, char **endptr, int base);
+long int strtol(const char *str, char **endptr, int base);
 int atoi(const char *s);
 
 void *malloc(size_t size);
@@ -37,28 +35,10 @@ static inline void exit(int status)
 {
 	_exit(status);
 }
-void abort(void);
 
-#ifdef CONFIG_MINIMAL_LIBC_RAND
-#define RAND_MAX INT_MAX
 int rand(void);
-void srand(unsigned int seed);
-#endif /* CONFIG_MINIMAL_LIBC_RAND */
 
-static inline int abs(int __n)
-{
-	return (__n < 0) ? -__n : __n;
-}
-
-static inline long labs(long __n)
-{
-	return (__n < 0L) ? -__n : __n;
-}
-
-static inline long long llabs(long long __n)
-{
-	return (__n < 0LL) ? -__n : __n;
-}
+#define abs(x) ((x) < 0 ? -(x) : (x))
 
 #ifdef __cplusplus
 }
