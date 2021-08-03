@@ -12,8 +12,10 @@
  */
 
 #include <kernel.h>
+#include <usb/usb_common.h>
 #include <usb/usb_device.h>
 #include <usb_descriptor.h>
+#include <usb/usbstruct.h>
 #include <usb/class/usb_audio.h>
 #include "usb_audio_internal.h"
 
@@ -179,7 +181,7 @@ static uint8_t get_num_of_channels(const struct feature_unit_descriptor *fu)
  */
 static uint16_t get_controls(const struct feature_unit_descriptor *fu)
 {
-	return sys_get_le16((uint8_t *)&fu->bmaControls[0]);
+	return *(uint16_t *)((uint8_t *)fu + BMA_CONTROLS_OFFSET);
 }
 
 /**
@@ -219,9 +221,7 @@ static void fix_fu_descriptors(struct usb_if_descriptor *iface)
 
 	/* start from 1 as elem 0 is filled when descriptor is declared */
 	for (int i = 1; i < get_num_of_channels(fu); i++) {
-		(void)memcpy(&fu->bmaControls[i],
-			     &fu->bmaControls[0],
-			     sizeof(uint16_t));
+		*(fu->bmaControls + i) = fu->bmaControls[0];
 	}
 
 	if (header->bInCollection == 2) {
@@ -230,9 +230,7 @@ static void fix_fu_descriptors(struct usb_if_descriptor *iface)
 			INPUT_TERMINAL_DESC_SIZE +
 			OUTPUT_TERMINAL_DESC_SIZE);
 		for (int i = 1; i < get_num_of_channels(fu); i++) {
-			(void)memcpy(&fu->bmaControls[i],
-				     &fu->bmaControls[0],
-				     sizeof(uint16_t));
+			*(fu->bmaControls + i) = fu->bmaControls[0];
 		}
 	}
 }
@@ -691,10 +689,6 @@ static int audio_custom_handler(struct usb_setup_packet *pSetup, int32_t *len,
 
 	uint8_t iface = (pSetup->wIndex) & 0xFF;
 
-	if (pSetup->RequestType.recipient != USB_REQTYPE_RECIPIENT_INTERFACE) {
-		return -EINVAL;
-	}
-
 	audio_dev_data = get_audio_dev_data_by_iface(iface);
 	if (audio_dev_data == NULL) {
 		return -EINVAL;
@@ -730,15 +724,29 @@ static int audio_custom_handler(struct usb_setup_packet *pSetup, int32_t *len,
 						USB_FORMAT_TYPE_I_DESC_SIZE);
 	}
 
-	if (pSetup->bRequest == USB_SREQ_SET_INTERFACE) {
-		if (ep_desc->bEndpointAddress & USB_EP_DIR_MASK) {
-			audio_dev_data->tx_enable = pSetup->wValue;
-		} else {
-			audio_dev_data->rx_enable = pSetup->wValue;
+	if (REQTYPE_GET_RECIP(pSetup->bmRequestType) ==
+	    REQTYPE_RECIP_INTERFACE) {
+		switch (pSetup->bRequest) {
+		case REQ_SET_INTERFACE:
+			if (ep_desc->bEndpointAddress & USB_EP_DIR_MASK) {
+				audio_dev_data->tx_enable = pSetup->wValue;
+			} else {
+				audio_dev_data->rx_enable = pSetup->wValue;
+			}
+			return -EINVAL;
+		case REQ_GET_INTERFACE:
+			if (ep_desc->bEndpointAddress & USB_EP_DIR_MASK) {
+				*data[0] = audio_dev_data->tx_enable;
+			} else {
+				*data[0] = audio_dev_data->rx_enable;
+			}
+			return 0;
+		default:
+			break;
 		}
 	}
 
-	return -EINVAL;
+	return -ENOTSUP;
 }
 
 /**
@@ -757,8 +765,8 @@ static int audio_class_handle_req(struct usb_setup_packet *pSetup,
 		pSetup->bmRequestType, pSetup->bRequest, pSetup->wValue,
 		pSetup->wIndex, pSetup->wLength);
 
-	switch (pSetup->RequestType.recipient) {
-	case USB_REQTYPE_RECIPIENT_INTERFACE:
+	switch (REQTYPE_GET_RECIP(pSetup->bmRequestType)) {
+	case REQTYPE_RECIP_INTERFACE:
 		return handle_interface_req(pSetup, len, data);
 	default:
 		LOG_ERR("Request recipient invalid");

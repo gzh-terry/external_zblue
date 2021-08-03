@@ -48,6 +48,7 @@
 #include <dfu/flash_img.h>
 #include <sys/byteorder.h>
 #include <usb/usb_device.h>
+#include <usb/usb_common.h>
 #include <usb/class/usb_dfu.h>
 #include <usb_descriptor.h>
 #include <usb_work_q.h>
@@ -88,11 +89,11 @@ USBD_CLASS_DESCR_DEFINE(primary, 0) struct usb_dfu_config dfu_cfg = {
 	/* Interface descriptor */
 	.if0 = {
 		.bLength = sizeof(struct usb_if_descriptor),
-		.bDescriptorType = USB_DESC_INTERFACE,
+		.bDescriptorType = USB_INTERFACE_DESC,
 		.bInterfaceNumber = 0,
 		.bAlternateSetting = 0,
 		.bNumEndpoints = 0,
-		.bInterfaceClass = USB_BCC_APPLICATION,
+		.bInterfaceClass = DFU_DEVICE_CLASS,
 		.bInterfaceSubClass = DFU_SUBCLASS,
 		.bInterfaceProtocol = DFU_RT_PROTOCOL,
 		.iInterface = 0,
@@ -132,8 +133,8 @@ struct dev_dfu_mode_descriptor dfu_mode_desc = {
 	/* Device descriptor */
 	.device_descriptor = {
 		.bLength = sizeof(struct usb_device_descriptor),
-		.bDescriptorType = USB_DESC_DEVICE,
-		.bcdUSB = sys_cpu_to_le16(USB_SRN_2_0),
+		.bDescriptorType = USB_DEVICE_DESC,
+		.bcdUSB = sys_cpu_to_le16(USB_2_0),
 		.bDeviceClass = 0,
 		.bDeviceSubClass = 0,
 		.bDeviceProtocol = 0,
@@ -141,7 +142,7 @@ struct dev_dfu_mode_descriptor dfu_mode_desc = {
 		.idVendor = sys_cpu_to_le16((uint16_t)CONFIG_USB_DEVICE_VID),
 		.idProduct =
 			sys_cpu_to_le16((uint16_t)CONFIG_USB_DEVICE_DFU_PID),
-		.bcdDevice = sys_cpu_to_le16(USB_BCD_DRN),
+		.bcdDevice = sys_cpu_to_le16(BCDDEVICE_RELNUM),
 		.iManufacturer = 1,
 		.iProduct = 2,
 		.iSerialNumber = 3,
@@ -150,23 +151,23 @@ struct dev_dfu_mode_descriptor dfu_mode_desc = {
 	/* Configuration descriptor */
 	.cfg_descr = {
 		.bLength = sizeof(struct usb_cfg_descriptor),
-		.bDescriptorType = USB_DESC_CONFIGURATION,
+		.bDescriptorType = USB_CONFIGURATION_DESC,
 		.wTotalLength = 0,
 		.bNumInterfaces = 1,
 		.bConfigurationValue = 1,
 		.iConfiguration = 0,
-		.bmAttributes = USB_SCD_ATTRIBUTES,
+		.bmAttributes = USB_CONFIGURATION_ATTRIBUTES,
 		.bMaxPower = CONFIG_USB_MAX_POWER,
 	},
 	.sec_dfu_cfg = {
 		/* Interface descriptor */
 		.if0 = {
 			.bLength = sizeof(struct usb_if_descriptor),
-			.bDescriptorType = USB_DESC_INTERFACE,
+			.bDescriptorType = USB_INTERFACE_DESC,
 			.bInterfaceNumber = 0,
 			.bAlternateSetting = 0,
 			.bNumEndpoints = 0,
-			.bInterfaceClass = USB_BCC_APPLICATION,
+			.bInterfaceClass = DFU_DEVICE_CLASS,
 			.bInterfaceSubClass = DFU_SUBCLASS,
 			.bInterfaceProtocol = DFU_MODE_PROTOCOL,
 			.iInterface = 4,
@@ -174,11 +175,11 @@ struct dev_dfu_mode_descriptor dfu_mode_desc = {
 #if FLASH_AREA_LABEL_EXISTS(image_1)
 		.if1 = {
 			.bLength = sizeof(struct usb_if_descriptor),
-			.bDescriptorType = USB_DESC_INTERFACE,
+			.bDescriptorType = USB_INTERFACE_DESC,
 			.bInterfaceNumber = 0,
 			.bAlternateSetting = 1,
 			.bNumEndpoints = 0,
-			.bInterfaceClass = USB_BCC_APPLICATION,
+			.bInterfaceClass = DFU_DEVICE_CLASS,
 			.bInterfaceSubClass = DFU_SUBCLASS,
 			.bInterfaceProtocol = DFU_MODE_PROTOCOL,
 			.iInterface = 5,
@@ -240,34 +241,34 @@ USBD_STRING_DESCR_DEFINE(secondary)
 struct usb_string_desription string_descr = {
 	.lang_descr = {
 		.bLength = sizeof(struct usb_string_descriptor),
-		.bDescriptorType = USB_DESC_STRING,
+		.bDescriptorType = USB_STRING_DESC,
 		.bString = sys_cpu_to_le16(0x0409),
 	},
 	/* Manufacturer String Descriptor */
 	.utf16le_mfr = {
 		.bLength = USB_STRING_DESCRIPTOR_LENGTH(
 				CONFIG_USB_DEVICE_MANUFACTURER),
-		.bDescriptorType = USB_DESC_STRING,
+		.bDescriptorType = USB_STRING_DESC,
 		.bString = CONFIG_USB_DEVICE_MANUFACTURER,
 	},
 	/* Product String Descriptor */
 	.utf16le_product = {
 		.bLength = USB_STRING_DESCRIPTOR_LENGTH(
 				CONFIG_USB_DEVICE_PRODUCT),
-		.bDescriptorType = USB_DESC_STRING,
+		.bDescriptorType = USB_STRING_DESC,
 		.bString = CONFIG_USB_DEVICE_PRODUCT,
 	},
 	/* Serial Number String Descriptor */
 	.utf16le_sn = {
 		.bLength = USB_STRING_DESCRIPTOR_LENGTH(CONFIG_USB_DEVICE_SN),
-		.bDescriptorType = USB_DESC_STRING,
+		.bDescriptorType = USB_STRING_DESC,
 		.bString = CONFIG_USB_DEVICE_SN,
 	},
 	/* Image 0 String Descriptor */
 	.utf16le_image0 = {
 		.bLength = USB_STRING_DESCRIPTOR_LENGTH(
 				FIRMWARE_IMAGE_0_LABEL),
-		.bDescriptorType = USB_DESC_STRING,
+		.bDescriptorType = USB_STRING_DESC,
 		.bString = FIRMWARE_IMAGE_0_LABEL,
 	},
 #if FLASH_AREA_LABEL_EXISTS(image_1)
@@ -275,7 +276,7 @@ struct usb_string_desription string_descr = {
 	.utf16le_image1 = {
 		.bLength = USB_STRING_DESCRIPTOR_LENGTH(
 				FIRMWARE_IMAGE_1_LABEL),
-		.bDescriptorType = USB_DESC_STRING,
+		.bDescriptorType = USB_STRING_DESC,
 		.bString = FIRMWARE_IMAGE_1_LABEL,
 	},
 #endif
@@ -680,8 +681,9 @@ static int dfu_custom_handle_req(struct usb_setup_packet *pSetup,
 {
 	ARG_UNUSED(data);
 
-	if (pSetup->RequestType.recipient == USB_REQTYPE_RECIPIENT_INTERFACE) {
-		if (pSetup->bRequest == USB_SREQ_SET_INTERFACE) {
+	if (REQTYPE_GET_RECIP(pSetup->bmRequestType) ==
+	    REQTYPE_RECIP_INTERFACE) {
+		if (pSetup->bRequest == REQ_SET_INTERFACE) {
 			LOG_DBG("DFU alternate setting %d", pSetup->wValue);
 
 			const struct flash_area *fa;

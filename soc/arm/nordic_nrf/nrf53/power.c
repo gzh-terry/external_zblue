@@ -13,7 +13,7 @@
 LOG_MODULE_DECLARE(soc, CONFIG_SOC_LOG_LEVEL);
 
 /* Invoke Low Power/System Off specific Tasks */
-__weak void pm_power_state_set(struct pm_state_info info)
+void pm_power_state_set(struct pm_state_info info)
 {
 	switch (info.state) {
 	case PM_STATE_SOFT_OFF:
@@ -26,7 +26,7 @@ __weak void pm_power_state_set(struct pm_state_info info)
 }
 
 /* Handle SOC specific activity after Low Power Mode Exit */
-__weak void pm_power_state_exit_post_ops(struct pm_state_info info)
+void pm_power_state_exit_post_ops(struct pm_state_info info)
 {
 	switch (info.state) {
 	case PM_STATE_SOFT_OFF:

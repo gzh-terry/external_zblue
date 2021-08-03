@@ -12,9 +12,6 @@
 #include <stddef.h>
 #include <stdarg.h>
 #include <inttypes.h>
-#if defined(CONFIG_LOG_PRINTK) && defined(CONFIG_LOG2)
-#include <logging/log.h>
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,6 +47,7 @@ extern "C" {
 #ifdef CONFIG_PRINTK
 
 #if defined(CONFIG_LOG_PRINTK) && defined(CONFIG_LOG2)
+#include <logging/log.h>
 #define printk(...) Z_LOG_PRINTK(__VA_ARGS__)
 static inline __printf_like(1, 0) void vprintk(const char *fmt, va_list ap)
 {

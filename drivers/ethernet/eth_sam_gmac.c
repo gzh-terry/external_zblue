@@ -18,11 +18,7 @@
  * - no statistics collection
  */
 
-#if defined(CONFIG_SOC_FAMILY_SAM)
 #define DT_DRV_COMPAT atmel_sam_gmac
-#else
-#define DT_DRV_COMPAT atmel_sam0_gmac
-#endif
 
 #define LOG_MODULE_NAME eth_sam
 #define LOG_LEVEL CONFIG_ETHERNET_LOG_LEVEL
@@ -2218,18 +2214,18 @@ static void eth0_irq_config(void)
 }
 
 #ifdef CONFIG_SOC_FAMILY_SAM
-static const struct soc_gpio_pin pins_eth0[] = ATMEL_SAM_DT_INST_PINS(0);
+static const struct soc_gpio_pin pins_eth0[] = ATMEL_SAM_DT_PINS(0);
 #endif
 
 static const struct eth_sam_dev_cfg eth0_config = {
-	.regs = (Gmac *)DT_INST_REG_ADDR(0),
+	.regs = GMAC,
+	.periph_id = ID_GMAC,
 #ifdef CONFIG_SOC_FAMILY_SAM
-	.periph_id = DT_INST_PROP_OR(0, peripheral_id, 0),
 	.pin_list = pins_eth0,
 	.pin_list_size = ARRAY_SIZE(pins_eth0),
 #endif
 	.config_func = eth0_irq_config,
-	.phy = {(Gmac *)DT_INST_REG_ADDR(0), CONFIG_ETH_SAM_GMAC_PHY_ADDR},
+	.phy = {GMAC, CONFIG_ETH_SAM_GMAC_PHY_ADDR},
 };
 
 static struct eth_sam_dev_data eth0_data = {

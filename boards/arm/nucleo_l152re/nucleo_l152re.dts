@@ -117,7 +117,3 @@
 		pinctrl-0 = <&tim3_ch1_pa6>;
 	};
 };
-
-&dma1 {
-	status = "okay";
-};

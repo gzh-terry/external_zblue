@@ -37,9 +37,7 @@ function RunTest(){
     fi
 
     echo "Starting $testid as device #$idx"
-    conf=${conf:-prj_conf}
-    Execute \
-      ./bs_${BOARD}_tests_bluetooth_bsim_bt_bsim_test_mesh_${conf} \
+    Execute ./bs_${BOARD}_tests_bluetooth_bsim_bt_bsim_test_mesh_prj_conf \
       -v=${verbosity_level} -s=$1 -d=$idx -RealEncryption=1 \
       -testid=$testid
     let idx=idx+1
@@ -54,10 +52,7 @@ function RunTest(){
   for process_id in $process_ids; do
     wait $process_id || let "exit_code=$?"
   done
-
-  if [ "$exit_code" != "0" ] ; then
-    exit $exit_code #the last exit code != 0
-  fi
+  exit $exit_code #the last exit code != 0
 }
 
 : "${BSIM_OUT_PATH:?BSIM_OUT_PATH must be defined}"

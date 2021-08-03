@@ -37,7 +37,7 @@ struct uart_cc13xx_cc26xx_data {
 	bool rx_constrained;
 #endif
 #ifdef CONFIG_PM_DEVICE
-	enum pm_device_state pm_state;
+	uint32_t pm_state;
 #endif
 };
 
@@ -187,14 +187,12 @@ static int uart_cc13xx_cc26xx_configure(const struct device *dev,
 	return 0;
 }
 
-#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 static int uart_cc13xx_cc26xx_config_get(const struct device *dev,
 					 struct uart_config *cfg)
 {
 	*cfg = get_dev_data(dev)->uart_config;
 	return 0;
 }
-#endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 
@@ -241,7 +239,7 @@ static void uart_cc13xx_cc26xx_irq_tx_enable(const struct device *dev)
 		 * to transmit using the uart, hence we should no longer go
 		 * into standby.
 		 *
-		 * Instead of using pm_device_busy_set(), which currently does
+		 * Instead of using device_busy_set(), which currently does
 		 * not impact the PM policy, we specifically disable the
 		 * standby mode instead, since it is the power state that
 		 * would interfere with a transfer.
@@ -401,7 +399,7 @@ static int postNotifyFxn(unsigned int eventType, uintptr_t eventArg,
 
 #ifdef CONFIG_PM_DEVICE
 static int uart_cc13xx_cc26xx_set_power_state(const struct device *dev,
-					      enum pm_device_state new_state)
+					      uint32_t new_state)
 {
 	int ret = 0;
 
@@ -447,12 +445,13 @@ static int uart_cc13xx_cc26xx_set_power_state(const struct device *dev,
 
 static int uart_cc13xx_cc26xx_pm_control(const struct device *dev,
 					 uint32_t ctrl_command,
-					 enum pm_device_state *state)
+					 uint32_t *state, pm_device_cb cb,
+					 void *arg)
 {
 	int ret = 0;
 
 	if (ctrl_command == PM_DEVICE_STATE_SET) {
-		enum pm_device_state new_state = *state;
+		uint32_t new_state = *state;
 
 		if (new_state != get_dev_data(dev)->pm_state) {
 			ret = uart_cc13xx_cc26xx_set_power_state(dev,
@@ -463,6 +462,10 @@ static int uart_cc13xx_cc26xx_pm_control(const struct device *dev,
 		*state = get_dev_data(dev)->pm_state;
 	}
 
+	if (cb) {
+		cb(dev, ret, state, arg);
+	}
+
 	return ret;
 }
 #endif /* CONFIG_PM_DEVICE */
@@ -471,10 +474,8 @@ static const struct uart_driver_api uart_cc13xx_cc26xx_driver_api = {
 	.poll_in = uart_cc13xx_cc26xx_poll_in,
 	.poll_out = uart_cc13xx_cc26xx_poll_out,
 	.err_check = uart_cc13xx_cc26xx_err_check,
-#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 	.configure = uart_cc13xx_cc26xx_configure,
 	.config_get = uart_cc13xx_cc26xx_config_get,
-#endif
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	.fifo_fill = uart_cc13xx_cc26xx_fifo_fill,
 	.fifo_read = uart_cc13xx_cc26xx_fifo_read,

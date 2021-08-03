@@ -22,7 +22,7 @@ static K_QUEUE_DEFINE(recv);
 struct bt_mesh_test_stats test_stats;
 struct bt_mesh_msg_ctx test_send_ctx;
 
-static int msg_rx(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
+static void msg_rx(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 		   struct net_buf_simple *buf)
 {
 	size_t len = buf->len + BT_MESH_MODEL_OP_LEN(TEST_MSG_OP);
@@ -34,7 +34,7 @@ static int msg_rx(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 		seq = net_buf_simple_pull_u8(buf);
 		if (prev_seq == seq) {
 			FAIL("Received same message twice");
-			return -EINVAL;
+			return;
 		}
 
 		prev_seq = seq;
@@ -50,7 +50,7 @@ static int msg_rx(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	for (int i = 1; buf->len; i++) {
 		if (net_buf_simple_pull_u8(buf) != (i & 0xff)) {
 			FAIL("Invalid message content (byte %u)", i);
-			return -EINVAL;
+			return;
 		}
 	}
 
@@ -58,7 +58,7 @@ static int msg_rx(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 
 	if (k_mem_slab_alloc(&msg_pool, (void **)&msg, K_NO_WAIT)) {
 		test_stats.recv_overflow++;
-		return -EOVERFLOW;
+		return;
 	}
 
 	msg->len = len;
@@ -66,8 +66,6 @@ static int msg_rx(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	msg->ctx = *ctx;
 
 	k_queue_append(&recv, msg);
-
-	return 0;
 }
 
 static const struct bt_mesh_model_op model_op[] = {

@@ -53,7 +53,7 @@ struct st7789v_data {
 	uint16_t x_offset;
 	uint16_t y_offset;
 #ifdef CONFIG_PM_DEVICE
-	enum pm_device_state pm_state;
+	uint32_t pm_state;
 #endif
 };
 
@@ -409,7 +409,7 @@ static void st7789v_enter_sleep(struct st7789v_data *data)
 }
 
 static int st7789v_pm_control(const struct device *dev, uint32_t ctrl_command,
-				 enum pm_device_state *state)
+				 uint32_t *state, pm_device_cb cb, void *arg)
 {
 	int ret = 0;
 	struct st7789v_data *data = (struct st7789v_data *)dev->data;
@@ -433,6 +433,9 @@ static int st7789v_pm_control(const struct device *dev, uint32_t ctrl_command,
 		ret = -EINVAL;
 	}
 
+	if (cb != NULL) {
+		cb(dev, ret, state, arg);
+	}
 	return ret;
 }
 #endif /* CONFIG_PM_DEVICE */

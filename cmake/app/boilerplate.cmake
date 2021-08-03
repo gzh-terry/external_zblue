@@ -36,13 +36,6 @@ cmake_policy(SET CMP0002 NEW)
 # CMP0079: "target_link_libraries() allows use with targets in other directories"
 cmake_policy(SET CMP0079 OLD)
 
-# Use the old CMake behaviour until we are updating the CMake 3.20 as minimum
-# required. This ensure that CMake >=3.20 will be consistent with older CMakes.
-# CMP0116: Ninja generators transform DEPFILE s from add_custom_command().
-if(${CMAKE_VERSION} VERSION_GREATER_EQUAL 3.20)
-  cmake_policy(SET CMP0116 OLD)
-endif()
-
 define_property(GLOBAL PROPERTY ZEPHYR_LIBS
     BRIEF_DOCS "Global list of all Zephyr CMake libs that should be linked in"
     FULL_DOCS  "Global list of all Zephyr CMake libs that should be linked in.
@@ -609,11 +602,6 @@ endif()
 include(${ZEPHYR_BASE}/cmake/target_toolchain.cmake)
 
 project(Zephyr-Kernel VERSION ${PROJECT_VERSION})
-
-# Add .S file extension suffix into CMAKE_ASM_SOURCE_FILE_EXTENSIONS,
-# because clang from OneApi can't recongnize them as asm files on
-# windows now.
-list(APPEND CMAKE_ASM_SOURCE_FILE_EXTENSIONS "S")
 enable_language(C CXX ASM)
 # The setup / configuration of the toolchain itself and the configuration of
 # supported compilation flags are now split, as this allows to use the toolchain

@@ -55,7 +55,7 @@ static int dummy_resume_from_suspend(const struct device *dev)
 
 static int dummy_device_pm_ctrl(const struct device *dev,
 				uint32_t ctrl_command,
-				enum pm_device_state *state)
+				uint32_t *state, pm_device_cb cb, void *arg)
 {
 	int ret = 0;
 
@@ -73,6 +73,10 @@ static int dummy_device_pm_ctrl(const struct device *dev,
 	default:
 		ret = -EINVAL;
 
+	}
+
+	if (cb) {
+		cb(dev, ret, state, arg);
 	}
 
 	return ret;

@@ -63,8 +63,6 @@ features:
 +-----------+------------+----------------------+
 | Interface | Controller | Driver/Component     |
 +===========+============+======================+
-| CRYP      | on-chip    | crypto               |
-+-----------+------------+----------------------+
 | NVIC      | on-chip    | nested vectored      |
 |           |            | interrupt controller |
 +-----------+------------+----------------------+

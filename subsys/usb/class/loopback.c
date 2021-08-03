@@ -10,6 +10,7 @@
 
 #include <sys/byteorder.h>
 #include <usb/usb_device.h>
+#include <usb/usb_common.h>
 #include <usb_descriptor.h>
 
 #define LOG_LEVEL CONFIG_USB_DEVICE_LOG_LEVEL
@@ -35,11 +36,11 @@ USBD_CLASS_DESCR_DEFINE(primary, 0) struct usb_loopback_config loopback_cfg = {
 	/* Interface descriptor 0 */
 	.if0 = {
 		.bLength = sizeof(struct usb_if_descriptor),
-		.bDescriptorType = USB_DESC_INTERFACE,
+		.bDescriptorType = USB_INTERFACE_DESC,
 		.bInterfaceNumber = 0,
 		.bAlternateSetting = 0,
 		.bNumEndpoints = 2,
-		.bInterfaceClass = USB_BCC_VENDOR,
+		.bInterfaceClass = CUSTOM_CLASS,
 		.bInterfaceSubClass = 0,
 		.bInterfaceProtocol = 0,
 		.iInterface = 0,
@@ -48,7 +49,7 @@ USBD_CLASS_DESCR_DEFINE(primary, 0) struct usb_loopback_config loopback_cfg = {
 	/* Data Endpoint OUT */
 	.if0_out_ep = {
 		.bLength = sizeof(struct usb_ep_descriptor),
-		.bDescriptorType = USB_DESC_ENDPOINT,
+		.bDescriptorType = USB_ENDPOINT_DESC,
 		.bEndpointAddress = LOOPBACK_OUT_EP_ADDR,
 		.bmAttributes = USB_DC_EP_BULK,
 		.wMaxPacketSize = sys_cpu_to_le16(CONFIG_LOOPBACK_BULK_EP_MPS),
@@ -58,7 +59,7 @@ USBD_CLASS_DESCR_DEFINE(primary, 0) struct usb_loopback_config loopback_cfg = {
 	/* Data Endpoint IN */
 	.if0_in_ep = {
 		.bLength = sizeof(struct usb_ep_descriptor),
-		.bDescriptorType = USB_DESC_ENDPOINT,
+		.bDescriptorType = USB_ENDPOINT_DESC,
 		.bEndpointAddress = LOOPBACK_IN_EP_ADDR,
 		.bmAttributes = USB_DC_EP_BULK,
 		.wMaxPacketSize = sys_cpu_to_le16(CONFIG_LOOPBACK_BULK_EP_MPS),
@@ -128,17 +129,17 @@ static int loopback_vendor_handler(struct usb_setup_packet *setup,
 	LOG_DBG("Class request: bRequest 0x%x bmRequestType 0x%x len %d",
 		setup->bRequest, setup->bmRequestType, *len);
 
-	if (setup->RequestType.recipient != USB_REQTYPE_RECIPIENT_DEVICE) {
+	if (REQTYPE_GET_RECIP(setup->bmRequestType) != REQTYPE_RECIP_DEVICE) {
 		return -ENOTSUP;
 	}
 
-	if (usb_reqtype_is_to_device(setup) &&
+	if (REQTYPE_GET_DIR(setup->bmRequestType) == REQTYPE_DIR_TO_DEVICE &&
 	    setup->bRequest == 0x5b) {
 		LOG_DBG("Host-to-Device, data %p", *data);
 		return 0;
 	}
 
-	if ((usb_reqtype_is_to_host(setup)) &&
+	if ((REQTYPE_GET_DIR(setup->bmRequestType) == REQTYPE_DIR_TO_HOST) &&
 	    (setup->bRequest == 0x5c)) {
 		LOG_DBG("Device-to-Host, wLength %d, data %p",
 			setup->wLength, *data);

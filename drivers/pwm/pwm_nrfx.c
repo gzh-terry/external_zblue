@@ -288,12 +288,10 @@ static void pwm_nrfx_uninit(const struct device *dev)
 	const struct pwm_nrfx_config *config = dev->config;
 
 	nrfx_pwm_uninit(&config->pwm);
-
-	memset(dev->data, 0, sizeof(struct pwm_nrfx_data));
 }
 
-static int pwm_nrfx_set_power_state(enum pm_device_state new_state,
-				    enum pm_device_state current_state,
+static int pwm_nrfx_set_power_state(uint32_t new_state,
+				    uint32_t current_state,
 				    const struct device *dev)
 {
 	int err = 0;
@@ -319,13 +317,13 @@ static int pwm_nrfx_set_power_state(enum pm_device_state new_state,
 
 static int pwm_nrfx_pm_control(const struct device *dev,
 			       uint32_t ctrl_command,
-			       enum pm_device_state *state,
-			       enum pm_device_state *current_state)
+			       uint32_t *state,
+			       uint32_t *current_state)
 {
 	int err = 0;
 
 	if (ctrl_command == PM_DEVICE_STATE_SET) {
-		enum pm_device_state new_state = *state;
+		uint32_t new_state = *((const uint32_t *)state);
 
 		if (new_state != (*current_state)) {
 			err = pwm_nrfx_set_power_state(new_state,
@@ -346,12 +344,17 @@ static int pwm_nrfx_pm_control(const struct device *dev,
 #define PWM_NRFX_PM_CONTROL(idx)					\
 	static int pwm_##idx##_nrfx_pm_control(const struct device *dev,	\
 					       uint32_t ctrl_command,	\
-					       enum pm_device_state *state)	\
+					       uint32_t *state,		\
+					       pm_device_cb cb,		\
+					       void *arg)		\
 	{								\
-		static enum pm_device_state current_state = PM_DEVICE_STATE_ACTIVE; \
+		static uint32_t current_state = PM_DEVICE_STATE_ACTIVE;	\
 		int ret = 0;                                            \
 		ret = pwm_nrfx_pm_control(dev, ctrl_command, state,	\
 					   &current_state);		\
+		if (cb) {                                               \
+			cb(dev, ret, state, arg);                       \
+		}                                                       \
 		return ret;                                             \
 	}
 #else

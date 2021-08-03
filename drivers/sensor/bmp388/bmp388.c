@@ -353,7 +353,7 @@ static int bmp388_sample_fetch(const struct device *dev,
 	}
 #endif
 
-	pm_device_busy_set(dev);
+	device_busy_set(dev);
 
 	/* Wait for status to indicate that data is ready. */
 	raw[0] = 0U;
@@ -382,7 +382,7 @@ static int bmp388_sample_fetch(const struct device *dev,
 	bmp388->sample.comp_temp = 0;
 
 error:
-	pm_device_busy_clear(dev);
+	device_busy_clear(dev);
 	return ret;
 }
 
@@ -546,7 +546,7 @@ static int bmp388_get_calibration_data(const struct device *dev)
 
 #ifdef CONFIG_PM_DEVICE
 static int bmp388_set_power_state(const struct device *dev,
-				  enum pm_device_state power_state)
+				  uint32_t power_state)
 {
 	uint8_t reg_val;
 
@@ -589,7 +589,9 @@ static uint32_t bmp388_get_power_state(const struct device *dev)
 static int bmp388_device_ctrl(
 	const struct device *dev,
 	uint32_t ctrl_command,
-	enum pm_device_state *state)
+	uint32_t *state,
+	pm_device_cb cb,
+	void *arg)
 {
 	int ret = 0;
 
@@ -599,6 +601,9 @@ static int bmp388_device_ctrl(
 		*state = bmp388_get_power_state(dev);
 	}
 
+	if (cb) {
+		cb(dev, ret, state, arg);
+	}
 	return ret;
 }
 #endif /* CONFIG_PM_DEVICE */

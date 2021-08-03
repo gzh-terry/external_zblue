@@ -34,4 +34,3 @@ Peripherals
    uart.rst
    watchdog.rst
    video.rst
-   espi.rst

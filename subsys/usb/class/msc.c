@@ -41,6 +41,7 @@
 #include <storage/disk_access.h>
 #include <usb/class/usb_msc.h>
 #include <usb/usb_device.h>
+#include <usb/usb_common.h>
 #include <usb_descriptor.h>
 
 #define LOG_LEVEL CONFIG_USB_MASS_STORAGE_LOG_LEVEL
@@ -70,19 +71,19 @@ USBD_CLASS_DESCR_DEFINE(primary, 0) struct usb_mass_config mass_cfg = {
 	/* Interface descriptor */
 	.if0 = {
 		.bLength = sizeof(struct usb_if_descriptor),
-		.bDescriptorType = USB_DESC_INTERFACE,
+		.bDescriptorType = USB_INTERFACE_DESC,
 		.bInterfaceNumber = 0,
 		.bAlternateSetting = 0,
 		.bNumEndpoints = 2,
-		.bInterfaceClass = USB_BCC_MASS_STORAGE,
+		.bInterfaceClass = MASS_STORAGE_CLASS,
 		.bInterfaceSubClass = SCSI_TRANSPARENT_SUBCLASS,
-		.bInterfaceProtocol = BULK_ONLY_TRANSPORT_PROTOCOL,
+		.bInterfaceProtocol = BULK_ONLY_PROTOCOL,
 		.iInterface = 0,
 	},
 	/* First Endpoint IN */
 	.if0_in_ep = {
 		.bLength = sizeof(struct usb_ep_descriptor),
-		.bDescriptorType = USB_DESC_ENDPOINT,
+		.bDescriptorType = USB_ENDPOINT_DESC,
 		.bEndpointAddress = MASS_STORAGE_IN_EP_ADDR,
 		.bmAttributes = USB_DC_EP_BULK,
 		.wMaxPacketSize =
@@ -92,7 +93,7 @@ USBD_CLASS_DESCR_DEFINE(primary, 0) struct usb_mass_config mass_cfg = {
 	/* Second Endpoint OUT */
 	.if0_out_ep = {
 		.bLength = sizeof(struct usb_ep_descriptor),
-		.bDescriptorType = USB_DESC_ENDPOINT,
+		.bDescriptorType = USB_ENDPOINT_DESC,
 		.bEndpointAddress = MASS_STORAGE_OUT_EP_ADDR,
 		.bmAttributes = USB_DC_EP_BULK,
 		.wMaxPacketSize =
