@@ -2628,9 +2628,9 @@ static uint8_t smp_master_ident(struct bt_smp *smp, struct net_buf *buf)
 
 		memcpy(keys->ltk.ediv, req->ediv, sizeof(keys->ltk.ediv));
 		memcpy(keys->ltk.rand, req->rand, sizeof(req->rand));
-
-		smp->remote_dist &= ~BT_SMP_DIST_ENC_KEY;
 	}
+
+	smp->remote_dist &= ~BT_SMP_DIST_ENC_KEY;
 
 	if (smp->remote_dist & BT_SMP_DIST_ID_KEY) {
 		atomic_set_bit(smp->allowed_cmds, BT_SMP_CMD_IDENT_INFO);
@@ -5639,10 +5639,6 @@ int bt_smp_start_security(struct bt_conn *conn)
 			return -ENOTCONN;
 		}
 
-		if (!smp_keys_check(conn)) {
-			return smp_send_pairing_req(conn);
-		}
-
 		/* pairing is in progress */
 		if (atomic_test_bit(smp->flags, SMP_FLAG_PAIRING)) {
 			return -EBUSY;
@@ -5651,6 +5647,10 @@ int bt_smp_start_security(struct bt_conn *conn)
 		/* Encryption is in progress */
 		if (atomic_test_bit(smp->flags, SMP_FLAG_ENC_PENDING)) {
 			return -EBUSY;
+		}
+
+		if (!smp_keys_check(conn)) {
+			return smp_send_pairing_req(conn);
 		}
 
 		/* LE SC LTK and legacy master LTK are stored in same place */

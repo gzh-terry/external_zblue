@@ -160,10 +160,6 @@
 	}
 #endif
 
-#ifndef BUILD_ASSERT_MSG
-#define BUILD_ASSERT_MSG(EXPR, MSG) __DEPRECATED_MACRO BUILD_ASSERT(EXPR, MSG)
-#endif
-
 /*
  * This is meant to be used in conjunction with __in_section() and similar
  * where scattered structure instances are concatenated together by the linker
@@ -183,32 +179,58 @@
  */
 #define Z_DECL_ALIGN(type) __aligned(__alignof(type)) type
 
-/*
+/**
+ * @brief Iterable Sections APIs
+ * @defgroup iterable_section_apis Iterable Sections APIs
+ * @{
+ */
+
+/**
+ * @brief Defines a new iterable section.
+ *
+ * @details
  * Convenience helper combining __in_section() and Z_DECL_ALIGN().
  * The section name is the struct type prepended with an underscore.
  * The subsection is "static" and the subsubsection is the variable name.
  *
  * In the linker script, create output sections for these using
- * Z_ITERABLE_SECTION_ROM or Z_ITERABLE_SECTION_RAM.
+ * ITERABLE_SECTION_ROM() or ITERABLE_SECTION_RAM().
  */
+#define STRUCT_SECTION_ITERABLE(struct_type, name) \
+	Z_STRUCT_SECTION_ITERABLE(struct_type, name)
+
 #define Z_STRUCT_SECTION_ITERABLE(struct_type, name) \
 	Z_DECL_ALIGN(struct struct_type) name \
 	__in_section(_##struct_type, static, name) __used
 
-/* Special variant of Z_STRUCT_SECTION_ITERABLE, for placing alternate
+/**
+ * @brief Defines an alternate data type iterable section.
+ *
+ * @details
+ * Special variant of STRUCT_SECTION_ITERABLE(), for placing alternate
  * data types within the iterable section of a specific data type. The
  * data type sizes and semantics must be equivalent!
  */
+#define STRUCT_SECTION_ITERABLE_ALTERNATE(out_type, struct_type, name) \
+	Z_STRUCT_SECTION_ITERABLE_ALTERNATE(out_type, struct_type, name)
+
 #define Z_STRUCT_SECTION_ITERABLE_ALTERNATE(out_type, struct_type, name) \
 	Z_DECL_ALIGN(struct struct_type) name \
 	__in_section(_##out_type, static, name) __used
 
-/*
- * Iterator for structure instances gathered by Z_STRUCT_SECTION_ITERABLE().
+/**
+ * @brief Iterate over a specified iterable section.
+ *
+ * @details
+ * Iterator for structure instances gathered by STRUCT_SECTION_ITERABLE().
  * The linker must provide a _<struct_type>_list_start symbol and a
  * _<struct_type>_list_end symbol to mark the start and the end of the
- * list of struct objects to iterate over.
+ * list of struct objects to iterate over. This is normally done using
+ * ITERABLE_SECTION_ROM() or ITERABLE_SECTION_RAM() in the linker script.
  */
+#define STRUCT_SECTION_FOREACH(struct_type, iterator) \
+	Z_STRUCT_SECTION_FOREACH(struct_type, iterator)
+
 #define Z_STRUCT_SECTION_FOREACH(struct_type, iterator) \
 	extern struct struct_type _CONCAT(_##struct_type, _list_start)[]; \
 	extern struct struct_type _CONCAT(_##struct_type, _list_end)[]; \
@@ -218,5 +240,9 @@
 			 "unexpected list end location"); \
 		iterator < _CONCAT(_##struct_type, _list_end); }); \
 	     iterator++)
+
+/**
+ * @}
+ */ /* end of struct_section_apis */
 
 #endif /* ZEPHYR_INCLUDE_TOOLCHAIN_COMMON_H_ */

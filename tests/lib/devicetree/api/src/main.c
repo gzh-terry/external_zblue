@@ -28,6 +28,8 @@
  * - DT_INST_IO_CHANNELS_LABEL
  * - DT_INST_DMAS_LABEL_BY_IDX
  * - DT_INST_DMAS_LABEL_BY_NAME
+ * - DT_ENUM_TOKEN
+ * - DT_ENUM_UPPER_TOKEN
  */
 #define __DEPRECATED_MACRO
 
@@ -1252,6 +1254,53 @@ static void test_arrays(void)
 	zassert_equal(DT_PROP_LEN(TEST_ARRAYS, c), 2, "");
 }
 
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT vnd_gpio
+static void test_foreach_status_okay(void)
+{
+	/*
+	 * For-each-node type macro tests.
+	 *
+	 * See test_foreach_prop_elem*() for tests of
+	 * for-each-property type macros.
+	 */
+	unsigned int val;
+
+	/*
+	 * Make sure DT_INST_FOREACH_STATUS_OKAY can be called from functions
+	 * using macros with side effects in the current scope.
+	 */
+	val = 0;
+#define INC(inst_ignored) do { val++; } while (0);
+	DT_INST_FOREACH_STATUS_OKAY(INC)
+	zassert_equal(val, 2, "");
+#undef INC
+
+	val = 0;
+#define INC_ARG(arg) do { val++; val += arg; } while (0)
+#define INC(inst_ignored, arg) INC_ARG(arg);
+	DT_INST_FOREACH_STATUS_OKAY_VARGS(INC, 1)
+	zassert_equal(val, 4, "");
+#undef INC_ARG
+#undef INC
+
+	/*
+	 * Make sure DT_INST_FOREACH_STATUS_OKAY works with 0 instances, and does
+	 * not expand its argument at all.
+	 */
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT xxxx
+#define BUILD_BUG_ON_EXPANSION (there is a bug in devicetree.h)
+	DT_INST_FOREACH_STATUS_OKAY(BUILD_BUG_ON_EXPANSION)
+#undef BUILD_BUG_ON_EXPANSION
+
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT xxxx
+#define BUILD_BUG_ON_EXPANSION(arg) (there is a bug in devicetree.h)
+	DT_INST_FOREACH_STATUS_OKAY_VARGS(BUILD_BUG_ON_EXPANSION, 1)
+#undef BUILD_BUG_ON_EXPANSION
+}
+
 static void test_foreach_prop_elem(void)
 {
 #define TIMES_TWO(node_id, prop, idx) \
@@ -1271,6 +1320,34 @@ static void test_foreach_prop_elem(void)
 
 	int inst_array[] = {
 		DT_INST_FOREACH_PROP_ELEM(0, a, TIMES_TWO)
+	};
+
+	zassert_equal(ARRAY_SIZE(inst_array), ARRAY_SIZE(array), "");
+	zassert_equal(inst_array[0], array[0], "");
+	zassert_equal(inst_array[1], array[1], "");
+	zassert_equal(inst_array[2], array[2], "");
+#undef TIMES_TWO
+}
+
+static void test_foreach_prop_elem_varg(void)
+{
+#define TIMES_TWO_ADD(node_id, prop, idx, arg) \
+	((2 * DT_PROP_BY_IDX(node_id, prop, idx)) + arg),
+
+	int array[] = {
+		DT_FOREACH_PROP_ELEM_VARGS(TEST_ARRAYS, a, TIMES_TWO_ADD, 3)
+	};
+
+	zassert_equal(ARRAY_SIZE(array), 3, "");
+	zassert_equal(array[0], 2003, "");
+	zassert_equal(array[1], 4003, "");
+	zassert_equal(array[2], 6003, "");
+
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT vnd_array_holder
+
+	int inst_array[] = {
+		DT_INST_FOREACH_PROP_ELEM_VARGS(0, a, TIMES_TWO_ADD, 3)
 	};
 
 	zassert_equal(ARRAY_SIZE(inst_array), ARRAY_SIZE(array), "");
@@ -1339,7 +1416,6 @@ static void test_devices(void)
 	const struct device *devs[3];
 	int i = 0;
 	const struct device *dev_abcd;
-	unsigned int val;
 
 	zassert_equal(DT_NUM_INST_STATUS_OKAY(vnd_gpio), 2, "");
 
@@ -1369,24 +1445,6 @@ static void test_devices(void)
 	zassert_not_null(dev_abcd, "");
 	zassert_equal(to_info(dev_abcd)->reg_addr, 0xabcd1234, "");
 	zassert_equal(to_info(dev_abcd)->reg_len, 0x500, "");
-
-	/*
-	 * Make sure DT_INST_FOREACH_STATUS_OKAY can be called from functions
-	 * using macros with side effects in the current scope.
-	 */
-	val = 0;
-#define INC(inst_ignored) do { val++; } while (0);
-	DT_INST_FOREACH_STATUS_OKAY(INC)
-	zassert_equal(val, 2, "");
-
-	/*
-	 * Make sure DT_INST_FOREACH_STATUS_OKAY works with 0 instances, and does
-	 * not expand its argument at all.
-	 */
-#undef DT_DRV_COMPAT
-#define DT_DRV_COMPAT xxxx
-#define BUILD_BUG_ON_EXPANSION (there is a bug in devicetree.h)
-	DT_INST_FOREACH_STATUS_OKAY(BUILD_BUG_ON_EXPANSION)
 }
 
 static void test_cs_gpios(void)
@@ -1576,8 +1634,6 @@ static void test_child_nodes_list(void)
 	zassert_equal(ARRAY_SIZE(vals_inst), 3, "");
 	zassert_equal(ARRAY_SIZE(vals_status_okay), 2, "");
 
-	zassert_false(strlen(STRINGIFY(TEST_PARENT)) == 0, "");
-
 	zassert_equal(vals[0].val, 0, "");
 	zassert_equal(vals[1].val, 1, "");
 	zassert_equal(vals[2].val, 2, "");
@@ -1586,6 +1642,46 @@ static void test_child_nodes_list(void)
 	zassert_equal(vals_inst[2].val, 2, "");
 	zassert_equal(vals_status_okay[0].val, 0, "");
 	zassert_equal(vals_status_okay[1].val, 1, "");
+
+	#undef TEST_PARENT
+	#undef TEST_FUNC
+}
+
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT vnd_child_bindings
+static void test_child_nodes_list_varg(void)
+{
+	#define TEST_FUNC(child, arg) { DT_PROP(child, val) + arg },
+	#define TEST_PARENT DT_PARENT(DT_NODELABEL(test_child_a))
+
+	struct vnd_child_binding {
+		int val;
+	};
+
+	struct vnd_child_binding vals[] = {
+		DT_FOREACH_CHILD_VARGS(TEST_PARENT, TEST_FUNC, 1)
+	};
+
+	struct vnd_child_binding vals_inst[] = {
+		DT_INST_FOREACH_CHILD_VARGS(0, TEST_FUNC, 1)
+	};
+
+	struct vnd_child_binding vals_status_okay[] = {
+		DT_FOREACH_CHILD_STATUS_OKAY_VARGS(TEST_PARENT, TEST_FUNC, 1)
+	};
+
+	zassert_equal(ARRAY_SIZE(vals), 3, "");
+	zassert_equal(ARRAY_SIZE(vals_inst), 3, "");
+	zassert_equal(ARRAY_SIZE(vals_status_okay), 2, "");
+
+	zassert_equal(vals[0].val, 1, "");
+	zassert_equal(vals[1].val, 2, "");
+	zassert_equal(vals[2].val, 3, "");
+	zassert_equal(vals_inst[0].val, 1, "");
+	zassert_equal(vals_inst[1].val, 2, "");
+	zassert_equal(vals_inst[2].val, 3, "");
+	zassert_equal(vals_status_okay[0].val, 1, "");
+	zassert_equal(vals_status_okay[1].val, 2, "");
 
 	#undef TEST_PARENT
 	#undef TEST_FUNC
@@ -1817,7 +1913,9 @@ void test_main(void)
 			 ztest_unit_test(test_pwms),
 			 ztest_unit_test(test_macro_names),
 			 ztest_unit_test(test_arrays),
+			 ztest_unit_test(test_foreach_status_okay),
 			 ztest_unit_test(test_foreach_prop_elem),
+			 ztest_unit_test(test_foreach_prop_elem_varg),
 			 ztest_unit_test(test_devices),
 			 ztest_unit_test(test_cs_gpios),
 			 ztest_unit_test(test_chosen),
@@ -1826,6 +1924,7 @@ void test_main(void)
 			 ztest_unit_test(test_clocks),
 			 ztest_unit_test(test_parent),
 			 ztest_unit_test(test_child_nodes_list),
+			 ztest_unit_test(test_child_nodes_list_varg),
 			 ztest_unit_test(test_great_grandchild),
 			 ztest_unit_test(test_compat_get_any_status_okay),
 			 ztest_unit_test(test_dep_ord),

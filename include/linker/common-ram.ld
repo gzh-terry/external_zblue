@@ -5,7 +5,8 @@
 #define NETWORK_RAM_SECTIONS \
 	Z_ITERABLE_SECTION_RAM(net_if, 4) \
 	Z_ITERABLE_SECTION_RAM(net_if_dev, 4) \
-	Z_ITERABLE_SECTION_RAM(net_l2, 4)
+	Z_ITERABLE_SECTION_RAM(net_l2, 4) \
+	Z_ITERABLE_SECTION_RAM(eth_bridge, 4)
 #endif
 #endif /* NETWORKING */
 
@@ -21,21 +22,6 @@
 		*(_SW_ISR_TABLE_SECTION_SYMS)
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
 #endif
-
-	SECTION_DATA_PROLOGUE(devices,,)
-	{
-		/* link in devices objects, which are tied to the init ones;
-		 * the objects are thus sorted the same way as their init
-		 * object parent see include/device.h
-		 */
-		__device_start = .;
-		CREATE_OBJ_LEVEL(device, PRE_KERNEL_1)
-		CREATE_OBJ_LEVEL(device, PRE_KERNEL_2)
-		CREATE_OBJ_LEVEL(device, POST_KERNEL)
-		CREATE_OBJ_LEVEL(device, APPLICATION)
-		CREATE_OBJ_LEVEL(device, SMP)
-		__device_end = .;
-	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
 
 #if CONFIG_PM_DEVICE
 	SECTION_DATA_PROLOGUE(pm_device_slots, (NOLOAD),)

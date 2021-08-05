@@ -26,6 +26,7 @@
 
 #include "util/util.h"
 #include "util/memq.h"
+#include "util/mem.h"
 
 #include "hal/ecb.h"
 #include "hal/ccm.h"
@@ -2658,7 +2659,7 @@ static void le_df_connectionless_iq_report(struct pdu_data *pdu_rx,
 	sep->rssi_ant_id = iq_report->rssi_ant_id;
 	sep->cte_type = iq_report->cte_info.type;
 
-	sep->chan_idx = lll->data_chan_id;
+	sep->chan_idx = iq_report->chan_idx;
 	sep->per_evt_counter = sys_cpu_to_le16(lll->event_counter);
 
 	if (sep->cte_type == BT_HCI_LE_AOA_CTE) {
@@ -3107,13 +3108,6 @@ static void le_set_ext_scan_param(struct net_buf *buf, struct net_buf **evt)
 		return;
 	}
 
-	/* TODO: add parameter checks */
-
-	own_addr_type = cmd->own_addr_type;
-	filter_policy = cmd->filter_policy;
-	phys = cmd->phys;
-	p = cmd->p;
-
 	/* Number of bits set indicate scan sets to be configured by calling
 	 * ll_scan_params_set function.
 	 */
@@ -3121,6 +3115,18 @@ static void le_set_ext_scan_param(struct net_buf *buf, struct net_buf **evt)
 	if (IS_ENABLED(CONFIG_BT_CTLR_PHY_CODED)) {
 		phys_bitmask |= BT_HCI_LE_EXT_SCAN_PHY_CODED;
 	}
+
+	phys = cmd->phys;
+	if (IS_ENABLED(CONFIG_BT_CTLR_PARAM_CHECK) &&
+	    (phys > phys_bitmask)) {
+		*evt = cmd_complete_status(BT_HCI_ERR_UNSUPP_FEATURE_PARAM_VAL);
+
+		return;
+	}
+
+	own_addr_type = cmd->own_addr_type;
+	filter_policy = cmd->filter_policy;
+	p = cmd->p;
 
 	/* Irrespective of enabled PHYs to scan for, ll_scan_params_set needs
 	 * to be called to initialise the scan sets.
@@ -3203,6 +3209,10 @@ static void le_per_adv_create_sync(struct net_buf *buf, struct net_buf **evt)
 	uint8_t status;
 	uint16_t skip;
 
+	if (adv_cmds_ext_check(evt)) {
+		return;
+	}
+
 	skip = sys_le16_to_cpu(cmd->skip);
 	sync_timeout = sys_le16_to_cpu(cmd->sync_timeout);
 
@@ -3219,6 +3229,10 @@ static void le_per_adv_create_sync_cancel(struct net_buf *buf,
 	struct bt_hci_evt_cc_status *ccst;
 	uint8_t status;
 
+	if (adv_cmds_ext_check(evt)) {
+		return;
+	}
+
 	status = ll_sync_create_cancel(node_rx);
 
 	ccst = hci_cmd_complete(evt, sizeof(*ccst));
@@ -3231,6 +3245,10 @@ static void le_per_adv_terminate_sync(struct net_buf *buf, struct net_buf **evt)
 	struct bt_hci_evt_cc_status *ccst;
 	uint16_t handle;
 	uint8_t status;
+
+	if (adv_cmds_ext_check(evt)) {
+		return;
+	}
 
 	handle = sys_le16_to_cpu(cmd->handle);
 
@@ -3275,15 +3293,6 @@ static void le_ext_create_connection(struct net_buf *buf, struct net_buf **evt)
 		return;
 	}
 
-	/* TODO: add additional parameter checks */
-
-	filter_policy = cmd->filter_policy;
-	own_addr_type = cmd->own_addr_type;
-	peer_addr_type = cmd->peer_addr.type;
-	peer_addr = cmd->peer_addr.a.val;
-	phys = cmd->phys;
-	p = cmd->p;
-
 	/* Number of bits set indicate scan sets to be configured by calling
 	 * ll_create_connection function.
 	 */
@@ -3291,6 +3300,20 @@ static void le_ext_create_connection(struct net_buf *buf, struct net_buf **evt)
 	if (IS_ENABLED(CONFIG_BT_CTLR_PHY_CODED)) {
 		phys_bitmask |= BT_HCI_LE_EXT_SCAN_PHY_CODED;
 	}
+
+	phys = cmd->phys;
+	if (IS_ENABLED(CONFIG_BT_CTLR_PARAM_CHECK) &&
+	    (phys > phys_bitmask)) {
+		*evt = cmd_status(BT_HCI_ERR_UNSUPP_FEATURE_PARAM_VAL);
+
+		return;
+	}
+
+	filter_policy = cmd->filter_policy;
+	own_addr_type = cmd->own_addr_type;
+	peer_addr_type = cmd->peer_addr.type;
+	peer_addr = cmd->peer_addr.a.val;
+	p = cmd->p;
 
 	do {
 		uint16_t supervision_timeout;
@@ -4896,7 +4919,7 @@ static void le_ext_adv_report(struct pdu_data *pdu_data,
 	int8_t rssi;
 
 #if defined(CONFIG_BT_CTLR_PRIVACY)
-	uint8_t rl_idx;
+	uint8_t rl_idx = ll_rl_size_get();
 #endif /* CONFIG_BT_CTLR_PRIVACY */
 
 	if (!(event_mask & BT_EVT_MASK_LE_META_EVENT) ||
@@ -4927,7 +4950,7 @@ static void le_ext_adv_report(struct pdu_data *pdu_data,
 		rssi = -(node_rx_curr->hdr.rx_ftr.rssi);
 
 #if defined(CONFIG_BT_CTLR_PRIVACY)
-		rl_idx = node_rx_curr->hdr.rx_ftr.rl_idx;
+		uint8_t rl_idx_curr = node_rx_curr->hdr.rx_ftr.rl_idx;
 #endif /* CONFIG_BT_CTLR_PRIVACY */
 
 		BT_DBG("phy= 0x%x, type= 0x%x, len= %u, tat= %u, rat= %u,"
@@ -5018,9 +5041,13 @@ static void le_ext_adv_report(struct pdu_data *pdu_data,
 			       sys_le16_to_cpu(si->offs),
 			       si->offs_units,
 			       sys_le16_to_cpu(si->interval),
-			       (si->sca_chm[4] >> 5),
+			       ((si->sca_chm[PDU_SYNC_INFO_SCA_CHM_SCA_BYTE_OFFSET] &
+				 PDU_SYNC_INFO_SCA_CHM_SCA_BIT_MASK) >>
+				PDU_SYNC_INFO_SCA_CHM_SCA_BIT_POS),
 			       si->sca_chm[0], si->sca_chm[1], si->sca_chm[2],
-			       si->sca_chm[3], (si->sca_chm[4] & 0x3F),
+			       si->sca_chm[3],
+			       (si->sca_chm[PDU_SYNC_INFO_SCA_CHM_SCA_BYTE_OFFSET] &
+				~PDU_SYNC_INFO_SCA_CHM_SCA_BIT_MASK),
 			       sys_le32_to_cpu(si->aa),
 			       si->crc_init[0], si->crc_init[1],
 			       si->crc_init[2], sys_le16_to_cpu(si->evt_cntr));
@@ -5074,6 +5101,9 @@ no_ext_hdr:
 			data_len = data_len_curr;
 			total_data_len = data_len;
 			data = data_curr;
+#if defined(CONFIG_BT_CTLR_PRIVACY)
+			rl_idx = rl_idx_curr;
+#endif /* CONFIG_BT_CTLR_PRIVACY */
 		} else {
 			/* TODO: Validate current value with previous, also
 			 * detect the scan response in the list of node_rx.
@@ -5100,6 +5130,11 @@ no_ext_hdr:
 				 * fragment.
 				 */
 			}
+#if defined(CONFIG_BT_CTLR_PRIVACY)
+			if (rl_idx >= ll_rl_size_get()) {
+				rl_idx = rl_idx_curr;
+			}
+#endif /* CONFIG_BT_CTLR_PRIVACY */
 		}
 
 		if (!node_rx_next) {
@@ -5179,7 +5214,7 @@ no_ext_hdr:
 	adv_info = (void *)(((uint8_t *)sep) + sizeof(*sep));
 
 	/* Set directed advertising bit */
-	if ((evt_type == BT_HCI_LE_ADV_EVT_TYPE_CONN) && direct_addr) {
+	if (direct_addr) {
 		evt_type |= BT_HCI_LE_ADV_EVT_TYPE_DIRECT;
 	}
 
@@ -5209,7 +5244,7 @@ no_ext_hdr:
 
 	adv_info->prim_phy = find_lsb_set(phy);
 	adv_info->sec_phy = sec_phy;
-	adv_info->sid = (adi) ? adi->sid : 0U;
+	adv_info->sid = (adi) ? adi->sid : BT_HCI_LE_EXT_ADV_SID_INVALID;
 	adv_info->tx_power = tx_pwr;
 	adv_info->rssi = rssi;
 	adv_info->interval = interval_le16;
@@ -5317,11 +5352,11 @@ static void le_per_adv_sync_report(struct pdu_data *pdu_data,
 	struct bt_hci_evt_le_per_advertising_report *sep;
 	int8_t tx_pwr = BT_HCI_LE_ADV_TX_POWER_NO_PREF;
 	struct pdu_adv *adv = (void *)pdu_data;
+	uint8_t cte_type = BT_HCI_LE_NO_CTE;
 	struct node_rx_pdu *node_rx_curr;
 	struct node_rx_pdu *node_rx_next;
 	uint8_t total_data_len = 0U;
 	uint8_t data_status = 0U;
-	uint8_t cte_type = 0U;
 	uint8_t data_len = 0U;
 	uint8_t *data = NULL;
 	uint8_t data_max_len;

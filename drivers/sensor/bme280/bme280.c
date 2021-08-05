@@ -55,10 +55,6 @@ struct bme280_data {
 	int32_t t_fine;
 
 	uint8_t chip_id;
-
-#ifdef CONFIG_PM_DEVICE
-	uint32_t pm_state; /* Current power state */
-#endif
 };
 
 struct bme280_config {
@@ -170,6 +166,23 @@ static void bme280_compensate_humidity(struct bme280_data *data,
 	data->comp_humidity = (uint32_t)(h >> 12);
 }
 
+static int bme280_wait_until_ready(const struct device *dev)
+{
+	uint8_t status = 0;
+	int ret;
+
+	/* Wait for NVM to copy and and measurement to be completed */
+	do {
+		k_sleep(K_MSEC(3));
+		ret = bme280_reg_read(dev, BME280_REG_STATUS, &status, 1);
+		if (ret < 0) {
+			return ret;
+		}
+	} while (status & (BME280_STATUS_MEASURING | BME280_STATUS_IM_UPDATE));
+
+	return 0;
+}
+
 static int bme280_sample_fetch(const struct device *dev,
 			       enum sensor_channel chan)
 {
@@ -182,8 +195,10 @@ static int bme280_sample_fetch(const struct device *dev,
 	__ASSERT_NO_MSG(chan == SENSOR_CHAN_ALL);
 
 #ifdef CONFIG_PM_DEVICE
-	/* Do not allow sample fetching from OFF state */
-	if (data->pm_state == PM_DEVICE_STATE_OFF)
+	enum pm_device_state state;
+	(void)pm_device_state_get(dev, &state);
+	/* Do not allow sample fetching from suspended state */
+	if (state == PM_DEVICE_STATE_SUSPENDED)
 		return -EIO;
 #endif
 
@@ -192,15 +207,12 @@ static int bme280_sample_fetch(const struct device *dev,
 	if (ret < 0) {
 		return ret;
 	}
-
-	do {
-		k_sleep(K_MSEC(3));
-		ret = bme280_reg_read(dev, BME280_REG_STATUS, buf, 1);
-		if (ret < 0) {
-			return ret;
-		}
-	} while (buf[0] & 0x08);
 #endif
+
+	ret = bme280_wait_until_ready(dev);
+	if (ret < 0) {
+		return ret;
+	}
 
 	if (data->chip_id == BME280_CHIP_ID) {
 		size = 8;
@@ -353,6 +365,16 @@ static int bme280_chip_init(const struct device *dev)
 		return -ENOTSUP;
 	}
 
+	err = bme280_reg_write(dev, BME280_REG_RESET, BME280_CMD_SOFT_RESET);
+	if (err < 0) {
+		LOG_DBG("Soft-reset failed: %d", err);
+	}
+
+	err = bme280_wait_until_ready(dev);
+	if (err < 0) {
+		return err;
+	}
+
 	err = bme280_read_compensation(dev);
 	if (err < 0) {
 		return err;
@@ -380,62 +402,36 @@ static int bme280_chip_init(const struct device *dev)
 		LOG_DBG("CONFIG write failed: %d", err);
 		return err;
 	}
+	/* Wait for the sensor to be ready */
+	k_sleep(K_MSEC(1));
 
-#ifdef CONFIG_PM_DEVICE
-	/* Set power state to ACTIVE */
-	data->pm_state = PM_DEVICE_STATE_ACTIVE;
-#endif
 	LOG_DBG("\"%s\" OK", dev->name);
 	return 0;
 }
 
 #ifdef CONFIG_PM_DEVICE
-int bme280_pm_ctrl(const struct device *dev, uint32_t ctrl_command,
-		   uint32_t *state, pm_device_cb cb, void *arg)
+int bme280_pm_ctrl(const struct device *dev, enum pm_device_action action)
 {
-	struct bme280_data *data = to_data(dev);
-
 	int ret = 0;
 
-	/* Set power state */
-	if (ctrl_command == PM_DEVICE_STATE_SET) {
-		uint32_t new_pm_state = *state;
+	switch (action) {
+	case PM_DEVICE_ACTION_RESUME:
+		/* Re-initialize the chip */
+		ret = bme280_chip_init(dev);
+		break;
+	case PM_DEVICE_ACTION_SUSPEND:
+		/* Put the chip into sleep mode */
+		ret = bme280_reg_write(dev,
+			BME280_REG_CTRL_MEAS,
+			BME280_CTRL_MEAS_OFF_VAL);
 
-		if (new_pm_state != data->pm_state) {
-
-			/* Switching from OFF to any */
-			if (data->pm_state == PM_DEVICE_STATE_OFF) {
-
-				/* Re-initialize the chip */
-				ret = bme280_chip_init(dev);
-			}
-			/* Switching to OFF from any */
-			else if (new_pm_state == PM_DEVICE_STATE_OFF) {
-
-				/* Put the chip into sleep mode */
-				ret = bme280_reg_write(dev,
-					BME280_REG_CTRL_MEAS,
-					BME280_CTRL_MEAS_OFF_VAL);
-
-				if (ret < 0)
-					LOG_DBG("CTRL_MEAS write failed: %d",
-						ret);
-			}
-
-			/* Store the new state */
-			if (!ret)
-				data->pm_state = new_pm_state;
+		if (ret < 0) {
+			LOG_DBG("CTRL_MEAS write failed: %d", ret);
 		}
+		break;
+	default:
+		return -ENOTSUP;
 	}
-	/* Get power state */
-	else {
-		__ASSERT_NO_MSG(ctrl_command == PM_DEVICE_STATE_GET);
-		*state = data->pm_state;
-	}
-
-	/* Invoke callback if any */
-	if (cb)
-		cb(dev, ret, state, arg);
 
 	return ret;
 }
