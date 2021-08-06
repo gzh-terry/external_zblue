@@ -8,7 +8,8 @@
 #define __SENSOR_BME680_H__
 
 #include <device.h>
-#include <drivers/i2c.h>
+#include <zephyr/types.h>
+
 
 #define BME680_CHIP_ID                  0x61
 
@@ -119,6 +120,9 @@
 #define BME680_CONCAT_BYTES(msb, lsb) (((uint16_t)msb << 8) | (uint16_t)lsb)
 
 struct bme680_data {
+	const struct device *i2c_master;
+	uint16_t i2c_slave_addr;
+
 	/* Compensation parameters. */
 	uint16_t par_h1;
 	uint16_t par_h2;
@@ -161,10 +165,6 @@ struct bme680_data {
 	int32_t t_fine;
 
 	uint8_t chip_id;
-};
-
-struct bme680_config {
-	struct i2c_dt_spec bus;
 };
 
 #endif /* __SENSOR_BME680_H__ */

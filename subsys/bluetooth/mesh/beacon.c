@@ -1,3 +1,5 @@
+/*  Bluetooth Mesh */
+
 /*
  * Copyright (c) 2017 Intel Corporation
  *
@@ -20,7 +22,6 @@
 #include "adv.h"
 #include "mesh.h"
 #include "net.h"
-#include "host/ecc.h"
 #include "prov.h"
 #include "crypto.h"
 #include "beacon.h"

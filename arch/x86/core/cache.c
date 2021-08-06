@@ -33,24 +33,20 @@ static void arch_dcache_flush(void *start_addr, size_t size)
 {
 	size_t line_size = sys_cache_data_line_size_get();
 	uintptr_t start = (uintptr_t)start_addr;
-	uintptr_t end = start + size;
+	uintptr_t end;
 
 	if (line_size == 0U) {
 		return;
 	}
 
-	end = ROUND_UP(end, line_size);
+	size = ROUND_UP(size, line_size);
+	end = start + size;
 
 	for (; start < end; start += line_size) {
-		__asm__ volatile("clflush %0;\n\t" :
-				"+m"(*(volatile char *)start));
+		__asm__ volatile("clflush %0;\n\t" :  : "m"(start));
 	}
 
-#if defined(CONFIG_X86_MFENCE_INSTRUCTION_SUPPORTED)
-	__asm__ volatile("mfence;\n\t":::"memory");
-#else
-	__asm__ volatile("lock; addl $0,-4(%%esp);\n\t":::"memory", "cc");
-#endif
+	__asm__ volatile("mfence;\n\t");
 }
 
 int arch_dcache_range(void *addr, size_t size, int op)

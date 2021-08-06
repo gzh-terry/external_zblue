@@ -304,7 +304,8 @@ int fcntl(int fd, int cmd, ...)
 	}
 
 	/* Handle fdtable commands. */
-	if (cmd == F_DUPFD) {
+	switch (cmd) {
+	case F_DUPFD:
 		/* Not implemented so far. */
 		errno = EINVAL;
 		return -1;
@@ -333,7 +334,7 @@ static ssize_t stdinout_write_vmeth(void *obj, const void *buffer, size_t count)
 {
 #if defined(CONFIG_BOARD_NATIVE_POSIX)
 	return write(1, buffer, count);
-#elif defined(CONFIG_NEWLIB_LIBC) || defined(CONFIG_ARCMWDT_LIBC)
+#elif defined(CONFIG_NEWLIB_LIBC)
 	return z_impl_zephyr_write_stdout(buffer, count);
 #else
 	return 0;

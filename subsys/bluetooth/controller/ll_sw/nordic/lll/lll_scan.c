@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2021 Nordic Semiconductor ASA
+ * Copyright (c) 2018-2020 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -47,8 +47,6 @@
 
 static int init_reset(void);
 static int prepare_cb(struct lll_prepare_param *p);
-static int resume_prepare_cb(struct lll_prepare_param *p);
-static int common_prepare_cb(struct lll_prepare_param *p, bool is_resume);
 static int is_abort_cb(void *next, void *curr,
 		       lll_prepare_cb_t *resume_cb);
 static void abort_cb(struct lll_prepare_param *prepare_param, void *param);
@@ -69,15 +67,10 @@ static inline int isr_rx_pdu(struct lll_scan *lll, struct pdu_adv *pdu_adv_rx,
 			     uint8_t devmatch_ok, uint8_t devmatch_id,
 			     uint8_t irkmatch_ok, uint8_t irkmatch_id,
 			     uint8_t rl_idx, uint8_t rssi_ready);
-
 #if defined(CONFIG_BT_CENTRAL)
 static inline bool isr_scan_init_check(struct lll_scan *lll,
 				       struct pdu_adv *pdu, uint8_t rl_idx);
 #endif /* CONFIG_BT_CENTRAL */
-
-static bool isr_scan_tgta_check(struct lll_scan *lll, bool init,
-				uint8_t addr_type, uint8_t *addr,
-				uint8_t rl_idx, bool *dir_report);
 static inline bool isr_scan_tgta_rpa_check(struct lll_scan *lll,
 					   uint8_t addr_type, uint8_t *addr,
 					   bool *dir_report);
@@ -120,86 +113,6 @@ void lll_scan_prepare(void *param)
 	LL_ASSERT(!err || err == -EINPROGRESS);
 }
 
-void lll_scan_isr_resume(void *param)
-{
-	static struct lll_prepare_param p;
-
-	/* Clear radio status and events */
-	lll_isr_status_reset();
-
-	p.param = param;
-	resume_prepare_cb(&p);
-}
-
-#if defined(CONFIG_BT_CENTRAL) || defined(CONFIG_BT_CTLR_ADV_EXT)
-bool lll_scan_adva_check(struct lll_scan *lll, uint8_t addr_type, uint8_t *addr,
-			 uint8_t rl_idx)
-{
-#if defined(CONFIG_BT_CTLR_PRIVACY)
-	/* Only applies to initiator with no whitelist */
-	if (rl_idx != FILTER_IDX_NONE) {
-		return (rl_idx == lll->rl_idx);
-	} else if (!ull_filter_lll_rl_addr_allowed(addr_type, addr, &rl_idx)) {
-		return false;
-	}
-#endif /* CONFIG_BT_CTLR_PRIVACY */
-
-	/* NOTE: This function to be used only to check AdvA when intiating,
-	 *       hence, otherwise we should not use the return value.
-	 *       This function is referenced in lll_scan_ext_tgta_check, but
-	 *       is not used when not being an initiator, hence return false
-	 *       is never reached.
-	 */
-#if defined(CONFIG_BT_CENTRAL)
-	return ((lll->adv_addr_type == addr_type) &&
-		!memcmp(lll->adv_addr, addr, BDADDR_SIZE));
-#else /* CONFIG_BT_CENTRAL */
-	return false;
-#endif /* CONFIG_BT_CENTRAL */
-}
-#endif /* CONFIG_BT_CENTRAL || CONFIG_BT_CTLR_ADV_EXT */
-
-#if defined(CONFIG_BT_CTLR_ADV_EXT)
-bool lll_scan_ext_tgta_check(struct lll_scan *lll, bool pri, bool is_init,
-			     struct pdu_adv *pdu, uint8_t rl_idx)
-{
-	uint8_t is_directed;
-	uint8_t tx_addr;
-	uint8_t rx_addr;
-	uint8_t *adva;
-	uint8_t *tgta;
-
-	if (pri && !pdu->adv_ext_ind.ext_hdr.adv_addr) {
-		return true;
-	}
-
-	if (pdu->len <
-	    PDU_AC_EXT_HEADER_SIZE_MIN + sizeof(struct pdu_adv_ext_hdr) +
-	    ADVA_SIZE) {
-		return false;
-	}
-
-	is_directed = pdu->adv_ext_ind.ext_hdr.tgt_addr;
-	if (is_directed && (pdu->len < PDU_AC_EXT_HEADER_SIZE_MIN +
-				       sizeof(struct pdu_adv_ext_hdr) +
-				       ADVA_SIZE + TARGETA_SIZE)) {
-		return false;
-	}
-
-	tx_addr = pdu->tx_addr;
-	rx_addr = pdu->rx_addr;
-	adva = &pdu->adv_ext_ind.ext_hdr.data[ADVA_OFFSET];
-	tgta = &pdu->adv_ext_ind.ext_hdr.data[TGTA_OFFSET];
-	return ((!is_init ||
-		 (lll->filter_policy & 0x01) ||
-		 lll_scan_adva_check(lll, tx_addr, adva, rl_idx)) &&
-		((!is_directed) ||
-		 (is_directed &&
-		  isr_scan_tgta_check(lll, is_init, rx_addr, tgta, rl_idx,
-				      NULL))));
-}
-#endif /* CONFIG_BT_CTLR_ADV_EXT */
-
 #if defined(CONFIG_BT_CENTRAL)
 void lll_scan_prepare_connect_req(struct lll_scan *lll, struct pdu_adv *pdu_tx,
 				  uint8_t phy, uint8_t adv_tx_addr,
@@ -233,7 +146,7 @@ void lll_scan_prepare_connect_req(struct lll_scan *lll, struct pdu_adv *pdu_tx,
 
 	conn_interval_us = (uint32_t)lll_conn->interval * CONN_INT_UNIT_US;
 	conn_offset_us = radio_tmr_end_get() + EVENT_IFS_US +
-			 PKT_AC_US(sizeof(struct pdu_adv_connect_ind),
+			 PKT_AC_US(sizeof(struct pdu_adv_connect_ind), 0,
 				   phy == PHY_LEGACY ? PHY_1M : phy);
 
 	/* Add transmitWindowDelay to default calculated connection offset:
@@ -288,23 +201,6 @@ static int init_reset(void)
 
 static int prepare_cb(struct lll_prepare_param *p)
 {
-	return common_prepare_cb(p, false);
-}
-
-static int resume_prepare_cb(struct lll_prepare_param *p)
-{
-	struct ull_hdr *ull;
-
-	ull = HDR_LLL2ULL(p->param);
-	p->ticks_at_expire = ticker_ticks_now_get() - lll_event_offset_get(ull);
-	p->remainder = 0;
-	p->lazy = 0;
-
-	return common_prepare_cb(p, true);
-}
-
-static int common_prepare_cb(struct lll_prepare_param *p, bool is_resume)
-{
 	uint32_t ticks_at_event, ticks_at_start;
 	struct node_rx_pdu *node_rx;
 	uint32_t remainder_us;
@@ -349,7 +245,6 @@ static int common_prepare_cb(struct lll_prepare_param *p, bool is_resume)
 	radio_pkt_configure(8, PDU_AC_LEG_PAYLOAD_SIZE_MAX, (lll->phy << 1));
 
 	lll->is_adv_ind = 0U;
-	lll->is_aux_sched = 0U;
 #else /* !CONFIG_BT_CTLR_ADV_EXT */
 	radio_phy_set(0, 0);
 	radio_pkt_configure(8, PDU_AC_LEG_PAYLOAD_SIZE_MAX, 0);
@@ -441,7 +336,7 @@ static int common_prepare_cb(struct lll_prepare_param *p, bool is_resume)
 	{
 		uint32_t ret;
 
-		if (!is_resume && lll->ticks_window) {
+		if (lll->ticks_window) {
 			/* start window close timeout */
 			ret = ticker_start(TICKER_INSTANCE_ID_CTLR,
 					   TICKER_USER_ID_LLL,
@@ -486,6 +381,18 @@ static int common_prepare_cb(struct lll_prepare_param *p, bool is_resume)
 	return 0;
 }
 
+static int resume_prepare_cb(struct lll_prepare_param *p)
+{
+	struct ull_hdr *ull;
+
+	ull = HDR_LLL2ULL(p->param);
+	p->ticks_at_expire = ticker_ticks_now_get() - lll_event_offset_get(ull);
+	p->remainder = 0;
+	p->lazy = 0;
+
+	return prepare_cb(p);
+}
+
 static int is_abort_cb(void *next, void *curr, lll_prepare_cb_t *resume_cb)
 {
 	struct lll_scan *lll = curr;
@@ -512,9 +419,6 @@ static int is_abort_cb(void *next, void *curr, lll_prepare_cb_t *resume_cb)
 #if defined(CONFIG_BT_CTLR_ADV_EXT)
 	if (unlikely(lll->duration_reload && !lll->duration_expire)) {
 		radio_isr_set(isr_done_cleanup, lll);
-	} else if (lll->is_aux_sched) {
-		/* as a continuous scanner, let us not abort aux PDU scan */
-		return 0;
 	} else
 #endif /* CONFIG_BT_CTLR_ADV_EXT */
 	{
@@ -579,9 +483,9 @@ static void ticker_op_start_cb(uint32_t status, void *param)
 
 static void isr_rx(void *param)
 {
-	struct node_rx_pdu *node_rx;
 	struct lll_scan *lll;
-	struct pdu_adv *pdu;
+	struct node_rx_pdu *node_rx;
+	struct pdu_adv *pdu_adv_rx;
 	uint8_t devmatch_ok;
 	uint8_t devmatch_id;
 	uint8_t irkmatch_ok;
@@ -622,24 +526,17 @@ static void isr_rx(void *param)
 	node_rx = ull_pdu_rx_alloc_peek(1);
 	LL_ASSERT(node_rx);
 
-	pdu = (void *)node_rx->pdu;
+	pdu_adv_rx = (void *)node_rx->pdu;
 
 #if defined(CONFIG_BT_CTLR_PRIVACY)
 #if defined(CONFIG_BT_CTLR_ADV_EXT)
-	if (ull_filter_lll_rl_enabled() && !irkmatch_ok && pdu->tx_addr &&
-	    (pdu->type == PDU_ADV_TYPE_EXT_IND)) {
-		uint8_t count;
-
-		ull_filter_lll_irks_get(&count);
-		if (count) {
-			radio_ar_resolve(
-				&pdu->adv_ext_ind.ext_hdr.data[ADVA_OFFSET]);
-			irkmatch_ok = radio_ar_has_match();
-			irkmatch_id = radio_ar_match_get();
-		}
+	if (!irkmatch_ok && (pdu_adv_rx->type == PDU_ADV_TYPE_EXT_IND) &&
+	    (pdu_adv_rx->tx_addr)) {
+		radio_ar_resolve(&pdu_adv_rx->payload[2]);
+		irkmatch_ok = radio_ar_has_match();
+		irkmatch_id = radio_ar_match_get();
 	}
 #endif /* CONFIG_BT_CTLR_ADV_EXT */
-
 	rl_idx = devmatch_ok ?
 		 ull_filter_lll_rl_idx(!!(lll->filter_policy & 0x01),
 				       devmatch_id) :
@@ -648,12 +545,11 @@ static void isr_rx(void *param)
 #else
 	rl_idx = FILTER_IDX_NONE;
 #endif /* CONFIG_BT_CTLR_PRIVACY */
-
 	if (crc_ok && isr_rx_scan_check(lll, irkmatch_ok, devmatch_ok,
 					rl_idx)) {
 		int err;
 
-		err = isr_rx_pdu(lll, pdu, devmatch_ok, devmatch_id,
+		err = isr_rx_pdu(lll, pdu_adv_rx, devmatch_ok, devmatch_id,
 				 irkmatch_ok, irkmatch_id, rl_idx, rssi_ready);
 		if (!err) {
 			if (IS_ENABLED(CONFIG_BT_CTLR_PROFILE_ISR)) {
@@ -880,9 +776,6 @@ static void isr_abort(void *param)
 
 static void isr_done_cleanup(void *param)
 {
-	/* Clear radio status and events */
-	lll_isr_status_reset();
-
 	if (lll_is_done(param)) {
 		return;
 	}
@@ -1213,13 +1106,12 @@ static inline int isr_rx_pdu(struct lll_scan *lll, struct pdu_adv *pdu_adv_rx,
 		  ((pdu_adv_rx->type == PDU_ADV_TYPE_DIRECT_IND) &&
 		   (pdu_adv_rx->len == sizeof(struct pdu_adv_direct_ind)) &&
 		   (/* allow directed adv packets addressed to this device */
-		    isr_scan_tgta_check(lll, false, pdu_adv_rx->rx_addr,
+		    lll_scan_tgta_check(lll, false, pdu_adv_rx->rx_addr,
 					pdu_adv_rx->direct_ind.tgt_addr,
 					rl_idx, &dir_report))) ||
 #if defined(CONFIG_BT_CTLR_ADV_EXT)
 		  ((pdu_adv_rx->type == PDU_ADV_TYPE_EXT_IND) &&
-		   lll->phy && lll_scan_ext_tgta_check(lll, true, false,
-						       pdu_adv_rx, rl_idx)) ||
+		   (lll->phy)) ||
 #endif /* CONFIG_BT_CTLR_ADV_EXT */
 		  ((pdu_adv_rx->type == PDU_ADV_TYPE_SCAN_RSP) &&
 		   (pdu_adv_rx->len <= sizeof(struct pdu_adv_scan_rsp)) &&
@@ -1243,12 +1135,6 @@ static inline int isr_rx_pdu(struct lll_scan *lll, struct pdu_adv *pdu_adv_rx,
 						       FILTER_IDX_NONE,
 					 dir_report);
 		if (err) {
-			/* Auxiliary PDU LLL scanning has been setup */
-			if (IS_ENABLED(CONFIG_BT_CTLR_ADV_EXT) &&
-			    (err == -EBUSY)) {
-				return 0;
-			}
-
 			return err;
 		}
 	}
@@ -1273,15 +1159,29 @@ static inline bool isr_scan_init_check(struct lll_scan *lll,
 		 ((pdu->type == PDU_ADV_TYPE_DIRECT_IND) &&
 		  (pdu->len == sizeof(struct pdu_adv_direct_ind)) &&
 		  (/* allow directed adv packets addressed to this device */
-			  isr_scan_tgta_check(lll, true, pdu->rx_addr,
+			  lll_scan_tgta_check(lll, true, pdu->rx_addr,
 					      pdu->direct_ind.tgt_addr, rl_idx,
 					      NULL)))));
 }
+
+bool lll_scan_adva_check(struct lll_scan *lll, uint8_t addr_type, uint8_t *addr,
+			 uint8_t rl_idx)
+{
+#if defined(CONFIG_BT_CTLR_PRIVACY)
+	/* Only applies to initiator with no whitelist */
+	if (rl_idx != FILTER_IDX_NONE) {
+		return (rl_idx == lll->rl_idx);
+	} else if (!ull_filter_lll_rl_addr_allowed(addr_type, addr, &rl_idx)) {
+		return false;
+	}
+#endif /* CONFIG_BT_CTLR_PRIVACY */
+	return ((lll->adv_addr_type == addr_type) &&
+		!memcmp(lll->adv_addr, addr, BDADDR_SIZE));
+}
 #endif /* CONFIG_BT_CENTRAL */
 
-static bool isr_scan_tgta_check(struct lll_scan *lll, bool init,
-				uint8_t addr_type, uint8_t *addr,
-				uint8_t rl_idx, bool *dir_report)
+bool lll_scan_tgta_check(struct lll_scan *lll, bool init, uint8_t addr_type,
+			 uint8_t *addr, uint8_t rl_idx, bool *dir_report)
 {
 #if defined(CONFIG_BT_CTLR_PRIVACY)
 	if (ull_filter_lll_rl_addr_resolve(addr_type, addr, rl_idx)) {
@@ -1332,7 +1232,6 @@ static int isr_rx_scan_report(struct lll_scan *lll, uint8_t rssi_ready,
 				uint8_t rl_idx, bool dir_report)
 {
 	struct node_rx_pdu *node_rx;
-	int err = 0;
 
 	node_rx = ull_pdu_rx_alloc_peek(3);
 	if (!node_rx) {
@@ -1387,13 +1286,6 @@ static int isr_rx_scan_report(struct lll_scan *lll, uint8_t rssi_ready,
 				ftr->radio_end_us =
 					radio_tmr_end_get() -
 					radio_rx_chain_delay_get(lll->phy, 1);
-
-				ftr->aux_sched = lll_scan_aux_setup(lll,
-								    pdu_adv_rx,
-								    lll->phy);
-				if (ftr->aux_sched) {
-					err = -EBUSY;
-				}
 			}
 			break;
 		}
@@ -1423,5 +1315,5 @@ static int isr_rx_scan_report(struct lll_scan *lll, uint8_t rssi_ready,
 	ull_rx_put(node_rx->hdr.link, node_rx);
 	ull_rx_sched();
 
-	return err;
+	return 0;
 }

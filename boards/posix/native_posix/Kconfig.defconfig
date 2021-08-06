@@ -75,7 +75,7 @@ config FLASH_SIMULATOR
 
 config USB_NATIVE_POSIX
 	default y
-	depends on USB_DEVICE_DRIVER
+	depends on USB
 
 config EEPROM_SIMULATOR
 	default y

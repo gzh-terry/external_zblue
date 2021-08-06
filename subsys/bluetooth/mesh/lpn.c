@@ -1,3 +1,5 @@
+/*  Bluetooth Mesh */
+
 /*
  * Copyright (c) 2017 Intel Corporation
  *
@@ -240,7 +242,7 @@ static void clear_friendship(bool force, bool disable)
 		lpn->old_friend = lpn->frnd;
 	}
 
-	STRUCT_SECTION_FOREACH(bt_mesh_lpn_cb, cb) {
+	Z_STRUCT_SECTION_FOREACH(bt_mesh_lpn_cb, cb) {
 		if (cb->terminated && lpn->frnd != BT_MESH_ADDR_UNASSIGNED) {
 			cb->terminated(lpn->sub->net_idx, lpn->frnd);
 		}
@@ -356,7 +358,7 @@ static void req_sent(uint16_t duration, int err, void *user_data)
 		return;
 	}
 
-	STRUCT_SECTION_FOREACH(bt_mesh_lpn_cb, cb) {
+	Z_STRUCT_SECTION_FOREACH(bt_mesh_lpn_cb, cb) {
 		if (cb->polled) {
 			cb->polled(lpn->sub->net_idx, lpn->frnd, !!(lpn->req_attempts));
 		}
@@ -1007,7 +1009,7 @@ int bt_mesh_lpn_friend_update(struct bt_mesh_net_rx *rx,
 
 		bt_mesh_hb_feature_changed(BT_MESH_FEAT_LOW_POWER);
 
-		STRUCT_SECTION_FOREACH(bt_mesh_lpn_cb, cb) {
+		Z_STRUCT_SECTION_FOREACH(bt_mesh_lpn_cb, cb) {
 			if (cb->established) {
 				cb->established(lpn->sub->net_idx, lpn->frnd,
 					lpn->queue_size, lpn->recv_win);

@@ -330,9 +330,7 @@ success:
 			return NULL;
 		}
 
-#if __ASSERT_ON
 		NET_BUF_ASSERT(req_size <= size);
-#endif
 	} else {
 		buf->__buf = NULL;
 	}

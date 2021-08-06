@@ -14,8 +14,6 @@
 #ifndef ZEPHYR_INCLUDE_SYS_REBOOT_H_
 #define ZEPHYR_INCLUDE_SYS_REBOOT_H_
 
-#include <toolchain.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -35,7 +33,7 @@ extern "C" {
  * @return N/A
  */
 
-extern FUNC_NORETURN void sys_reboot(int type);
+extern void sys_reboot(int type);
 
 #ifdef __cplusplus
 }

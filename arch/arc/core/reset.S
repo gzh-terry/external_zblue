@@ -159,7 +159,7 @@ _slave_core_wait:
 	ld r1, [arc_cpu_wake_flag]
 	brne r0, r1, _slave_core_wait
 
-	LDR sp, arc_cpu_sp
+	ld sp, [arc_cpu_sp]
 	/* signal master core that slave core runs */
 	st 0, [arc_cpu_wake_flag]
 

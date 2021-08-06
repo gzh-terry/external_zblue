@@ -1,6 +1,5 @@
 common:
   timeout: 180
-  min_ram: 34
 tests:
   kernel.scheduler:
     filter: not CONFIG_SCHED_MULTIQ

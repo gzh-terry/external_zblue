@@ -1,3 +1,5 @@
+/*  Bluetooth Mesh */
+
 /*
  * Copyright (c) 2017 Intel Corporation
  *
@@ -33,9 +35,7 @@ struct bt_mesh_adv {
 	void *cb_data;
 
 	uint8_t      type:2,
-		  started:1,
 		  busy:1;
-
 	uint8_t      xmit;
 };
 
@@ -75,25 +75,18 @@ int bt_mesh_adv_start(const struct bt_le_adv_param *param, int32_t duration,
 		      const struct bt_data *sd, size_t sd_len);
 
 static inline void bt_mesh_adv_send_start(uint16_t duration, int err,
-					  struct bt_mesh_adv *adv)
+					  const struct bt_mesh_send_cb *cb,
+					  void *cb_data)
 {
-	if (!adv->started) {
-		adv->started = 1;
-
-		if (adv->cb && adv->cb->start) {
-			adv->cb->start(duration, err, adv->cb_data);
-		}
-
-		if (err) {
-			adv->cb = NULL;
-		}
+	if (cb && cb->start) {
+		cb->start(duration, err, cb_data);
 	}
 }
 
 static inline void bt_mesh_adv_send_end(
-	int err, struct bt_mesh_adv const *adv)
+	int err, const struct bt_mesh_send_cb *cb, void *cb_data)
 {
-	if (adv->started && adv->cb && adv->cb->end) {
-		adv->cb->end(err, adv->cb_data);
+	if (cb && cb->end) {
+		cb->end(err, cb_data);
 	}
 }

@@ -62,11 +62,6 @@
 		   <&gpioc 0 GPIO_ACTIVE_LOW>;
 };
 
-&tc0 {
-	clk = <4>;
-	status = "okay";
-};
-
 &twim0 {
 	status = "okay";
 

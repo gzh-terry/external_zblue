@@ -49,8 +49,7 @@ Hardware Stack Overflow
 ``CONFIG_HW_STACK_PROTECTION`` is an optional feature which detects stack
 buffer overflows when the system is running in supervisor mode. This
 catches issues when the entire stack buffer has overflowed, and not
-individual stack frames, use compiler-assisted :kconfig:`CONFIG_STACK_CANARIES`
-for that.
+individual stack frames, use compiler-assisted CONFIG_STACK_CANARIES for that.
 
 Like any crash in supervisor mode, no guarantees can be made about the overall
 health of the system after a supervisor mode stack overflow, and any instances
@@ -200,7 +199,7 @@ automatically.
 Manual Memory Partitions
 ------------------------
 
-The following code declares a global array ``buf``, and then declares
+The following code declares a global array buf, and then declares
 a read-write partition for it which may be added to a domain:
 
 .. code-block:: c
@@ -255,7 +254,7 @@ BSS.
      */
     K_APP_BMEM(my_partition) int var2;
 
-The build system will ensure that the base address of ``my_partition`` will
+The build system will ensure that the base address of my_partition will
 be properly aligned, and the total size of the region conforms to the memory
 management hardware requirements, adding padding if necessary.
 
@@ -302,8 +301,8 @@ There are a few memory partitions which are pre-defined by the system:
    to specific memory domains.
 
  - ``z_libc_partition`` - Contains globals required by the C library and runtime.
-   Required when using either the Minimal C library or the Newlib C Library.
-   Required when option:`CONFIG_STACK_CANARIES` is enabled.
+   Required if using newlib. Required if using minimal libc with
+   ``CONFIG_STACK_CANARIES`` enabled.
 
 Library-specific partitions are listed in ``include/app_memory/partitions.h``.
 For example, to use the MBEDTLS library from user mode, the
@@ -434,7 +433,7 @@ Configuration Options
 
 Related configuration options:
 
-* :kconfig:`CONFIG_MAX_DOMAIN_PARTITIONS`
+* :option:`CONFIG_MAX_DOMAIN_PARTITIONS`
 
 API Reference
 *************

@@ -85,8 +85,6 @@
 
 				write-block-size = <2>;
 				erase-block-size = <2048>;
-				/* maximum erase time for a 2K sector */
-				max-erase-time = <40>;
 			};
 		};
 
@@ -222,15 +220,6 @@
 			label = "SPI_1";
 		};
 
-		dac1: dac@40007400 {
-			compatible = "st,stm32-dac";
-			reg = <0x40007400 0x400>;
-			clocks = <&rcc STM32_CLOCK_BUS_APB1 0x20000000>;
-			status = "disabled";
-			label = "DAC_1";
-			#io-channel-cells = <1>;
-		};
-
 		usb: usb@40005c00 {
 			compatible = "st,stm32-usb";
 			reg = <0x40005c00 0x400>;
@@ -274,7 +263,7 @@
 			pwm {
 				compatible = "st,stm32-pwm";
 				status = "disabled";
-				st,prescaler = <0>;
+				st,prescaler = <10000>;
 				label = "PWM_3";
 				#pwm-cells = <3>;
 			};
@@ -292,7 +281,7 @@
 			pwm {
 				compatible = "st,stm32-pwm";
 				status = "disabled";
-				st,prescaler = <0>;
+				st,prescaler = <10000>;
 				label = "PWM_6";
 				#pwm-cells = <3>;
 			};
@@ -310,7 +299,7 @@
 			pwm {
 				compatible = "st,stm32-pwm";
 				status = "disabled";
-				st,prescaler = <0>;
+				st,prescaler = <10000>;
 				label = "PWM_7";
 				#pwm-cells = <3>;
 			};
@@ -328,7 +317,7 @@
 			pwm {
 				compatible = "st,stm32-pwm";
 				status = "disabled";
-				st,prescaler = <0>;
+				st,prescaler = <10000>;
 				label = "PWM_15";
 				#pwm-cells = <3>;
 			};
@@ -346,7 +335,7 @@
 			pwm {
 				compatible = "st,stm32-pwm";
 				status = "disabled";
-				st,prescaler = <0>;
+				st,prescaler = <10000>;
 				label = "PWM_16";
 				#pwm-cells = <3>;
 			};
@@ -364,7 +353,7 @@
 			pwm {
 				compatible = "st,stm32-pwm";
 				status = "disabled";
-				st,prescaler = <0>;
+				st,prescaler = <10000>;
 				label = "PWM_17";
 				#pwm-cells = <3>;
 			};
@@ -398,8 +387,8 @@
 		};
 
 		dma1: dma@40020000 {
-			compatible = "st,stm32-dma-v2bis";
-			#dma-cells = <2>;
+			compatible = "st,stm32-dma-v2";
+			#dma-cells = <4>;
 			reg = <0x40020000 0x400>;
 			clocks = <&rcc STM32_CLOCK_BUS_AHB1 0x1>;
 			interrupts = <11 0 12 0 13 0 14 0 15 0 16 0 17 0>;
