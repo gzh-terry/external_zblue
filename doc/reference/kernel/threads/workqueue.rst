@@ -395,7 +395,7 @@ These APIs must be provided with a :c:struct:`k_work_sync` object that has no
 application-inspectable components but is needed to provide the
 synchronization objects.  These objects should not be allocated on a stack if
 the code is expected to work on architectures with
-:kconfig:`CONFIG_KERNEL_COHERENCE`.
+:option:`CONFIG_KERNEL_COHERENCE`.
 
 Workqueue Best Practices
 ************************
@@ -538,9 +538,9 @@ Configuration Options
 
 Related configuration options:
 
-* :kconfig:`CONFIG_SYSTEM_WORKQUEUE_STACK_SIZE`
-* :kconfig:`CONFIG_SYSTEM_WORKQUEUE_PRIORITY`
-* :kconfig:`CONFIG_SYSTEM_WORKQUEUE_NO_YIELD`
+* :option:`CONFIG_SYSTEM_WORKQUEUE_STACK_SIZE`
+* :option:`CONFIG_SYSTEM_WORKQUEUE_PRIORITY`
+* :option:`CONFIG_SYSTEM_WORKQUEUE_NO_YIELD`
 
 API Reference
 **************

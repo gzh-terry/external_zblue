@@ -57,11 +57,6 @@ def main():
 
     setup_edtlib_logging()
 
-    if args.vendor_prefixes:
-        vendor_prefixes = edtlib.load_vendor_prefixes_txt(args.vendor_prefixes)
-    else:
-        vendor_prefixes = None
-
     try:
         edt = edtlib.EDT(args.dts, args.bindings_dirs,
                          # Suppress this warning if it's suppressed in dtc
@@ -69,8 +64,8 @@ def main():
                              "-Wno-simple_bus_reg" not in args.dtc_flags,
                          default_prop_types=True,
                          infer_binding_for_paths=["/zephyr,user"],
-                         werror=args.edtlib_Werror,
-                         vendor_prefixes=vendor_prefixes)
+                         err_on_deprecated_properties=
+                         args.err_on_deprecated_properties)
     except edtlib.EDTError as e:
         sys.exit(f"devicetree error: {e}")
 
@@ -214,12 +209,8 @@ def parse_args():
                         help="path to write device struct extern header to")
     parser.add_argument("--edt-pickle-out",
                         help="path to write pickled edtlib.EDT object to")
-    parser.add_argument("--vendor-prefixes",
-                        help="vendor-prefixes.txt path; used for validation")
-    parser.add_argument("--edtlib-Werror", action="store_true",
-                        help="if set, edtlib-specific warnings become errors. "
-                             "(this does not apply to warnings shared "
-                             "with dtc.)")
+    parser.add_argument("--err-on-deprecated-properties", action="store_true",
+                        help="if set, deprecated property usage is an error")
 
     return parser.parse_args()
 
@@ -488,25 +479,17 @@ def write_child_functions(node):
             " ".join(f"fn(DT_{child.z_path_id})" for child in
                 node.children.values()))
 
-    out_dt_define(f"{node.z_path_id}_FOREACH_CHILD_VARGS(fn, ...)",
-            " ".join(f"fn(DT_{child.z_path_id}, __VA_ARGS__)" for child in
-                node.children.values()))
 
 def write_child_functions_status_okay(node):
     # Writes macro that are helpers that will call a macro/function
     # for each child node with status "okay".
 
     functions = ''
-    functions_args = ''
     for child in node.children.values():
         if child.status == "okay":
             functions = functions + f"fn(DT_{child.z_path_id}) "
-            functions_args = functions_args + f"fn(DT_{child.z_path_id}, " \
-                                                            "__VA_ARGS__) "
 
     out_dt_define(f"{node.z_path_id}_FOREACH_CHILD_STATUS_OKAY(fn)", functions)
-    out_dt_define(f"{node.z_path_id}_FOREACH_CHILD_STATUS_OKAY_VARGS(fn, ...)",
-                                                                functions_args)
 
 
 def write_status(node):
@@ -532,10 +515,6 @@ def write_vanilla_props(node):
         if val is not None:
             # DT_N_<node-id>_P_<prop-id>
             macro2val[macro] = val
-
-        if prop.spec.type == 'string':
-            macro2val[macro + "_STRING_TOKEN"] = prop.val_as_token
-            macro2val[macro + "_STRING_UPPER_TOKEN"] = prop.val_as_token.upper()
 
         if prop.enum_index is not None:
             # DT_N_<node-id>_P_<prop-id>_ENUM_IDX
@@ -568,11 +547,6 @@ def write_vanilla_props(node):
             # DT_N_<node-id>_P_<prop-id>_FOREACH_PROP_ELEM
             macro2val[f"{macro}_FOREACH_PROP_ELEM(fn)"] = \
                 ' \\\n\t'.join(f'fn(DT_{node.z_path_id}, {prop_id}, {i})'
-                              for i in range(len(prop.val)))
-
-            macro2val[f"{macro}_FOREACH_PROP_ELEM_VARGS(fn, ...)"] = \
-                ' \\\n\t'.join(f'fn(DT_{node.z_path_id}, {prop_id}, {i},'
-                                ' __VA_ARGS__)'
                               for i in range(len(prop.val)))
 
         plen = prop_len(prop)
@@ -773,10 +747,6 @@ def write_global_compat_info(edt):
         n_okay_macros[f"DT_N_INST_{ident}_NUM_OKAY"] = len(okay_nodes)
         for_each_macros[f"DT_FOREACH_OKAY_INST_{ident}(fn)"] = \
             " ".join(f"fn({edt.compat2nodes[compat].index(node)})"
-                     for node in okay_nodes)
-
-        for_each_macros[f"DT_FOREACH_OKAY_INST_VARGS_{ident}(fn, ...)"] = \
-            " ".join(f"fn({edt.compat2nodes[compat].index(node)}, __VA_ARGS__)"
                      for node in okay_nodes)
 
     for compat, nodes in edt.compat2nodes.items():

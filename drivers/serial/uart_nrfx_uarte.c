@@ -124,6 +124,9 @@ struct uarte_nrfx_data {
 	struct uarte_async_cb *async;
 #endif
 	atomic_val_t poll_out_lock;
+#ifdef CONFIG_PM_DEVICE
+	uint32_t pm_state;
+#endif
 	uint8_t char_out;
 	uint8_t rx_data;
 	gppi_channel_t ppi_ch_endtx;
@@ -437,14 +440,12 @@ static int uarte_nrfx_configure(const struct device *dev,
 	return 0;
 }
 
-#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 static int uarte_nrfx_config_get(const struct device *dev,
 				 struct uart_config *cfg)
 {
 	*cfg = get_dev_data(dev)->uart_config;
 	return 0;
 }
-#endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
 
 
 static int uarte_nrfx_err_check(const struct device *dev)
@@ -540,10 +541,7 @@ static void tx_start(const struct device *dev, const uint8_t *buf, size_t len)
 	NRF_UARTE_Type *uarte = get_uarte_instance(dev);
 
 #if CONFIG_PM_DEVICE
-	enum pm_device_state state;
-
-	(void)pm_device_state_get(dev, &state);
-	if (state != PM_DEVICE_STATE_ACTIVE) {
+	if (get_dev_data(dev)->pm_state != PM_DEVICE_STATE_ACTIVE) {
 		return;
 	}
 #endif
@@ -1329,27 +1327,12 @@ static void uarte_nrfx_isr_async(const struct device *dev)
 		endrx_isr(dev);
 	}
 
-	/* RXSTARTED must be handled after ENDRX because it starts the RX timeout
-	 * and if order is swapped then ENDRX will stop this timeout.
-	 * Skip if ENDRX is set when RXSTARTED is set. It means that
-	 * ENDRX occurred after check for ENDRX in isr which may happen when
-	 * UARTE interrupt got preempted. Events are not cleared
-	 * and isr will be called again. ENDRX will be handled first.
-	 */
-	if (nrf_uarte_event_check(uarte, NRF_UARTE_EVENT_RXSTARTED) &&
-	    !nrf_uarte_event_check(uarte, NRF_UARTE_EVENT_ENDRX)) {
+	if (nrf_uarte_event_check(uarte, NRF_UARTE_EVENT_RXSTARTED)) {
 		nrf_uarte_event_clear(uarte, NRF_UARTE_EVENT_RXSTARTED);
 		rxstarted_isr(dev);
 	}
 
-	/* RXTO must be handled after ENDRX which should notify the buffer.
-	 * Skip if ENDRX is set when RXTO is set. It means that
-	 * ENDRX occurred after check for ENDRX in isr which may happen when
-	 * UARTE interrupt got preempted. Events are not cleared
-	 * and isr will be called again. ENDRX will be handled first.
-	 */
-	if (nrf_uarte_event_check(uarte, NRF_UARTE_EVENT_RXTO) &&
-	    !nrf_uarte_event_check(uarte, NRF_UARTE_EVENT_ENDRX)) {
+	if (nrf_uarte_event_check(uarte, NRF_UARTE_EVENT_RXTO)) {
 		nrf_uarte_event_clear(uarte, NRF_UARTE_EVENT_RXTO);
 		rxto_isr(dev);
 	}
@@ -1614,10 +1597,8 @@ static const struct uart_driver_api uart_nrfx_uarte_driver_api = {
 	.poll_in		= uarte_nrfx_poll_in,
 	.poll_out		= uarte_nrfx_poll_out,
 	.err_check		= uarte_nrfx_err_check,
-#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 	.configure              = uarte_nrfx_configure,
 	.config_get             = uarte_nrfx_config_get,
-#endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
 #ifdef CONFIG_UART_ASYNC_API
 	.callback_set		= uarte_nrfx_callback_set,
 	.tx			= uarte_nrfx_tx,
@@ -1679,13 +1660,13 @@ static int uarte_instance_init(const struct device *dev,
 	nrf_gpio_cfg_output(config->pseltxd);
 
 	if (config->pselrxd !=  NRF_UARTE_PSEL_DISCONNECTED) {
-		nrf_gpio_cfg_input(config->pselrxd, NRF_GPIO_PIN_PULLUP);
+		nrf_gpio_cfg_input(config->pselrxd, NRF_GPIO_PIN_NOPULL);
 	}
 
 	nrf_uarte_txrx_pins_set(uarte, config->pseltxd, config->pselrxd);
 
 	if (config->pselcts != NRF_UARTE_PSEL_DISCONNECTED) {
-		nrf_gpio_cfg_input(config->pselcts, NRF_GPIO_PIN_PULLUP);
+		nrf_gpio_cfg_input(config->pselcts, NRF_GPIO_PIN_NOPULL);
 	}
 
 	if (config->pselrts != NRF_UARTE_PSEL_DISCONNECTED) {
@@ -1699,6 +1680,10 @@ static int uarte_instance_init(const struct device *dev,
 	if (err) {
 		return err;
 	}
+
+#ifdef CONFIG_PM_DEVICE
+	data->pm_state = PM_DEVICE_STATE_ACTIVE;
+#endif
 
 	if (IS_ENABLED(CONFIG_UART_ENHANCED_POLL_OUT) &&
 	    get_dev_config(dev)->flags & UARTE_CFG_FLAG_PPI_ENDTX) {
@@ -1768,7 +1753,7 @@ static void uarte_nrfx_pins_enable(const struct device *dev, bool enable)
 		nrf_gpio_pin_write(tx_pin, 1);
 		nrf_gpio_cfg_output(tx_pin);
 		if (rx_pin != NRF_UARTE_PSEL_DISCONNECTED) {
-			nrf_gpio_cfg_input(rx_pin, NRF_GPIO_PIN_PULLUP);
+			nrf_gpio_cfg_input(rx_pin, NRF_GPIO_PIN_NOPULL);
 		}
 
 		if (IS_RTS_PIN_SET(get_dev_config(dev)->flags)) {
@@ -1778,7 +1763,7 @@ static void uarte_nrfx_pins_enable(const struct device *dev, bool enable)
 
 		if (IS_CTS_PIN_SET(get_dev_config(dev)->flags)) {
 			nrf_gpio_cfg_input(cts_pin,
-					   NRF_GPIO_PIN_PULLUP);
+					   NRF_GPIO_PIN_NOPULL);
 		}
 	} else {
 		nrf_gpio_cfg_default(tx_pin);
@@ -1831,25 +1816,24 @@ static void wait_for_tx_stopped(const struct device *dev)
 }
 
 
-static int uarte_nrfx_pm_control(const struct device *dev,
-				 enum pm_device_action action)
+static void uarte_nrfx_set_power_state(const struct device *dev,
+				       uint32_t new_state)
 {
 	NRF_UARTE_Type *uarte = get_uarte_instance(dev);
-#if defined(CONFIG_UART_ASYNC_API) || defined(UARTE_INTERRUPT_DRIVEN)
 	struct uarte_nrfx_data *data = get_dev_data(dev);
-#endif
 
-	switch (action) {
-	case PM_DEVICE_ACTION_RESUME:
+	if (new_state == PM_DEVICE_STATE_ACTIVE) {
 		uarte_nrfx_pins_enable(dev, true);
 		nrf_uarte_enable(uarte);
+
+		data->pm_state = new_state;
 
 #ifdef CONFIG_UART_ASYNC_API
 		if (hw_rx_counting_enabled(get_dev_data(dev))) {
 			nrfx_timer_enable(&get_dev_config(dev)->timer);
 		}
 		if (get_dev_data(dev)->async) {
-			return 0;
+			return;
 		}
 #endif
 		if (nrf_uarte_rx_pin_get(uarte) != NRF_UARTE_PSEL_DISCONNECTED) {
@@ -1864,8 +1848,20 @@ static int uarte_nrfx_pm_control(const struct device *dev,
 			}
 #endif
 		}
-		break;
-	case PM_DEVICE_ACTION_SUSPEND:
+	} else {
+		__ASSERT_NO_MSG(new_state == PM_DEVICE_STATE_LOW_POWER ||
+				new_state == PM_DEVICE_STATE_SUSPEND ||
+				new_state == PM_DEVICE_STATE_OFF);
+
+		/* if pm is already not active, driver will stay indefinitely
+		 * in while loop waiting for event NRF_UARTE_EVENT_RXTO
+		 */
+		if (data->pm_state != PM_DEVICE_STATE_ACTIVE) {
+			return;
+		}
+
+		data->pm_state = new_state;
+
 		/* Disabling UART requires stopping RX, but stop RX event is
 		 * only sent after each RX if async UART API is used.
 		 */
@@ -1906,9 +1902,28 @@ static int uarte_nrfx_pm_control(const struct device *dev,
 		wait_for_tx_stopped(dev);
 		uart_disable(dev);
 		uarte_nrfx_pins_enable(dev, false);
-		break;
-	default:
-		return -ENOTSUP;
+	}
+}
+
+static int uarte_nrfx_pm_control(const struct device *dev,
+				 uint32_t ctrl_command,
+				 uint32_t *state, pm_device_cb cb, void *arg)
+{
+	struct uarte_nrfx_data *data = get_dev_data(dev);
+
+	if (ctrl_command == PM_DEVICE_STATE_SET) {
+		uint32_t new_state = *state;
+
+		if (new_state != data->pm_state) {
+			uarte_nrfx_set_power_state(dev, new_state);
+		}
+	} else {
+		__ASSERT_NO_MSG(ctrl_command == PM_DEVICE_STATE_GET);
+		*state = data->pm_state;
+	}
+
+	if (cb) {
+		cb(dev, 0, state, arg);
 	}
 
 	return 0;

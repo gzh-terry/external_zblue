@@ -1,7 +1,8 @@
+/*  Bluetooth Mesh */
+
 /*
  * Copyright (c) 2017 Intel Corporation
  * Copyright (c) 2020 Lingao Meng
- * Copyright (c) 2021 Manulytica Limited
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -78,15 +79,14 @@ static void prov_fail(uint8_t reason)
 
 static void send_invite(void)
 {
-	PROV_BUF(inv, PDU_LEN_INVITE);
+	PROV_BUF(inv, 2);
 
 	BT_DBG("");
 
 	bt_mesh_prov_buf_init(&inv, PROV_INVITE);
 	net_buf_simple_add_u8(&inv, prov_device.attention_duration);
 
-	memcpy(bt_mesh_prov_link.conf_inputs.invite, &prov_device.attention_duration,
-	       PDU_LEN_INVITE);
+	bt_mesh_prov_link.conf_inputs[0] = prov_device.attention_duration;
 
 	if (bt_mesh_prov_send(&inv, NULL)) {
 		BT_ERR("Failed to send invite");
@@ -111,14 +111,15 @@ static void send_start(void)
 	BT_DBG("");
 	uint8_t method, action;
 
-	PROV_BUF(start, PDU_LEN_START);
+	PROV_BUF(start, 6);
 
-	bool oob_pub_key = bt_mesh_prov_link.conf_inputs.capabilities[3] == PUB_KEY_OOB;
+	const uint8_t *data = &bt_mesh_prov_link.conf_inputs[1 + 3];
 
 	bt_mesh_prov_buf_init(&start, PROV_START);
 	net_buf_simple_add_u8(&start, PROV_ALG_P256);
 
-	if (atomic_test_bit(bt_mesh_prov_link.flags, REMOTE_PUB_KEY) && oob_pub_key) {
+	if (atomic_test_bit(bt_mesh_prov_link.flags, REMOTE_PUB_KEY) &&
+	    *data == PUB_KEY_OOB) {
 		net_buf_simple_add_u8(&start, PUB_KEY_OOB);
 		atomic_set_bit(bt_mesh_prov_link.flags, OOB_PUB_KEY);
 	} else {
@@ -151,7 +152,7 @@ static void send_start(void)
 
 	net_buf_simple_add_u8(&start, bt_mesh_prov_link.oob_size);
 
-	memcpy(bt_mesh_prov_link.conf_inputs.start, &start.data[1], PDU_LEN_START);
+	memcpy(&bt_mesh_prov_link.conf_inputs[12], &start.data[1], 5);
 
 	if (bt_mesh_prov_auth(method, action, bt_mesh_prov_link.oob_size) < 0) {
 		BT_ERR("Invalid authentication method: 0x%02x; "
@@ -265,7 +266,7 @@ static void prov_capabilities(const uint8_t *data)
 		return;
 	}
 
-	memcpy(bt_mesh_prov_link.conf_inputs.capabilities, data, PDU_LEN_CAPABILITIES);
+	memcpy(&bt_mesh_prov_link.conf_inputs[1], data, 11);
 
 	if (bt_mesh_prov->capabilities) {
 		bt_mesh_prov->capabilities(&caps);
@@ -281,14 +282,14 @@ static void prov_capabilities(const uint8_t *data)
 
 static void send_confirm(void)
 {
-	PROV_BUF(cfm, PDU_LEN_CONFIRM);
-	uint8_t *inputs = (uint8_t *)&bt_mesh_prov_link.conf_inputs;
+	PROV_BUF(cfm, 17);
 
-	BT_DBG("ConfInputs[0]   %s", bt_hex(inputs, 64));
-	BT_DBG("ConfInputs[64]  %s", bt_hex(&inputs[64], 64));
-	BT_DBG("ConfInputs[128] %s", bt_hex(&inputs[128], 17));
+	BT_DBG("ConfInputs[0]   %s", bt_hex(bt_mesh_prov_link.conf_inputs, 64));
+	BT_DBG("ConfInputs[64]  %s", bt_hex(&bt_mesh_prov_link.conf_inputs[64], 64));
+	BT_DBG("ConfInputs[128] %s", bt_hex(&bt_mesh_prov_link.conf_inputs[128], 17));
 
-	if (bt_mesh_prov_conf_salt(inputs, bt_mesh_prov_link.conf_salt)) {
+	if (bt_mesh_prov_conf_salt(bt_mesh_prov_link.conf_inputs,
+				   bt_mesh_prov_link.conf_salt)) {
 		BT_ERR("Unable to generate confirmation salt");
 		prov_fail(PROV_ERR_UNEXP_ERR);
 		return;
@@ -344,7 +345,7 @@ static void public_key_sent(int err, void *cb_data)
 
 static void send_pub_key(void)
 {
-	PROV_BUF(buf, PDU_LEN_PUB_KEY);
+	PROV_BUF(buf, 65);
 	const uint8_t *key;
 
 	key = bt_pub_key_get();
@@ -363,7 +364,7 @@ static void send_pub_key(void)
 	sys_memcpy_swap(net_buf_simple_add(&buf, 32), &key[32], 32);
 
 	/* PublicKeyProvisioner */
-	memcpy(bt_mesh_prov_link.conf_inputs.pub_key_provisioner, &buf.data[1], PDU_LEN_PUB_KEY);
+	memcpy(&bt_mesh_prov_link.conf_inputs[17], &buf.data[1], 64);
 
 	if (bt_mesh_prov_send(&buf, public_key_sent)) {
 		BT_ERR("Failed to send Public Key");
@@ -399,12 +400,9 @@ static void prov_dh_key_cb(const uint8_t dhkey[32])
 
 static void prov_dh_key_gen(void)
 {
-	uint8_t remote_pk_le[64];
-	const uint8_t *remote_pk;
-	const uint8_t *local_pk;
+	uint8_t remote_pk_le[64], *remote_pk;
 
-	local_pk = bt_mesh_prov_link.conf_inputs.pub_key_provisioner;
-	remote_pk = bt_mesh_prov_link.conf_inputs.pub_key_device;
+	remote_pk = &bt_mesh_prov_link.conf_inputs[81];
 
 	/* Copy remote key in little-endian for bt_dh_key_gen().
 	 * X and Y halves are swapped independently. The bt_dh_key_gen()
@@ -412,12 +410,6 @@ static void prov_dh_key_gen(void)
 	 */
 	sys_memcpy_swap(remote_pk_le, remote_pk, 32);
 	sys_memcpy_swap(&remote_pk_le[32], &remote_pk[32], 32);
-
-	if (!memcmp(local_pk, remote_pk, 64)) {
-		BT_ERR("Public keys are identical");
-		prov_fail(PROV_ERR_NVAL_FMT);
-		return;
-	}
 
 	if (bt_dh_key_gen(remote_pk_le, prov_dh_key_cb)) {
 		BT_ERR("Failed to generate DHKey");
@@ -436,7 +428,7 @@ static void prov_pub_key(const uint8_t *data)
 	atomic_set_bit(bt_mesh_prov_link.flags, REMOTE_PUB_KEY);
 
 	/* PublicKeyDevice */
-	memcpy(bt_mesh_prov_link.conf_inputs.pub_key_device, data, 64);
+	memcpy(&bt_mesh_prov_link.conf_inputs[81], data, 64);
 	bt_mesh_prov_link.bearer->clear_tx();
 
 	prov_dh_key_gen();
@@ -478,7 +470,7 @@ static void prov_input_complete(const uint8_t *data)
 
 static void send_prov_data(void)
 {
-	PROV_BUF(pdu, PDU_LEN_DATA);
+	PROV_BUF(pdu, 34);
 	struct bt_mesh_cdb_subnet *sub;
 	uint8_t session_key[16];
 	uint8_t nonce[13];
@@ -573,7 +565,7 @@ static void prov_complete(const uint8_t *data)
 
 static void send_random(void)
 {
-	PROV_BUF(rnd, PDU_LEN_RANDOM);
+	PROV_BUF(rnd, 17);
 
 	bt_mesh_prov_buf_init(&rnd, PROV_RANDOM);
 	net_buf_simple_add_mem(&rnd, bt_mesh_prov_link.rand, 16);
@@ -731,7 +723,9 @@ int bt_mesh_prov_remote_pub_key_set(const uint8_t public_key[64])
 		return -EALREADY;
 	}
 
-	memcpy(bt_mesh_prov_link.conf_inputs.pub_key_device, public_key, PDU_LEN_PUB_KEY);
+	/* Swap X and Y halves independently to big-endian */
+	memcpy(&bt_mesh_prov_link.conf_inputs[81], public_key, 32);
+	memcpy(&bt_mesh_prov_link.conf_inputs[81 + 32], &public_key[32], 32);
 
 	return 0;
 }

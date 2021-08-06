@@ -582,12 +582,9 @@ static inline void sw_switch(uint8_t dir_curr, uint8_t dir_next,
 #endif /* CONFIG_BT_CTLR_PHY_CODED */
 	} else {
 		/* RX */
-
-		/* Calculate delay with respect to current and next PHY. */
 		delay = HAL_RADIO_NS2US_CEIL(
-			hal_radio_rx_ready_delay_ns_get(phy_next, flags_next) +
-			hal_radio_tx_chain_delay_ns_get(phy_curr, flags_curr)) +
-			(EVENT_CLOCK_JITTER_US << 1);
+			hal_radio_rx_ready_delay_ns_get(phy_next, flags_next) -
+			hal_radio_tx_chain_delay_ns_get(phy_curr, flags_curr));
 
 		hal_radio_rxen_on_sw_switch(ppi);
 
@@ -1459,23 +1456,13 @@ void radio_ar_resolve(uint8_t *addr)
 	NRF_AAR->EVENTS_RESOLVED = 0;
 	NRF_AAR->EVENTS_NOTRESOLVED = 0;
 
-	NVIC_ClearPendingIRQ(nrfx_get_irq_number(NRF_AAR));
-
-	nrf_aar_int_enable(NRF_AAR, AAR_INTENSET_END_Msk);
-
 	nrf_aar_task_trigger(NRF_AAR, NRF_AAR_TASK_START);
 
+	nrf_aar_int_enable(NRF_AAR, AAR_INTENSET_END_Msk);
 	while (NRF_AAR->EVENTS_END == 0) {
 		__WFE();
 		__SEV();
 		__WFE();
 	}
-
 	nrf_aar_int_disable(NRF_AAR, AAR_INTENCLR_END_Msk);
-
-	NVIC_ClearPendingIRQ(nrfx_get_irq_number(NRF_AAR));
-
-	NRF_AAR->ENABLE = (AAR_ENABLE_ENABLE_Disabled << AAR_ENABLE_ENABLE_Pos) &
-			  AAR_ENABLE_ENABLE_Msk;
-
 }

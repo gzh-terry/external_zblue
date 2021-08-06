@@ -17,4 +17,3 @@ supported:
   - pwm
   - watchdog
   - adc
-  - dma

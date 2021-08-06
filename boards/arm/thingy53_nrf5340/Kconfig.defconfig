@@ -68,8 +68,11 @@ config HEAP_MEM_POOL_SIZE
 config BT_HAS_HCI_VS
 	default BT
 
-config USB_NRFX_ATTACHED_EVENT_DELAY
-	default 700 if USB_DEVICE_DRIVER
+config USB_NRFX
+	default USB
+
+config USB_DEVICE_STACK
+	default USB
 
 config I2C
 	default y

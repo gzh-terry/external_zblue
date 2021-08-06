@@ -7,5 +7,4 @@ tests:
     integration_platforms:
       - qemu_x86
       - mps2_an385
-      - nucleo_l476rg
     tags: power

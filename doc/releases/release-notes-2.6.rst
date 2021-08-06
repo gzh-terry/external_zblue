@@ -2,6 +2,29 @@
 
 .. _zephyr_2.6:
 
+
+.. _zephyr_2.6.1:
+
+Zephyr 2.6.1
+#############
+
+This is a maintenance release with the following fixes.
+
+Security Vulnerability Related
+******************************
+
+The following security vulnerabilities (CVEs) were addressed in this
+release:
+
+More detailed information can be found in:
+https://docs.zephyrproject.org/latest/security/vulnerabilities.html
+
+Issues Fixed
+************
+
+
+.. _zephyr_2.6.0:
+
 Zephyr 2.6.0
 ############
 
@@ -827,7 +850,7 @@ Build and Infrastructure
       some Arduino IDE bootloaders.
 
     * jlink runner: Zephyr thread awareness is now available in GDB by default
-      for application builds with :kconfig:`CONFIG_DEBUG_THREAD_INFO` set to ``y``
+      for application builds with :option:`CONFIG_DEBUG_THREAD_INFO` set to ``y``
       in :ref:`kconfig`. This applies to ``west debug``, ``west debugserver``,
       and ``west attach``. JLink version 7.11b or later must be installed on the
       host system, with JLink 7.20 or later strongly recommended.

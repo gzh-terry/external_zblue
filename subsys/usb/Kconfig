@@ -3,15 +3,9 @@
 # Copyright (c) 2016 Wind River Systems, Inc.
 # SPDX-License-Identifier: Apache-2.0
 
-config USB
-	bool "Enable USB device stack (DEPRECATED)"
-	select USB_DEVICE_STACK
-	help
-	  Compatibility option for the external modules.
-
 menuconfig USB_DEVICE_STACK
 	bool "USB Device Support"
-	select USB_DEVICE_DRIVER
+	depends on USB_DEVICE_DRIVER || ARCH_POSIX
 	select HWINFO
 	help
 	  Enable USB device stack.
@@ -58,6 +52,7 @@ config USB_DEVICE_SN
 
 config USB_COMPOSITE_DEVICE
 	bool "Enable composite device driver"
+	depends on USB
 	help
 	  Enable composite USB device driver.
 
@@ -86,14 +81,6 @@ config USB_REQUEST_BUFFER_SIZE
 	default 266 if (USB_DEVICE_BLUETOOTH && USB_DEVICE_BLUETOOTH_BIG_BUF)
 	default 1024 if USB_DEVICE_LOOPBACK
 	default 128
-
-config USB_MAX_ALT_SETTING
-	int "Size of the array where alternate settings are stored"
-	range 0 16
-	default 8
-	help
-	  Size of the array where alternate settings are stored.
-	  Should not be smaller than the number of interfaces.
 
 config USB_NUMOF_EP_WRITE_RETRIES
 	int "Number of endpoint write retries"

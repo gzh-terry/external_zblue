@@ -9,6 +9,7 @@
 
 #include <sys/byteorder.h>
 #include <usb/usb_device.h>
+#include <usb/usb_common.h>
 #include <usb_descriptor.h>
 
 #include <logging/log.h>
@@ -39,11 +40,11 @@ struct usb_test_config {
 #define INITIALIZER_IF							\
 	{								\
 		.bLength = sizeof(struct usb_if_descriptor),		\
-		.bDescriptorType = USB_DESC_INTERFACE,			\
+		.bDescriptorType = USB_INTERFACE_DESC,			\
 		.bInterfaceNumber = 0,					\
 		.bAlternateSetting = 0,					\
 		.bNumEndpoints = 3,					\
-		.bInterfaceClass = USB_BCC_VENDOR,			\
+		.bInterfaceClass = CUSTOM_CLASS,			\
 		.bInterfaceSubClass = 0,				\
 		.bInterfaceProtocol = 0,				\
 		.iInterface = 0,					\
@@ -52,7 +53,7 @@ struct usb_test_config {
 #define INITIALIZER_IF_EP(addr, attr, mps)				\
 	{								\
 		.bLength = sizeof(struct usb_ep_descriptor),		\
-		.bDescriptorType = USB_DESC_ENDPOINT,			\
+		.bDescriptorType = USB_ENDPOINT_DESC,			\
 		.bEndpointAddress = addr,				\
 		.bmAttributes = attr,					\
 		.wMaxPacketSize = sys_cpu_to_le16(mps),			\
@@ -162,7 +163,7 @@ static void check_endpoint_allocation(struct usb_desc_header *head)
 	uint8_t ep_count = 0;
 
 	while (head->bLength != 0) {
-		if (head->bDescriptorType == USB_DESC_INTERFACE) {
+		if (head->bDescriptorType == USB_INTERFACE_DESC) {
 			struct usb_if_descriptor *if_descr = (void *)head;
 
 			ep_count = 0;
@@ -179,7 +180,7 @@ static void check_endpoint_allocation(struct usb_desc_header *head)
 			zassert_not_null(cfg_data, "Check available cfg data");
 		}
 
-		if (head->bDescriptorType == USB_DESC_ENDPOINT) {
+		if (head->bDescriptorType == USB_ENDPOINT_DESC) {
 			struct usb_ep_descriptor *ep_descr =
 				(struct usb_ep_descriptor *)head;
 

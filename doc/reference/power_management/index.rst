@@ -33,7 +33,7 @@ Terminology
    devices be able of saving energy independently of the the
    system. Devices will keep reference of their usage and will
    automatically be suspended or resumed. This feature is enabled via
-   the ::kconfig:`CONFIG_PM_DEVICE_RUNTIME` Kconfig option.
+   the ::option:`CONFIG_PM_DEVICE_RUNTIME` Kconfig option.
 
 Overview
 ********
@@ -58,7 +58,7 @@ System Power Management
 ***********************
 
 The kernel enters the idle state when it has nothing to schedule. If enabled via
-the :kconfig:`CONFIG_PM` Kconfig option, the Power Management
+the :option:`CONFIG_PM` Kconfig option, the Power Management
 Subsystem can put an idle system in one of the supported power states, based
 on the selected power management policy and the duration of the idle time
 allotted by the kernel.
@@ -248,7 +248,7 @@ The four device power states:
 
    Device context is preserved by the HW and need not be restored by the driver.
 
-:code:`PM_DEVICE_STATE_SUSPENDED`
+:code:`PM_DEVICE_STATE_SUSPEND`
 
    Most device context is lost by the hardware. Device drivers must save and
    restore or reinitialize any context lost by the hardware.
@@ -256,12 +256,12 @@ The four device power states:
 :code:`PM_DEVICE_STATE_SUSPENDING`
 
    Device is currently transitioning from :c:macro:`PM_DEVICE_STATE_ACTIVE` to
-   :c:macro:`PM_DEVICE_STATE_SUSPENDED`.
+   :c:macro:`PM_DEVICE_STATE_SUSPEND`.
 
 :code:`PM_DEVICE_STATE_RESUMING`
 
-   Device is currently transitioning from :c:macro:`PM_DEVICE_STATE_SUSPENDED`
-   to :c:macro:`PM_DEVICE_STATE_ACTIVE`.
+   Device is currently transitioning from :c:macro:`PM_DEVICE_STATE_SUSPEND` to
+   :c:macro:`PM_DEVICE_STATE_ACTIVE`.
 
 :code:`PM_DEVICE_STATE_OFF`
 
@@ -273,8 +273,13 @@ Device Power Management Operations
 ==================================
 
 Zephyr RTOS power management subsystem provides a control function interface
-to device drivers to indicate power management operations to perform. Each
-device driver defines:
+to device drivers to indicate power management operations to perform.
+The supported PM control commands are:
+
+* PM_DEVICE_STATE_SET
+* PM_DEVICE_STATE_GET
+
+Each device driver defines:
 
 * The device's supported power states.
 * The device's supported transitions between power states.
@@ -325,17 +330,20 @@ Device Set Power State
 
 .. code-block:: c
 
-   int pm_device_state_set(const struct device *dev, enum pm_device_state state);
+   int pm_device_state_set(const struct device *dev, uint32_t device_power_state, pm_device_cb cb, void *arg);
 
 Calls the :c:func:`pm_control()` handler function implemented by the
-device driver with the provided state.
+device driver with PM_DEVICE_STATE_SET command.
 
 Device Get Power State
 ----------------------
 
 .. code-block:: c
 
-   int pm_device_state_get(const struct device *dev, enum pm_device_state *state);
+   int pm_device_state_get(const struct device *dev, uint32_t * device_power_state);
+
+Calls the :c:func:`pm_control()` handler function implemented by the
+device driver with PM_DEVICE_STATE_GET command.
 
 Busy Status Indication
 ======================
@@ -494,16 +502,16 @@ Power Management Configuration Flags
 The Power Management features can be individually enabled and disabled using
 the following configuration flags.
 
-:kconfig:`CONFIG_PM`
+:option:`CONFIG_PM`
 
    This flag enables the power management subsystem.
 
-:kconfig:`CONFIG_PM_DEVICE`
+:option:`CONFIG_PM_DEVICE`
 
    This flag is enabled if the SOC interface and the devices support device power
    management.
 
-:kconfig:`CONFIG_PM_DEVICE_RUNTIME`
+:option:`CONFIG_PM_DEVICE_RUNTIME`
 
    This flag enables the Runtime Power Management.
 

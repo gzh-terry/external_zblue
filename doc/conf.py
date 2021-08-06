@@ -6,13 +6,18 @@ import os
 from pathlib import Path
 import re
 
-from sphinx.cmd.build import get_parser
 import sphinx_rtd_theme
 
 
-args = get_parser().parse_args()
-ZEPHYR_BASE = Path(__file__).resolve().parents[1]
-ZEPHYR_BUILD = Path(args.outputdir).resolve()
+ZEPHYR_BASE = os.environ.get("ZEPHYR_BASE")
+if not ZEPHYR_BASE:
+    raise ValueError("ZEPHYR_BASE environment variable undefined")
+ZEPHYR_BASE = Path(ZEPHYR_BASE)
+
+ZEPHYR_BUILD = os.environ.get("ZEPHYR_BUILD")
+if not ZEPHYR_BUILD:
+    raise ValueError("ZEPHYR_BUILD environment variable undefined")
+ZEPHYR_BUILD = Path(ZEPHYR_BUILD)
 
 # Add the '_extensions' directory to sys.path, to enable finding Sphinx
 # extensions within.
@@ -37,7 +42,7 @@ except ImportError:
 
 project = "Zephyr Project"
 copyright = "2015-2021 Zephyr Project members and individual contributors"
-author = "The Zephyr Project Contributors"
+author = "The Zephyr Project"
 
 # parse version from 'VERSION' file
 with open(ZEPHYR_BASE / "VERSION") as f:
@@ -62,8 +67,6 @@ with open(ZEPHYR_BASE / "VERSION") as f:
         if extra:
             version += "-" + extra
 
-release = version
-
 # -- General configuration ------------------------------------------------
 
 extensions = [
@@ -71,10 +74,9 @@ extensions = [
     "sphinx.ext.todo",
     "sphinx.ext.extlinks",
     "sphinx.ext.autodoc",
-    "sphinx.ext.graphviz",
     "zephyr.application",
     "zephyr.html_redirects",
-    "zephyr.kconfig-role",
+    "only.eager_only",
     "zephyr.dtcompatible-role",
     "zephyr.link-roles",
     "sphinx_tabs.tabs",
@@ -122,7 +124,7 @@ html_theme_options = {
 }
 html_title = "Zephyr Project Documentation"
 html_logo = str(ZEPHYR_BASE / "doc" / "_static" / "images" / "logo.svg")
-html_favicon = str(ZEPHYR_BASE / "doc" / "_static" / "images" / "favicon.png")
+html_favicon = str(ZEPHYR_BASE / "doc" / "images" / "zp_favicon.png")
 html_static_path = [str(ZEPHYR_BASE / "doc" / "_static")]
 html_last_updated_fmt = "%b %d, %Y"
 html_domain_indices = False
@@ -152,25 +154,11 @@ html_context = {
 # -- Options for LaTeX output ---------------------------------------------
 
 latex_elements = {
-    "papersize": "a4paper",
-    "maketitle": open(ZEPHYR_BASE / "doc" / "_static" / "latex" / "title.tex").read(),
-    "preamble": open(ZEPHYR_BASE / "doc" / "_static" / "latex" / "preamble.tex").read(),
-    "fontpkg": r"\usepackage{charter}",
-    "sphinxsetup": ",".join(
-        (
-            # NOTE: colors match those found in light.css stylesheet
-            "verbatimwithframe=false",
-            "VerbatimColor={HTML}{f0f2f4}",
-            "InnerLinkColor={HTML}{2980b9}",
-            "warningBgColor={HTML}{e9a499}",
-            "warningborder=0pt",
-            r"HeaderFamily=\rmfamily\bfseries",
-        )
-    ),
+    "preamble": r"\setcounter{tocdepth}{2}",
 }
-latex_logo = str(ZEPHYR_BASE / "doc" / "_static" / "images" / "logo-latex.pdf")
+
 latex_documents = [
-    ("index-tex", "zephyr.tex", "Zephyr Project Documentation", author, "manual"),
+    ("index", "zephyr.tex", "Zephyr Project Documentation", "many", "manual"),
 ]
 
 # -- Options for zephyr.doxyrunner plugin ---------------------------------
@@ -217,7 +205,7 @@ warnings_filter_silent = False
 
 # -- Options for notfound.extension ---------------------------------------
 
-notfound_urls_prefix = f"/{version}/" if is_release else "/latest/"
+notfound_urls_prefix = f"/{version}/"
 
 # -- Options for zephyr.external_content ----------------------------------
 
@@ -233,19 +221,6 @@ external_content_keep = [
     "reference/devicetree/bindings.rst",
     "reference/devicetree/bindings/**/*",
     "reference/devicetree/compatibles/**/*",
-]
-
-# -- Options for sphinx.ext.graphviz --------------------------------------
-
-graphviz_dot = os.environ.get("DOT_EXECUTABLE", "dot")
-graphviz_output_format = "svg"
-graphviz_dot_args = [
-    "-Gbgcolor=transparent",
-    "-Nstyle=filled",
-    "-Nfillcolor=white",
-    "-Ncolor=gray60",
-    "-Nfontcolor=gray25",
-    "-Ecolor=gray60",
 ]
 
 # -- Linkcheck options ----------------------------------------------------

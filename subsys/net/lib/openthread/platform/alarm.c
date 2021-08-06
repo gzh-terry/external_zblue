@@ -16,13 +16,11 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #include <openthread/platform/alarm-milli.h>
 #include <openthread/platform/alarm-micro.h>
-#include <openthread/platform/diag.h>
 #include <openthread-system.h>
 
 #include <stdio.h>
 
 #include "platform-zephyr.h"
-#include "openthread-core-zephyr-config.h"
 
 static bool timer_ms_fired, timer_us_fired;
 
@@ -54,14 +52,7 @@ void platformAlarmProcess(otInstance *aInstance)
 {
 	if (timer_ms_fired) {
 		timer_ms_fired = false;
-#if defined(CONFIG_OPENTHREAD_DIAG)
-		if (otPlatDiagModeGet()) {
-			otPlatDiagAlarmFired(aInstance);
-		} else
-#endif
-		{
-			otPlatAlarmMilliFired(aInstance);
-		}
+		otPlatAlarmMilliFired(aInstance);
 	}
 #if OPENTHREAD_CONFIG_PLATFORM_USEC_TIMER_ENABLE
 	if (timer_us_fired) {

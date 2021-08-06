@@ -73,7 +73,7 @@ SECTION_SUBSEC_FUNC(exc_vector_table,_vector_table_section,_vector_table)
 #if defined(CONFIG_MULTITHREADING)
     .word z_arm_pendsv
 #else
-    .word z_arm_exc_spurious
+    .word 0
 #endif
 #if defined(CONFIG_CPU_CORTEX_M_HAS_SYSTICK)
 #if defined(CONFIG_SYS_CLOCK_EXISTS)

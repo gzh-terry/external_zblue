@@ -83,10 +83,10 @@ config TINYCRYPT
 
 #
 # KW41Z TRNG entropy source cannot be used as a Hardware RNG source so
-# use XOSHIRO for PRNG
+# use XOROSHIRO for PRNG
 #
 choice RNG_GENERATOR_CHOICE
-	default XOSHIRO_RANDOM_GENERATOR
+	default XOROSHIRO_RANDOM_GENERATOR
 endchoice
 
 endif # SOC_MKW41Z4

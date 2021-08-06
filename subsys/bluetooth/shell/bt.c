@@ -360,7 +360,7 @@ static const char *ver_str(uint8_t ver)
 {
 	const char * const str[] = {
 		"1.0b", "1.1", "1.2", "2.0", "2.1", "3.0", "4.0", "4.1", "4.2",
-		"5.0", "5.1", "5.2", "5.3"
+		"5.0", "5.1",
 	};
 
 	if (ver < ARRAY_SIZE(str)) {
@@ -1256,7 +1256,7 @@ static int cmd_adv_data(const struct shell *shell, size_t argc, char *argv[])
 
 			data[*data_len].type = BT_DATA_NAME_COMPLETE;
 			data[*data_len].data_len = strlen(name);
-			data[*data_len].data = name;
+			data[*data_len].data = (const uint8_t *)name;
 			(*data_len)++;
 		} else if (!strcmp(arg, "scan-response")) {
 			if (data == sd) {

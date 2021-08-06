@@ -33,37 +33,22 @@
 #ifdef ZTEST_UNITTEST
 #define DT_NODE_HAS_STATUS(node, status) 0
 #else
-#include <linker/devicetree_reserved.h>
 #include <devicetree.h>
 #endif
 
 #ifdef _LINKER
-
-/**
- * @addtogroup iterable_section_apis
- * @{
- */
-
 #define Z_LINK_ITERABLE(struct_type) \
 	_CONCAT(_##struct_type, _list_start) = .; \
 	KEEP(*(SORT_BY_NAME(._##struct_type.static.*))); \
 	_CONCAT(_##struct_type, _list_end) = .
-
-#define Z_LINK_ITERABLE_ALIGNED(struct_type, align) \
-	. = ALIGN(align); \
-	Z_LINK_ITERABLE(struct_type);
 
 #define Z_LINK_ITERABLE_GC_ALLOWED(struct_type) \
 	_CONCAT(_##struct_type, _list_start) = .; \
 	*(SORT_BY_NAME(._##struct_type.static.*)); \
 	_CONCAT(_##struct_type, _list_end) = .
 
-/**
- * @brief Define a read-only iterable section output.
- *
- * @details
- * Define an output section which will set up an iterable area
- * of equally-sized data structures. For use with STRUCT_SECTION_ITERABLE().
+/* Define an output section which will set up an iterable area
+ * of equally-sized data structures. For use with Z_STRUCT_SECTION_ITERABLE.
  * Input sections will be sorted by name, per ld's SORT_BY_NAME.
  *
  * This macro should be used for read-only data.
@@ -72,42 +57,28 @@
  * they are not being directly referenced. Use this when symbols
  * are indirectly referenced by iterating through the section.
  */
-#define ITERABLE_SECTION_ROM(struct_type, subalign) \
-	Z_ITERABLE_SECTION_ROM(struct_type, subalign)
-
 #define Z_ITERABLE_SECTION_ROM(struct_type, subalign) \
 	SECTION_PROLOGUE(struct_type##_area,,SUBALIGN(subalign)) \
 	{ \
 		Z_LINK_ITERABLE(struct_type); \
 	} GROUP_ROM_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
 
-/**
- * @brief Define a garbage collectable read-only iterable section output.
- *
- * @details
- * Define an output section which will set up an iterable area
- * of equally-sized data structures. For use with STRUCT_SECTION_ITERABLE().
+/* Define an output section which will set up an iterable area
+ * of equally-sized data structures. For use with Z_STRUCT_SECTION_ITERABLE.
  * Input sections will be sorted by name, per ld's SORT_BY_NAME.
  *
  * This macro should be used for read-only data.
  *
  * Note that the symbols within the section can be garbage collected.
  */
-#define ITERABLE_SECTION_ROM_GC_ALLOWED(struct_type, subalign) \
-	Z_ITERABLE_SECTION_ROM_GC_ALLOWED(struct_type, subalign)
-
 #define Z_ITERABLE_SECTION_ROM_GC_ALLOWED(struct_type, subalign) \
 	SECTION_PROLOGUE(struct_type##_area,,SUBALIGN(subalign)) \
 	{ \
 		Z_LINK_ITERABLE_GC_ALLOWED(struct_type); \
 	} GROUP_LINK_IN(ROMABLE_REGION)
 
-/**
- * @brief Define a read-write iterable section output.
- *
- * @details
- * Define an output section which will set up an iterable area
- * of equally-sized data structures. For use with STRUCT_SECTION_ITERABLE().
+/* Define an output section which will set up an iterable area
+ * of equally-sized data structures. For use with Z_STRUCT_SECTION_ITERABLE.
  * Input sections will be sorted by name, per ld's SORT_BY_NAME.
  *
  * This macro should be used for read-write data that is modified at runtime.
@@ -116,9 +87,6 @@
  * they are not being directly referenced. Use this when symbols
  * are indirectly referenced by iterating through the section.
  */
-#define ITERABLE_SECTION_RAM(struct_type, subalign) \
-	Z_ITERABLE_SECTION_RAM(struct_type, subalign)
-
 #define Z_ITERABLE_SECTION_RAM(struct_type, subalign) \
 	SECTION_DATA_PROLOGUE(struct_type##_area,,SUBALIGN(subalign)) \
 	{ \
@@ -126,30 +94,19 @@
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
 
 
-/**
- * @brief Define a garbage collectable read-write iterable section output.
- *
- * @details
- * Define an output section which will set up an iterable area
- * of equally-sized data structures. For use with STRUCT_SECTION_ITERABLE().
+/* Define an output section which will set up an iterable area
+ * of equally-sized data structures. For use with Z_STRUCT_SECTION_ITERABLE.
  * Input sections will be sorted by name, per ld's SORT_BY_NAME.
  *
  * This macro should be used for read-write data that is modified at runtime.
  *
  * Note that the symbols within the section can be garbage collected.
  */
-#define ITERABLE_SECTION_RAM_GC_ALLOWED(struct_type, subalign) \
-	Z_ITERABLE_SECTION_RAM_GC_ALLOWED(struct_type, subalign)
-
 #define Z_ITERABLE_SECTION_RAM_GC_ALLOWED(struct_type, subalign) \
 	SECTION_DATA_PROLOGUE(struct_type##_area,,SUBALIGN(subalign)) \
 	{ \
 		Z_LINK_ITERABLE_GC_ALLOWED(struct_type); \
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
-
-/**
- * @}
- */ /* end of struct_section_apis */
 
 /*
  * generate a symbol to mark the start of the objects array for
@@ -251,10 +208,6 @@ extern char _image_rodata_size[];
 
 extern char _vector_start[];
 extern char _vector_end[];
-
-#if DT_NODE_HAS_STATUS(_NODE_RESERVED, okay)
-DT_RESERVED_MEM_SYMBOLS()
-#endif
 
 #ifdef CONFIG_SW_VECTOR_RELAY
 extern char __vector_relay_table[];
