@@ -1358,7 +1358,7 @@ int bt_mesh_proxy_adv_start(void)
 }
 
 #if defined(CONFIG_BT_MESH_GATT_PROXY)
-static void subnet_evt(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
+static void subnet_evt_proxy(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
 {
 	if (evt == BT_MESH_KEY_DELETED) {
 		if (sub == beacon_sub) {
@@ -1369,7 +1369,7 @@ static void subnet_evt(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
 	}
 }
 
-BT_MESH_SUBNET_CB_DEFINE(subnet_evt);
+BT_MESH_SUBNET_CB_DEFINE(subnet_evt_proxy);
 #endif
 
 static struct bt_conn_cb conn_callbacks = {

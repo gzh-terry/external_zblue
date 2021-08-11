@@ -18,6 +18,7 @@ include $(APPDIR)/Make.defs
 
 SUBDIR = subsys/bluetooth
 CSRCS += subsys/net/buf.c
+CSRCS += port/common/defines.c
 
 ifeq ($(CONFIG_BT_HCI_RAW),y)
   CSRCS += $(SUBDIR)/host/hci_raw.c

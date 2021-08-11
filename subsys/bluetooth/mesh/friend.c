@@ -1262,7 +1262,7 @@ send_last:
 	bt_mesh_adv_send(frnd->last, &buf_sent_cb, frnd);
 }
 
-static void subnet_evt(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
+static void subnet_evt_friend(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
 {
 	int i, err;
 
@@ -1307,7 +1307,7 @@ static void subnet_evt(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
 	}
 }
 
-BT_MESH_SUBNET_CB_DEFINE(subnet_evt);
+BT_MESH_SUBNET_CB_DEFINE(subnet_evt_friend);
 
 int bt_mesh_friend_init(void)
 {

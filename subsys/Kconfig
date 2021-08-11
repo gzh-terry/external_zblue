@@ -6,7 +6,7 @@
 
 menu "Sub Systems and OS Services"
 
-source "$APPSDIR/external/zblue/subsys/bluetooth/Kconfig"
+source "subsys/bluetooth/Kconfig"
 
 source "subsys/canbus/Kconfig"
 
