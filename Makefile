@@ -276,6 +276,10 @@ ifeq ($(CONFIG_BT_SHELL),y)
     CSRCS += $(SUBDIR)/mesh/shell.c
   endif
 
+  ifeq ($(CONFIG_SETTINGS_FS),y)
+    CSRCS += subsys/fs/shell.c
+  endif
+
   MAINSRC  += port/subsys/shell/shell.c
   PROGNAME += bts
 endif
