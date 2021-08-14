@@ -409,35 +409,44 @@ static int apds9960_init_interrupt(const struct device *dev)
 
 #ifdef CONFIG_PM_DEVICE
 static int apds9960_device_ctrl(const struct device *dev,
-				enum pm_device_action action)
+				uint32_t ctrl_command,
+				uint32_t *state, pm_device_cb cb, void *arg)
 {
 	const struct apds9960_config *config = dev->config;
 	struct apds9960_data *data = dev->data;
 	int ret = 0;
 
-	switch (action) {
-	case PM_DEVICE_ACTION_RESUME:
-		if (i2c_reg_update_byte(data->i2c, config->i2c_address,
-					APDS9960_ENABLE_REG,
-					APDS9960_ENABLE_PON,
-					APDS9960_ENABLE_PON)) {
-			ret = -EIO;
-		}
-		break;
-	case PM_DEVICE_ACTION_SUSPEND:
-		if (i2c_reg_update_byte(data->i2c, config->i2c_address,
+	if (ctrl_command == PM_DEVICE_STATE_SET) {
+		uint32_t device_pm_state = *state;
+
+		if (device_pm_state == PM_DEVICE_STATE_ACTIVE) {
+			if (i2c_reg_update_byte(data->i2c, config->i2c_address,
+						APDS9960_ENABLE_REG,
+						APDS9960_ENABLE_PON,
+						APDS9960_ENABLE_PON)) {
+				ret = -EIO;
+			}
+
+		} else {
+
+			if (i2c_reg_update_byte(data->i2c, config->i2c_address,
 					APDS9960_ENABLE_REG,
 					APDS9960_ENABLE_PON, 0)) {
-			ret = -EIO;
+				ret = -EIO;
+			}
+
+			if (i2c_reg_write_byte(data->i2c, config->i2c_address,
+				       APDS9960_AICLEAR_REG, 0)) {
+				ret = -EIO;
+			}
 		}
 
-		if (i2c_reg_write_byte(data->i2c, config->i2c_address,
-				       APDS9960_AICLEAR_REG, 0)) {
-			ret = -EIO;
-		}
-		break;
-	default:
-		return -ENOTSUP;
+	} else if (ctrl_command == PM_DEVICE_STATE_GET) {
+		*state = PM_DEVICE_STATE_ACTIVE;
+	}
+
+	if (cb) {
+		cb(dev, ret, state, arg);
 	}
 
 	return ret;

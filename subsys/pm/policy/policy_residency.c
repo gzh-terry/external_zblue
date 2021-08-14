@@ -6,8 +6,7 @@
 
 #include <zephyr.h>
 #include <kernel.h>
-#include <pm/pm.h>
-#include <pm/policy.h>
+#include "pm_policy.h"
 
 #define LOG_LEVEL CONFIG_PM_LOG_LEVEL /* From power module Kconfig */
 #include <logging/log.h>

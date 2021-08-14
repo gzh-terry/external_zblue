@@ -23,19 +23,6 @@ find_program(
   )
 endif()
 
-# We need to set up uefi-run and OVMF environment
-# for testing UEFI method on qemu platforms
-if(CONFIG_QEMU_UEFI_BOOT)
-  find_program(UEFI NAMES uefi-run REQUIRED)
-  if(DEFINED ENV{OVMF_FD_PATH})
-    set(OVMF_FD_PATH $ENV{OVMF_FD_PATH})
-  else()
-    message(FATAL_ERROR "Couldn't find an valid OVMF_FD_PATH.")
-  endif()
-  list(APPEND UEFI -b ${OVMF_FD_PATH} -q ${QEMU})
-  set(QEMU ${UEFI})
-endif()
-
 set(qemu_targets
   run
   debugserver
@@ -255,7 +242,7 @@ elseif(QEMU_NET_STACK)
   endif()
 endif(QEMU_PIPE_STACK)
 
-if(CONFIG_X86_64 AND NOT CONFIG_QEMU_UEFI_BOOT)
+if(CONFIG_X86_64)
   # QEMU doesn't like 64-bit ELF files. Since we don't use any >4GB
   # addresses, converting it to 32-bit is safe enough for emulation.
   add_custom_target(qemu_image_target
@@ -340,10 +327,7 @@ list(APPEND MORE_FLAGS_FOR_debugserver -s -S)
 # file to pass to qemu (and a "qemu_kernel_target" target to generate
 # it), or set QEMU_KERNEL_OPTION if they want to replace the "-kernel
 # ..." option entirely.
-if(CONFIG_QEMU_UEFI_BOOT)
-  set(QEMU_UEFI_OPTION  ${PROJECT_BINARY_DIR}/${CONFIG_KERNEL_BIN_NAME}.efi)
-  list(APPEND QEMU_UEFI_OPTION --)
-elseif(DEFINED QEMU_KERNEL_FILE)
+if(DEFINED QEMU_KERNEL_FILE)
   set(QEMU_KERNEL_OPTION "-kernel;${QEMU_KERNEL_FILE}")
 elseif(NOT DEFINED QEMU_KERNEL_OPTION)
   set(QEMU_KERNEL_OPTION "-kernel;$<TARGET_FILE:${logical_target_for_zephyr_elf}>")
@@ -357,7 +341,6 @@ foreach(target ${qemu_targets})
     ${PRE_QEMU_COMMANDS_FOR_${target}}
     COMMAND
     ${QEMU}
-    ${QEMU_UEFI_OPTION}
     ${QEMU_FLAGS_${ARCH}}
     ${QEMU_FLAGS}
     ${QEMU_EXTRA_FLAGS}

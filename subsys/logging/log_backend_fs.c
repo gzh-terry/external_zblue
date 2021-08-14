@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <logging/log_backend.h>
-#include <logging/log_output_dict.h>
 #include <logging/log_backend_std.h>
 #include <assert.h>
 #include <fs/fs.h>
@@ -243,7 +242,7 @@ static int get_log_file_id(struct fs_dirent *ent)
 
 	num = atoi(ent->name + LOG_PREFIX_LEN);
 
-	if (num <= MAX_FILE_NUMERAL && num >= 0) {
+	if (num <= MAX_FILE_NUMERAL && num > 0) {
 		return num;
 	}
 
@@ -281,7 +280,7 @@ static int allocate_new_file(struct fs_file_t *file)
 			}
 
 			file_num = get_log_file_id(&ent);
-			if (file_num >= 0) {
+			if (file_num > 0) {
 
 				if (file_num > max) {
 					max = file_num;
@@ -437,7 +436,7 @@ static void put(const struct log_backend *const backend,
 	log_backend_std_put(&log_output, 0, msg);
 }
 
-static void log_backend_fs_init(const struct log_backend *const backend)
+static void log_backend_fs_init(void)
 {
 }
 
@@ -453,28 +452,10 @@ static void dropped(const struct log_backend *const backend, uint32_t cnt)
 {
 	ARG_UNUSED(backend);
 
-	if (IS_ENABLED(CONFIG_LOG_BACKEND_FS_OUTPUT_DICTIONARY)) {
-		log_dict_output_dropped_process(&log_output, cnt);
-	} else {
-		log_backend_std_dropped(&log_output, cnt);
-	}
-}
-
-static void process(const struct log_backend *const backend,
-		union log_msg2_generic *msg)
-{
-	uint32_t flags = log_backend_std_get_flags();
-
-	if (IS_ENABLED(CONFIG_LOG_BACKEND_FS_OUTPUT_DICTIONARY)) {
-		log_dict_output_msg2_process(&log_output,
-					     &msg->log, flags);
-	} else {
-		log_output_msg2_process(&log_output, &msg->log, flags);
-	}
+	log_backend_std_dropped(&log_output, cnt);
 }
 
 static const struct log_backend_api log_backend_fs_api = {
-	.process = IS_ENABLED(CONFIG_LOG2) ? process : NULL,
 	.put = put,
 	.put_sync_string = NULL,
 	.put_sync_hexdump = NULL,

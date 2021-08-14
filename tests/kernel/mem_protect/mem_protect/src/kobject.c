@@ -362,7 +362,7 @@ void test_kobject_release_from_user(void)
  */
 void test_kobject_release_null(void)
 {
-	int dummy = 0;
+	int dummy;
 
 	k_object_release(&dummy);
 }

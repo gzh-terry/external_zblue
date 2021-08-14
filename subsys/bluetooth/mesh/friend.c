@@ -1,3 +1,5 @@
+/*  Bluetooth Mesh */
+
 /*
  * Copyright (c) 2017 Intel Corporation
  *
@@ -176,7 +178,7 @@ static void friend_clear(struct bt_mesh_friend *frnd)
 		seg->seg_count = 0U;
 	}
 
-	STRUCT_SECTION_FOREACH(bt_mesh_friend_cb, cb) {
+	Z_STRUCT_SECTION_FOREACH(bt_mesh_friend_cb, cb) {
 		if (frnd->established && cb->terminated) {
 			cb->terminated(frnd->subnet->net_idx, frnd->lpn);
 		}
@@ -472,7 +474,7 @@ static int encrypt_friend_pdu(struct bt_mesh_friend *frnd, struct net_buf *buf,
 
 	src = sys_get_be16(&buf->data[5]);
 
-	if (bt_mesh_has_addr(src)) {
+	if (bt_mesh_elem_find(src)) {
 		uint32_t seq;
 
 		if (FRIEND_ADV(buf)->app_idx != BT_MESH_KEY_UNUSED) {
@@ -709,7 +711,7 @@ int bt_mesh_friend_poll(struct bt_mesh_net_rx *rx, struct net_buf_simple *buf)
 
 	friend_recv_delay(frnd);
 
-	STRUCT_SECTION_FOREACH(bt_mesh_friend_cb, cb) {
+	Z_STRUCT_SECTION_FOREACH(bt_mesh_friend_cb, cb) {
 		if (cb->polled) {
 			cb->polled(frnd->subnet->net_idx, frnd->lpn);
 		}
@@ -719,7 +721,7 @@ int bt_mesh_friend_poll(struct bt_mesh_net_rx *rx, struct net_buf_simple *buf)
 		BT_DBG("Friendship established with 0x%04x", frnd->lpn);
 		frnd->established = 1U;
 
-		STRUCT_SECTION_FOREACH(bt_mesh_friend_cb, cb) {
+		Z_STRUCT_SECTION_FOREACH(bt_mesh_friend_cb, cb) {
 			if (cb->established) {
 				cb->established(frnd->subnet->net_idx, frnd->lpn, frnd->recv_delay,
 						frnd->poll_to);
@@ -1034,7 +1036,7 @@ init_friend:
 	       frnd->lpn, rx->ctx.recv_rssi, frnd->recv_delay, frnd->poll_to);
 
 	if (BT_MESH_ADDR_IS_UNICAST(frnd->clear.frnd) &&
-	    !bt_mesh_has_addr(frnd->clear.frnd)) {
+	    !bt_mesh_elem_find(frnd->clear.frnd)) {
 		clear_procedure_start(frnd);
 	}
 
@@ -1260,7 +1262,7 @@ send_last:
 	bt_mesh_adv_send(frnd->last, &buf_sent_cb, frnd);
 }
 
-static void subnet_evt(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
+static void subnet_evt_friend(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
 {
 	int i, err;
 
@@ -1305,7 +1307,7 @@ static void subnet_evt(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
 	}
 }
 
-BT_MESH_SUBNET_CB_DEFINE(subnet_evt);
+BT_MESH_SUBNET_CB_DEFINE(subnet_evt_friend);
 
 int bt_mesh_friend_init(void)
 {
@@ -1402,7 +1404,7 @@ static void friend_lpn_enqueue_rx(struct bt_mesh_friend *frnd,
 	 * this rx function. These packets have already been added to the
 	 * queue, and should be ignored.
 	 */
-	if (bt_mesh_has_addr(rx->ctx.addr)) {
+	if (bt_mesh_elem_find(rx->ctx.addr)) {
 		return;
 	}
 

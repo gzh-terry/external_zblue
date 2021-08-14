@@ -12,16 +12,6 @@ struct ll_adv_set {
 	struct ull_hdr ull;
 	struct lll_adv lll;
 
-#if defined(CONFIG_BT_CTLR_AD_DATA_BACKUP)
-	/* Legacy AD Data backup when switching to legacy directed advertising
-	 * or to Extended Advertising.
-	 */
-	struct {
-		uint8_t len;
-		uint8_t data[PDU_AC_DATA_SIZE_MAX];
-	} ad_data_backup;
-#endif /* CONFIG_BT_CTLR_AD_DATA_BACKUP */
-
 #if defined(CONFIG_BT_PERIPHERAL)
 	memq_link_t        *link_cc_free;
 	struct node_rx_pdu *node_rx_cc_free;
@@ -57,11 +47,6 @@ struct ll_adv_set {
 #if defined(CONFIG_BT_CTLR_DF_ADV_CTE_TX)
 	struct lll_df_adv_cfg *df_cfg;
 #endif /* CONFIG_BT_CTLR_DF_ADV_CTE_TX */
-#if defined(CONFIG_BT_CTLR_JIT_SCHEDULING)
-	uint32_t delay;
-	uint32_t delay_remain;
-	uint32_t ticks_at_expire;
-#endif /* CONFIG_BT_CTLR_JIT_SCHEDULING */
 };
 
 #if defined(CONFIG_BT_CTLR_ADV_EXT)

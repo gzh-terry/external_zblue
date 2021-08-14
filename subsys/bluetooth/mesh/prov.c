@@ -1,3 +1,5 @@
+/*  Bluetooth Mesh */
+
 /*
  * Copyright (c) 2017 Intel Corporation
  * Copyright (c) 2020 Lingao Meng
@@ -34,10 +36,6 @@
 struct bt_mesh_prov_link bt_mesh_prov_link;
 const struct bt_mesh_prov *bt_mesh_prov;
 
-/* Verify specification defined length: */
-BUILD_ASSERT(sizeof(bt_mesh_prov_link.conf_inputs) == 145,
-	     "Confirmation inputs shall be 145 bytes");
-
 static void pub_key_ready(const uint8_t *pkey)
 {
 	if (!pkey) {
@@ -48,7 +46,7 @@ static void pub_key_ready(const uint8_t *pkey)
 	BT_DBG("Local public key ready");
 }
 
-int bt_mesh_prov_reset_state(void (*func)(const uint8_t key[BT_PUB_KEY_LEN]))
+int bt_mesh_prov_reset_state(void (*func)(const uint8_t key[64]))
 {
 	int err;
 	static struct bt_pub_key_cb pub_key_cb;
@@ -57,7 +55,7 @@ int bt_mesh_prov_reset_state(void (*func)(const uint8_t key[BT_PUB_KEY_LEN]))
 	pub_key_cb.func = func ? func : pub_key_ready;
 
 	/* Disable Attention Timer if it was set */
-	if (bt_mesh_prov_link.conf_inputs.invite[0]) {
+	if (bt_mesh_prov_link.conf_inputs[0]) {
 		bt_mesh_attention(NULL, 0);
 	}
 
@@ -264,16 +262,16 @@ static void prov_recv(const struct prov_bearer *bearer, void *cb_data,
 		      struct net_buf_simple *buf)
 {
 	static const uint8_t op_len[10] = {
-		[PROV_INVITE]         = PDU_LEN_INVITE,
-		[PROV_CAPABILITIES]   = PDU_LEN_CAPABILITIES,
-		[PROV_START]          = PDU_LEN_START,
-		[PROV_PUB_KEY]        = PDU_LEN_PUB_KEY,
-		[PROV_INPUT_COMPLETE] = PDU_LEN_INPUT_COMPLETE,
-		[PROV_CONFIRM]        = PDU_LEN_CONFIRM,
-		[PROV_RANDOM]         = PDU_LEN_RANDOM,
-		[PROV_DATA]           = PDU_LEN_DATA,
-		[PROV_COMPLETE]       = PDU_LEN_COMPLETE,
-		[PROV_FAILED]         = PDU_LEN_FAILED,
+		[PROV_INVITE] = 1,
+		[PROV_CAPABILITIES] = 11,
+		[PROV_START] = 5,
+		[PROV_PUB_KEY] = 64,
+		[PROV_INPUT_COMPLETE] = 0,
+		[PROV_CONFIRM] = 16,
+		[PROV_RANDOM] = 16,
+		[PROV_DATA] = 33,
+		[PROV_COMPLETE] = 0,
+		[PROV_FAILED] = 1,
 	};
 
 	uint8_t type = buf->data[0];

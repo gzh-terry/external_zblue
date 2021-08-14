@@ -513,7 +513,8 @@ int handle_usb_control(struct usbip_header *hdr)
 	}
 
 	if ((ntohl(hdr->common.direction) == USBIP_DIR_IN) ^
-	    USB_REQTYPE_GET_DIR(hdr->u.submit.bmRequestType)) {
+	    (REQTYPE_GET_DIR(hdr->u.submit.bmRequestType) ==
+	     REQTYPE_DIR_TO_HOST)) {
 		LOG_ERR("Failed to verify bmRequestType");
 		return -EIO;
 	}

@@ -23,10 +23,6 @@
 #include <bluetooth/hci.h>
 #include <sys/util.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /** Possible types of buffers passed around the Bluetooth stack */
 enum bt_buf_type {
 	/** HCI command */
@@ -158,9 +154,5 @@ static inline enum bt_buf_type bt_buf_get_type(struct net_buf *buf)
 /**
  * @}
  */
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* ZEPHYR_INCLUDE_BLUETOOTH_BUF_H_ */

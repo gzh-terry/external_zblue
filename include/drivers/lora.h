@@ -141,7 +141,9 @@ static inline int lora_send(const struct device *dev,
  * @param data      Buffer to hold received data
  * @param size      Size of the buffer to hold the received data. Max size
 		    allowed is 255.
- * @param timeout   Duration to wait for a packet.
+ * @param timeout   Timeout value in milliseconds. API also accepts, 0
+		    for no wait time and SYS_FOREVER_MS for blocking until
+		    data arrives.
  * @param rssi      RSSI of received data
  * @param snr       SNR of received data
  * @return Length of the data received on success, negative on error

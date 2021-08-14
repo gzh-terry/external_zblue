@@ -13,6 +13,7 @@ LOG_MODULE_REGISTER(usb_eem);
 #include <net_private.h>
 
 #include <usb/usb_device.h>
+#include <usb/usb_common.h>
 #include <usb/class/usb_cdc.h>
 
 #include "netusb.h"
@@ -35,11 +36,11 @@ USBD_CLASS_DESCR_DEFINE(primary, 0) struct usb_cdc_eem_config cdc_eem_cfg = {
 	/* CDC Communication interface */
 	.if0 = {
 		.bLength = sizeof(struct usb_if_descriptor),
-		.bDescriptorType = USB_DESC_INTERFACE,
+		.bDescriptorType = USB_INTERFACE_DESC,
 		.bInterfaceNumber = 0,
 		.bAlternateSetting = 0,
 		.bNumEndpoints = 2,
-		.bInterfaceClass = USB_BCC_CDC_CONTROL,
+		.bInterfaceClass = COMMUNICATION_DEVICE_CLASS,
 		.bInterfaceSubClass = EEM_SUBCLASS,
 		.bInterfaceProtocol = EEM_PROTOCOL,
 		.iInterface = 0,
@@ -48,7 +49,7 @@ USBD_CLASS_DESCR_DEFINE(primary, 0) struct usb_cdc_eem_config cdc_eem_cfg = {
 	/* Data Endpoint IN */
 	.if0_in_ep = {
 		.bLength = sizeof(struct usb_ep_descriptor),
-		.bDescriptorType = USB_DESC_ENDPOINT,
+		.bDescriptorType = USB_ENDPOINT_DESC,
 		.bEndpointAddress = CDC_EEM_IN_EP_ADDR,
 		.bmAttributes = USB_DC_EP_BULK,
 		.wMaxPacketSize =
@@ -59,7 +60,7 @@ USBD_CLASS_DESCR_DEFINE(primary, 0) struct usb_cdc_eem_config cdc_eem_cfg = {
 	/* Data Endpoint OUT */
 	.if0_out_ep = {
 		.bLength = sizeof(struct usb_ep_descriptor),
-		.bDescriptorType = USB_DESC_ENDPOINT,
+		.bDescriptorType = USB_ENDPOINT_DESC,
 		.bEndpointAddress = CDC_EEM_OUT_EP_ADDR,
 		.bmAttributes = USB_DC_EP_BULK,
 		.wMaxPacketSize =
