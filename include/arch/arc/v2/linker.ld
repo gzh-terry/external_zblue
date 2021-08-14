@@ -94,6 +94,13 @@ SECTIONS {
 #include <linker/kobject-text.ld>
 	} GROUP_LINK_IN(ROMABLE_REGION)
 
+#if defined(CONFIG_CPLUSPLUS) && !defined(CONFIG_CPP_STATIC_INIT_GNU) && defined(__MWDT_LINKER_CMD__)
+	/* .init section with code iterating over static objects constructors */
+	SECTION_PROLOGUE(.init,,ALIGN(4)) {
+		KEEP(*(.init*))
+	} GROUP_LINK_IN(ROMABLE_REGION)
+#endif /* CONFIG_CPLUSPLUS && !CONFIG_CPP_STATIC_INIT_GNU && __MWDT_LINKER_CMD__ */
+
 	_image_text_end = .;
 	_image_rodata_start = .;
 
@@ -111,6 +118,13 @@ SECTIONS {
 #include <snippets-rodata.ld>
 
 #include <linker/kobject-rom.ld>
+
+#if defined(CONFIG_CPLUSPLUS) && !defined(CONFIG_CPP_STATIC_INIT_GNU) && defined(__MWDT_LINKER_CMD__)
+		. = ALIGN(4);
+		_fctors = .;
+		KEEP(*(.ctors*))
+		_ectors = .;
+#endif /* CONFIG_CPLUSPLUS && !CONFIG_CPP_STATIC_INIT_GNU && __MWDT_LINKER_CMD__ */
 	} GROUP_LINK_IN(ROMABLE_REGION)
 
 #ifdef __MWDT_LINKER_CMD__
@@ -196,6 +210,11 @@ SECTIONS {
 #include <linker/cplusplus-ram.ld>
 #endif /* __MWDT_LINKER_CMD__ */
 
+/* Located in generated directory. This file is populated by the
+ * zephyr_linker_sources() Cmake function.
+ */
+#include <snippets-data-sections.ld>
+
 	__data_ram_end = .;
 	MPU_MIN_SIZE_ALIGN
 	/* Define linker symbols */
@@ -220,6 +239,11 @@ SECTIONS {
 	}
 
 	/DISCARD/ : {
+#if defined(CONFIG_CPLUSPLUS) && !defined(CONFIG_CPP_STATIC_INIT_GNU) && defined(__MWDT_LINKER_CMD__)
+		*(.dtors*)
+		*(.fini*)
+		*(.eh_frame*)
+#endif /* CONFIG_CPLUSPLUS && !CONFIG_CPP_STATIC_INIT_GNU && __MWDT_LINKER_CMD__ */
 		*(.note.GNU-stack)
 		*(.got.plt)
 		*(.igot.plt)

@@ -304,7 +304,7 @@ static ssize_t read_value(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 		return BT_GATT_ERR(BT_ATT_ERR_AUTHORIZATION);
 	}
 
-	if ((attr->perm & GATT_PERM_ENC_READ_MASK) &&
+	if ((attr->perm & GATT_PERM_ENC_READ_MASK) && (conn != NULL) &&
 	    (value->enc_key_size > bt_conn_enc_key_size(conn))) {
 		return BT_GATT_ERR(BT_ATT_ERR_ENCRYPTION_KEY_SIZE);
 	}
@@ -1528,7 +1528,8 @@ static void read_multiple(uint8_t *data, uint16_t len)
 
 	read_params.func = read_cb;
 	read_params.handle_count = i;
-	read_params.handles = handles; /* not used in read func */
+	read_params.multiple.handles = handles; /* not used in read func */
+	read_params.multiple.variable = false;
 
 	/* TODO should be handled as user_data via CONTAINER_OF macro */
 	btp_opcode = GATT_READ_MULTIPLE;

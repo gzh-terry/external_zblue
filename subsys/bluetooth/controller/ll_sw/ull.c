@@ -34,6 +34,7 @@
 #include "lll/lll_adv_types.h"
 #include "lll_adv.h"
 #include "lll/lll_adv_pdu.h"
+#include "lll_chan.h"
 #include "lll_scan.h"
 #include "lll/lll_df_types.h"
 #include "lll_sync.h"
@@ -59,10 +60,11 @@
 #include "ull_master_internal.h"
 #include "ull_conn_internal.h"
 #include "lll_conn_iso.h"
-#include "ull_conn_iso_internal.h"
 #include "ull_conn_iso_types.h"
 #include "ull_iso_types.h"
 #include "ull_central_iso_internal.h"
+
+#include "ull_conn_iso_internal.h"
 #include "ull_peripheral_iso_internal.h"
 
 #if defined(CONFIG_BT_CTLR_USER_EXT)
@@ -207,7 +209,8 @@
 #endif
 #define BT_CTLR_MAX_CONN        CONFIG_BT_MAX_CONN
 #if defined(CONFIG_BT_CTLR_ADV_EXT) && defined(CONFIG_BT_CENTRAL)
-#define BT_CTLR_ADV_EXT_RX_CNT  1
+/* FIXME: needs more due to lll scheduling */
+#define BT_CTLR_ADV_EXT_RX_CNT  16
 #else
 #define BT_CTLR_ADV_EXT_RX_CNT  0
 #endif
@@ -254,8 +257,18 @@
  *       ULL_HIGH operations queue elements are required to buffer the
  *       requested ticker operations.
  */
+#if defined(CONFIG_BT_CENTRAL) && defined(CONFIG_BT_CTLR_ADV_EXT) && \
+	defined(CONFIG_BT_CTLR_PHY_CODED)
+#define TICKER_USER_ULL_HIGH_OPS (4 + TICKER_USER_ULL_HIGH_VENDOR_OPS + \
+				  TICKER_USER_ULL_HIGH_FLASH_OPS + 1)
+#else /* !CONFIG_BT_CENTRAL || !CONFIG_BT_CTLR_ADV_EXT ||
+       * !CONFIG_BT_CTLR_PHY_CODED
+       */
 #define TICKER_USER_ULL_HIGH_OPS (3 + TICKER_USER_ULL_HIGH_VENDOR_OPS + \
 				  TICKER_USER_ULL_HIGH_FLASH_OPS + 1)
+#endif /* !CONFIG_BT_CENTRAL || !CONFIG_BT_CTLR_ADV_EXT ||
+	* !CONFIG_BT_CTLR_PHY_CODED
+	*/
 
 #define TICKER_USER_LLL_OPS      (3 + TICKER_USER_LLL_VENDOR_OPS + 1)
 
@@ -608,6 +621,10 @@ int ll_init(struct k_sem *sem_rx)
 		ull_filter_reset(true);
 	}
 
+#if defined(CONFIG_BT_CTLR_TEST)
+	lll_chan_sel_2_ut();
+#endif /* CONFIG_BT_CTLR_TEST */
+
 	return  0;
 }
 
@@ -689,7 +706,23 @@ void ll_reset(void)
 		if (!err) {
 			struct ll_scan_set *scan;
 
-			scan = ull_scan_is_enabled_get(0);
+			scan = ull_scan_is_enabled_get(SCAN_HANDLE_1M);
+
+			if (IS_ENABLED(CONFIG_BT_CTLR_ADV_EXT) &&
+			    IS_ENABLED(CONFIG_BT_CTLR_PHY_CODED)) {
+				struct ll_scan_set *scan_other;
+
+				scan_other = ull_scan_is_enabled_get(SCAN_HANDLE_PHY_CODED);
+				if (scan_other) {
+					if (scan) {
+						scan->is_enabled = 0U;
+						scan->lll.conn = NULL;
+					}
+
+					scan = scan_other;
+				}
+			}
+
 			LL_ASSERT(scan);
 
 			scan->is_enabled = 0U;
@@ -2451,13 +2484,16 @@ static inline void rx_demux_event_done(memq_link_t *link,
 		break;
 #endif /* CONFIG_BT_CONN */
 
-#if defined(CONFIG_BT_CTLR_ADV_EXT)
 #if defined(CONFIG_BT_BROADCASTER)
+#if defined(CONFIG_BT_CTLR_ADV_EXT) || \
+	defined(CONFIG_BT_CTLR_JIT_SCHEDULING)
 	case EVENT_DONE_EXTRA_TYPE_ADV:
 		ull_adv_done(done);
 		break;
+#endif /* CONFIG_BT_CTLR_ADV_EXT || CONFIG_BT_CTLR_JIT_SCHEDULING */
 #endif /* CONFIG_BT_BROADCASTER */
 
+#if defined(CONFIG_BT_CTLR_ADV_EXT)
 #if defined(CONFIG_BT_OBSERVER)
 	case EVENT_DONE_EXTRA_TYPE_SCAN:
 		ull_scan_done(done);
@@ -2519,4 +2555,16 @@ static inline void rx_demux_event_done(memq_link_t *link,
 static void disabled_cb(void *param)
 {
 	k_sem_give(param);
+}
+
+struct event_done_extra *ull_done_extra_type_set(uint8_t type)
+{
+	struct event_done_extra *extra;
+
+	extra = ull_event_done_extra_get();
+	LL_ASSERT(extra);
+
+	extra->type = type;
+
+	return extra;
 }
