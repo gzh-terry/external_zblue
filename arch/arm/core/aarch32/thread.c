@@ -6,10 +6,10 @@
 
 /**
  * @file
- * @brief New thread creation for ARM Cortex-M and Cortex-R
+ * @brief New thread creation for ARM Cortex-A, Cortex-M and Cortex-R
  *
- * Core thread related primitives for the ARM Cortex-M and Cortex-R
- * processor architecture.
+ * Core thread related primitives for the ARM Cortex-A, Cortex-M and
+ * Cortex-R processor architecture.
  */
 
 #include <kernel.h>
@@ -267,6 +267,11 @@ FUNC_NORETURN void arch_user_mode_enter(k_thread_entry_t user_entry,
 #endif /* CONFIG_FPU && CONFIG_FPU_SHARING */
 #endif /* CONFIG_MPU_STACK_GUARD */
 
+#if defined(CONFIG_CPU_CORTEX_R)
+	_current->arch.priv_stack_end =
+		_current->arch.priv_stack_start + CONFIG_PRIVILEGED_STACK_SIZE;
+#endif
+
 	z_arm_userspace_enter(user_entry, p1, p2, p3,
 			     (uint32_t)_current->stack_info.start,
 			     _current->stack_info.size -
@@ -396,7 +401,7 @@ uint32_t z_check_thread_stack_fail(const uint32_t fault_addr, const uint32_t psp
 #if defined(CONFIG_USERSPACE)
 	if (thread->arch.priv_stack_start) {
 		/* User thread */
-		if ((__get_CONTROL() & CONTROL_nPRIV_Msk) == 0U) {
+		if (z_arm_thread_is_in_user_mode() == false) {
 			/* User thread in privilege mode */
 			if (IS_MPU_GUARD_VIOLATION(
 				thread->arch.priv_stack_start - guard_len,
@@ -509,6 +514,19 @@ void arch_switch_to_main_thread(struct k_thread *main_thread, char *stack_ptr,
 	z_arm_prepare_switch_to_main();
 
 	_current = main_thread;
+
+#if defined(CONFIG_THREAD_LOCAL_STORAGE) && defined(CONFIG_CPU_CORTEX_M)
+	/* On Cortex-M, TLS uses a global variable as pointer to
+	 * the thread local storage area. So this needs to point
+	 * to the main thread's TLS area before switching to any
+	 * thread for the first time, as the pointer is only set
+	 * during context switching.
+	 */
+	extern uintptr_t z_arm_tls_ptr;
+
+	z_arm_tls_ptr = main_thread->tls;
+#endif
+
 #ifdef CONFIG_INSTRUMENT_THREAD_SWITCHING
 	z_thread_mark_switched_in();
 #endif
@@ -544,7 +562,8 @@ void arch_switch_to_main_thread(struct k_thread *main_thread, char *stack_ptr,
 
 	"movs r1, #0\n\t"
 #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE) \
-			|| defined(CONFIG_ARMV7_R)
+	|| defined(CONFIG_ARMV7_R) \
+	|| defined(CONFIG_ARMV7_A)
 	"cpsie i\n\t"		/* __enable_irq() */
 #elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
 	"cpsie if\n\t"		/* __enable_irq(); __enable_fault_irq() */

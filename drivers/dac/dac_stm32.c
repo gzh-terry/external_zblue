@@ -20,7 +20,7 @@
 LOG_MODULE_REGISTER(dac_stm32);
 
 #include <drivers/clock_control/stm32_clock_control.h>
-#include <pinmux/stm32/pinmux_stm32.h>
+#include <pinmux/pinmux_stm32.h>
 
 /* some low-end MCUs have DAC with only one channel */
 #ifdef LL_DAC_CHANNEL_2
@@ -168,7 +168,7 @@ static struct dac_stm32_data dac_stm32_data_##index = {			\
 DEVICE_DT_INST_DEFINE(index, &dac_stm32_init, NULL,			\
 		    &dac_stm32_data_##index,				\
 		    &dac_stm32_cfg_##index, POST_KERNEL,		\
-		    CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,		\
+		    CONFIG_DAC_INIT_PRIORITY,				\
 		    &api_stm32_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(STM32_DAC_INIT)

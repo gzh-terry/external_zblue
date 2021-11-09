@@ -9,17 +9,15 @@
 #include <device.h>
 #include <sys/atomic.h>
 #include <pm/state.h>
-#include "policy/pm_policy.h"
 
-#define LOG_LEVEL CONFIG_PM_LOG_LEVEL /* From power module Kconfig */
 #include <logging/log.h>
-LOG_MODULE_DECLARE(power);
+LOG_MODULE_DECLARE(pm, CONFIG_PM_LOG_LEVEL);
 
 #define PM_STATES_LEN (1 + PM_STATE_SOFT_OFF - PM_STATE_ACTIVE)
 
 static atomic_t power_state_disable_count[PM_STATES_LEN];
 
-void pm_constraint_set(enum pm_state state)
+__weak void pm_constraint_set(enum pm_state state)
 {
 	atomic_val_t v;
 
@@ -31,7 +29,7 @@ void pm_constraint_set(enum pm_state state)
 	(void)(v);
 }
 
-void pm_constraint_release(enum pm_state state)
+__weak void pm_constraint_release(enum pm_state state)
 {
 	atomic_val_t v;
 
@@ -43,7 +41,7 @@ void pm_constraint_release(enum pm_state state)
 	(void)(v);
 }
 
-bool pm_constraint_get(enum pm_state state)
+__weak bool pm_constraint_get(enum pm_state state)
 {
 	__ASSERT(state < PM_STATES_LEN, "Invalid power state!");
 

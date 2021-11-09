@@ -1,5 +1,3 @@
-/*  Bluetooth Mesh */
-
 /*
  * Copyright (c) 2017 Intel Corporation
  *
@@ -22,6 +20,7 @@
 #include "adv.h"
 #include "mesh.h"
 #include "net.h"
+#include "host/ecc.h"
 #include "prov.h"
 #include "crypto.h"
 #include "beacon.h"
@@ -417,14 +416,16 @@ void bt_mesh_beacon_update(struct bt_mesh_subnet *sub)
 	}
 }
 
-static void subnet_evt_beacon(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
+static void subnet_evt(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
 {
 	if (evt != BT_MESH_KEY_DELETED) {
 		bt_mesh_beacon_update(sub);
 	}
 }
 
-BT_MESH_SUBNET_CB_DEFINE(subnet_evt_beacon);
+BT_MESH_SUBNET_CB_DEFINE(beacon) = {
+	.evt_handler = subnet_evt,
+};
 
 void bt_mesh_beacon_init(void)
 {

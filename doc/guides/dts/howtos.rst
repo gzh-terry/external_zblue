@@ -210,7 +210,6 @@ Here are some ways to set it:
    (``-DDTC_OVERLAY_FILE="file1.overlay;file2.overlay"``)
 #. with the CMake ``set()`` command in the application ``CMakeLists.txt``,
    before including zephyr's :file:`boilerplate.cmake` file
-#. using a ``DTC_OVERLAY_FILE`` environment variable (deprecated)
 #. create a ``boards/<BOARD>_<revision>.overlay`` file in the application
    folder for the current board revision. This requires that the board supports
    multiple revisions, see :ref:`porting_board_revisions`.
@@ -219,6 +218,7 @@ Here are some ways to set it:
 #. create a ``boards/<BOARD>.overlay`` file in the application
    folder, for the current board
 #. create a ``<BOARD>.overlay`` file in the application folder
+#. create an ``app.overlay`` file in the application folder
 
 Here is an example :ref:`using west build <west-building-dtc-overlay-file>`.
 However you set the value, it is saved in the CMake cache between builds.
@@ -352,17 +352,6 @@ Write device drivers using devicetree APIs
 ``struct device`` for each ``status = "okay"`` devicetree node with a
 particular :ref:`compatible <dt-important-props>` (or related set of
 compatibles) supported by the driver.
-
-.. note::
-
-  Historically, Zephyr has used Kconfig options like :option:`CONFIG_I2C_0` and
-  :option:`CONFIG_I2C_1` to enable driver support for individual devices of
-  some type. For example, if ``CONFIG_I2C_1=y``, the SoC's I2C peripheral
-  driver would create a ``struct device`` for "I2C bus controller number 1".
-
-  This style predates support for devicetree in Zephyr and its use is now
-  discouraged. Existing device drivers may be made "devicetree-aware"
-  in future releases.
 
 Writing a devicetree-aware driver begins by defining a :ref:`devicetree binding
 <dt-bindings>` for the devices supported by the driver. Use existing bindings

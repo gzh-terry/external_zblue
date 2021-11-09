@@ -28,13 +28,6 @@ struct i2c_emul_data {
 	uint32_t config;
 };
 
-uint32_t i2c_emul_get_config(const struct device *dev)
-{
-	struct i2c_emul_data *data = dev->data;
-
-	return data->config;
-}
-
 /**
  * Find an emulator by its I2C address
  *
@@ -65,6 +58,19 @@ static int i2c_emul_configure(const struct device *dev, uint32_t dev_config)
 	struct i2c_emul_data *data = dev->data;
 
 	data->config = dev_config;
+
+	return 0;
+}
+
+static int i2c_emul_get_config(const struct device *dev, uint32_t *dev_config)
+{
+	struct i2c_emul_data *data = dev->data;
+
+	if (data->config == -1) {
+		return -EIO;
+	}
+
+	*dev_config = data->config;
 
 	return 0;
 }
@@ -108,6 +114,9 @@ static int i2c_emul_init(const struct device *dev)
 
 	rc = emul_init_for_bus_from_list(dev, list);
 
+	/* Set config to an uninitialized state */
+	data->config = -1;
+
 	return rc;
 }
 
@@ -127,6 +136,7 @@ int i2c_emul_register(const struct device *dev, const char *name,
 
 static struct i2c_driver_api i2c_emul_api = {
 	.configure = i2c_emul_configure,
+	.get_config = i2c_emul_get_config,
 	.transfer = i2c_emul_transfer,
 };
 
@@ -136,7 +146,7 @@ static struct i2c_driver_api i2c_emul_api = {
 
 #define I2C_EMUL_INIT(n) \
 	static const struct emul_link_for_bus emuls_##n[] = { \
-		DT_FOREACH_CHILD(DT_DRV_INST(0), EMUL_LINK_AND_COMMA) \
+		DT_FOREACH_CHILD(DT_DRV_INST(n), EMUL_LINK_AND_COMMA) \
 	}; \
 	static struct emul_list_for_bus i2c_emul_cfg_##n = { \
 		.children = emuls_##n, \

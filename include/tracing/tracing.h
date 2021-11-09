@@ -17,6 +17,9 @@
 #elif defined CONFIG_TRACING_TEST
 #include "tracing_test.h"
 
+#elif defined CONFIG_TRACING_USER
+#include "tracing_user.h"
+
 #else
 
 /**
@@ -152,6 +155,18 @@
  * @param thread Thread object
  */
 #define sys_port_trace_k_thread_abort(thread)
+
+/**
+ * @brief Called when a thread enters the k_thread_abort routine
+ * @param thread Thread object
+ */
+#define sys_port_trace_k_thread_abort_enter(thread)
+
+/**
+ * @brief Called when a thread exits the k_thread_abort routine
+ * @param thread Thread object
+ */
+#define sys_port_trace_k_thread_abort_exit(thread)
 
 /**
  * @brief Called when setting priority of a thread
@@ -391,6 +406,12 @@
  * @ingroup tracing_apis
  * @{
  */
+
+/**
+ * @brief Trace initialisation of a Work Queue structure
+ * @param queue Work Queue structure
+ */
+#define sys_port_trace_k_work_queue_init(queue)
 
 /**
  * @brief Trace start of a Work Queue call entry
@@ -1903,22 +1924,160 @@
  * @}
  */ /* end of timer_tracing_apis */
 
+/**
+ * @brief Event Tracing APIs
+ * @defgroup event_tracing_apis Event Tracing APIs
+ * @ingroup tracing_apis
+ * @{
+ */
+
+/**
+ * @brief Trace initialisation of an Event
+ * @param event Event object
+ */
+#define sys_port_trace_k_event_init(event)
+
+/**
+ * @brief Trace posting of an Event call entry
+ * @param event Event object
+ * @param events Set of posted events
+ * @param accumulate True if events accumulate, false otherwise
+ */
+#define sys_port_trace_k_event_post_enter(event, events, accumulate)
+
+/**
+ * @brief Trace posting of an Event call exit
+ * @param event Event object
+ * @param events Set of posted events
+ * @param accumulate True if events accumulate, false otherwise
+ */
+#define sys_port_trace_k_event_post_exit(event, events, accumulate)
+
+/**
+ * @brief Trace waiting of an Event call entry
+ * @param event Event object
+ * @param events Set of events for which to wait
+ * @param options Event wait options
+ * @param timeout Timeout period
+ */
+#define sys_port_trace_k_event_wait_enter(event, events, options, timeout)
+
+/**
+ * @brief Trace waiting of an Event call exit
+ * @param event Event object
+ * @param events Set of events for which to wait
+ * @param options Event wait options
+ * @param timeout Timeout period
+ */
+#define sys_port_trace_k_event_wait_blocking(event, events, options, timeout)
+
+/**
+ * @brief Trace waiting of an Event call exit
+ * @param event Event object
+ * @param events Set of events for which to wait
+ * @param ret Set of received events
+ */
+#define sys_port_trace_k_event_wait_exit(event, events, ret)
+
+/**
+ * @}
+ */ /* end of event_tracing_apis */
+
+
+/**
+ * @brief System PM Tracing APIs
+ * @defgroup pm_system_tracing_apis System PM Tracing APIs
+ * @ingroup tracing_apis
+ * @{
+ */
+
+/**
+ * @brief Trace system suspend call entry.
+ * @param ticks Ticks.
+ */
 #define sys_port_trace_pm_system_suspend_enter(ticks)
 
-#define sys_port_trace_pm_system_suspend_exit(ticks, ret)
+/**
+ * @brief Trace system suspend call exit.
+ * @param ticks Ticks.
+ * @param state PM state.
+ */
+#define sys_port_trace_pm_system_suspend_exit(ticks, state)
 
-#define sys_port_trace_pm_device_request_enter(dev, target_state)
+/** @} */ /* end of pm_system_tracing_apis */
 
-#define sys_port_trace_pm_device_request_exit(dev, ret)
+/**
+ * @brief PM Device Runtime Tracing APIs
+ * @defgroup pm_device_runtime_tracing_apis PM Device Runtime Tracing APIs
+ * @ingroup tracing_apis
+ * @{
+ */
 
-#define sys_port_trace_pm_device_enable_enter(dev)
+/**
+ * @brief Trace getting a device call entry.
+ * @param dev Device instance.
+ */
+#define sys_port_trace_pm_device_runtime_get_enter(dev)
 
-#define sys_port_trace_pm_device_enable_exit(dev)
+/**
+ * @brief Trace getting a device call exit.
+ * @param dev Device instance.
+ * @param ret Return value.
+ */
+#define sys_port_trace_pm_device_runtime_get_exit(dev, ret)
 
-#define sys_port_trace_pm_device_disable_enter(dev)
+/**
+ * @brief Trace putting a device call entry.
+ * @param dev Device instance.
+ */
+#define sys_port_trace_pm_device_runtime_put_enter(dev)
 
-#define sys_port_trace_pm_device_disable_exit(dev)
+/**
+ * @brief Trace putting a device call exit.
+ * @param dev Device instance.
+ * @param ret Return value.
+ */
+#define sys_port_trace_pm_device_runtime_put_exit(dev, ret)
 
+/**
+ * @brief Trace putting a device (asynchronously) call entry.
+ * @param dev Device instance.
+ */
+#define sys_port_trace_pm_device_runtime_put_async_enter(dev)
+
+/**
+ * @brief Trace putting a device (asynchronously) call exit.
+ * @param dev Device instance.
+ * @param ret Return value.
+ */
+#define sys_port_trace_pm_device_runtime_put_async_exit(dev, ret)
+
+/**
+ * @brief Trace enabling device runtime PM call entry.
+ * @param dev Device instance.
+ */
+#define sys_port_trace_pm_device_runtime_enable_enter(dev)
+
+/**
+ * @brief Trace enabling device runtime PM call exit.
+ * @param dev Device instance.
+ */
+#define sys_port_trace_pm_device_runtime_enable_exit(dev)
+
+/**
+ * @brief Trace disabling device runtime PM call entry.
+ * @param dev Device instance.
+ */
+#define sys_port_trace_pm_device_runtime_disable_enter(dev)
+
+/**
+ * @brief Trace disabling device runtime PM call exit.
+ * @param dev Device instance.
+ * @param ret Return value.
+ */
+#define sys_port_trace_pm_device_runtime_disable_exit(dev, ret)
+
+/** @} */ /* end of pm_device_runtime_tracing_apis */
 
 #if defined CONFIG_PERCEPIO_TRACERECORDER
 #include "tracing_tracerecorder.h"

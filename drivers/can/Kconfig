@@ -17,6 +17,12 @@ module = CAN
 module-str = CAN
 source "subsys/logging/Kconfig.template.log_config"
 
+config CAN_INIT_PRIORITY
+	int "CAN init priority"
+	default KERNEL_INIT_PRIORITY_DEVICE
+	help
+	  CAN driver device initialization priority.
+
 config CAN_SHELL
 	bool "Enable CAN Shell"
 	default y
@@ -28,6 +34,11 @@ config CAN_HAS_CANFD
 	bool
 	help
 	  driver supports CAN-FD
+
+config CAN_HAS_RX_TIMESTAMP
+	bool
+	help
+	  driver supports RX timestamps
 
 config CAN_FD_MODE
 	bool "CAN-FD"
@@ -66,7 +77,7 @@ config CAN_WORKQ_FRAMES_BUF_CNT
 
 config CAN_RX_TIMESTAMP
 	bool "Enable receiving timestamps"
-	depends on CAN_STM32 || CAN_MCUX_FLEXCAN || CAN_STM32FD
+	depends on CAN_HAS_RX_TIMESTAMP
 	help
 	  This option enables a timestamp value of the CAN free running timer.
 	  The value is incremented every bit time and starts when the controller
@@ -86,6 +97,7 @@ source "drivers/can/Kconfig.stm32fd"
 source "drivers/can/Kconfig.mcux"
 source "drivers/can/Kconfig.mcp2515"
 source "drivers/can/Kconfig.mcan"
+source "drivers/can/Kconfig.rcar"
 source "drivers/can/Kconfig.loopback"
 source "drivers/can/Kconfig.net"
 

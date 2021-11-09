@@ -21,6 +21,30 @@ struct ll_sync_set {
 	uint16_t volatile timeout_reload; /* Non-zero when sync established */
 	uint16_t timeout_expire;
 
+#if defined(CONFIG_BT_CTLR_CHECK_SAME_PEER_SYNC) || \
+	defined(CONFIG_BT_CTLR_SYNC_PERIODIC_ADI_SUPPORT)
+	uint8_t peer_id_addr[BDADDR_SIZE];
+	uint8_t peer_id_addr_type:1;
+#endif /* CONFIG_BT_CTLR_CHECK_SAME_PEER_SYNC ||
+	* CONFIG_BT_CTLR_SYNC_PERIODIC_ADI_SUPPORT
+	*/
+
+#if defined(CONFIG_BT_CTLR_SYNC_PERIODIC_ADI_SUPPORT)
+	uint8_t nodups:1;
+#endif
+
+#if defined(CONFIG_BT_CTLR_SYNC_PERIODIC_CTE_TYPE_FILTERING) && \
+	!defined(CONFIG_BT_CTLR_CTEINLINE_SUPPORT)
+	/* Member used to notify event done handler to terminate sync scanning.
+	 * Used only when no HW support for parsing PDU for CTEInfo.
+	 */
+	uint8_t sync_term:1;
+#endif /* CONFIG_BT_CTLR_SYNC_PERIODIC_CTE_TYPE_FILTERING && !CONFIG_BT_CTLR_CTEINLINE_SUPPORT */
+
+#if defined(CONFIG_BT_CTLR_CHECK_SAME_PEER_SYNC)
+	uint8_t sid;
+#endif /* CONFIG_BT_CTLR_CHECK_SAME_PEER_SYNC */
+
 	/* node rx type with memory aligned storage for sync lost reason.
 	 * HCI will reference the value using the pdu member of
 	 * struct node_rx_pdu.
@@ -32,6 +56,8 @@ struct ll_sync_set {
 			uint8_t    reason;
 		};
 	} node_rx_lost;
+
+	struct node_rx_hdr *node_rx_sync_estab;
 
 #if defined(CONFIG_BT_CTLR_SYNC_ISO)
 	struct {

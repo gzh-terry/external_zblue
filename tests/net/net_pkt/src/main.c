@@ -874,12 +874,14 @@ void test_net_pkt_headroom_copy(void)
 	struct net_pkt *pkt_dst;
 	struct net_buf *frag1_dst;
 	struct net_buf *frag2_dst;
+	int res;
 
 	/* Create et_pkt containing the bytes "0123" */
 	pkt_src = net_pkt_alloc_with_buffer(eth_if, 4,
 					AF_UNSPEC, 0, K_NO_WAIT);
 	zassert_true(pkt_src != NULL, "Pkt not allocated");
-	net_pkt_write(pkt_src, "0123", 4);
+	res = net_pkt_write(pkt_src, "0123", 4);
+	zassert_equal(res, 0, "Pkt write failed");
 
 	/* Create net_pkt consisting of net_buf fragments with reserved bytes */
 	pkt_dst = net_pkt_alloc_on_iface(eth_if, K_NO_WAIT);
@@ -899,7 +901,8 @@ void test_net_pkt_headroom_copy(void)
 	/* Copy to net_pkt which contains fragments with reserved bytes */
 	net_pkt_cursor_init(pkt_src);
 	net_pkt_cursor_init(pkt_dst);
-	net_pkt_copy(pkt_dst, pkt_src, 4);
+	res = net_pkt_copy(pkt_dst, pkt_src, 4);
+	zassert_equal(res, 0, "Pkt copy failed");
 	zassert_equal(net_pkt_available_buffer(pkt_dst), 0, "Wrong space left");
 	zassert_equal(net_pkt_get_len(pkt_dst), 4, "Length missmatch");
 
@@ -974,6 +977,90 @@ static void test_net_pkt_get_contiguous_len(void)
 	net_pkt_unref(pkt);
 }
 
+void test_net_pkt_remove_tail(void)
+{
+	struct net_pkt *pkt;
+	int err;
+
+	pkt = net_pkt_alloc_with_buffer(NULL,
+					CONFIG_NET_BUF_DATA_SIZE * 2 + 3,
+					AF_UNSPEC, 0, K_NO_WAIT);
+	zassert_true(pkt != NULL, "Pkt not allocated");
+
+	net_pkt_cursor_init(pkt);
+	net_pkt_write(pkt, small_buffer, CONFIG_NET_BUF_DATA_SIZE * 2 + 3);
+
+	zassert_equal(net_pkt_get_len(pkt), CONFIG_NET_BUF_DATA_SIZE * 2 + 3,
+		      "Pkt length is invalid");
+	zassert_equal(pkt->frags->frags->frags->len, 3,
+		      "3rd buffer length is invalid");
+
+	/* Remove some bytes from last buffer */
+	err = net_pkt_remove_tail(pkt, 2);
+	zassert_equal(err, 0, "Failed to remove tail");
+
+	zassert_equal(net_pkt_get_len(pkt), CONFIG_NET_BUF_DATA_SIZE * 2 + 1,
+		      "Pkt length is invalid");
+	zassert_not_equal(pkt->frags->frags->frags, NULL,
+			  "3rd buffer was removed");
+	zassert_equal(pkt->frags->frags->frags->len, 1,
+		      "3rd buffer length is invalid");
+
+	/* Remove last byte from last buffer */
+	err = net_pkt_remove_tail(pkt, 1);
+	zassert_equal(err, 0, "Failed to remove tail");
+
+	zassert_equal(net_pkt_get_len(pkt), CONFIG_NET_BUF_DATA_SIZE * 2,
+		      "Pkt length is invalid");
+	zassert_equal(pkt->frags->frags->frags, NULL,
+		      "3rd buffer was not removed");
+	zassert_equal(pkt->frags->frags->len, CONFIG_NET_BUF_DATA_SIZE,
+		      "2nd buffer length is invalid");
+
+	/* Remove 2nd buffer and one byte from 1st buffer */
+	err = net_pkt_remove_tail(pkt, CONFIG_NET_BUF_DATA_SIZE + 1);
+	zassert_equal(err, 0, "Failed to remove tail");
+
+	zassert_equal(net_pkt_get_len(pkt), CONFIG_NET_BUF_DATA_SIZE - 1,
+		      "Pkt length is invalid");
+	zassert_equal(pkt->frags->frags, NULL,
+		      "2nd buffer was not removed");
+	zassert_equal(pkt->frags->len, CONFIG_NET_BUF_DATA_SIZE - 1,
+		      "1st buffer length is invalid");
+
+	net_pkt_unref(pkt);
+
+	pkt = net_pkt_rx_alloc_with_buffer(NULL,
+					   CONFIG_NET_BUF_DATA_SIZE * 2 + 3,
+					   AF_UNSPEC, 0, K_NO_WAIT);
+
+	net_pkt_cursor_init(pkt);
+	net_pkt_write(pkt, small_buffer, CONFIG_NET_BUF_DATA_SIZE * 2 + 3);
+
+	zassert_equal(net_pkt_get_len(pkt), CONFIG_NET_BUF_DATA_SIZE * 2 + 3,
+		      "Pkt length is invalid");
+	zassert_equal(pkt->frags->frags->frags->len, 3,
+		      "3rd buffer length is invalid");
+
+	/* Remove bytes spanning 3 buffers */
+	err = net_pkt_remove_tail(pkt, CONFIG_NET_BUF_DATA_SIZE + 5);
+	zassert_equal(err, 0, "Failed to remove tail");
+
+	zassert_equal(net_pkt_get_len(pkt), CONFIG_NET_BUF_DATA_SIZE - 2,
+		      "Pkt length is invalid");
+	zassert_equal(pkt->frags->frags, NULL,
+		      "2nd buffer was not removed");
+	zassert_equal(pkt->frags->len, CONFIG_NET_BUF_DATA_SIZE - 2,
+		      "1st buffer length is invalid");
+
+	/* Try to remove more bytes than packet has */
+	err = net_pkt_remove_tail(pkt, CONFIG_NET_BUF_DATA_SIZE);
+	zassert_equal(err, -EINVAL,
+		      "Removing more bytes than available should fail");
+
+	net_pkt_unref(pkt);
+}
+
 void test_main(void)
 {
 	eth_if = net_if_get_default();
@@ -989,7 +1076,8 @@ void test_main(void)
 			 ztest_unit_test(test_net_pkt_clone),
 			 ztest_unit_test(test_net_pkt_headroom),
 			 ztest_unit_test(test_net_pkt_headroom_copy),
-			 ztest_unit_test(test_net_pkt_get_contiguous_len)
+			 ztest_unit_test(test_net_pkt_get_contiguous_len),
+			 ztest_unit_test(test_net_pkt_remove_tail)
 		);
 
 	ztest_run_test_suite(net_pkt_tests);

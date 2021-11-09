@@ -9,7 +9,7 @@
 #include <soc.h>
 #include <stm32_ll_rcc.h>
 #include "can_stm32fd.h"
-#include <pinmux/stm32/pinmux_stm32.h>
+#include <pinmux/pinmux_stm32.h>
 
 #include <logging/log.h>
 LOG_MODULE_DECLARE(can_driver, CONFIG_CAN_LOG_LEVEL);
@@ -36,6 +36,15 @@ int can_stm32fd_get_core_clock(const struct device *dev, uint32_t *rate)
 	*rate = rate_tmp / CONFIG_CAN_STM32_CLOCK_DIVISOR;
 
 	return 0;
+}
+
+int can_stm32fd_get_max_filters(const struct device *dev, enum can_ide id_type)
+{
+	if (id_type == CAN_STANDARD_IDENTIFIER) {
+		return NUM_STD_FILTER_DATA;
+	} else {
+		return NUM_EXT_FILTER_DATA;
+	}
 }
 
 void can_stm32fd_clock_enable(void)
@@ -175,6 +184,7 @@ static const struct can_driver_api can_api_funcs = {
 	.recover = can_mcan_recover,
 #endif
 	.get_core_clock = can_stm32fd_get_core_clock,
+	.get_max_filters = can_stm32fd_get_max_filters,
 	.register_state_change_isr = can_stm32fd_register_state_change_isr,
 	.timing_min = {
 		.sjw = 0x7f,
@@ -279,7 +289,7 @@ static struct can_stm32fd_data can_stm32fd_dev_data_##inst;
 #define CAN_STM32FD_DEVICE_INST(inst)                                          \
 DEVICE_DT_INST_DEFINE(inst, &can_stm32fd_init, NULL,                           \
 		      &can_stm32fd_dev_data_##inst, &can_stm32fd_cfg_##inst,   \
-		      POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,         \
+		      POST_KERNEL, CONFIG_CAN_INIT_PRIORITY,                   \
 		      &can_api_funcs);
 
 #define CAN_STM32FD_INST(inst)     \

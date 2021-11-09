@@ -9,6 +9,12 @@ menuconfig SETTINGS
 	  It supports several back-ends to store and load serialized data from
 	  and it can do so atomically for all involved modules.
 
+if SETTINGS
+module = SETTINGS
+module-str = settings
+source "subsys/logging/Kconfig.template.log_config"
+endif
+
 config SETTINGS_RUNTIME
 	bool "runtime storage back-end"
 	depends on SETTINGS
@@ -27,7 +33,7 @@ config SETTINGS_ENCODE_LEN
 	depends on SETTINGS
 	bool
 
-choice
+choice SETTINGS_BACKEND
 	prompt "Storage back-end"
 	default SETTINGS_NVS if NVS
 	default SETTINGS_FCB if FCB

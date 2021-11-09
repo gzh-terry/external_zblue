@@ -43,13 +43,16 @@
 
 #include "ll_sw/pdu.h"
 #include "ll_sw/lll.h"
+#include "lll/lll_df_types.h"
+#include "ll_sw/lll_conn.h"
 #include "ll.h"
 
 #include "isoal.h"
 #include "lll_conn_iso.h"
-#include "ull_conn_iso_internal.h"
 #include "ull_conn_iso_types.h"
 #include "ull_iso_types.h"
+#include "ull_conn_internal.h"
+#include "ull_conn_iso_internal.h"
 
 #include "hci_internal.h"
 
@@ -113,7 +116,16 @@ isoal_status_t sink_sdu_emit_hci(const struct isoal_sink         *sink_ctx,
 
 	buf = (struct net_buf *) valid_sdu->contents.dbuf;
 
+
 	if (buf) {
+#if defined(CONFIG_BT_CTLR_CONN_ISO_HCI_DATAPATH_SKIP_INVALID_DATA)
+		if (valid_sdu->status != ISOAL_SDU_STATUS_VALID) {
+			/* unref buffer if invalid fragment */
+			net_buf_unref(buf);
+
+			return ISOAL_STATUS_OK;
+		}
+#endif /* CONFIG_BT_CTLR_CONN_ISO_HCI_DATAPATH_SKIP_INVALID_DATA */
 		data_hdr = net_buf_push(buf, BT_HCI_ISO_TS_DATA_HDR_SIZE);
 		hdr = net_buf_push(buf, BT_HCI_ISO_HDR_SIZE);
 
@@ -518,9 +530,8 @@ static void recv_thread(void *p1, void *p2, void *p3)
 			/* Increment ref count, which will be
 			 * unref on call to net_buf_frag_del
 			 */
-			frag = buf;
-			net_buf_ref(frag);
-			buf = net_buf_frag_del(NULL, frag);
+			frag = net_buf_ref(buf);
+			buf = net_buf_frag_del(NULL, buf);
 
 			if (frag->len) {
 				BT_DBG("Packet in: type:%u len:%u",

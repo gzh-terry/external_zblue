@@ -17,17 +17,12 @@
  * running one and corrupting it. YMMV.
  */
 
-static chunkid_t max_chunkid(struct z_heap *h)
-{
-	return h->end_chunk - min_chunk_size(h);
-}
-
 #define VALIDATE(cond) do { if (!(cond)) { return false; } } while (0)
 
 static bool in_bounds(struct z_heap *h, chunkid_t c)
 {
 	VALIDATE(c >= right_chunk(h, 0));
-	VALIDATE(c <= max_chunkid(h));
+	VALIDATE(c < h->end_chunk);
 	VALIDATE(chunk_size(h, c) < h->end_chunk);
 	return true;
 }
@@ -72,15 +67,47 @@ static inline void check_nexts(struct z_heap *h, int bidx)
 	}
 }
 
+#ifdef CONFIG_SYS_HEAP_RUNTIME_STATS
+
+static inline void sys_heap_get_info(struct sys_heap *heap,
+		struct sys_heap_runtime_stats *stats)
+{
+	chunkid_t c = 0;
+	struct z_heap *h = heap->heap;
+
+	stats->allocated_bytes = 0;
+	stats->free_bytes = 0;
+
+	do {
+		if (chunk_used(h, c)) {
+			if ((c != 0) && (c != h->end_chunk)) {
+				stats->allocated_bytes +=
+					chunksz_to_bytes(h, chunk_size(h, c));
+			}
+		} else {
+			if (!solo_free_header(h, c)) {
+				stats->free_bytes +=
+					chunksz_to_bytes(h, chunk_size(h, c));
+			}
+		}
+		c = right_chunk(h, c);
+	} while (c != h->end_chunk);
+}
+
+#endif
+
 bool sys_heap_validate(struct sys_heap *heap)
 {
 	struct z_heap *h = heap->heap;
 	chunkid_t c;
+#ifdef CONFIG_SYS_HEAP_RUNTIME_STATS
+	struct sys_heap_runtime_stats stat1, stat2;
+#endif
 
 	/*
 	 * Walk through the chunks linearly, verifying sizes and end pointer.
 	 */
-	for (c = right_chunk(h, 0); c <= max_chunkid(h); c = right_chunk(h, c)) {
+	for (c = right_chunk(h, 0); c < h->end_chunk; c = right_chunk(h, c)) {
 		if (!valid_chunk(h, c)) {
 			return false;
 		}
@@ -88,6 +115,22 @@ bool sys_heap_validate(struct sys_heap *heap)
 	if (c != h->end_chunk) {
 		return false;  /* Should have exactly consumed the buffer */
 	}
+
+#ifdef CONFIG_SYS_HEAP_RUNTIME_STATS
+	/*
+	 * Validate sys_heap_runtime_stats_get API.
+	 * Iterate all chunks in sys_heap to get total allocated bytes and
+	 * free bytes, then compare with the results of
+	 * sys_heap_runtime_stats_get function.
+	 */
+	sys_heap_runtime_stats_get(heap, &stat1);
+	sys_heap_get_info(heap, &stat2);
+
+	if ((stat1.allocated_bytes != stat2.allocated_bytes) ||
+			(stat1.free_bytes != stat2.free_bytes)) {
+		return false;
+	}
+#endif
 
 	/* Check the free lists: entry count should match, empty bit
 	 * should be correct, and all chunk entries should point into
@@ -126,7 +169,7 @@ bool sys_heap_validate(struct sys_heap *heap)
 	 * USED.
 	 */
 	chunkid_t prev_chunk = 0;
-	for (c = right_chunk(h, 0); c <= max_chunkid(h); c = right_chunk(h, c)) {
+	for (c = right_chunk(h, 0); c < h->end_chunk; c = right_chunk(h, c)) {
 		if (!chunk_used(h, c) && !solo_free_header(h, c)) {
 			return false;
 		}
@@ -164,7 +207,7 @@ bool sys_heap_validate(struct sys_heap *heap)
 	/* Now we are valid, but have managed to invert all the in-use
 	 * fields.  One more linear pass to fix them up
 	 */
-	for (c = right_chunk(h, 0); c <= max_chunkid(h); c = right_chunk(h, c)) {
+	for (c = right_chunk(h, 0); c < h->end_chunk; c = right_chunk(h, c)) {
 		set_chunk_used(h, c, !chunk_used(h, c));
 	}
 	return true;
@@ -391,3 +434,20 @@ void sys_heap_print_info(struct sys_heap *heap, bool dump_chunks)
 {
 	heap_print_info(heap->heap, dump_chunks);
 }
+
+#ifdef CONFIG_SYS_HEAP_RUNTIME_STATS
+
+int sys_heap_runtime_stats_get(struct sys_heap *heap,
+		struct sys_heap_runtime_stats *stats)
+{
+	if ((heap == NULL) || (stats == NULL)) {
+		return -EINVAL;
+	}
+
+	stats->free_bytes = heap->heap->free_bytes;
+	stats->allocated_bytes = heap->heap->allocated_bytes;
+
+	return 0;
+}
+
+#endif

@@ -47,7 +47,8 @@ LOG_MODULE_REGISTER(counter_rtc_stm32, CONFIG_COUNTER_LOG_LEVEL);
 	|| defined(CONFIG_SOC_SERIES_STM32G4X) \
 	|| defined(CONFIG_SOC_SERIES_STM32L0X) \
 	|| defined(CONFIG_SOC_SERIES_STM32L1X) \
-	|| defined(CONFIG_SOC_SERIES_STM32H7X)
+	|| defined(CONFIG_SOC_SERIES_STM32H7X) \
+	|| defined(CONFIG_SOC_SERIES_STM32WLX)
 #define RTC_EXTI_LINE	LL_EXTI_LINE_17
 #endif
 
@@ -420,7 +421,7 @@ static const struct counter_driver_api rtc_stm32_driver_api = {
 
 DEVICE_DT_INST_DEFINE(0, &rtc_stm32_init, NULL,
 		    &rtc_data, &rtc_config, PRE_KERNEL_1,
-		    CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &rtc_stm32_driver_api);
+		    CONFIG_COUNTER_INIT_PRIORITY, &rtc_stm32_driver_api);
 
 static void rtc_stm32_irq_config(const struct device *dev)
 {

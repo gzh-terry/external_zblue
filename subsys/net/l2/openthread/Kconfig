@@ -155,7 +155,6 @@ endmenu # "Zephyr optimizations"
 
 config OPENTHREAD_SHELL
 	bool "Enable OpenThread shell"
-	depends on !OPENTHREAD_COPROCESSOR
 	depends on SHELL
 	default y
 
@@ -221,6 +220,8 @@ config OPENTHREAD_COPROCESSOR
 	help
 	  Enable Co-Processor in OpenThread stack.
 
+if OPENTHREAD_COPROCESSOR
+
 choice
 	prompt "OpenThread Co-Processor type"
 	help
@@ -232,25 +233,11 @@ config OPENTHREAD_COPROCESSOR_RCP
 	bool "RCP - Radio Co-Processor"
 endchoice
 
-if OPENTHREAD_COPROCESSOR
-
-config OPENTHREAD_COPROCESSOR_SPINEL_ON_UART_DEV_NAME
-	string "UART device to use for Co-Processor SPINEL"
-	default "UART_0"
-	help
-	  UART device to use for Co-Processor SPINEL.
-
 config OPENTHREAD_COPROCESSOR_UART_RING_BUFFER_SIZE
 	int "Set Co-Processor UART ring buffer size"
 	default 4096
 	help
 	  TX buffer size for the OpenThread Co-Processor UART.
-
-config OPENTHREAD_COPROCESSOR_SPINEL_ON_UART_ACM
-	bool "Run SPINEL over USB-ACM"
-	depends on USB_CDC_ACM
-	help
-	  Is the SPINEL device a USB-CDC-ACM device.
 
 config OPENTHREAD_COPROCESSOR_VENDOR_HOOK_SOURCE
 	string "Path to vendor hook source file"
@@ -318,5 +305,19 @@ config OPENTHREAD_MAC_SOFTWARE_CSMA_BACKOFF_ENABLE
 	help
 	  Set y to enable software CSMA backoff. The option can be disabled if
 	  the radio has hardware support for this feature (IEEE802154_HW_CSMA).
+
+config OPENTHREAD_CRYPTO_PSA
+	bool "Enable ARM PSA crypto API"
+	depends on BUILD_WITH_TFM
+	select OPENTHREAD_PLATFORM_KEY_REFERENCES_ENABLE
+	help
+	  Enable crypto backend library implementation based on ARM PSA crypto
+	  API instead of the default, using mbedTLS.
+
+config OPENTHREAD_PLATFORM_KEY_REFERENCES_ENABLE
+	bool "Enable cryptographic key reference support"
+	help
+	  Enable usage of cryptographic key references instead of literal keys
+	  This requires a crypto backend library that supports key references.
 
 endif # NET_L2_OPENTHREAD
