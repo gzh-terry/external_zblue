@@ -24,6 +24,9 @@ LOG_MODULE_REGISTER(qdec_nrfx, CONFIG_SENSOR_LOG_LEVEL);
 struct qdec_nrfx_data {
 	int32_t                    acc;
 	sensor_trigger_handler_t data_ready_handler;
+#ifdef CONFIG_PM_DEVICE
+	uint32_t                    pm_state;
+#endif
 };
 
 
@@ -88,7 +91,7 @@ static int qdec_nrfx_channel_get(const struct device *dev,
 	irq_unlock(key);
 
 	BUILD_ASSERT(steps > 0, "only positive number valid");
-	BUILD_ASSERT(steps <= 2048, "overflow possible");
+	BUILD_ASSERT(steps <= 2148, "overflow possible");
 
 	val->val1 = (acc * FULL_ANGLE) / steps;
 	val->val2 = (acc * FULL_ANGLE) - (val->val1 * steps);
@@ -203,35 +206,96 @@ static int qdec_nrfx_init(const struct device *dev)
 	qdec_nrfx_gpio_ctrl(true);
 	nrfx_qdec_enable();
 
+#ifdef CONFIG_PM_DEVICE
+	struct qdec_nrfx_data *data = &qdec_nrfx_data;
+
+	data->pm_state = PM_DEVICE_STATE_ACTIVE;
+#endif
+
 	return 0;
 }
 
 #ifdef CONFIG_PM_DEVICE
-static int qdec_nrfx_pm_action(const struct device *dev,
-			       enum pm_device_action action)
-{
-	ARG_UNUSED(dev);
 
-	switch (action) {
-	case PM_DEVICE_ACTION_RESUME:
-		qdec_nrfx_gpio_ctrl(true);
-		nrfx_qdec_enable();
-		break;
-	case PM_DEVICE_ACTION_TURN_OFF:
-		/* device must be uninitialized */
-		nrfx_qdec_uninit();
-		break;
-	case PM_DEVICE_ACTION_SUSPEND:
-		/* device must be suspended */
-		nrfx_qdec_disable();
-		qdec_nrfx_gpio_ctrl(false);
-		break;
-	default:
-		return -ENOTSUP;
-	}
+static int qdec_nrfx_pm_get_state(struct qdec_nrfx_data *data,
+				  uint32_t *state)
+{
+	unsigned int key = irq_lock();
+	*state = data->pm_state;
+	irq_unlock(key);
 
 	return 0;
 }
+
+static int qdec_nrfx_pm_set_state(struct qdec_nrfx_data *data,
+				  uint32_t new_state)
+{
+	uint32_t old_state;
+	unsigned int key;
+
+	key = irq_lock();
+	old_state = data->pm_state;
+	irq_unlock(key);
+
+	if (old_state == new_state) {
+		/* leave unchanged */
+		return 0;
+	}
+
+	if (old_state == PM_DEVICE_STATE_ACTIVE) {
+		/* device must be suspended */
+		nrfx_qdec_disable();
+		qdec_nrfx_gpio_ctrl(false);
+	}
+
+	if (new_state == PM_DEVICE_STATE_OFF) {
+		/* device must be uninitialized */
+		nrfx_qdec_uninit();
+	}
+
+	if (new_state == PM_DEVICE_STATE_ACTIVE) {
+		qdec_nrfx_gpio_ctrl(true);
+		nrfx_qdec_enable();
+	}
+
+	/* record the new state */
+	key = irq_lock();
+	data->pm_state = new_state;
+	irq_unlock(key);
+
+	return 0;
+}
+
+static int qdec_nrfx_pm_control(const struct device *dev,
+				uint32_t ctrl_command,
+				uint32_t *state, pm_device_cb cb, void *arg)
+{
+	struct qdec_nrfx_data *data = &qdec_nrfx_data;
+	int err;
+
+	LOG_DBG("");
+
+	switch (ctrl_command) {
+	case PM_DEVICE_STATE_GET:
+		err = qdec_nrfx_pm_get_state(data, state);
+		break;
+
+	case PM_DEVICE_STATE_SET:
+		err = qdec_nrfx_pm_set_state(data, *state);
+		break;
+
+	default:
+		err = -ENOTSUP;
+		break;
+	}
+
+	if (cb) {
+		cb(dev, err, state, arg);
+	}
+
+	return err;
+}
+
 #endif /* CONFIG_PM_DEVICE */
 
 
@@ -242,5 +306,5 @@ static const struct sensor_driver_api qdec_nrfx_driver_api = {
 };
 
 DEVICE_DT_INST_DEFINE(0, qdec_nrfx_init,
-		qdec_nrfx_pm_action, NULL, NULL, POST_KERNEL,
+		qdec_nrfx_pm_control, NULL, NULL, POST_KERNEL,
 		CONFIG_SENSOR_INIT_PRIORITY, &qdec_nrfx_driver_api);

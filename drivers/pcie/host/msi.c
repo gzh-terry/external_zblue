@@ -6,13 +6,10 @@
 
 #include <kernel.h>
 #include <drivers/pcie/msi.h>
-#include <drivers/pcie/cap.h>
 
 /* functions documented in include/drivers/pcie/msi.h */
 
 #ifdef CONFIG_PCIE_MSI_MULTI_VECTOR
-
-#include <sys/mem_manage.h>
 
 __weak uint8_t arch_pcie_msi_vectors_allocate(unsigned int priority,
 					      msi_vector_t *vectors,
@@ -72,7 +69,7 @@ static bool map_msix_table_entries(pcie_bdf_t bdf,
 
 	z_phys_map((uint8_t **)&mapped_table,
 		   bar.phys_addr + table_offset,
-		   n_vector * PCIE_MSIR_TABLE_ENTRY_SIZE, K_MEM_PERM_RW);
+		   bar.size, K_MEM_PERM_RW);
 
 	for (i = 0; i < n_vector; i++) {
 		vectors[i].msix_vector = (struct msix_vector *)
@@ -119,16 +116,18 @@ uint8_t pcie_msi_vectors_allocate(pcie_bdf_t bdf,
 	uint32_t base;
 	uint32_t req_vectors;
 
-	base = pcie_get_cap(bdf, PCI_CAP_ID_MSI);
+	base = pcie_get_cap(bdf, PCIE_MSI_CAP_ID);
 
 	if (IS_ENABLED(CONFIG_PCIE_MSI_X)) {
 		uint32_t base_msix;
 
-		base_msix = pcie_get_cap(bdf, PCI_CAP_ID_MSIX);
+		base_msix = pcie_get_cap(bdf, PCIE_MSIX_CAP_ID);
 		if (base_msix != 0U) {
-			msi = false;
 			base = base_msix;
 		}
+
+		msi = false;
+		base = base_msix;
 	}
 
 	if (IS_ENABLED(CONFIG_PCIE_MSI_X)) {
@@ -162,12 +161,12 @@ bool pcie_msi_vector_connect(pcie_bdf_t bdf,
 {
 	uint32_t base;
 
-	base = pcie_get_cap(bdf, PCI_CAP_ID_MSI);
+	base = pcie_get_cap(bdf, PCIE_MSI_CAP_ID);
 
 	if (IS_ENABLED(CONFIG_PCIE_MSI_X)) {
 		uint32_t base_msix;
 
-		base_msix = pcie_get_cap(bdf, PCI_CAP_ID_MSIX);
+		base_msix = pcie_get_cap(bdf, PCIE_MSIX_CAP_ID);
 		if (base_msix != 0U) {
 			base = base_msix;
 		}
@@ -189,11 +188,13 @@ bool pcie_msi_vector_connect(pcie_bdf_t bdf,
 static void enable_msix(pcie_bdf_t bdf,
 			msi_vector_t *vectors,
 			uint8_t n_vector,
-			uint32_t base,
-			unsigned int irq)
+			uint32_t base)
 {
+	unsigned int irq;
 	uint32_t mcr;
 	int i;
+
+	irq = pcie_get_irq(bdf);
 
 	for (i = 0; i < n_vector; i++) {
 		uint32_t map = pcie_msi_map(irq, &vectors[i]);
@@ -227,13 +228,15 @@ static void disable_msi(pcie_bdf_t bdf,
 static void enable_msi(pcie_bdf_t bdf,
 		       msi_vector_t *vectors,
 		       uint8_t n_vector,
-		       uint32_t base,
-		       unsigned int irq)
+		       uint32_t base)
 {
+	unsigned int irq;
 	uint32_t mcr;
 	uint32_t map;
 	uint32_t mdr;
 	uint32_t mme;
+
+	irq = pcie_get_irq(bdf);
 
 	map = pcie_msi_map(irq, vectors);
 	pcie_conf_write(bdf, base + PCIE_MSI_MAP0, map);
@@ -260,25 +263,23 @@ static void enable_msi(pcie_bdf_t bdf,
 
 bool pcie_msi_enable(pcie_bdf_t bdf,
 		     msi_vector_t *vectors,
-		     uint8_t n_vector,
-		     unsigned int irq)
+		     uint8_t n_vector)
 {
 	bool msi = true;
 	uint32_t base;
 
-	base = pcie_get_cap(bdf, PCI_CAP_ID_MSI);
+	base = pcie_get_cap(bdf, PCIE_MSI_CAP_ID);
 
 	if (IS_ENABLED(CONFIG_PCIE_MSI_X)) {
 		uint32_t base_msix;
 
-		base_msix = pcie_get_cap(bdf, PCI_CAP_ID_MSIX);
+		base_msix = pcie_get_cap(bdf, PCIE_MSIX_CAP_ID);
 		if ((base_msix != 0U) && (base != 0U)) {
 			disable_msi(bdf, base);
 		}
-		if ((base_msix != 0U)) {
-			msi = false;
-			base = base_msix;
-		}
+
+		msi = false;
+		base = base_msix;
 	}
 
 	if (base == 0U) {
@@ -286,9 +287,9 @@ bool pcie_msi_enable(pcie_bdf_t bdf,
 	}
 
 	if (!msi && IS_ENABLED(CONFIG_PCIE_MSI_X)) {
-		enable_msix(bdf, vectors, n_vector, base, irq);
+		enable_msix(bdf, vectors, n_vector, base);
 	} else {
-		enable_msi(bdf, vectors, n_vector, base, irq);
+		enable_msi(bdf, vectors, n_vector, base);
 	}
 
 	pcie_set_cmd(bdf, PCIE_CONF_CMDSTAT_MASTER, true);

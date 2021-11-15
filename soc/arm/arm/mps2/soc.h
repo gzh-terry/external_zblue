@@ -10,10 +10,9 @@
 #define __MPU_PRESENT 1
 
 #if defined(CONFIG_SOC_MPS2_AN521)
-#define __SAUREGION_PRESENT       CONFIG_CPU_HAS_ARM_SAU
+#define __SAUREGION_PRESENT       1U        /* SAU regions present */
 #define __FPU_PRESENT             CONFIG_CPU_HAS_FPU
-#define __DSP_PRESENT             CONFIG_ARMV8_M_DSP
-
+#define __DSP_PRESENT             1U        /* DSP extension present */
 #endif
 
 #include <devicetree.h>

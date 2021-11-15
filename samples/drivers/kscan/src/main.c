@@ -15,9 +15,9 @@
 
 LOG_MODULE_REGISTER(main);
 
-#define KSCAN_NODE DT_ALIAS(kscan0)
+#define KSCAN_LABEL DT_LABEL(DT_ALIAS(kscan0))
 
-const struct device *kscan_dev = DEVICE_DT_GET(KSCAN_NODE);
+const struct device *kscan_dev;
 static struct k_timer typematic_timer;
 static struct k_timer block_matrix_timer;
 
@@ -155,8 +155,9 @@ void main(void)
 {
 	printk("Kscan matrix sample application\n");
 
-	if (!device_is_ready(kscan_dev)) {
-		LOG_ERR("kscan device %s not ready", kscan_dev->name);
+	kscan_dev = device_get_binding(KSCAN_LABEL);
+	if (!kscan_dev) {
+		LOG_ERR("kscan device %s not found", KSCAN_LABEL);
 		return;
 	}
 

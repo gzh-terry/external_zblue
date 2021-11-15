@@ -26,17 +26,15 @@
 #
 # Under these restraints we use a second 'cmake_minimum_required'
 # invocation in every toplevel CMakeLists.txt.
-cmake_minimum_required(VERSION 3.20.0)
+cmake_minimum_required(VERSION 3.13.1)
 
 # CMP0002: "Logical target names must be globally unique"
 cmake_policy(SET CMP0002 NEW)
 
-# Use the old CMake behaviour until we are updating the CMake 3.20 as minimum
-# required. This ensure that CMake >=3.20 will be consistent with older CMakes.
-# CMP0116: Ninja generators transform DEPFILE s from add_custom_command().
-if(${CMAKE_VERSION} VERSION_GREATER_EQUAL 3.20)
-  cmake_policy(SET CMP0116 OLD)
-endif()
+# Use the old CMake behaviour until the build scripts have been ported
+# to the new behaviour.
+# CMP0079: "target_link_libraries() allows use with targets in other directories"
+cmake_policy(SET CMP0079 OLD)
 
 define_property(GLOBAL PROPERTY ZEPHYR_LIBS
     BRIEF_DOCS "Global list of all Zephyr CMake libs that should be linked in"
@@ -72,6 +70,24 @@ set(APPLICATION_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR} CACHE PATH "Application B
 set(__build_dir ${CMAKE_CURRENT_BINARY_DIR}/zephyr)
 
 set(PROJECT_BINARY_DIR ${__build_dir})
+
+if(${CMAKE_VERSION} VERSION_EQUAL 3.19.0 OR
+   ${CMAKE_VERSION} VERSION_EQUAL 3.19.1)
+  message(WARNING "CMake 3.19.0/3.19.1 contains a bug regarding Toolchain/compiler "
+          "testing. Consider switching to a different CMake version.\n"
+          "See more here: \n"
+          "- https://github.com/zephyrproject-rtos/zephyr/issues/30232\n"
+          "- https://gitlab.kitware.com/cmake/cmake/-/issues/21497")
+  # This is a workaround for #30232.
+  # During Zephyr CMake invocation a plain C compiler is used for DTS.
+  # This results in the internal `CheckCompilerFlag.cmake` being included by CMake
+  # Later, when the full toolchain is configured, then `CMakeCheckCompilerFlag.cmake` is included.
+  # This overloads the `cmake_check_compiler_flag()` function, thus causing #30232.
+  # By manualy loading `CMakeCheckCompilerFlag.cmake` then `CheckCompilerFlag.cmake` will overload
+  # the functions (and thus win the battle), and because `include_guard(GLOBAL)` is used in
+  # `CMakeCheckCompilerFlag.cmake` this file will not be re-included later.
+  include(${CMAKE_ROOT}/Modules/Internal/CMakeCheckCompilerFlag.cmake)
+endif()
 
 message(STATUS "Application: ${APPLICATION_SOURCE_DIR}")
 
@@ -424,17 +440,6 @@ please check your installation. ARCH roots searched: \n\
 ${ARCH_ROOT}")
 endif()
 
-if(DEFINED APPLICATION_CONFIG_DIR)
-  string(CONFIGURE ${APPLICATION_CONFIG_DIR} APPLICATION_CONFIG_DIR)
-  if(NOT IS_ABSOLUTE ${APPLICATION_CONFIG_DIR})
-    get_filename_component(APPLICATION_CONFIG_DIR ${APPLICATION_CONFIG_DIR} ABSOLUTE)
-  endif()
-else()
-  # Application config dir is not set, so we default to the  application
-  # source directory as configuration directory.
-  set(APPLICATION_CONFIG_DIR ${APPLICATION_SOURCE_DIR})
-endif()
-
 if(DEFINED CONF_FILE)
   # This ensures that CACHE{CONF_FILE} will be set correctly to current scope
   # variable CONF_FILE. An already current scope variable will stay the same.
@@ -452,9 +457,14 @@ if(DEFINED CONF_FILE)
     # Need the file name to look for match.
     # Need path in order to check if it is absolute.
     get_filename_component(CONF_FILE_NAME ${CONF_FILE} NAME)
+    get_filename_component(CONF_FILE_DIR ${CONF_FILE} DIRECTORY)
     if(${CONF_FILE_NAME} MATCHES "prj_(.*).conf")
       set(CONF_FILE_BUILD_TYPE ${CMAKE_MATCH_1})
       set(CONF_FILE_INCLUDE_FRAGMENTS true)
+
+      if(NOT IS_ABSOLUTE ${CONF_FILE_DIR})
+        set(CONF_FILE_DIR ${APPLICATION_SOURCE_DIR}/${CONF_FILE_DIR})
+      endif()
     endif()
   endif()
 elseif(CACHED_CONF_FILE)
@@ -465,19 +475,25 @@ elseif(CACHED_CONF_FILE)
 elseif(DEFINED ENV{CONF_FILE})
   set(CONF_FILE $ENV{CONF_FILE})
 
-elseif(EXISTS   ${APPLICATION_CONFIG_DIR}/prj_${BOARD}.conf)
-  set(CONF_FILE ${APPLICATION_CONFIG_DIR}/prj_${BOARD}.conf)
+elseif(COMMAND set_conf_file)
+  message(WARNING "'set_conf_file' is deprecated, it will be removed in a future release.")
+  set_conf_file()
 
-elseif(EXISTS   ${APPLICATION_CONFIG_DIR}/prj.conf)
-  set(CONF_FILE ${APPLICATION_CONFIG_DIR}/prj.conf)
+elseif(EXISTS   ${APPLICATION_SOURCE_DIR}/prj_${BOARD}.conf)
+  set(CONF_FILE ${APPLICATION_SOURCE_DIR}/prj_${BOARD}.conf)
+
+elseif(EXISTS   ${APPLICATION_SOURCE_DIR}/prj.conf)
+  set(CONF_FILE ${APPLICATION_SOURCE_DIR}/prj.conf)
   set(CONF_FILE_INCLUDE_FRAGMENTS true)
 endif()
 
 if(CONF_FILE_INCLUDE_FRAGMENTS)
-  zephyr_file(CONF_FILES ${APPLICATION_CONFIG_DIR}/boards KCONF CONF_FILE BUILD ${CONF_FILE_BUILD_TYPE})
+  if(NOT CONF_FILE_DIR)
+     set(CONF_FILE_DIR ${APPLICATION_SOURCE_DIR})
+  endif()
+  zephyr_file(CONF_FILES ${CONF_FILE_DIR}/boards KCONF CONF_FILE BUILD ${CONF_FILE_BUILD_TYPE})
 endif()
 
-set(APPLICATION_CONFIG_DIR ${APPLICATION_CONFIG_DIR} CACHE INTERNAL "The application configuration folder")
 set(CACHED_CONF_FILE ${CONF_FILE} CACHE STRING "If desired, you can build the application using\
 the configuration settings specified in an alternate .conf file using this parameter. \
 These settings will override the settings in the application’s .config file or its default .conf file.\
@@ -486,20 +502,23 @@ The CACHED_CONF_FILE is internal Zephyr variable used between CMake runs. \
 To change CONF_FILE, use the CONF_FILE variable.")
 unset(CONF_FILE CACHE)
 
-zephyr_file(CONF_FILES ${APPLICATION_CONFIG_DIR}/boards DTS APP_BOARD_DTS)
+zephyr_file(CONF_FILES ${APPLICATION_SOURCE_DIR}/boards DTS APP_BOARD_DTS)
 
 # The CONF_FILE variable is now set to its final value.
 zephyr_boilerplate_watch(CONF_FILE)
 
 if(DTC_OVERLAY_FILE)
   # DTC_OVERLAY_FILE has either been specified on the cmake CLI or is already
-  # in the CMakeCache.txt.
+  # in the CMakeCache.txt. This has precedence over the environment
+  # variable DTC_OVERLAY_FILE
+elseif(DEFINED ENV{DTC_OVERLAY_FILE})
+  set(DTC_OVERLAY_FILE $ENV{DTC_OVERLAY_FILE})
 elseif(APP_BOARD_DTS)
   set(DTC_OVERLAY_FILE ${APP_BOARD_DTS})
-elseif(EXISTS          ${APPLICATION_CONFIG_DIR}/${BOARD}.overlay)
-  set(DTC_OVERLAY_FILE ${APPLICATION_CONFIG_DIR}/${BOARD}.overlay)
-elseif(EXISTS          ${APPLICATION_CONFIG_DIR}/app.overlay)
-  set(DTC_OVERLAY_FILE ${APPLICATION_CONFIG_DIR}/app.overlay)
+elseif(EXISTS          ${APPLICATION_SOURCE_DIR}/${BOARD}.overlay)
+  set(DTC_OVERLAY_FILE ${APPLICATION_SOURCE_DIR}/${BOARD}.overlay)
+elseif(EXISTS          ${APPLICATION_SOURCE_DIR}/app.overlay)
+  set(DTC_OVERLAY_FILE ${APPLICATION_SOURCE_DIR}/app.overlay)
 endif()
 
 set(DTC_OVERLAY_FILE ${DTC_OVERLAY_FILE} CACHE STRING "If desired, you can \
@@ -614,7 +633,6 @@ set(KERNEL_S19_NAME   ${KERNEL_NAME}.s19)
 set(KERNEL_EXE_NAME   ${KERNEL_NAME}.exe)
 set(KERNEL_STAT_NAME  ${KERNEL_NAME}.stat)
 set(KERNEL_STRIP_NAME ${KERNEL_NAME}.strip)
-set(KERNEL_META_NAME  ${KERNEL_NAME}.meta)
 
 include(${BOARD_DIR}/board.cmake OPTIONAL)
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2021 Nordic Semiconductor ASA
+ * Copyright (c) 2018-2020 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -33,7 +33,6 @@
 #include "lll_adv.h"
 #include "lll_adv_pdu.h"
 #include "lll_adv_aux.h"
-#include "lll_adv_sync.h"
 #include "lll_conn.h"
 #include "lll_chan.h"
 #include "lll_filter.h"
@@ -52,6 +51,7 @@
 
 static int init_reset(void);
 
+static struct pdu_adv *adv_pdu_allocate(struct lll_adv_pdu *pdu, uint8_t last);
 #if defined(CONFIG_BT_CTLR_ADV_EXT_PDU_EXTRA_DATA_MEMORY)
 static inline void adv_extra_data_release(struct lll_adv_pdu *pdu, int idx);
 static void *adv_extra_data_allocate(struct lll_adv_pdu *pdu, uint8_t last);
@@ -83,10 +83,9 @@ static inline bool isr_rx_ci_adva_check(uint8_t tx_addr, uint8_t *addr,
 					struct pdu_adv *ci);
 
 #if defined(CONFIG_BT_CTLR_ADV_EXT)
-#define PAYLOAD_BASED_FRAG_COUNT ((CONFIG_BT_CTLR_ADV_DATA_LEN_MAX + \
-				   PDU_AC_PAYLOAD_SIZE_MAX - 1) / \
-				  PDU_AC_PAYLOAD_SIZE_MAX)
-#define PAYLOAD_FRAG_COUNT MAX(PAYLOAD_BASED_FRAG_COUNT, BT_CTLR_DF_PER_ADV_CTE_NUM_MAX)
+#define PAYLOAD_FRAG_COUNT   ((CONFIG_BT_CTLR_ADV_DATA_LEN_MAX + \
+			       PDU_AC_PAYLOAD_SIZE_MAX - 1) / \
+			      PDU_AC_PAYLOAD_SIZE_MAX)
 #define BT_CTLR_ADV_AUX_SET  CONFIG_BT_CTLR_ADV_AUX_SET
 #if defined(CONFIG_BT_CTLR_ADV_PERIODIC)
 #define BT_CTLR_ADV_SYNC_SET CONFIG_BT_CTLR_ADV_SYNC_SET
@@ -99,65 +98,17 @@ static inline bool isr_rx_ci_adva_check(uint8_t tx_addr, uint8_t *addr,
 #define BT_CTLR_ADV_SYNC_SET 0
 #endif
 
-#define PDU_MEM_SIZE       PDU_ADV_MEM_SIZE
-
-/* AD data and Scan Response Data need 2 PDU buffers each in the double buffer
- * implementation. Allocate 3 PDU buffers plus CONFIG_BT_CTLR_ADV_DATA_BUF_MAX
- * defined buffer count as the minimum number of buffers that meet the legacy
- * advertising needs. Add 1 each for Extended and Periodic Advertising, needed
- * extra for double buffers for these is kept as configurable, by increasing
- * CONFIG_BT_CTLR_ADV_DATA_BUF_MAX.
- */
-#define PDU_MEM_COUNT_MIN  ((BT_CTLR_ADV_SET * 3) + \
-			    ((BT_CTLR_ADV_AUX_SET + \
-			      BT_CTLR_ADV_SYNC_SET) * \
+#define PDU_MEM_SIZE       MROUND(PDU_AC_LL_HEADER_SIZE + \
+				  PDU_AC_PAYLOAD_SIZE_MAX)
+#define PDU_MEM_COUNT_MIN  (BT_CTLR_ADV_SET + \
+			    (BT_CTLR_ADV_SET * PAYLOAD_FRAG_COUNT) + \
+			    (BT_CTLR_ADV_AUX_SET * PAYLOAD_FRAG_COUNT) + \
+			    (BT_CTLR_ADV_SYNC_SET * PAYLOAD_FRAG_COUNT))
+#define PDU_MEM_FIFO_COUNT ((BT_CTLR_ADV_SET * PAYLOAD_FRAG_COUNT * 2) + \
+			    (CONFIG_BT_CTLR_ADV_DATA_BUF_MAX * \
 			     PAYLOAD_FRAG_COUNT))
-
-/* Maximum advertising PDU buffers to allocate, which is the sum of minimum
- * plus configured additional count in CONFIG_BT_CTLR_ADV_DATA_BUF_MAX.
- */
-#if defined(CONFIG_BT_CTLR_ADV_EXT)
-#if defined(CONFIG_BT_CTLR_ADV_PERIODIC)
-/* NOTE: When Periodic Advertising is supported then one additional PDU buffer
- *       plus the additional CONFIG_BT_CTLR_ADV_DATA_BUF_MAX amount of buffers
- *       is allocated.
- *       Set CONFIG_BT_CTLR_ADV_DATA_BUF_MAX to (BT_CTLR_ADV_AUX_SET +
- *       BT_CTLR_ADV_SYNC_SET) if
- *       PDU data is updated more frequently compare to the advertising
- *       interval with random delay included.
- */
-#define PDU_MEM_COUNT_MAX (PDU_MEM_COUNT_MIN + \
-			   ((1 + CONFIG_BT_CTLR_ADV_DATA_BUF_MAX) * \
-			    PAYLOAD_FRAG_COUNT))
-#else /* !CONFIG_BT_CTLR_ADV_PERIODIC */
-/* NOTE: When Extended Advertising is supported but no Periodic Advertising
- *       then additional CONFIG_BT_CTLR_ADV_DATA_BUF_MAX amount of buffers is
- *       allocated.
- *       Set CONFIG_BT_CTLR_ADV_DATA_BUF_MAX to BT_CTLR_ADV_AUX_SET if
- *       PDU data is updated more frequently compare to the advertising
- *       interval with random delay included.
- */
-#define PDU_MEM_COUNT_MAX (PDU_MEM_COUNT_MIN + \
-			   (CONFIG_BT_CTLR_ADV_DATA_BUF_MAX * \
-			    PAYLOAD_FRAG_COUNT))
-#endif /* !CONFIG_BT_CTLR_ADV_PERIODIC */
-#else /* !CONFIG_BT_CTLR_ADV_EXT */
-/* NOTE: When Extended Advertising is not supported then
- *       CONFIG_BT_CTLR_ADV_DATA_BUF_MAX is restricted to 1 in Kconfig file.
- */
-#define PDU_MEM_COUNT_MAX (PDU_MEM_COUNT_MIN + CONFIG_BT_CTLR_ADV_DATA_BUF_MAX)
-#endif /* !CONFIG_BT_CTLR_ADV_EXT */
-
-/* FIFO element count, that returns the consumed advertising PDUs (AD and Scan
- * Response). 1 each for primary channel PDU (AD and Scan Response), plus one
- * each for Extended Advertising and Periodic Advertising times the number of
- * chained fragments that would get returned.
- */
-#define PDU_MEM_FIFO_COUNT (BT_CTLR_ADV_SET + 1 +\
-			    ((BT_CTLR_ADV_AUX_SET + BT_CTLR_ADV_SYNC_SET) * \
-			     PAYLOAD_FRAG_COUNT))
-
-#define PDU_POOL_SIZE      (PDU_MEM_SIZE * PDU_MEM_COUNT_MAX)
+#define PDU_MEM_COUNT      (PDU_MEM_COUNT_MIN + PDU_MEM_FIFO_COUNT)
+#define PDU_POOL_SIZE      (PDU_MEM_SIZE * PDU_MEM_COUNT)
 
 /* Free AD data PDU buffer pool */
 static struct {
@@ -210,12 +161,6 @@ int lll_adv_init(void)
 		return err;
 	}
 #endif /* BT_CTLR_ADV_AUX_SET > 0 */
-#if defined(CONFIG_BT_CTLR_ADV_PERIODIC)
-	err = lll_adv_sync_init();
-	if (err) {
-		return err;
-	}
-#endif /* CONFIG_BT_CTLR_ADV_PERIODIC */
 #endif /* CONFIG_BT_CTLR_ADV_EXT */
 
 	err = init_reset();
@@ -237,12 +182,6 @@ int lll_adv_reset(void)
 		return err;
 	}
 #endif /* BT_CTLR_ADV_AUX_SET > 0 */
-#if defined(CONFIG_BT_CTLR_ADV_PERIODIC)
-	err = lll_adv_sync_reset();
-	if (err) {
-		return err;
-	}
-#endif /* CONFIG_BT_CTLR_ADV_PERIODIC */
 #endif /* CONFIG_BT_CTLR_ADV_EXT */
 
 	err = init_reset();
@@ -292,29 +231,6 @@ int lll_adv_data_reset(struct lll_adv_pdu *pdu)
 	return 0;
 }
 
-int lll_adv_data_dequeue(struct lll_adv_pdu *pdu)
-{
-	uint8_t first;
-	void *p;
-
-	first = pdu->first;
-	if (first == pdu->last) {
-		return -ENOMEM;
-	}
-
-	p = pdu->pdu[first];
-	pdu->pdu[first] = NULL;
-	mem_release(p, &mem_pdu.free);
-
-	first++;
-	if (first == DOUBLE_BUFFER_SIZE) {
-		first = 0U;
-	}
-	pdu->first = first;
-
-	return 0;
-}
-
 int lll_adv_data_release(struct lll_adv_pdu *pdu)
 {
 	uint8_t last;
@@ -341,15 +257,10 @@ int lll_adv_data_release(struct lll_adv_pdu *pdu)
 struct pdu_adv *lll_adv_pdu_alloc(struct lll_adv_pdu *pdu, uint8_t *idx)
 {
 	uint8_t first, last;
-	void *p;
 
-	/* TODO: Make this unique mechanism to update last element in double
-	 *       buffer a re-usable utility function.
-	 */
 	first = pdu->first;
 	last = pdu->last;
 	if (first == last) {
-		/* Return the index of next free PDU in the double buffer */
 		last++;
 		if (last == DOUBLE_BUFFER_SIZE) {
 			last = 0U;
@@ -357,23 +268,10 @@ struct pdu_adv *lll_adv_pdu_alloc(struct lll_adv_pdu *pdu, uint8_t *idx)
 	} else {
 		uint8_t first_latest;
 
-		/* LLL has not consumed the first PDU. Revert back the `last` so
-		 * that LLL still consumes the first PDU while the caller of
-		 * this function updates/modifies the latest PDU.
-		 *
-		 * Under race condition:
-		 * 1. LLL runs before `pdu->last` is reverted, then `pdu->first`
-		 *    has changed, hence restore `pdu->last` and return index of
-		 *    next free PDU in the double buffer.
-		 * 2. LLL runs after `pdu->last` is reverted, then `pdu->first`
-		 *    will not change, return the saved `last` as the index of
-		 *    the next free PDU in the double buffer.
-		 */
 		pdu->last = first;
 		cpu_dmb();
 		first_latest = pdu->first;
 		if (first_latest != first) {
-			pdu->last = last;
 			last++;
 			if (last == DOUBLE_BUFFER_SIZE) {
 				last = 0U;
@@ -383,71 +281,8 @@ struct pdu_adv *lll_adv_pdu_alloc(struct lll_adv_pdu *pdu, uint8_t *idx)
 
 	*idx = last;
 
-	p = (void *)pdu->pdu[last];
-	if (p) {
-		return p;
-	}
-
-	p = lll_adv_pdu_alloc_pdu_adv();
-
-	pdu->pdu[last] = (void *)p;
-
-	return p;
+	return adv_pdu_allocate(pdu, last);
 }
-
-struct pdu_adv *lll_adv_pdu_alloc_pdu_adv(void)
-{
-	struct pdu_adv *p;
-	int err;
-
-	p = MFIFO_DEQUEUE_PEEK(pdu_free);
-	if (p) {
-		err = k_sem_take(&sem_pdu_free, K_NO_WAIT);
-		LL_ASSERT(!err);
-
-		MFIFO_DEQUEUE(pdu_free);
-
-#if defined(CONFIG_BT_CTLR_ADV_PDU_LINK)
-		PDU_ADV_NEXT_PTR(p) = NULL;
-#endif
-		return p;
-	}
-
-	p = mem_acquire(&mem_pdu.free);
-	if (p) {
-#if defined(CONFIG_BT_CTLR_ADV_PDU_LINK)
-		PDU_ADV_NEXT_PTR(p) = NULL;
-#endif
-		return p;
-	}
-
-	err = k_sem_take(&sem_pdu_free, K_FOREVER);
-	LL_ASSERT(!err);
-
-	p = MFIFO_DEQUEUE(pdu_free);
-	LL_ASSERT(p);
-
-#if defined(CONFIG_BT_CTLR_ADV_PDU_LINK)
-	PDU_ADV_NEXT_PTR(p) = NULL;
-#endif
-	return p;
-}
-
-#if defined(CONFIG_BT_CTLR_ADV_PDU_LINK)
-void lll_adv_pdu_linked_release_all(struct pdu_adv *pdu_first)
-{
-	struct pdu_adv *pdu = pdu_first;
-
-	while (pdu) {
-		struct pdu_adv *pdu_next;
-
-		pdu_next = PDU_ADV_NEXT_PTR(pdu);
-		PDU_ADV_NEXT_PTR(pdu) = NULL;
-		mem_release(pdu, &mem_pdu.free);
-		pdu = pdu_next;
-	}
-}
-#endif
 
 struct pdu_adv *lll_adv_pdu_latest_get(struct lll_adv_pdu *pdu,
 				       uint8_t *is_modified)
@@ -460,34 +295,11 @@ struct pdu_adv *lll_adv_pdu_latest_get(struct lll_adv_pdu *pdu,
 		uint8_t pdu_idx;
 		void *p;
 
+		if (!MFIFO_ENQUEUE_IDX_GET(pdu_free, &free_idx)) {
+			return NULL;
+		}
+
 		pdu_idx = first;
-		p = pdu->pdu[pdu_idx];
-
-		do {
-			void *next;
-
-			/* Store partial list in current data index if there is
-			 * no free slot in mfifo. It can be released on next
-			 * switch attempt (on next event).
-			 */
-			if (!MFIFO_ENQUEUE_IDX_GET(pdu_free, &free_idx)) {
-				pdu->pdu[pdu_idx] = p;
-				return NULL;
-			}
-
-#if defined(CONFIG_BT_CTLR_ADV_PDU_LINK)
-			next = lll_adv_pdu_linked_next_get(p);
-#else
-			next = NULL;
-#endif
-
-			MFIFO_BY_IDX_ENQUEUE(pdu_free, free_idx, p);
-			k_sem_give(&sem_pdu_free);
-
-			p = next;
-		} while (p);
-
-		pdu->pdu[pdu_idx] = NULL;
 
 		first += 1U;
 		if (first == DOUBLE_BUFFER_SIZE) {
@@ -496,7 +308,11 @@ struct pdu_adv *lll_adv_pdu_latest_get(struct lll_adv_pdu *pdu,
 		pdu->first = first;
 		*is_modified = 1U;
 
+		p = pdu->pdu[pdu_idx];
 		pdu->pdu[pdu_idx] = NULL;
+
+		MFIFO_BY_IDX_ENQUEUE(pdu_free, free_idx, p);
+		k_sem_give(&sem_pdu_free);
 	}
 
 	return (void *)pdu->pdu[first];
@@ -556,13 +372,38 @@ struct pdu_adv *lll_adv_pdu_and_extra_data_alloc(struct lll_adv_pdu *pdu,
 						 void **extra_data,
 						 uint8_t *idx)
 {
+	uint8_t first, last;
 	struct pdu_adv *p;
-	p = lll_adv_pdu_alloc(pdu, idx);
+
+	first = pdu->first;
+	last = pdu->last;
+	if (first == last) {
+		last++;
+		if (last == DOUBLE_BUFFER_SIZE) {
+			last = 0U;
+		}
+	} else {
+		uint8_t first_latest;
+
+		pdu->last = first;
+		cpu_dmb();
+		first_latest = pdu->first;
+		if (first_latest != first) {
+			last++;
+			if (last == DOUBLE_BUFFER_SIZE) {
+				last = 0U;
+			}
+		}
+	}
+
+	*idx = last;
+
+	p = adv_pdu_allocate(pdu, last);
 
 	if (extra_data) {
-		*extra_data = adv_extra_data_allocate(pdu, *idx);
+		*extra_data = adv_extra_data_allocate(pdu, last);
 	} else {
-		if (adv_extra_data_free(pdu, *idx)) {
+		if (adv_extra_data_free(pdu, last)) {
 			/* There is no release of memory allocated by
 			 * adv_pdu_allocate because there is no memory leak.
 			 * If caller can recover from this error and subsequent
@@ -591,35 +432,12 @@ struct pdu_adv *lll_adv_pdu_and_extra_data_latest_get(struct lll_adv_pdu *pdu,
 		uint8_t pdu_idx;
 		void *p;
 
+		if (!MFIFO_ENQUEUE_IDX_GET(pdu_free, &pdu_free_idx)) {
+			return NULL;
+		}
+
 		pdu_idx = first;
-		p = pdu->pdu[pdu_idx];
 		ed = pdu->extra_data[pdu_idx];
-
-		do {
-			void *next;
-
-			/* Store partial list in current data index if there is
-			 * no free slot in mfifo. It can be released on next
-			 * switch attempt (on next event).
-			 */
-			if (!MFIFO_ENQUEUE_IDX_GET(pdu_free, &pdu_free_idx)) {
-				pdu->pdu[pdu_idx] = p;
-				return NULL;
-			}
-
-#if defined(CONFIG_BT_CTLR_ADV_PDU_LINK)
-			next = lll_adv_pdu_linked_next_get(p);
-#else
-			next = NULL;
-#endif
-
-			MFIFO_BY_IDX_ENQUEUE(pdu_free, pdu_free_idx, p);
-			k_sem_give(&sem_pdu_free);
-
-			p = next;
-		} while (p);
-
-		pdu->pdu[pdu_idx] = NULL;
 
 		if (ed && (!MFIFO_ENQUEUE_IDX_GET(extra_data_free,
 						  &ed_free_idx))) {
@@ -637,7 +455,11 @@ struct pdu_adv *lll_adv_pdu_and_extra_data_latest_get(struct lll_adv_pdu *pdu,
 		pdu->first = first;
 		*is_modified = 1U;
 
+		p = pdu->pdu[pdu_idx];
 		pdu->pdu[pdu_idx] = NULL;
+
+		MFIFO_BY_IDX_ENQUEUE(pdu_free, pdu_free_idx, p);
+		k_sem_give(&sem_pdu_free);
 
 		if (ed) {
 			pdu->extra_data[pdu_idx] = NULL;
@@ -671,16 +493,15 @@ bool lll_adv_scan_req_check(struct lll_adv *lll, struct pdu_adv *sr,
 			    uint8_t devmatch_ok, uint8_t *rl_idx)
 {
 #if defined(CONFIG_BT_CTLR_PRIVACY)
-	return ((((lll->filter_policy & BT_LE_ADV_FP_FILTER_SCAN_REQ) == 0) &&
+	return ((((lll->filter_policy & 0x01) == 0) &&
 		 ull_filter_lll_rl_addr_allowed(sr->tx_addr,
 						sr->scan_req.scan_addr,
 						rl_idx)) ||
-		(((lll->filter_policy & BT_LE_ADV_FP_FILTER_SCAN_REQ) != 0) &&
-		 (devmatch_ok || ull_filter_lll_irk_in_fal(*rl_idx)))) &&
+		(((lll->filter_policy & 0x01) != 0) &&
+		 (devmatch_ok || ull_filter_lll_irk_whitelisted(*rl_idx)))) &&
 		isr_rx_sr_adva_check(tx_addr, addr, sr);
 #else
-	return (((lll->filter_policy & BT_LE_ADV_FP_FILTER_SCAN_REQ) == 0U) ||
-		 devmatch_ok) &&
+	return (((lll->filter_policy & 0x01) == 0U) || devmatch_ok) &&
 		isr_rx_sr_adva_check(tx_addr, addr, sr);
 #endif /* CONFIG_BT_CTLR_PRIVACY */
 }
@@ -690,6 +511,8 @@ int lll_adv_scan_req_report(struct lll_adv *lll, struct pdu_adv *pdu_adv_rx,
 			    uint8_t rl_idx, uint8_t rssi_ready)
 {
 	struct node_rx_pdu *node_rx;
+	struct pdu_adv *pdu_adv;
+	uint8_t pdu_len;
 
 	node_rx = ull_pdu_rx_alloc_peek(3);
 	if (!node_rx) {
@@ -700,6 +523,13 @@ int lll_adv_scan_req_report(struct lll_adv *lll, struct pdu_adv *pdu_adv_rx,
 	/* Prepare the report (scan req) */
 	node_rx->hdr.type = NODE_RX_TYPE_SCAN_REQ;
 	node_rx->hdr.handle = ull_adv_lll_handle_get(lll);
+
+	/* Make a copy of PDU into Rx node (as the received PDU is in the
+	 * scratch buffer), and save the RSSI value.
+	 */
+	pdu_adv = (void *)node_rx->pdu;
+	pdu_len = offsetof(struct pdu_adv, payload) + pdu_adv_rx->len;
+	memcpy(pdu_adv, pdu_adv_rx, pdu_len);
 
 	node_rx->hdr.rx_ftr.rssi = (rssi_ready) ? radio_rssi_get() :
 						  BT_HCI_LE_RSSI_NOT_AVAILABLE;
@@ -734,15 +564,15 @@ bool lll_adv_connect_ind_check(struct lll_adv *lll, struct pdu_adv *ci,
 	}
 
 #if defined(CONFIG_BT_CTLR_PRIVACY)
-	return ((((lll->filter_policy & BT_LE_ADV_FP_FILTER_CONN_IND) == 0) &&
+	return ((((lll->filter_policy & 0x02) == 0) &&
 		 ull_filter_lll_rl_addr_allowed(ci->tx_addr,
 						ci->connect_ind.init_addr,
 						rl_idx)) ||
-		(((lll->filter_policy & BT_LE_ADV_FP_FILTER_CONN_IND) != 0) &&
-		 (devmatch_ok || ull_filter_lll_irk_in_fal(*rl_idx)))) &&
+		(((lll->filter_policy & 0x02) != 0) &&
+		 (devmatch_ok || ull_filter_lll_irk_whitelisted(*rl_idx)))) &&
 	       isr_rx_ci_adva_check(tx_addr, addr, ci);
 #else
-	return (((lll->filter_policy & BT_LE_ADV_FP_FILTER_CONN_IND) == 0) ||
+	return (((lll->filter_policy & 0x02) == 0) ||
 		(devmatch_ok)) &&
 	       isr_rx_ci_adva_check(tx_addr, addr, ci);
 #endif /* CONFIG_BT_CTLR_PRIVACY */
@@ -775,6 +605,49 @@ static int init_reset(void)
 	k_sem_init(&sem_pdu_free, 0, PDU_MEM_FIFO_COUNT);
 
 	return 0;
+}
+
+static struct pdu_adv *adv_pdu_allocate(struct lll_adv_pdu *pdu, uint8_t last)
+{
+	void *p;
+	int err;
+
+	p = (void *)pdu->pdu[last];
+	if (p) {
+		return p;
+	}
+
+	p = MFIFO_DEQUEUE_PEEK(pdu_free);
+	if (p) {
+		err = k_sem_take(&sem_pdu_free, K_NO_WAIT);
+		LL_ASSERT(!err);
+
+		MFIFO_DEQUEUE(pdu_free);
+		pdu->pdu[last] = (void *)p;
+
+		return p;
+	}
+
+	p = mem_acquire(&mem_pdu.free);
+	if (p) {
+		pdu->pdu[last] = (void *)p;
+
+		return p;
+	}
+
+	err = k_sem_take(&sem_pdu_free, K_FOREVER);
+	LL_ASSERT(!err);
+
+	p = MFIFO_DEQUEUE(pdu_free);
+	LL_ASSERT(p);
+	/* If !p then check initial value of sem_pdu_free. It must be the same
+	 * as number of elements in pdu_free store. This may not happen in
+	 * runtime.
+	 */
+
+	pdu->pdu[last] = (void *)p;
+
+	return p;
 }
 
 #if defined(CONFIG_BT_CTLR_ADV_EXT_PDU_EXTRA_DATA_MEMORY)
@@ -875,7 +748,7 @@ static int prepare_cb(struct lll_prepare_param *p)
 	 * transmitting connectable advertising event if cancelled flag is set.
 	 */
 	if (unlikely(lll->conn &&
-		(lll->conn->periph.initiated || lll->conn->periph.cancelled))) {
+		(lll->conn->slave.initiated || lll->conn->slave.cancelled))) {
 		radio_isr_set(lll_isr_early_abort, lll);
 		radio_disable();
 
@@ -893,7 +766,7 @@ static int prepare_cb(struct lll_prepare_param *p)
 
 #if defined(CONFIG_BT_CTLR_ADV_EXT)
 	/* TODO: if coded we use S8? */
-	radio_phy_set(lll->phy_p, lll->phy_flags);
+	radio_phy_set(lll->phy_p, 1);
 	radio_pkt_configure(8, PDU_AC_LEG_PAYLOAD_SIZE_MAX, (lll->phy_p << 1));
 #else /* !CONFIG_BT_CTLR_ADV_EXT */
 	radio_phy_set(0, 0);
@@ -925,13 +798,14 @@ static int prepare_cb(struct lll_prepare_param *p)
 	} else
 #endif /* CONFIG_BT_CTLR_PRIVACY */
 
-	if (IS_ENABLED(CONFIG_BT_CTLR_FILTER_ACCEPT_LIST) && lll->filter_policy) {
+	if (IS_ENABLED(CONFIG_BT_CTLR_FILTER) && lll->filter_policy) {
 		/* Setup Radio Filter */
-		struct lll_filter *fal = ull_filter_lll_get(true);
+		struct lll_filter *wl = ull_filter_lll_get(true);
 
-		radio_filter_configure(fal->enable_bitmask,
-				       fal->addr_type_bitmask,
-				       (uint8_t *)fal->bdaddr);
+
+		radio_filter_configure(wl->enable_bitmask,
+				       wl->addr_type_bitmask,
+				       (uint8_t *)wl->bdaddr);
 	}
 
 	ticks_at_event = p->ticks_at_expire;
@@ -947,13 +821,13 @@ static int prepare_cb(struct lll_prepare_param *p)
 	/* capture end of Tx-ed PDU, used to calculate HCTO. */
 	radio_tmr_end_capture();
 
-#if defined(HAL_RADIO_GPIO_HAVE_PA_PIN)
+#if defined(CONFIG_BT_CTLR_GPIO_PA_PIN)
 	radio_gpio_pa_setup();
 	radio_gpio_pa_lna_enable(start_us + radio_tx_ready_delay_get(0, 0) -
-				 HAL_RADIO_GPIO_PA_OFFSET);
-#else /* !HAL_RADIO_GPIO_HAVE_PA_PIN */
+				 CONFIG_BT_CTLR_GPIO_PA_OFFSET);
+#else /* !CONFIG_BT_CTLR_GPIO_PA_PIN */
 	ARG_UNUSED(start_us);
-#endif /* !HAL_RADIO_GPIO_HAVE_PA_PIN */
+#endif /* !CONFIG_BT_CTLR_GPIO_PA_PIN */
 
 #if defined(CONFIG_BT_CTLR_XTAL_ADVANCED) && \
 	(EVENT_OVERHEAD_PREEMPT_US <= EVENT_OVERHEAD_PREEMPT_MIN_US)
@@ -1055,21 +929,16 @@ static void abort_cb(struct lll_prepare_param *prepare_param, void *param)
 
 static void isr_tx(void *param)
 {
-	struct node_rx_pdu *node_rx_prof;
-	struct node_rx_pdu *node_rx;
+	uint32_t hcto;
 #if defined(CONFIG_BT_CTLR_ADV_EXT)
 	struct lll_adv *lll = param;
 	uint8_t phy_p = lll->phy_p;
-	uint8_t phy_flags = lll->phy_flags;
 #else
-	const uint8_t phy_p = 0U;
-	const uint8_t phy_flags = 0U;
+	uint8_t phy_p = 0;
 #endif
-	uint32_t hcto;
 
 	if (IS_ENABLED(CONFIG_BT_CTLR_PROFILE_ISR)) {
 		lll_prof_latency_capture();
-		node_rx_prof = lll_prof_reserve();
 	}
 
 	/* Clear radio tx status and events */
@@ -1077,13 +946,9 @@ static void isr_tx(void *param)
 
 	/* setup tIFS switching */
 	radio_tmr_tifs_set(EVENT_IFS_US);
-	radio_switch_complete_and_tx(phy_p, 0, phy_p, phy_flags);
+	radio_switch_complete_and_tx(phy_p, 0, phy_p, 0);
 
-	/* setup Rx buffer */
-	node_rx = ull_pdu_rx_alloc_peek(1);
-	LL_ASSERT(node_rx);
-	radio_pkt_rx_set(node_rx->pdu);
-
+	radio_pkt_rx_set(radio_pkt_scratch_get());
 	/* assert if radio packet ptr is not set and radio started rx */
 	LL_ASSERT(!radio_is_ready());
 
@@ -1109,7 +974,7 @@ static void isr_tx(void *param)
 	radio_tmr_hcto_configure(hcto);
 
 	/* capture end of CONNECT_IND PDU, used for calculating first
-	 * peripheral event.
+	 * slave event.
 	 */
 	radio_tmr_end_capture();
 
@@ -1118,7 +983,7 @@ static void isr_tx(void *param)
 		radio_rssi_measure();
 	}
 
-#if defined(HAL_RADIO_GPIO_HAVE_LNA_PIN)
+#if defined(CONFIG_BT_CTLR_GPIO_LNA_PIN)
 	if (IS_ENABLED(CONFIG_BT_CTLR_PROFILE_ISR)) {
 		/* PA/LNA enable is overwriting packet end used in ISR
 		 * profiling, hence back it up for later use.
@@ -1129,14 +994,14 @@ static void isr_tx(void *param)
 	radio_gpio_lna_setup();
 	radio_gpio_pa_lna_enable(radio_tmr_tifs_base_get() + EVENT_IFS_US - 4 -
 				 radio_tx_chain_delay_get(phy_p, 0) -
-				 HAL_RADIO_GPIO_LNA_OFFSET);
-#endif /* HAL_RADIO_GPIO_HAVE_LNA_PIN */
+				 CONFIG_BT_CTLR_GPIO_LNA_OFFSET);
+#endif /* CONFIG_BT_CTLR_GPIO_LNA_PIN */
 
 	if (IS_ENABLED(CONFIG_BT_CTLR_PROFILE_ISR)) {
 		/* NOTE: as scratch packet is used to receive, it is safe to
 		 * generate profile event using rx nodes.
 		 */
-		lll_prof_reserve_send(node_rx_prof);
+		lll_prof_send();
 	}
 }
 
@@ -1223,7 +1088,7 @@ static void isr_done(void *param)
 	 */
 	if (lll->chan_map_curr &&
 #if defined(CONFIG_BT_PERIPHERAL)
-	    (!lll->conn || !lll->conn->periph.cancelled) &&
+	    (!lll->conn || !lll->conn->slave.cancelled) &&
 #endif /* CONFIG_BT_PERIPHERAL */
 	    1) {
 		struct pdu_adv *pdu;
@@ -1231,33 +1096,29 @@ static void isr_done(void *param)
 
 		pdu = chan_prepare(lll);
 
-#if defined(HAL_RADIO_GPIO_HAVE_PA_PIN) || defined(CONFIG_BT_CTLR_ADV_EXT)
+#if defined(CONFIG_BT_CTLR_GPIO_PA_PIN) || defined(CONFIG_BT_CTLR_ADV_EXT)
 		start_us = radio_tmr_start_now(1);
 
 #if defined(CONFIG_BT_CTLR_ADV_EXT)
-		struct lll_adv_aux *lll_aux;
-
-		lll_aux = lll->aux;
-		if (lll_aux) {
-			(void)ull_adv_aux_lll_offset_fill(pdu,
-							  lll_aux->ticks_offset,
-							  start_us);
+		if (lll->aux) {
+			ull_adv_aux_lll_offset_fill(lll->aux->ticks_offset,
+						    start_us, pdu);
 		}
 #else /* !CONFIG_BT_CTLR_ADV_EXT */
 		ARG_UNUSED(pdu);
 #endif /* !CONFIG_BT_CTLR_ADV_EXT */
 
-#if defined(HAL_RADIO_GPIO_HAVE_PA_PIN)
+#if defined(CONFIG_BT_CTLR_GPIO_PA_PIN)
 		radio_gpio_pa_setup();
 		radio_gpio_pa_lna_enable(start_us +
 					 radio_tx_ready_delay_get(0, 0) -
-					 HAL_RADIO_GPIO_PA_OFFSET);
-#endif /* HAL_RADIO_GPIO_HAVE_PA_PIN */
-#else /* !(HAL_RADIO_GPIO_HAVE_PA_PIN || defined(CONFIG_BT_CTLR_ADV_EXT)) */
+					 CONFIG_BT_CTLR_GPIO_PA_OFFSET);
+#endif /* CONFIG_BT_CTLR_GPIO_PA_PIN */
+#else /* !(CONFIG_BT_CTLR_GPIO_PA_PIN || defined(CONFIG_BT_CTLR_ADV_EXT)) */
 		ARG_UNUSED(start_us);
 
 		radio_tx_enable();
-#endif /* !(HAL_RADIO_GPIO_HAVE_PA_PIN || defined(CONFIG_BT_CTLR_ADV_EXT)) */
+#endif /* !(CONFIG_BT_CTLR_GPIO_PA_PIN || defined(CONFIG_BT_CTLR_ADV_EXT)) */
 
 		/* capture end of Tx-ed PDU, used to calculate HCTO. */
 		radio_tmr_end_capture();
@@ -1297,15 +1158,14 @@ static void isr_done(void *param)
 	}
 #endif /* CONFIG_BT_CTLR_ADV_INDICATION */
 
-#if defined(CONFIG_BT_CTLR_ADV_EXT) || defined(CONFIG_BT_CTLR_JIT_SCHEDULING)
-	/* If no auxiliary PDUs scheduled, generate primary radio event done */
-	if (!lll->aux) {
-		struct event_done_extra *extra;
+#if defined(CONFIG_BT_CTLR_ADV_EXT)
+	struct event_done_extra *extra;
 
-		extra = ull_done_extra_type_set(EVENT_DONE_EXTRA_TYPE_ADV);
-		LL_ASSERT(extra);
-	}
-#endif /* CONFIG_BT_CTLR_ADV_EXT || CONFIG_BT_CTLR_JIT_SCHEDULING */
+	extra = ull_event_done_extra_get();
+	LL_ASSERT(extra);
+
+	extra->type = EVENT_DONE_EXTRA_TYPE_ADV;
+#endif  /* CONFIG_BT_CTLR_ADV_EXT */
 
 	lll_isr_cleanup(param);
 }
@@ -1377,7 +1237,6 @@ static inline int isr_rx_pdu(struct lll_adv *lll,
 			     uint8_t irkmatch_ok, uint8_t irkmatch_id,
 			     uint8_t rssi_ready)
 {
-	struct node_rx_pdu *node_rx;
 	struct pdu_adv *pdu_adv;
 	struct pdu_adv *pdu_rx;
 	uint8_t tx_addr;
@@ -1393,10 +1252,7 @@ static inline int isr_rx_pdu(struct lll_adv *lll,
 	uint8_t rl_idx = FILTER_IDX_NONE;
 #endif /* CONFIG_BT_CTLR_PRIVACY */
 
-	node_rx = ull_pdu_rx_alloc_peek(1);
-	LL_ASSERT(node_rx);
-
-	pdu_rx = (void *)node_rx->pdu;
+	pdu_rx = (void *)radio_pkt_scratch_get();
 	pdu_adv = lll_adv_data_curr_get(lll);
 
 	addr = pdu_adv->adv_ind.addr;
@@ -1440,7 +1296,7 @@ static inline int isr_rx_pdu(struct lll_adv *lll,
 		}
 #endif /* CONFIG_BT_CTLR_SCAN_REQ_NOTIFY */
 
-#if defined(HAL_RADIO_GPIO_HAVE_PA_PIN)
+#if defined(CONFIG_BT_CTLR_GPIO_PA_PIN)
 		if (IS_ENABLED(CONFIG_BT_CTLR_PROFILE_ISR)) {
 			/* PA/LNA enable is overwriting packet end used in ISR
 			 * profiling, hence back it up for later use.
@@ -1452,8 +1308,8 @@ static inline int isr_rx_pdu(struct lll_adv *lll,
 		radio_gpio_pa_lna_enable(radio_tmr_tifs_base_get() +
 					 EVENT_IFS_US -
 					 radio_rx_chain_delay_get(0, 0) -
-					 HAL_RADIO_GPIO_PA_OFFSET);
-#endif /* HAL_RADIO_GPIO_HAVE_PA_PIN */
+					 CONFIG_BT_CTLR_GPIO_PA_OFFSET);
+#endif /* CONFIG_BT_CTLR_GPIO_PA_PIN */
 		return 0;
 
 #if defined(CONFIG_BT_PERIPHERAL)
@@ -1469,7 +1325,7 @@ static inline int isr_rx_pdu(struct lll_adv *lll,
 	 */
 	} else if ((pdu_rx->type == PDU_ADV_TYPE_CONNECT_IND) &&
 		   (pdu_rx->len == sizeof(struct pdu_adv_connect_ind)) &&
-		   lll->conn && !lll->conn->periph.cancelled &&
+		   lll->conn && !lll->conn->slave.cancelled &&
 		   lll_adv_connect_ind_check(lll, pdu_rx, tx_addr, addr,
 					     rx_addr, tgt_addr,
 					     devmatch_ok, &rl_idx)) {
@@ -1503,18 +1359,21 @@ static inline int isr_rx_pdu(struct lll_adv *lll,
 #endif /* CONFIG_BT_CTLR_CONN_RSSI */
 
 		/* Stop further LLL radio events */
-		lll->conn->periph.initiated = 1;
+		lll->conn->slave.initiated = 1;
 
 		rx = ull_pdu_rx_alloc();
 
 		rx->hdr.type = NODE_RX_TYPE_CONNECTION;
 		rx->hdr.handle = 0xffff;
 
+		memcpy(rx->pdu, pdu_rx, (offsetof(struct pdu_adv, connect_ind) +
+					 sizeof(struct pdu_adv_connect_ind)));
+
 		ftr = &(rx->hdr.rx_ftr);
 		ftr->param = lll;
 		ftr->ticks_anchor = radio_tmr_start_get();
 		ftr->radio_end_us = radio_tmr_end_get() -
-				    radio_rx_chain_delay_get(0, 0);
+				    radio_tx_chain_delay_get(0, 0);
 
 #if defined(CONFIG_BT_CTLR_PRIVACY)
 		ftr->rl_idx = irkmatch_ok ? rl_idx : FILTER_IDX_NONE;
@@ -1560,15 +1419,3 @@ static inline bool isr_rx_ci_adva_check(uint8_t tx_addr, uint8_t *addr,
 	return (tx_addr == ci->rx_addr) &&
 		!memcmp(addr, ci->connect_ind.adv_addr, BDADDR_SIZE);
 }
-
-#if defined(CONFIG_ZTEST)
-uint32_t lll_adv_free_pdu_fifo_count_get(void)
-{
-	return MFIFO_AVAIL_COUNT_GET(pdu_free);
-}
-
-uint32_t lll_adv_pdu_mem_free_count_get(void)
-{
-	return mem_free_count_get(mem_pdu.free);
-}
-#endif /* CONFIG_ZTEST */

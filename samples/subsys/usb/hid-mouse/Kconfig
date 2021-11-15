@@ -4,4 +4,7 @@
 config USB_DEVICE_PID
 	default USB_PID_HID_MOUSE_SAMPLE
 
+config USB_DEVICE_REMOTE_WAKEUP
+	default y if NRFX_USBD
+
 source "Kconfig.zephyr"

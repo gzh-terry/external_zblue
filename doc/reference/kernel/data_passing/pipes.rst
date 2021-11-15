@@ -164,14 +164,15 @@ Use a pipe to send streams of data between threads.
 .. note::
     A pipe can be used to transfer long streams of data if desired.  However
     it is often preferable to send pointers to large data items to avoid
-    copying the data.
+    copying the data. The kernel's memory map and memory pool object types
+    can be helpful for data transfers of this sort.
 
 Configuration Options
 *********************
 
 Related configuration options:
 
-* :kconfig:`CONFIG_NUM_PIPE_ASYNC_MSGS`
+* :option:`CONFIG_NUM_PIPE_ASYNC_MSGS`
 
 API Reference
 *************

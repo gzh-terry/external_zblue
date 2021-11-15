@@ -25,11 +25,6 @@ struct uart_stm32_config {
 	int  parity;
 	const struct soc_gpio_pinctrl *pinctrl_list;
 	size_t pinctrl_list_size;
-#if defined(CONFIG_PM) \
-	&& !defined(CONFIG_UART_INTERRUPT_DRIVEN) \
-	&& !defined(CONFIG_UART_ASYNC_API)
-	uart_irq_config_func_t irq_config_func;
-#endif
 };
 
 #ifdef CONFIG_UART_ASYNC_API
@@ -72,9 +67,8 @@ struct uart_stm32_data {
 	uint8_t *rx_next_buffer;
 	size_t rx_next_buffer_len;
 #endif
-#ifdef CONFIG_PM
-	bool tx_poll_stream_on;
-	bool pm_constraint_on;
+#ifdef CONFIG_PM_DEVICE
+	uint32_t pm_state;
 #endif
 };
 

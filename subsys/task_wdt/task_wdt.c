@@ -50,40 +50,6 @@ static int hw_wdt_channel;
 static bool hw_wdt_started;
 #endif
 
-static void schedule_next_timeout(uint32_t current_ticks)
-{
-	int next_channel_id;	/* channel which will time out next */
-	int64_t next_timeout;   /* timeout in absolute ticks of this channel */
-
-#ifdef CONFIG_TASK_WDT_HW_FALLBACK
-	next_channel_id = TASK_WDT_BACKGROUND_CHANNEL;
-	next_timeout = current_ticks +
-		k_ms_to_ticks_ceil64(CONFIG_TASK_WDT_MIN_TIMEOUT);
-#else
-	next_channel_id = 0;
-	next_timeout = INT64_MAX;
-#endif
-
-	/* find minimum timeout of all channels */
-	for (int id = 0; id < ARRAY_SIZE(channels); id++) {
-		if (channels[id].reload_period != 0 &&
-		    channels[id].timeout_abs_ticks < next_timeout) {
-			next_channel_id = id;
-			next_timeout = channels[id].timeout_abs_ticks;
-		}
-	}
-
-	/* update task wdt kernel timer */
-	k_timer_user_data_set(&timer, (void *)next_channel_id);
-	k_timer_start(&timer, K_TIMEOUT_ABS_TICKS(next_timeout), K_FOREVER);
-
-#ifdef CONFIG_TASK_WDT_HW_FALLBACK
-	if (hw_wdt_dev) {
-		wdt_feed(hw_wdt_dev, hw_wdt_channel);
-	}
-#endif
-}
-
 /**
  * @brief Task watchdog timer callback.
  *
@@ -101,20 +67,20 @@ static void schedule_next_timeout(uint32_t current_ticks)
 static void task_wdt_trigger(struct k_timer *timer_id)
 {
 	int channel_id = (int)k_timer_user_data_get(timer_id);
-	bool bg_channel = IS_ENABLED(CONFIG_TASK_WDT_HW_FALLBACK) &&
-			  (channel_id == TASK_WDT_BACKGROUND_CHANNEL);
 
-	/* If the timeout expired for the background channel (so the hardware
-	 * watchdog needs to be fed) or for a channel that has been deleted,
-	 * only schedule a new timeout (the hardware watchdog, if used, will be
-	 * fed right after that new timeout is scheduled).
-	 */
-	if (bg_channel || channels[channel_id].reload_period == 0) {
-		schedule_next_timeout(sys_clock_tick_get());
+#ifdef CONFIG_TASK_WDT_HW_FALLBACK
+	if (channel_id == TASK_WDT_BACKGROUND_CHANNEL) {
+		if (hw_wdt_dev) {
+			wdt_feed(hw_wdt_dev, hw_wdt_channel);
+		}
 		return;
 	}
+#endif
 
-	if (channels[channel_id].callback) {
+	if (channels[channel_id].reload_period == 0) {
+		/* channel was deleted */
+		return;
+	} else if (channels[channel_id].callback) {
 		channels[channel_id].callback(channel_id,
 			channels[channel_id].user_data);
 	} else {
@@ -136,10 +102,6 @@ int task_wdt_init(const struct device *hw_wdt)
 
 		hw_wdt_dev = hw_wdt;
 		hw_wdt_channel = wdt_install_timeout(hw_wdt_dev, &wdt_config);
-		if (hw_wdt_channel < 0) {
-			LOG_ERR("hw_wdt install timeout failed: %d", hw_wdt_channel);
-			return hw_wdt_channel;
-		}
 #else
 		return -ENOTSUP;
 #endif
@@ -164,6 +126,7 @@ int task_wdt_add(uint32_t reload_period, task_wdt_callback_t callback,
 			channels[id].user_data = user_data;
 			channels[id].timeout_abs_ticks = K_TICKS_FOREVER;
 			channels[id].callback = callback;
+			task_wdt_feed(id);
 
 #ifdef CONFIG_TASK_WDT_HW_FALLBACK
 			if (!hw_wdt_started && hw_wdt_dev) {
@@ -173,9 +136,6 @@ int task_wdt_add(uint32_t reload_period, task_wdt_callback_t callback,
 				hw_wdt_started = true;
 			}
 #endif
-			/* must be called after hw wdt has been started */
-			task_wdt_feed(id);
-
 			return id;
 		}
 	}
@@ -197,6 +157,8 @@ int task_wdt_delete(int channel_id)
 int task_wdt_feed(int channel_id)
 {
 	int64_t current_ticks;
+	int next_channel_id;	/* channel which will time out next */
+	int64_t next_timeout;   /* timeout in absolute ticks of this channel */
 
 	if (channel_id < 0 || channel_id >= ARRAY_SIZE(channels)) {
 		return -EINVAL;
@@ -216,7 +178,34 @@ int task_wdt_feed(int channel_id)
 	channels[channel_id].timeout_abs_ticks = current_ticks +
 		k_ms_to_ticks_ceil64(channels[channel_id].reload_period);
 
-	schedule_next_timeout(current_ticks);
+#ifdef CONFIG_TASK_WDT_HW_FALLBACK
+	next_channel_id = TASK_WDT_BACKGROUND_CHANNEL;
+	next_timeout = current_ticks +
+		k_ms_to_ticks_ceil64(CONFIG_TASK_WDT_MIN_TIMEOUT);
+#else
+	next_channel_id = 0;
+	next_timeout = INT64_MAX;
+#endif
+
+	/* find minimum timeout of all channels */
+	for (int id = 0; id < ARRAY_SIZE(channels); id++) {
+		if (channels[id].reload_period != 0 &&
+		    channels[id].timeout_abs_ticks < next_timeout) {
+			next_channel_id = id;
+			next_timeout = channels[id].timeout_abs_ticks;
+		}
+	}
+
+	/* update task wdt kernel timer */
+	k_timer_user_data_set(&timer, (void *)next_channel_id);
+	k_timer_start(&timer, K_TIMEOUT_ABS_TICKS(next_timeout),
+		K_TIMEOUT_ABS_TICKS(next_timeout));
+
+#ifdef CONFIG_TASK_WDT_HW_FALLBACK
+	if (hw_wdt_dev) {
+		wdt_feed(hw_wdt_dev, hw_wdt_channel);
+	}
+#endif
 
 	k_sched_unlock();
 

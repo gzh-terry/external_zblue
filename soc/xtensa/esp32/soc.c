@@ -8,7 +8,6 @@
 #include "soc.h"
 #include <soc/rtc_cntl_reg.h>
 #include <soc/timer_group_reg.h>
-#include <drivers/interrupt_controller/intc_esp32.h>
 #include <xtensa/config/core-isa.h>
 #include <xtensa/corebits.h>
 
@@ -122,7 +121,6 @@ void __attribute__((section(".iram1"))) __start(void)
 #if CONFIG_SOC_FLASH_ESP32 || CONFIG_ESP_SPIRAM
 	spi_flash_guard_set(&g_flash_guard_default_ops);
 #endif
-	esp_intr_initialize();
 	/* Start Zephyr */
 	z_cstart();
 
@@ -133,9 +131,9 @@ void __attribute__((section(".iram1"))) __start(void)
 int IRAM_ATTR arch_printk_char_out(int c)
 {
 	if (c == '\n') {
-		esp_rom_uart_tx_one_char('\r');
+		esp32_rom_uart_tx_one_char('\r');
 	}
-	esp_rom_uart_tx_one_char(c);
+	esp32_rom_uart_tx_one_char(c);
 	return 0;
 }
 
@@ -156,9 +154,9 @@ void IRAM_ATTR esp_restart_noos(void)
 	soc_ll_stall_core(other_core_id);
 
 	/* Flush any data left in UART FIFOs */
-	esp_rom_uart_tx_wait_idle(0);
-	esp_rom_uart_tx_wait_idle(1);
-	esp_rom_uart_tx_wait_idle(2);
+	esp32_rom_uart_tx_wait_idle(0);
+	esp32_rom_uart_tx_wait_idle(1);
+	esp32_rom_uart_tx_wait_idle(2);
 
 	/* Disable cache */
 	Cache_Read_Disable(0);

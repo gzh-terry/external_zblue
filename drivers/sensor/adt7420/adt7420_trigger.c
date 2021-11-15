@@ -130,7 +130,6 @@ int adt7420_init_interrupt(const struct device *dev)
 {
 	struct adt7420_data *drv_data = dev->data;
 	const struct adt7420_dev_config *cfg = dev->config;
-	int rc;
 
 	drv_data->gpio = device_get_binding(cfg->int_name);
 	if (drv_data->gpio == NULL) {
@@ -143,14 +142,14 @@ int adt7420_init_interrupt(const struct device *dev)
 			   adt7420_gpio_callback,
 			   BIT(cfg->int_pin));
 
-	rc = gpio_pin_configure(drv_data->gpio, cfg->int_pin,
-				GPIO_INPUT | cfg->int_flags);
-	if (rc < 0) {
-		return rc;
+	int rc = gpio_pin_configure(drv_data->gpio, cfg->int_pin,
+				    GPIO_INPUT | cfg->int_flags);
+	if (rc == 0) {
+		gpio_add_callback(drv_data->gpio, &drv_data->gpio_cb);
 	}
 
-	rc = gpio_add_callback(drv_data->gpio, &drv_data->gpio_cb);
-	if (rc < 0) {
+	if (rc != 0) {
+		LOG_DBG("Failed to set gpio callback!");
 		return rc;
 	}
 

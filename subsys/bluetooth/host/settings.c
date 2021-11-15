@@ -231,8 +231,6 @@ void bt_settings_save_id(void)
 
 static int commit(void)
 {
-	int err;
-
 	BT_DBG("");
 
 #if defined(CONFIG_BT_DEVICE_NAME_DYNAMIC)
@@ -241,14 +239,12 @@ static int commit(void)
 	}
 #endif
 	if (!bt_dev.id_count) {
-		err = bt_setup_public_id_addr();
-		if (err) {
-			BT_ERR("Unable to setup an identity address");
-			return err;
-		}
+		bt_setup_public_id_addr();
 	}
 
 	if (!bt_dev.id_count) {
+		int err;
+
 		err = bt_setup_random_id_addr();
 		if (err) {
 			BT_ERR("Unable to setup an identity address");

@@ -13,6 +13,7 @@ LOG_MODULE_REGISTER(usb_hid);
 
 #include <sys/byteorder.h>
 #include <usb_device.h>
+#include <usb_common.h>
 
 #include <usb_descriptor.h>
 #include <class/usb_hid.h>
@@ -54,11 +55,11 @@ struct usb_hid_config {
 #define INITIALIZER_IF							\
 	{								\
 		.bLength = sizeof(struct usb_if_descriptor),		\
-		.bDescriptorType = USB_DESC_INTERFACE,			\
+		.bDescriptorType = USB_INTERFACE_DESC,			\
 		.bInterfaceNumber = 0,					\
 		.bAlternateSetting = 0,					\
 		.bNumEndpoints = 1,					\
-		.bInterfaceClass = USB_BCC_HID,				\
+		.bInterfaceClass = HID_CLASS,				\
 		.bInterfaceSubClass = 1,				\
 		.bInterfaceProtocol = CONFIG_USB_HID_PROTOCOL_CODE,	\
 		.iInterface = 0,					\
@@ -67,11 +68,11 @@ struct usb_hid_config {
 #define INITIALIZER_IF							\
 	{								\
 		.bLength = sizeof(struct usb_if_descriptor),		\
-		.bDescriptorType = USB_DESC_INTERFACE,			\
+		.bDescriptorType = USB_INTERFACE_DESC,			\
 		.bInterfaceNumber = 0,					\
 		.bAlternateSetting = 0,					\
 		.bNumEndpoints = 1,					\
-		.bInterfaceClass = USB_BCC_HID,				\
+		.bInterfaceClass = HID_CLASS,				\
 		.bInterfaceSubClass = 0,				\
 		.bInterfaceProtocol = 0,				\
 		.iInterface = 0,					\
@@ -82,12 +83,12 @@ struct usb_hid_config {
 #define INITIALIZER_IF_HID						\
 	{								\
 		.bLength = sizeof(struct usb_hid_descriptor),		\
-		.bDescriptorType = USB_DESC_HID,			\
-		.bcdHID = sys_cpu_to_le16(USB_SRN_1_1),			\
+		.bDescriptorType = USB_HID_DESC,			\
+		.bcdHID = sys_cpu_to_le16(USB_1_1),			\
 		.bCountryCode = 0,					\
 		.bNumDescriptors = 1,					\
 		.subdesc[0] = {						\
-			.bDescriptorType = USB_DESC_HID_REPORT,	\
+			.bDescriptorType = USB_HID_REPORT_DESC,		\
 			.wDescriptorLength = 0,				\
 		},							\
 	}
@@ -95,7 +96,7 @@ struct usb_hid_config {
 #define INITIALIZER_IF_EP(addr, attr, mps)				\
 	{								\
 		.bLength = sizeof(struct usb_ep_descriptor),		\
-		.bDescriptorType = USB_DESC_ENDPOINT,			\
+		.bDescriptorType = USB_ENDPOINT_DESC,			\
 		.bEndpointAddress = addr,				\
 		.bmAttributes = attr,					\
 		.wMaxPacketSize = sys_cpu_to_le16(mps),			\
@@ -448,7 +449,7 @@ static int hid_class_handle_req(struct usb_setup_packet *setup,
 	dev_data = CONTAINER_OF(common, struct hid_device_info, common);
 	dev = common->dev;
 
-	if (usb_reqtype_is_to_host(setup)) {
+	if (REQTYPE_GET_DIR(setup->bmRequestType) == REQTYPE_DIR_TO_HOST) {
 		switch (setup->bRequest) {
 		case USB_HID_GET_IDLE:
 			return hid_on_get_idle(dev_data, setup, len, data);
@@ -496,11 +497,12 @@ static int hid_custom_handle_req(struct usb_setup_packet *setup,
 {
 	LOG_DBG("Standard request:"
 		"bRequest 0x%02x, bmRequestType 0x%02x, len %d",
-		setup->bRequest, setup->bmRequestType, setup->wLength);
+		setup->bRequest, setup->bmRequestType, *len);
 
-	if (usb_reqtype_is_to_host(setup) &&
-	    setup->RequestType.recipient == USB_REQTYPE_RECIPIENT_INTERFACE &&
-	    setup->bRequest == USB_SREQ_GET_DESCRIPTOR) {
+	if (REQTYPE_GET_DIR(setup->bmRequestType) == REQTYPE_DIR_TO_HOST &&
+	    REQTYPE_GET_RECIP(setup->bmRequestType) ==
+					REQTYPE_RECIP_INTERFACE &&
+					setup->bRequest == REQ_GET_DESCRIPTOR) {
 		uint8_t value = (uint8_t)(setup->wValue >> 8);
 		uint8_t iface_num = (uint8_t)setup->wIndex;
 		struct hid_device_info *dev_data;
@@ -524,13 +526,21 @@ static int hid_custom_handle_req(struct usb_setup_packet *setup,
 
 			LOG_DBG("Return HID Descriptor");
 
-			*len = MIN(setup->wLength, hid_desc->if0_hid.bLength);
+			*len = MIN(*len, hid_desc->if0_hid.bLength);
 			*data = (uint8_t *)&hid_desc->if0_hid;
 			break;
 		case USB_DESC_HID_REPORT:
 			LOG_DBG("Return Report Descriptor");
 
-			*len = MIN(setup->wLength, dev_data->report_size);
+			/* Some buggy system may be pass a larger wLength when
+			 * it try read HID report descriptor, although we had
+			 * already tell it the right descriptor size.
+			 * So truncated wLength if it doesn't match. */
+			if (*len != dev_data->report_size) {
+				LOG_WRN("len %d doesn't match "
+					"Report Descriptor size", *len);
+				*len = MIN(*len, dev_data->report_size);
+			}
 			*data = (uint8_t *)dev_data->report_desc;
 			break;
 		default:

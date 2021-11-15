@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#define DISABLE_SYSCALL_TRACING
-
 #include <tracing_core.h>
 #include <tracing_buffer.h>
 #include <tracing_format_common.h>

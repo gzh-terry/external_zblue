@@ -43,8 +43,8 @@ This development kit has the following features:
 * :abbr:`USB (Universal Serial Bus)`
 * :abbr:`WDT (Watchdog Timer)`
 
-.. figure:: img/bl5340_dvk_top.png
-     :width: 340px
+.. figure:: img/bl5340_dvk_front.jpg
+     :width: 800px
      :align: center
      :alt: BL5340 DVK
 
@@ -301,7 +301,7 @@ The process to build the Secure firmware image using TF-M and the
 Non-Secure firmware image using Zephyr requires the following steps:
 
 1. Build the Non-Secure Zephyr application
-   for the application core using ``-DBOARD=bl5340_dvk_cpuapp_ns``.
+   for the application core using ``-DBOARD=bl5340_dvk_cpuappns``.
    To invoke the building of TF-M the Zephyr build system requires the
    Kconfig option ``BUILD_WITH_TFM`` to be enabled, which is done by
    default when building Zephyr as a Non-Secure application.
@@ -332,7 +332,7 @@ using Zephyr requires the following steps:
    ``CONFIG_TRUSTED_EXECUTION_SECURE=y`` and ``CONFIG_BUILD_WITH_TFM=n``
    in the application project configuration file.
 2. Build the Non-Secure Zephyr application for the application core
-   using ``-DBOARD=bl5340_dvk_cpuapp_ns``.
+   using ``-DBOARD=bl5340_dvk_cpuappns``.
 3. Merge the two binaries together.
 4. Build the application firmware for the network core using
    ``-DBOARD=bl5340_dvk_cpunet``.

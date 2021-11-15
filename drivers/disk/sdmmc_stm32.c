@@ -10,7 +10,7 @@
 #include <drivers/disk.h>
 #include <drivers/clock_control.h>
 #include <drivers/clock_control/stm32_clock_control.h>
-#include <pinmux/pinmux_stm32.h>
+#include <pinmux/stm32/pinmux_stm32.h>
 #include <drivers/gpio.h>
 #include <logging/log.h>
 #include <soc.h>
@@ -18,16 +18,7 @@
 
 LOG_MODULE_REGISTER(stm32_sdmmc, CONFIG_SDMMC_LOG_LEVEL);
 
-#ifndef MMC_TypeDef
-#define MMC_TypeDef SDMMC_TypeDef
-#endif
-
-typedef void (*irq_config_func_t)(const struct device *dev);
-
 struct stm32_sdmmc_priv {
-	irq_config_func_t irq_config;
-	struct k_sem thread_lock;
-	struct k_sem sync;
 	SD_HandleTypeDef hsd;
 	int status;
 	struct k_work work;
@@ -50,52 +41,6 @@ struct stm32_sdmmc_priv {
 		size_t len;
 	} pinctrl;
 };
-
-#ifdef CONFIG_SDMMC_STM32_HWFC
-static void stm32_sdmmc_fc_enable(struct stm32_sdmmc_priv *priv)
-{
-	MMC_TypeDef *sdmmcx = priv->hsd.Instance;
-
-	sdmmcx->CLKCR |= SDMMC_CLKCR_HWFC_EN;
-}
-#endif
-
-static void stm32_sdmmc_isr(const struct device *dev)
-{
-	struct stm32_sdmmc_priv *priv = dev->data;
-
-	HAL_SD_IRQHandler(&priv->hsd);
-}
-
-void HAL_SD_TxCpltCallback(SD_HandleTypeDef *hsd)
-{
-	struct stm32_sdmmc_priv *priv =
-		CONTAINER_OF(hsd, struct stm32_sdmmc_priv, hsd);
-
-	priv->status = hsd->ErrorCode;
-
-	k_sem_give(&priv->sync);
-}
-
-void HAL_SD_RxCpltCallback(SD_HandleTypeDef *hsd)
-{
-	struct stm32_sdmmc_priv *priv =
-		CONTAINER_OF(hsd, struct stm32_sdmmc_priv, hsd);
-
-	priv->status = hsd->ErrorCode;
-
-	k_sem_give(&priv->sync);
-}
-
-void HAL_SD_ErrorCallback(SD_HandleTypeDef *hsd)
-{
-	struct stm32_sdmmc_priv *priv =
-		CONTAINER_OF(hsd, struct stm32_sdmmc_priv, hsd);
-
-	priv->status = hsd->ErrorCode;
-
-	k_sem_give(&priv->sync);
-}
 
 static int stm32_sdmmc_clock_enable(struct stm32_sdmmc_priv *priv)
 {
@@ -163,10 +108,6 @@ static int stm32_sdmmc_access_init(struct disk_info *disk)
 		return -EIO;
 	}
 
-#ifdef CONFIG_SDMMC_STM32_HWFC
-	stm32_sdmmc_fc_enable(priv);
-#endif
-
 	priv->status = DISK_STATUS_OK;
 	return 0;
 }
@@ -192,30 +133,17 @@ static int stm32_sdmmc_access_read(struct disk_info *disk, uint8_t *data_buf,
 	struct stm32_sdmmc_priv *priv = dev->data;
 	int err;
 
-	k_sem_take(&priv->thread_lock, K_FOREVER);
-
-	err = HAL_SD_ReadBlocks_IT(&priv->hsd, data_buf, start_sector,
-				num_sector);
+	err = HAL_SD_ReadBlocks(&priv->hsd, data_buf, start_sector,
+				num_sector, 30000);
 	if (err != HAL_OK) {
 		LOG_ERR("sd read block failed %d", err);
-		err = -EIO;
-		goto end;
+		return -EIO;
 	}
 
-	k_sem_take(&priv->sync, K_FOREVER);
+	while (HAL_SD_GetCardState(&priv->hsd) != HAL_SD_CARD_TRANSFER)
+		;
 
-	if (priv->status != DISK_STATUS_OK) {
-		LOG_ERR("sd read error %d", priv->status);
-		err = -EIO;
-		goto end;
-	}
-
-	while (HAL_SD_GetCardState(&priv->hsd) != HAL_SD_CARD_TRANSFER) {
-	}
-
-end:
-	k_sem_give(&priv->thread_lock);
-	return err;
+	return 0;
 }
 
 static int stm32_sdmmc_access_write(struct disk_info *disk,
@@ -226,30 +154,16 @@ static int stm32_sdmmc_access_write(struct disk_info *disk,
 	struct stm32_sdmmc_priv *priv = dev->data;
 	int err;
 
-	k_sem_take(&priv->thread_lock, K_FOREVER);
-
-	err = HAL_SD_WriteBlocks_IT(&priv->hsd, (uint8_t *)data_buf, start_sector,
-				 num_sector);
+	err = HAL_SD_WriteBlocks(&priv->hsd, (uint8_t *)data_buf, start_sector,
+				 num_sector, 30000);
 	if (err != HAL_OK) {
 		LOG_ERR("sd write block failed %d", err);
-		err = -EIO;
-		goto end;
+		return -EIO;
 	}
+	while (HAL_SD_GetCardState(&priv->hsd) != HAL_SD_CARD_TRANSFER)
+		;
 
-	k_sem_take(&priv->sync, K_FOREVER);
-
-	if (priv->status != DISK_STATUS_OK) {
-		LOG_ERR("sd write error %d", priv->status);
-		err = -EIO;
-		goto end;
-	}
-
-	while (HAL_SD_GetCardState(&priv->hsd) != HAL_SD_CARD_TRANSFER) {
-	}
-
-end:
-	k_sem_give(&priv->thread_lock);
-	return err;
+	return 0;
 }
 
 static int stm32_sdmmc_access_ioctl(struct disk_info *disk, uint8_t cmd,
@@ -451,12 +365,6 @@ static int disk_stm32_sdmmc_init(const struct device *dev)
 		return err;
 	}
 
-	priv->irq_config(dev);
-
-	/* Initialize semaphores */
-	k_sem_init(&priv->thread_lock, 1, 1);
-	k_sem_init(&priv->sync, 0, 1);
-
 	err = stm32_sdmmc_card_detect_init(priv);
 	if (err) {
 		return err;
@@ -492,19 +400,9 @@ err_card_detect:
 static const struct soc_gpio_pinctrl sdmmc_pins_1[] =
 						ST_STM32_DT_INST_PINCTRL(0, 0);
 
-static void stm32_sdmmc_irq_config_func(const struct device *dev)
-{
-	IRQ_CONNECT(DT_INST_IRQN(0),
-		DT_INST_IRQ(0, priority),
-		stm32_sdmmc_isr, DEVICE_DT_INST_GET(0),
-		0);
-	irq_enable(DT_INST_IRQN(0));
-}
-
 static struct stm32_sdmmc_priv stm32_sdmmc_priv_1 = {
-	.irq_config = stm32_sdmmc_irq_config_func,
 	.hsd = {
-		.Instance = (MMC_TypeDef *)DT_INST_REG_ADDR(0),
+		.Instance = (SDMMC_TypeDef *)DT_INST_REG_ADDR(0),
 	},
 #if DT_INST_NODE_HAS_PROP(0, cd_gpios)
 	.cd = {

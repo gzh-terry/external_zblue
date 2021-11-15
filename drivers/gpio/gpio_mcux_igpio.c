@@ -234,8 +234,7 @@ static const struct gpio_driver_api mcux_igpio_driver_api = {
 									\
 	static int mcux_igpio_##n##_init(const struct device *dev)	\
 	{								\
-		IF_ENABLED(DT_INST_IRQ_HAS_IDX(n, 0),			\
-		   (MCUX_IGPIO_IRQ_INIT(n, 0);))		\
+		MCUX_IGPIO_IRQ_INIT(n, 0);				\
 									\
 		IF_ENABLED(DT_INST_IRQ_HAS_IDX(n, 1),			\
 			   (MCUX_IGPIO_IRQ_INIT(n, 1);))		\

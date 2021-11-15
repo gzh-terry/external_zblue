@@ -24,7 +24,7 @@ static struct k_spinlock lock;
 static uint64_t last_count;
 static OSTIMER_Type *base;
 
-void mcux_lpc_ostick_isr(void *arg)
+static void mcux_lpc_ostick_isr(void *arg)
 {
 	ARG_UNUSED(arg);
 
@@ -126,9 +126,4 @@ uint32_t sys_clock_elapsed(void)
 uint32_t sys_clock_cycle_get_32(void)
 {
 	return (uint32_t)OSTIMER_GetCurrentTimerValue(base);
-}
-
-uint64_t sys_clock_cycle_get_64(void)
-{
-	return OSTIMER_GetCurrentTimerValue(base);
 }

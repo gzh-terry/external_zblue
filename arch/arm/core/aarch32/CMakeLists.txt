@@ -2,16 +2,21 @@
 
 zephyr_library()
 
+if (CONFIG_COVERAGE)
+  zephyr_compile_options($<TARGET_PROPERTY:compiler,coverage>)
+  zephyr_link_libraries($<TARGET_PROPERTY:linker,coverage>)
+endif ()
+
 zephyr_library_sources(
+  swap.c
+  swap_helper.S
+  irq_manage.c
+  thread.c
   cpu_idle.S
   fatal.c
-  irq_manage.c
   nmi.c
   nmi_on_reset.S
   prep_c.c
-  swap.c
-  swap_helper.S
-  thread.c
 )
 
 zephyr_library_sources_ifdef(CONFIG_GEN_SW_ISR_TABLE isr_wrapper.S)
@@ -27,9 +32,7 @@ add_subdirectory_ifdef(CONFIG_ARM_SECURE_FIRMWARE cortex_m/tz)
 add_subdirectory_ifdef(CONFIG_ARM_NONSECURE_FIRMWARE cortex_m/tz)
 
 add_subdirectory_ifdef(CONFIG_ARM_MPU mpu)
-add_subdirectory_ifdef(CONFIG_ARM_AARCH32_MMU mmu)
 
 add_subdirectory_ifdef(CONFIG_CPU_CORTEX_R cortex_a_r)
-add_subdirectory_ifdef(CONFIG_CPU_AARCH32_CORTEX_A cortex_a_r)
 
 zephyr_linker_sources(ROM_START SORT_KEY 0x0vectors vector_table.ld)

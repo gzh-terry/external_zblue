@@ -415,7 +415,7 @@ static int mcux_adc16_init(const struct device *dev)
 #else
 	config->irq_config_func(dev);
 #endif
-	LOG_DBG("adc init done");
+	LOG_INF("adc init done");
 
 	adc_context_unlock_unconditionally(&data->ctx);
 
@@ -462,7 +462,7 @@ static const struct adc_driver_api mcux_adc16_driver_api = {
 			      &mcux_adc16_data_##n,	\
 			      &mcux_adc16_config_##n,	\
 			      POST_KERNEL,		\
-			      CONFIG_ADC_INIT_PRIORITY,	\
+			      CONFIG_ADC_MCUX_ADC16_INIT_PRIORITY,	\
 			      &mcux_adc16_driver_api);
 #else
 #define ACD16_MCUX_INIT(n)						\
@@ -488,7 +488,7 @@ static const struct adc_driver_api mcux_adc16_driver_api = {
 			      &mcux_adc16_data_##n,	\
 			      &mcux_adc16_config_##n,	\
 			      POST_KERNEL,		\
-			      CONFIG_ADC_INIT_PRIORITY,	\
+			      CONFIG_KERNEL_INIT_PRIORITY_DEVICE,	\
 			      &mcux_adc16_driver_api);			\
 									\
 	static void mcux_adc16_config_func_##n(const struct device *dev) \

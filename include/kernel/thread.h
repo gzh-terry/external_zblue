@@ -116,10 +116,6 @@ struct _thread_base {
 	/* this thread's entry in a timeout queue */
 	struct _timeout timeout;
 #endif
-
-#ifdef CONFIG_SCHED_THREAD_USAGE
-	uint64_t usage;
-#endif
 };
 
 typedef struct _thread_base _thread_base_t;
@@ -169,11 +165,29 @@ struct _thread_userspace_local_data {
 };
 #endif
 
-typedef struct k_thread_runtime_stats {
-#ifdef CONFIG_SCHED_THREAD_USAGE
+#ifdef CONFIG_THREAD_RUNTIME_STATS
+struct k_thread_runtime_stats {
+	/* Thread execution cycles */
+#ifdef CONFIG_THREAD_RUNTIME_STATS_USE_TIMING_FUNCTIONS
+	timing_t execution_cycles;
+#else
 	uint64_t execution_cycles;
 #endif
-}  k_thread_runtime_stats_t;
+};
+
+typedef struct k_thread_runtime_stats k_thread_runtime_stats_t;
+
+struct _thread_runtime_stats {
+	/* Timestamp when last switched in */
+#ifdef CONFIG_THREAD_RUNTIME_STATS_USE_TIMING_FUNCTIONS
+	timing_t last_switched_in;
+#else
+	uint32_t last_switched_in;
+#endif
+
+	k_thread_runtime_stats_t stats;
+};
+#endif
 
 struct z_poller {
 	bool is_polling;
@@ -199,13 +213,6 @@ struct k_thread {
 
 #if defined(CONFIG_POLL)
 	struct z_poller poller;
-#endif
-
-#if defined(CONFIG_EVENTS)
-	struct k_thread *next_event_link;
-
-	uint32_t   events;
-	uint32_t   event_options;
 #endif
 
 #if defined(CONFIG_THREAD_MONITOR)
@@ -270,6 +277,11 @@ struct k_thread {
 	/* Pointer to arch-specific TLS area */
 	uintptr_t tls;
 #endif /* CONFIG_THREAD_LOCAL_STORAGE */
+
+#ifdef CONFIG_THREAD_RUNTIME_STATS
+	/** Runtime statistics */
+	struct _thread_runtime_stats rt_stats;
+#endif
 
 #ifdef CONFIG_DEMAND_PAGING_THREAD_STATS
 	/** Paging statistics */

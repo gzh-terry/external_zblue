@@ -11,9 +11,8 @@ if BT_AUDIO
 ##################### Volume Control Service #####################
 
 config BT_VCS
-	bool "Volume Control Service Support [EXPERIMENTAL]"
+	bool "Volume Control Service Support"
 	default n
-	select EXPERIMENTAL
 	help
 	  This option enables support for Volume Control Service.
 
@@ -62,10 +61,8 @@ endif # BT_VCS
 ##################### Volume Control Profile Client #####################
 
 config BT_VCS_CLIENT
-	bool "Volume Control Profile Support [EXPERIMENTAL]"
+	bool "Volume Control Profile Support"
 	select BT_GATT_CLIENT
-	select BT_GATT_AUTO_DISCOVER_CCC
-	select EXPERIMENTAL
 	default n
 	help
 	  This option enables support for Volume Control Profile.

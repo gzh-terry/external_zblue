@@ -27,28 +27,12 @@ properties:
       required: true
       description: Maximum counter value the instance can handle
 
-    girqs:
-      type: array
-      required: true
-      description: Array of GIRQ numbers [8:26] and bit positions [0:31].
-
-    pcrs:
-      type: array
-      required: true
-      description: PCR sleep enable register index and bit position.
-
-    "#girq-cells":
+    girq:
       type: int
-      const: 2
+      required: true
+      description: GIRQ for this device
 
-    "#pcr-cells":
+    girq-bit:
       type: int
-      const: 2
-
-girq-cells:
-    - girq_num
-    - bitpos
-
-pcr-cells:
-    - reg_index
-    - bitpos
+      required: true
+      description: Bit position in GIRQ for this device

@@ -99,7 +99,7 @@ SECTIONS
 	}
 
     GROUP_START(ROM)
-    __rom_region_start = ROM_BASE;
+    _image_rom_start = ROM_BASE;
 
     SECTION_PROLOGUE(_TEXT_SECTION_NAME,,)
 	{
@@ -110,16 +110,16 @@ SECTIONS
  */
 #include <snippets-rom-start.ld>
 
-	__text_region_start = .;
+	_image_text_start = .;
 
 	*(.text .text.*)
 	*(.gnu.linkonce.t.*)
 	*(.eh_frame)
 	} GROUP_LINK_IN(ROM)
 
-    __text_region_end = .;
+    _image_text_end = .;
 
-    __rodata_region_start = .;
+    _image_rodata_start = .;
 
 #include <linker/common-rom.ld>
 #include <linker/thread-local-storage.ld>
@@ -142,8 +142,8 @@ SECTIONS
 
 #include <linker/cplusplus-rom.ld>
 
-    __rodata_region_end = .;
-    __rom_region_end = .;
+    _image_rodata_end = .;
+    _image_rom_end = .;
 
 #ifndef CONFIG_BOOTLOADER_MCUBOOT
     /* The vector table goes into core-dependent flash locations. */
@@ -163,8 +163,7 @@ SECTIONS
 	{
 	. = ALIGN(4);
 	_image_ram_start = .;
-	__data_region_start = .;
-	__data_start = .;
+	__data_ram_start = .;
 
 	*(.data)
 	*(.data.*)
@@ -179,22 +178,13 @@ SECTIONS
  */
 #include <snippets-rwdata.ld>
 
-	__data_end = .;
-
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
-	__data_size = __data_end - __data_start;
-	__data_load_start = LOADADDR(_DATA_SECTION_NAME);
 
 #include <linker/common-ram.ld>
 #include <linker/cplusplus-ram.ld>
 
-/* Located in generated directory. This file is populated by the
- * zephyr_linker_sources() Cmake function.
- */
-#include <snippets-data-sections.ld>
-
-    __data_region_end = .;
-    __data_region_load_start = LOADADDR(_DATA_SECTION_NAME);
+    __data_ram_end = .;
+    __data_rom_start = LOADADDR(_DATA_SECTION_NAME);
 
     SECTION_DATA_PROLOGUE(_BSS_SECTION_NAME,(NOLOAD),)
 	{

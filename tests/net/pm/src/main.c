@@ -21,28 +21,29 @@ struct fake_dev_context {
 	struct net_if *iface;
 };
 
-static int fake_dev_pm_action(const struct device *dev,
-			      enum pm_device_action action)
+static int fake_dev_pm_control(const struct device *dev, uint32_t command,
+			       uint32_t *state, pm_device_cb cb, void *arg)
 {
 	struct fake_dev_context *ctx = dev->data;
-	int ret;
+	int ret = 0;
 
-	switch (action) {
-	case PM_DEVICE_ACTION_SUSPEND:
-		ret = net_if_suspend(ctx->iface);
-		if (ret == -EBUSY) {
-			goto out;
+	if (command == PM_DEVICE_STATE_SET) {
+		if (*state == PM_DEVICE_STATE_SUSPEND) {
+			ret = net_if_suspend(ctx->iface);
+			if (ret == -EBUSY) {
+				goto out;
+			}
+		} else if (*state == PM_DEVICE_STATE_ACTIVE) {
+			ret = net_if_resume(ctx->iface);
 		}
-		break;
-	case PM_DEVICE_ACTION_RESUME:
-		ret = net_if_resume(ctx->iface);
-		break;
-	default:
-		ret = -ENOTSUP;
-		break;
+	} else {
+		return -EINVAL;
 	}
 
 out:
+	if (cb) {
+		cb(dev, ret, state, arg);
+	}
 
 	return ret;
 }
@@ -100,7 +101,7 @@ static struct dummy_api fake_dev_if_api = {
 #define _ETH_L2_CTX_TYPE NET_L2_GET_CTX_TYPE(DUMMY_L2)
 
 NET_DEVICE_INIT(fake_dev, "fake_dev",
-		fake_dev_init, fake_dev_pm_action,
+		fake_dev_init, fake_dev_pm_control,
 		&fake_dev_context_data, NULL,
 		CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,
 		&fake_dev_if_api, _ETH_L2_LAYER, _ETH_L2_CTX_TYPE, 127);
@@ -148,13 +149,13 @@ void test_pm(void)
 	 */
 	k_yield();
 
-	ret = pm_device_state_set(dev, PM_DEVICE_STATE_SUSPENDED);
+	ret = pm_device_state_set(dev, PM_DEVICE_STATE_SUSPEND, NULL, NULL);
 	zassert_true(ret == 0, "Could not set state");
 
 	zassert_true(net_if_is_suspended(iface), "net iface is not suspended");
 
 	/* Let's try to suspend it again, it should fail relevantly */
-	ret = pm_device_state_set(dev, PM_DEVICE_STATE_SUSPENDED);
+	ret = pm_device_state_set(dev, PM_DEVICE_STATE_SUSPEND, NULL, NULL);
 	zassert_true(ret == -EALREADY, "Could change state");
 
 	zassert_true(net_if_is_suspended(iface), "net iface is not suspended");
@@ -164,12 +165,12 @@ void test_pm(void)
 		     (struct sockaddr *)&addr4, sizeof(struct sockaddr_in));
 	zassert_true(ret < 0, "Could send data");
 
-	ret = pm_device_state_set(dev, PM_DEVICE_STATE_ACTIVE);
+	ret = pm_device_state_set(dev, PM_DEVICE_STATE_ACTIVE, NULL, NULL);
 	zassert_true(ret == 0, "Could not set state");
 
 	zassert_false(net_if_is_suspended(iface), "net iface is suspended");
 
-	ret = pm_device_state_set(dev, PM_DEVICE_STATE_ACTIVE);
+	ret = pm_device_state_set(dev, PM_DEVICE_STATE_ACTIVE, NULL, NULL);
 	zassert_true(ret == -EALREADY, "Could change state");
 
 	/* Let's send some data, it should go through */

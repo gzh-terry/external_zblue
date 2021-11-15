@@ -1,3 +1,5 @@
+/*  Bluetooth Mesh */
+
 /*
  * Copyright (c) 2017 Intel Corporation
  *
@@ -240,7 +242,7 @@ static void clear_friendship(bool force, bool disable)
 		lpn->old_friend = lpn->frnd;
 	}
 
-	STRUCT_SECTION_FOREACH(bt_mesh_lpn_cb, cb) {
+	Z_STRUCT_SECTION_FOREACH(bt_mesh_lpn_cb, cb) {
 		if (cb->terminated && lpn->frnd != BT_MESH_ADDR_UNASSIGNED) {
 			cb->terminated(lpn->sub->net_idx, lpn->frnd);
 		}
@@ -356,7 +358,7 @@ static void req_sent(uint16_t duration, int err, void *user_data)
 		return;
 	}
 
-	STRUCT_SECTION_FOREACH(bt_mesh_lpn_cb, cb) {
+	Z_STRUCT_SECTION_FOREACH(bt_mesh_lpn_cb, cb) {
 		if (cb->polled) {
 			cb->polled(lpn->sub->net_idx, lpn->frnd, !!(lpn->req_attempts));
 		}
@@ -992,7 +994,7 @@ int bt_mesh_lpn_friend_update(struct bt_mesh_net_rx *rx,
 
 	if (!lpn->established) {
 		/* This is normally checked on the transport layer, however
-		 * in this state we're also still accepting flooding
+		 * in this state we're also still accepting master
 		 * credentials so we need to ensure the right ones (Friend
 		 * Credentials) were used for this message.
 		 */
@@ -1007,7 +1009,7 @@ int bt_mesh_lpn_friend_update(struct bt_mesh_net_rx *rx,
 
 		bt_mesh_hb_feature_changed(BT_MESH_FEAT_LOW_POWER);
 
-		STRUCT_SECTION_FOREACH(bt_mesh_lpn_cb, cb) {
+		Z_STRUCT_SECTION_FOREACH(bt_mesh_lpn_cb, cb) {
 			if (cb->established) {
 				cb->established(lpn->sub->net_idx, lpn->frnd,
 					lpn->queue_size, lpn->recv_win);
@@ -1057,7 +1059,7 @@ int bt_mesh_lpn_poll(void)
 	return send_friend_poll();
 }
 
-static void subnet_evt(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
+static void subnet_evt_lpn(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
 {
 	switch (evt) {
 	case BT_MESH_KEY_DELETED:
@@ -1075,9 +1077,7 @@ static void subnet_evt(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
 	}
 }
 
-BT_MESH_SUBNET_CB_DEFINE(lpn) = {
-	.evt_handler = subnet_evt,
-};
+BT_MESH_SUBNET_CB_DEFINE(subnet_evt_lpn);
 
 int bt_mesh_lpn_init(void)
 {

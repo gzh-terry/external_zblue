@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#define DT_DRV_COMPAT nordic_nrf_gpio
-
 #include <drivers/gpio.h>
 #include <hal/nrf_gpio.h>
 #include <hal/nrf_gpiote.h>
@@ -18,6 +16,8 @@
 #error "GPIO LATCH is required by edge interrupts using GPIO SENSE," \
 	"but it is not supported by the platform."
 #endif
+
+#define GPIO(id) DT_NODELABEL(gpio##id)
 
 struct gpio_nrfx_data {
 	/* gpio_driver_data needs to be first */
@@ -164,7 +164,7 @@ static int gpio_nrfx_config(const struct device *port,
 
 	switch (flags & (GPIO_DS_LOW_MASK | GPIO_DS_HIGH_MASK |
 			 GPIO_OPEN_DRAIN)) {
-	case GPIO_DS_DFLT:
+	case GPIO_DS_DFLT_LOW | GPIO_DS_DFLT_HIGH:
 		drive = NRF_GPIO_PIN_S0S1;
 		break;
 	case GPIO_DS_DFLT_LOW | GPIO_DS_ALT_HIGH:
@@ -177,7 +177,7 @@ static int gpio_nrfx_config(const struct device *port,
 	case GPIO_DS_ALT_LOW | GPIO_DS_DFLT_HIGH:
 		drive = NRF_GPIO_PIN_H0S1;
 		break;
-	case GPIO_DS_ALT:
+	case GPIO_DS_ALT_LOW | GPIO_DS_ALT_HIGH:
 		drive = NRF_GPIO_PIN_H0H1;
 		break;
 	case GPIO_DS_ALT_LOW | GPIO_OPEN_DRAIN:
@@ -492,13 +492,16 @@ static void gpiote_event_handler(void)
 						 NRF_GPIOTE_EVENT_PORT);
 
 	if (port_event) {
-		#define GPIO_NRF_GET_TRIGGERS(i) \
-			fired_triggers[DT_INST_PROP(i, port)] = \
-				check_level_trigger_pins(DEVICE_DT_INST_GET(i), \
-							 &sense_levels[DT_INST_PROP(i, port)]);
-
-		DT_INST_FOREACH_STATUS_OKAY(GPIO_NRF_GET_TRIGGERS)
-		#undef GPIO_NRF_GET_TRIGGERS
+#ifdef CONFIG_GPIO_NRF_P0
+		fired_triggers[0] =
+			check_level_trigger_pins(DEVICE_DT_GET(GPIO(0)),
+						 &sense_levels[0]);
+#endif
+#ifdef CONFIG_GPIO_NRF_P1
+		fired_triggers[1] =
+			check_level_trigger_pins(DEVICE_DT_GET(GPIO(1)),
+						 &sense_levels[1]);
+#endif
 
 		/* Sense detect was disabled while checking pins so
 		 * DETECT should be deasserted.
@@ -527,34 +530,37 @@ static void gpiote_event_handler(void)
 		 * This may cause DETECT to be re-asserted if pin state has
 		 * already changed to the newly configured sense level.
 		 */
-		#define GPIO_NRF_CFG_EDGE_SENSE_PINS(i) \
-		   cfg_edge_sense_pins(DEVICE_DT_INST_GET(i), \
-				       sense_levels[DT_INST_PROP(i, port)]);
-
-		DT_INST_FOREACH_STATUS_OKAY(GPIO_NRF_CFG_EDGE_SENSE_PINS)
-		#undef GPIO_NRF_CFG_EDGE_SENSE_PINS
+#ifdef CONFIG_GPIO_NRF_P0
+		cfg_edge_sense_pins(DEVICE_DT_GET(GPIO(0)), sense_levels[0]);
+#endif
+#ifdef CONFIG_GPIO_NRF_P1
+		cfg_edge_sense_pins(DEVICE_DT_GET(GPIO(1)), sense_levels[1]);
+#endif
 	}
 
-	#define GPIO_NRF_FIRE_CALLBACKS(i) \
-		if (fired_triggers[DT_INST_PROP(i, port)]) { \
-			fire_callbacks(DEVICE_DT_INST_GET(i), \
-				       fired_triggers[DT_INST_PROP(i, port)]); \
-		}
-
-	DT_INST_FOREACH_STATUS_OKAY(GPIO_NRF_FIRE_CALLBACKS)
-	#undef GPIO_NRF_FIRE_CALLBACKS
+#ifdef CONFIG_GPIO_NRF_P0
+	if (fired_triggers[0]) {
+		fire_callbacks(DEVICE_DT_GET(GPIO(0)), fired_triggers[0]);
+	}
+#endif
+#ifdef CONFIG_GPIO_NRF_P1
+	if (fired_triggers[1]) {
+		fire_callbacks(DEVICE_DT_GET(GPIO(1)), fired_triggers[1]);
+	}
+#endif
 
 	if (port_event) {
 		/* Reprogram sense to match current configuration.
 		 * This may cause DETECT to be re-asserted.
 		 */
-		#define GPIO_NRF_CFG_LEVEL_PINS(i) cfg_level_pins(DEVICE_DT_INST_GET(i));
-
-		DT_INST_FOREACH_STATUS_OKAY(GPIO_NRF_CFG_LEVEL_PINS)
-		#undef GPIO_NRF_CFG_LEVEL_PINS
+#ifdef CONFIG_GPIO_NRF_P0
+		cfg_level_pins(DEVICE_DT_GET(GPIO(0)));
+#endif
+#ifdef CONFIG_GPIO_NRF_P1
+		cfg_level_pins(DEVICE_DT_GET(GPIO(1)));
+#endif
 	}
 }
-
 
 #define GPIOTE_NODE DT_INST(0, nordic_nrf_gpiote)
 
@@ -584,20 +590,26 @@ static int gpio_nrfx_init(const struct device *port)
 	static const struct gpio_nrfx_cfg gpio_nrfx_p##id##_cfg = {	\
 		.common = {						\
 			.port_pin_mask =				\
-			GPIO_PORT_PIN_MASK_FROM_DT_INST(id),		\
+			GPIO_PORT_PIN_MASK_FROM_DT_NODE(GPIO(id)),	\
 		},							\
-		.port = (NRF_GPIO_Type *)DT_INST_REG_ADDR(id),		\
-		.port_num = DT_INST_PROP(id, port)			\
+		.port = NRF_P##id,					\
+		.port_num = id						\
 	};								\
 									\
 	static struct gpio_nrfx_data gpio_nrfx_p##id##_data;		\
 									\
-	DEVICE_DT_INST_DEFINE(id, gpio_nrfx_init,			\
+	DEVICE_DT_DEFINE(GPIO(id), gpio_nrfx_init,			\
 			 NULL,						\
 			 &gpio_nrfx_p##id##_data,			\
 			 &gpio_nrfx_p##id##_cfg,			\
 			 POST_KERNEL,					\
-			 CONFIG_GPIO_NRF_INIT_PRIORITY,			\
-			 &gpio_nrfx_drv_api_funcs);
+			 CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,		\
+			 &gpio_nrfx_drv_api_funcs)
 
-DT_INST_FOREACH_STATUS_OKAY(GPIO_NRF_DEVICE)
+#ifdef CONFIG_GPIO_NRF_P0
+GPIO_NRF_DEVICE(0);
+#endif
+
+#ifdef CONFIG_GPIO_NRF_P1
+GPIO_NRF_DEVICE(1);
+#endif

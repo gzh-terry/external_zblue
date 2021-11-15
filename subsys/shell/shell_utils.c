@@ -229,7 +229,7 @@ static inline uint32_t shell_root_cmd_count(void)
 }
 
 /* Function returning pointer to parent command matching requested syntax. */
-const struct shell_static_entry *root_cmd_find(const char *syntax)
+static const struct shell_static_entry *root_cmd_find(const char *syntax)
 {
 	const size_t cmd_count = shell_root_cmd_count();
 	const struct shell_cmd_entry *cmd;
@@ -363,7 +363,7 @@ int shell_set_root_cmd(const char *cmd)
 		return -EINVAL;
 	}
 
-	STRUCT_SECTION_FOREACH(shell, sh) {
+	Z_STRUCT_SECTION_FOREACH(shell, sh) {
 		sh->ctx->selected_cmd = entry;
 	}
 

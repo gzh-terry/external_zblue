@@ -11,10 +11,8 @@ menuconfig KSCAN
 if KSCAN
 
 source "drivers/kscan/Kconfig.ft5336"
-source "drivers/kscan/Kconfig.it8xxx2"
 source "drivers/kscan/Kconfig.xec"
 source "drivers/kscan/Kconfig.sdl"
-source "drivers/kscan/Kconfig.ht16k33"
 
 module = KSCAN
 module-str = kscan
@@ -22,7 +20,7 @@ source "subsys/logging/Kconfig.template.log_config"
 
 config KSCAN_INIT_PRIORITY
 	int "Keyboard scan driver init priority"
-	default 90
+	default 40
 	help
 	  Keyboard scan device driver initialization priority.
 

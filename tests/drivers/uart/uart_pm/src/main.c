@@ -16,6 +16,11 @@
 #define UART_DEVICE_NAME DT_LABEL(DT_NODELABEL(LABEL))
 #define HAS_RX DT_NODE_HAS_PROP(DT_NODELABEL(LABEL), rx_pin)
 
+static const struct device *exp_dev;
+static uint32_t exp_state;
+static void *exp_arg;
+static volatile int callback_cnt;
+
 static void polling_verify(const struct device *dev, bool is_async, bool active)
 {
 	char c;
@@ -83,11 +88,11 @@ static bool async_verify(const struct device *dev, bool active)
 	zassert_equal(err, 0, "Unexpected err: %d", err);
 
 	if (HAS_RX) {
-		err = uart_rx_enable(dev, rxbuf, sizeof(rxbuf), 1 * USEC_PER_MSEC);
+		err = uart_rx_enable(dev, rxbuf, sizeof(rxbuf), 1);
 		zassert_equal(err, 0, "Unexpected err: %d", err);
 	}
 
-	err = uart_tx(dev, txbuf, sizeof(txbuf), 10 * USEC_PER_MSEC);
+	err = uart_tx(dev, txbuf, sizeof(txbuf), 10);
 	zassert_equal(err, 0, "Unexpected err: %d", err);
 
 	k_busy_wait(10000);
@@ -115,25 +120,45 @@ static void communication_verify(const struct device *dev, bool active)
 }
 
 #define state_verify(dev, exp_state) do {\
-	enum pm_device_state power_state; \
+	uint32_t power_state; \
 	int err = pm_device_state_get(dev, &power_state); \
 	zassert_equal(err, 0, "Unexpected err: %d", err); \
 	zassert_equal(power_state, exp_state, NULL); \
 } while (0)
 
-static void state_set(const struct device *dev, enum pm_device_state state,
-		      int exp_err)
+static void pm_callback(const struct device *dev,
+			int status, uint32_t *state, void *arg)
+{
+	zassert_equal(dev, exp_dev, NULL);
+	zassert_equal(status, 0, NULL);
+	zassert_equal(*state, exp_state, NULL);
+	zassert_equal(arg, exp_arg, NULL);
+	callback_cnt++;
+}
+
+static void state_set(const struct device *dev, uint32_t state, int exp_err, bool cb)
 {
 	int err;
-	enum pm_device_state prev_state;
+	uint32_t prev_state;
 
 	err = pm_device_state_get(dev, &prev_state);
 	zassert_equal(err, 0, "Unexpected err: %d", err);
 
-	err = pm_device_state_set(dev, state);
-	zassert_equal(err, exp_err, "Unexpected err: %d", err);
+	if (cb) {
+		callback_cnt = 0;
+		exp_dev = dev;
+		exp_arg = &state;
+		exp_state = state;
 
-	enum pm_device_state exp_state = err == 0 ? state : prev_state;
+		err = pm_device_state_set(dev, state, pm_callback, exp_arg);
+		zassert_equal(err, exp_err, "Unexpected err: %d", err);
+		zassert_equal(callback_cnt, 1, NULL);
+	} else {
+		err = pm_device_state_set(dev, state, NULL, NULL);
+		zassert_equal(err, exp_err, "Unexpected err: %d", err);
+	}
+
+	uint32_t exp_state = err == 0 ? state : prev_state;
 
 	state_verify(dev, exp_state);
 }
@@ -148,16 +173,16 @@ static void test_uart_pm_in_idle(void)
 	state_verify(dev, PM_DEVICE_STATE_ACTIVE);
 	communication_verify(dev, true);
 
-	state_set(dev, PM_DEVICE_STATE_SUSPENDED, 0);
+	state_set(dev, PM_DEVICE_STATE_LOW_POWER, 0, false);
 	communication_verify(dev, false);
 
-	state_set(dev, PM_DEVICE_STATE_ACTIVE, 0);
+	state_set(dev, PM_DEVICE_STATE_ACTIVE, 0, false);
 	communication_verify(dev, true);
 
-	state_set(dev, PM_DEVICE_STATE_SUSPENDED, 0);
+	state_set(dev, PM_DEVICE_STATE_LOW_POWER, 0, true);
 	communication_verify(dev, false);
 
-	state_set(dev, PM_DEVICE_STATE_ACTIVE, 0);
+	state_set(dev, PM_DEVICE_STATE_ACTIVE, 0, true);
 	communication_verify(dev, true);
 }
 
@@ -171,21 +196,21 @@ static void test_uart_pm_poll_tx(void)
 	communication_verify(dev, true);
 
 	uart_poll_out(dev, 'a');
-	state_set(dev, PM_DEVICE_STATE_SUSPENDED, 0);
+	state_set(dev, PM_DEVICE_STATE_LOW_POWER, 0, false);
 
 	communication_verify(dev, false);
 
-	state_set(dev, PM_DEVICE_STATE_ACTIVE, 0);
+	state_set(dev, PM_DEVICE_STATE_ACTIVE, 0, false);
 
 	communication_verify(dev, true);
 
 	/* Now same thing but with callback */
 	uart_poll_out(dev, 'a');
-	state_set(dev, PM_DEVICE_STATE_SUSPENDED, 0);
+	state_set(dev, PM_DEVICE_STATE_LOW_POWER, 0, true);
 
 	communication_verify(dev, false);
 
-	state_set(dev, PM_DEVICE_STATE_ACTIVE, 0);
+	state_set(dev, PM_DEVICE_STATE_ACTIVE, 0, true);
 
 	communication_verify(dev, true);
 }
@@ -194,7 +219,7 @@ static void timeout(struct k_timer *timer)
 {
 	const struct device *uart = k_timer_user_data_get(timer);
 
-	state_set(uart, PM_DEVICE_STATE_SUSPENDED, 0);
+	state_set(uart, PM_DEVICE_STATE_LOW_POWER, 0, false);
 }
 
 static K_TIMER_DEFINE(pm_timer, timeout, NULL);
@@ -221,7 +246,7 @@ static void test_uart_pm_poll_tx_interrupted(void)
 
 		k_timer_status_sync(&pm_timer);
 
-		state_set(dev, PM_DEVICE_STATE_ACTIVE, 0);
+		state_set(dev, PM_DEVICE_STATE_ACTIVE, 0, false);
 
 		communication_verify(dev, true);
 	}

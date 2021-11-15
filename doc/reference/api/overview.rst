@@ -48,7 +48,7 @@ current :ref:`stability level <api_lifecycle>`.
      - 2.4
 
    * - :ref:`can_api`
-     - Unstable
+     - Experimental
      - 1.14
      - 2.6
 
@@ -78,7 +78,7 @@ current :ref:`stability level <api_lifecycle>`.
      - 2.4
 
    * - :ref:`devicetree_api`
-     - Stable
+     - Experimental
      - 2.2
      - 2.6
 
@@ -232,17 +232,12 @@ current :ref:`stability level <api_lifecycle>`.
      - 1.0
      - 2.6
 
-   * - :ref:`pinctrl_api`
-     - Experimental
-     - 3.0
-     - 3.0
-
    * - :ref:`pinmux_api`
      - Stable
      - 1.0
      - 1.11
 
-   * - :ref:`pm_api`
+   * - :ref:`power_management_api`
      - Experimental
      - 1.2
      - 2.2

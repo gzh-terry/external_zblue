@@ -24,7 +24,6 @@ LOG_MODULE_REGISTER(net_llmnr_responder, CONFIG_LLMNR_RESPONDER_LOG_LEVEL);
 #include <net/net_pkt.h>
 #include <net/dns_resolve.h>
 #include <net/udp.h>
-#include <net/igmp.h>
 
 #include "dns_pack.h"
 #include "ipv6.h"
@@ -572,10 +571,10 @@ static void setup_ipv6_addr(struct sockaddr_in6 *local_addr)
 static void iface_ipv4_cb(struct net_if *iface, void *user_data)
 {
 	struct in_addr *addr = user_data;
-	int ret;
+	struct net_if_mcast_addr *ifaddr;
 
-	ret = net_ipv4_igmp_join(iface, addr);
-	if (ret < 0) {
+	ifaddr = net_if_ipv4_maddr_add(iface, addr);
+	if (!ifaddr) {
 		NET_DBG("Cannot add IPv4 multicast address to iface %p",
 			iface);
 	}

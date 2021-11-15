@@ -15,10 +15,10 @@
 #define VOCS_DESC_SIZE 64
 #define AICS_DESC_SIZE 64
 
+static struct bt_conn_cb conn_callbacks;
 extern enum bst_result_t bst_result;
 
-static struct bt_vcs *vcs;
-static struct bt_vcs_included vcs_included;
+static struct bt_vcs vcs;
 static volatile bool g_bt_init;
 static volatile bool g_is_connected;
 static volatile bool g_mtu_exchanged;
@@ -43,7 +43,7 @@ static char g_aics_desc[AICS_DESC_SIZE];
 static volatile bool g_cb;
 static struct bt_conn *g_conn;
 
-static void vcs_state_cb(struct bt_vcs *vcs, int err, uint8_t volume,
+static void vcs_state_cb(struct bt_conn *conn, int err, uint8_t volume,
 			 uint8_t mute)
 {
 	if (err) {
@@ -57,7 +57,7 @@ static void vcs_state_cb(struct bt_vcs *vcs, int err, uint8_t volume,
 	g_cb = true;
 }
 
-static void vcs_flags_cb(struct bt_vcs *vcs, int err, uint8_t flags)
+static void vcs_flags_cb(struct bt_conn *conn, int err, uint8_t flags)
 {
 	if (err) {
 		FAIL("VCS flags cb err (%d)", err);
@@ -69,7 +69,8 @@ static void vcs_flags_cb(struct bt_vcs *vcs, int err, uint8_t flags)
 	g_cb = true;
 }
 
-static void vocs_state_cb(struct bt_vocs *inst, int err, int16_t offset)
+static void vocs_state_cb(struct bt_conn *conn, struct bt_vocs *inst, int err,
+			  int16_t offset)
 {
 	if (err) {
 		FAIL("VOCS state cb err (%d)", err);
@@ -81,7 +82,8 @@ static void vocs_state_cb(struct bt_vocs *inst, int err, int16_t offset)
 	g_cb = true;
 }
 
-static void vocs_location_cb(struct bt_vocs *inst, int err, uint32_t location)
+static void vocs_location_cb(struct bt_conn *conn, struct bt_vocs *inst,
+			     int err, uint32_t location)
 {
 	if (err) {
 		FAIL("VOCS location cb err (%d)", err);
@@ -93,8 +95,8 @@ static void vocs_location_cb(struct bt_vocs *inst, int err, uint32_t location)
 	g_cb = true;
 }
 
-static void vocs_description_cb(struct bt_vocs *inst, int err,
-				char *description)
+static void vocs_description_cb(struct bt_conn *conn, struct bt_vocs *inst,
+				int err, char *description)
 {
 	if (err) {
 		FAIL("VOCS description cb err (%d)", err);
@@ -112,7 +114,7 @@ static void vocs_description_cb(struct bt_vocs *inst, int err,
 	g_cb = true;
 }
 
-static void vocs_write_cb(struct bt_vocs *inst, int err)
+static void vocs_write_cb(struct bt_conn *conn, struct bt_vocs *inst, int err)
 {
 	if (err) {
 		FAIL("VOCS write failed (%d)\n", err);
@@ -122,8 +124,8 @@ static void vocs_write_cb(struct bt_vocs *inst, int err)
 	g_write_complete = true;
 }
 
-static void aics_state_cb(struct bt_aics *inst, int err, int8_t gain,
-			  uint8_t mute, uint8_t mode)
+static void aics_state_cb(struct bt_conn *conn, struct bt_aics *inst, int err,
+			  int8_t gain, uint8_t mute, uint8_t mode)
 {
 	if (err) {
 		FAIL("AICS state cb err (%d)", err);
@@ -137,8 +139,9 @@ static void aics_state_cb(struct bt_aics *inst, int err, int8_t gain,
 	g_cb = true;
 }
 
-static void aics_gain_setting_cb(struct bt_aics *inst, int err, uint8_t units,
-				 int8_t minimum, int8_t maximum)
+static void aics_gain_setting_cb(struct bt_conn *conn, struct bt_aics *inst,
+				 int err, uint8_t units, int8_t minimum,
+				 int8_t maximum)
 {
 	if (err) {
 		FAIL("AICS gain setting cb err (%d)", err);
@@ -152,8 +155,8 @@ static void aics_gain_setting_cb(struct bt_aics *inst, int err, uint8_t units,
 	g_cb = true;
 }
 
-static void aics_input_type_cb(struct bt_aics *inst, int err,
-			       uint8_t input_type)
+static void aics_input_type_cb(struct bt_conn *conn, struct bt_aics *inst,
+			       int err, uint8_t input_type)
 {
 	if (err) {
 		FAIL("AICS input type cb err (%d)", err);
@@ -165,7 +168,8 @@ static void aics_input_type_cb(struct bt_aics *inst, int err,
 	g_cb = true;
 }
 
-static void aics_status_cb(struct bt_aics *inst, int err, bool active)
+static void aics_status_cb(struct bt_conn *conn, struct bt_aics *inst, int err,
+			   bool active)
 {
 	if (err) {
 		FAIL("AICS status cb err (%d)", err);
@@ -177,8 +181,8 @@ static void aics_status_cb(struct bt_aics *inst, int err, bool active)
 	g_cb = true;
 }
 
-static void aics_description_cb(struct bt_aics *inst, int err,
-				char *description)
+static void aics_description_cb(struct bt_conn *conn, struct bt_aics *inst,
+				int err, char *description)
 {
 	if (err) {
 		FAIL("AICS description cb err (%d)", err);
@@ -196,7 +200,7 @@ static void aics_description_cb(struct bt_aics *inst, int err,
 	g_cb = true;
 }
 
-static void aics_write_cb(struct bt_aics *inst, int err)
+static void aics_write_cb(struct bt_conn *conn, struct bt_aics *inst, int err)
 {
 	if (err) {
 		FAIL("AICS write failed (%d)\n", err);
@@ -206,7 +210,7 @@ static void aics_write_cb(struct bt_aics *inst, int err)
 	g_write_complete = true;
 }
 
-static void vcs_discover_cb(struct bt_vcs *vcs, int err, uint8_t vocs_count,
+static void vcs_discover_cb(struct bt_conn *conn, int err, uint8_t vocs_count,
 			    uint8_t aics_count)
 {
 	if (err) {
@@ -217,7 +221,7 @@ static void vcs_discover_cb(struct bt_vcs *vcs, int err, uint8_t vocs_count,
 	g_discovery_complete = true;
 }
 
-static void vcs_write_cb(struct bt_vcs *vcs, int err)
+static void vcs_write_cb(struct bt_conn *conn, int err)
 {
 	if (err) {
 		FAIL("VCS write failed (%d)\n", err);
@@ -294,7 +298,7 @@ static void bt_ready(int err)
 	g_bt_init = true;
 }
 
-BT_CONN_CB_DEFINE(conn_callbacks) = {
+static struct bt_conn_cb conn_callbacks = {
 	.connected = connected,
 	.disconnected = disconnected,
 };
@@ -307,22 +311,10 @@ static int test_aics(void)
 	uint8_t expected_mode;
 	uint8_t expected_input_type;
 	char expected_aics_desc[AICS_DESC_SIZE];
-	struct bt_conn *cached_conn;
-
-	printk("Getting AICS client conn\n");
-	err = bt_aics_client_conn_get(vcs_included.aics[0], &cached_conn);
-	if (err != 0) {
-		FAIL("Could not get AICS client conn (err %d)\n", err);
-		return err;
-	}
-	if (cached_conn != g_conn) {
-		FAIL("Cached conn was not the conn used to discover");
-		return -ENOTCONN;
-	}
 
 	printk("Getting AICS state\n");
 	g_cb = false;
-	err = bt_vcs_aics_state_get(vcs, vcs_included.aics[0]);
+	err = bt_vcs_aics_state_get(g_conn, vcs.aics[0]);
 	if (err) {
 		FAIL("Could not get AICS state (err %d)\n", err);
 		return err;
@@ -332,7 +324,7 @@ static int test_aics(void)
 
 	printk("Getting AICS gain setting\n");
 	g_cb = false;
-	err = bt_vcs_aics_gain_setting_get(vcs, vcs_included.aics[0]);
+	err = bt_vcs_aics_gain_setting_get(g_conn, vcs.aics[0]);
 	if (err) {
 		FAIL("Could not get AICS gain setting (err %d)\n", err);
 		return err;
@@ -343,7 +335,7 @@ static int test_aics(void)
 	printk("Getting AICS input type\n");
 	expected_input_type = BT_AICS_INPUT_TYPE_DIGITAL;
 	g_cb = false;
-	err = bt_vcs_aics_type_get(vcs, vcs_included.aics[0]);
+	err = bt_vcs_aics_type_get(g_conn, vcs.aics[0]);
 	if (err) {
 		FAIL("Could not get AICS input type (err %d)\n", err);
 		return err;
@@ -354,7 +346,7 @@ static int test_aics(void)
 
 	printk("Getting AICS status\n");
 	g_cb = false;
-	err = bt_vcs_aics_status_get(vcs, vcs_included.aics[0]);
+	err = bt_vcs_aics_status_get(g_conn, vcs.aics[0]);
 	if (err) {
 		FAIL("Could not get AICS status (err %d)\n", err);
 		return err;
@@ -364,7 +356,7 @@ static int test_aics(void)
 
 	printk("Getting AICS description\n");
 	g_cb = false;
-	err = bt_vcs_aics_description_get(vcs, vcs_included.aics[0]);
+	err = bt_vcs_aics_description_get(g_conn, vcs.aics[0]);
 	if (err) {
 		FAIL("Could not get AICS description (err %d)\n", err);
 		return err;
@@ -375,7 +367,7 @@ static int test_aics(void)
 	printk("Setting AICS mute\n");
 	expected_input_mute = BT_AICS_STATE_MUTED;
 	g_write_complete = g_cb = false;
-	err = bt_vcs_aics_mute(vcs, vcs_included.aics[0]);
+	err = bt_vcs_aics_mute(g_conn, vcs.aics[0]);
 	if (err) {
 		FAIL("Could not set AICS mute (err %d)\n", err);
 		return err;
@@ -387,7 +379,7 @@ static int test_aics(void)
 	printk("Setting AICS unmute\n");
 	expected_input_mute = BT_AICS_STATE_UNMUTED;
 	g_write_complete = g_cb = false;
-	err = bt_vcs_aics_unmute(vcs, vcs_included.aics[0]);
+	err = bt_vcs_aics_unmute(g_conn, vcs.aics[0]);
 	if (err) {
 		FAIL("Could not set AICS unmute (err %d)\n", err);
 		return err;
@@ -399,7 +391,7 @@ static int test_aics(void)
 	printk("Setting AICS auto mode\n");
 	expected_mode = BT_AICS_MODE_AUTO;
 	g_write_complete = g_cb = false;
-	err = bt_vcs_aics_automatic_gain_set(vcs, vcs_included.aics[0]);
+	err = bt_vcs_aics_automatic_gain_set(g_conn, vcs.aics[0]);
 	if (err) {
 		FAIL("Could not set AICS auto mode (err %d)\n", err);
 		return err;
@@ -410,7 +402,7 @@ static int test_aics(void)
 	printk("Setting AICS manual mode\n");
 	expected_mode = BT_AICS_MODE_MANUAL;
 	g_write_complete = g_cb = false;
-	err = bt_vcs_aics_manual_gain_set(vcs, vcs_included.aics[0]);
+	err = bt_vcs_aics_manual_gain_set(g_conn, vcs.aics[0]);
 	if (err) {
 		FAIL("Could not set AICS manual mode (err %d)\n", err);
 		return err;
@@ -421,7 +413,7 @@ static int test_aics(void)
 	printk("Setting AICS gain\n");
 	expected_gain = g_aics_gain_max - 1;
 	g_write_complete = g_cb = false;
-	err = bt_vcs_aics_gain_set(vcs, vcs_included.aics[0], expected_gain);
+	err = bt_vcs_aics_gain_set(g_conn, vcs.aics[0], expected_gain);
 	if (err) {
 		FAIL("Could not set AICS gain (err %d)\n", err);
 		return err;
@@ -434,7 +426,7 @@ static int test_aics(void)
 		sizeof(expected_aics_desc));
 	expected_aics_desc[sizeof(expected_aics_desc) - 1] = '\0';
 	g_cb = false;
-	err = bt_vcs_aics_description_set(vcs, vcs_included.aics[0],
+	err = bt_vcs_aics_description_set(g_conn, vcs.aics[0],
 					  expected_aics_desc);
 	if (err) {
 		FAIL("Could not set AICS Description (err %d)\n", err);
@@ -455,22 +447,10 @@ static int test_vocs(void)
 	uint32_t expected_location;
 	int16_t expected_offset;
 	char expected_description[VOCS_DESC_SIZE];
-	struct bt_conn *cached_conn;
-
-	printk("Getting VOCS client conn\n");
-	err = bt_vocs_client_conn_get(vcs_included.vocs[0], &cached_conn);
-	if (err != 0) {
-		FAIL("Could not get VOCS client conn (err %d)\n", err);
-		return err;
-	}
-	if (cached_conn != g_conn) {
-		FAIL("Cached conn was not the conn used to discover");
-		return -ENOTCONN;
-	}
 
 	printk("Getting VOCS state\n");
 	g_cb = false;
-	err = bt_vcs_vocs_state_get(vcs, vcs_included.vocs[0]);
+	err = bt_vcs_vocs_state_get(g_conn, vcs.vocs[0]);
 	if (err) {
 		FAIL("Could not get VOCS state (err %d)\n", err);
 		return err;
@@ -480,7 +460,7 @@ static int test_vocs(void)
 
 	printk("Getting VOCS location\n");
 	g_cb = false;
-	err = bt_vcs_vocs_location_get(vcs, vcs_included.vocs[0]);
+	err = bt_vcs_vocs_location_get(g_conn, vcs.vocs[0]);
 	if (err) {
 		FAIL("Could not get VOCS location (err %d)\n", err);
 		return err;
@@ -490,7 +470,7 @@ static int test_vocs(void)
 
 	printk("Getting VOCS description\n");
 	g_cb = false;
-	err = bt_vcs_vocs_description_get(vcs, vcs_included.vocs[0]);
+	err = bt_vcs_vocs_description_get(g_conn, vcs.vocs[0]);
 	if (err) {
 		FAIL("Could not get VOCS description (err %d)\n", err);
 		return err;
@@ -501,8 +481,7 @@ static int test_vocs(void)
 	printk("Setting VOCS location\n");
 	expected_location = g_vocs_location + 1;
 	g_cb = false;
-	err = bt_vcs_vocs_location_set(vcs, vcs_included.vocs[0],
-				       expected_location);
+	err = bt_vcs_vocs_location_set(g_conn, vcs.vocs[0], expected_location);
 	if (err) {
 		FAIL("Could not set VOCS location (err %d)\n", err);
 		return err;
@@ -513,7 +492,7 @@ static int test_vocs(void)
 	printk("Setting VOCS state\n");
 	expected_offset = g_vocs_offset + 1;
 	g_write_complete = g_cb = false;
-	err = bt_vcs_vocs_state_set(vcs, vcs_included.vocs[0], expected_offset);
+	err = bt_vcs_vocs_state_set(g_conn, vcs.vocs[0], expected_offset);
 	if (err) {
 		FAIL("Could not set VOCS state (err %d)\n", err);
 		return err;
@@ -526,7 +505,7 @@ static int test_vocs(void)
 		sizeof(expected_description));
 	expected_description[sizeof(expected_description) - 1] = '\0';
 	g_cb = false;
-	err = bt_vcs_vocs_description_set(vcs, vcs_included.vocs[0],
+	err = bt_vcs_vocs_description_set(g_conn, vcs.vocs[0],
 					  expected_description);
 	if (err) {
 		FAIL("Could not set VOCS description (err %d)\n", err);
@@ -550,7 +529,6 @@ static void test_main(void)
 	static struct bt_gatt_exchange_params mtu_params =  {
 		.func = mtu_cb,
 	};
-	struct bt_conn *cached_conn;
 
 	err = bt_enable(bt_ready);
 
@@ -558,6 +536,8 @@ static void test_main(void)
 		FAIL("Bluetooth discover failed (err %d)\n", err);
 		return;
 	}
+
+	bt_conn_cb_register(&conn_callbacks);
 
 	err = bt_vcs_client_cb_register(&vcs_cbs);
 	if (err) {
@@ -584,33 +564,22 @@ static void test_main(void)
 
 	WAIT_FOR(g_mtu_exchanged);
 
-	err = bt_vcs_discover(g_conn, &vcs);
+	err = bt_vcs_discover(g_conn);
 	if (err) {
 		FAIL("Failed to discover VCS %d", err);
 	}
 
 	WAIT_FOR(g_discovery_complete);
 
-	err = bt_vcs_included_get(vcs, &vcs_included);
+	err = bt_vcs_get(g_conn, &vcs);
 	if (err) {
-		FAIL("Failed to get VCS included services (err %d)\n", err);
-		return;
-	}
-
-	printk("Getting VCS client conn\n");
-	err = bt_vcs_client_conn_get(vcs, &cached_conn);
-	if (err != 0) {
-		FAIL("Could not get VCS client conn (err %d)\n", err);
-		return;
-	}
-	if (cached_conn != g_conn) {
-		FAIL("Cached conn was not the conn used to discover");
+		FAIL("Failed to get VCS context (err %d)\n", err);
 		return;
 	}
 
 	printk("Getting VCS volume state\n");
 	g_cb = false;
-	err = bt_vcs_vol_get(vcs);
+	err = bt_vcs_vol_get(g_conn);
 	if (err) {
 		FAIL("Could not get VCS volume (err %d)\n", err);
 		return;
@@ -620,7 +589,7 @@ static void test_main(void)
 
 	printk("Getting VCS flags\n");
 	g_cb = false;
-	err = bt_vcs_flags_get(vcs);
+	err = bt_vcs_flags_get(g_conn);
 	if (err) {
 		FAIL("Could not get VCS flags (err %d)\n", err);
 		return;
@@ -630,7 +599,7 @@ static void test_main(void)
 
 	expected_volume = g_volume != 100 ? 100 : 101; /* ensure change */
 	g_write_complete = g_cb = false;
-	err = bt_vcs_vol_set(vcs, expected_volume);
+	err = bt_vcs_vol_set(g_conn, expected_volume);
 	if (err) {
 		FAIL("Could not set VCS volume (err %d)\n", err);
 		return;
@@ -641,7 +610,7 @@ static void test_main(void)
 	printk("Downing VCS volume\n");
 	previous_volume = g_volume;
 	g_write_complete = g_cb = false;
-	err = bt_vcs_vol_down(vcs);
+	err = bt_vcs_vol_down(g_conn);
 	if (err) {
 		FAIL("Could not get down VCS volume (err %d)\n", err);
 		return;
@@ -652,7 +621,7 @@ static void test_main(void)
 	printk("Upping VCS volume\n");
 	previous_volume = g_volume;
 	g_write_complete = g_cb = false;
-	err = bt_vcs_vol_up(vcs);
+	err = bt_vcs_vol_up(g_conn);
 	if (err) {
 		FAIL("Could not up VCS volume (err %d)\n", err);
 		return;
@@ -663,7 +632,7 @@ static void test_main(void)
 	printk("Muting VCS\n");
 	expected_mute = 1;
 	g_write_complete = g_cb = false;
-	err = bt_vcs_mute(vcs);
+	err = bt_vcs_mute(g_conn);
 	if (err) {
 		FAIL("Could not mute VCS (err %d)\n", err);
 		return;
@@ -675,7 +644,7 @@ static void test_main(void)
 	previous_volume = g_volume;
 	expected_mute = 0;
 	g_write_complete = g_cb = false;
-	err = bt_vcs_unmute_vol_down(vcs);
+	err = bt_vcs_unmute_vol_down(g_conn);
 	if (err) {
 		FAIL("Could not down and unmute VCS (err %d)\n", err);
 		return;
@@ -687,7 +656,7 @@ static void test_main(void)
 	printk("Muting VCS\n");
 	expected_mute = 1;
 	g_write_complete = g_cb = false;
-	err = bt_vcs_mute(vcs);
+	err = bt_vcs_mute(g_conn);
 	if (err) {
 		FAIL("Could not mute VCS (err %d)\n", err);
 		return;
@@ -699,7 +668,7 @@ static void test_main(void)
 	previous_volume = g_volume;
 	expected_mute = 0;
 	g_write_complete = g_cb = false;
-	err = bt_vcs_unmute_vol_up(vcs);
+	err = bt_vcs_unmute_vol_up(g_conn);
 	if (err) {
 		FAIL("Could not up and unmute VCS (err %d)\n", err);
 		return;
@@ -711,7 +680,7 @@ static void test_main(void)
 	printk("Muting VCS\n");
 	expected_mute = 1;
 	g_write_complete = g_cb = false;
-	err = bt_vcs_mute(vcs);
+	err = bt_vcs_mute(g_conn);
 	if (err) {
 		FAIL("Could not mute VCS (err %d)\n", err);
 		return;
@@ -722,7 +691,7 @@ static void test_main(void)
 	printk("Unmuting VCS\n");
 	expected_mute = 0;
 	g_write_complete = g_cb = false;
-	err = bt_vcs_unmute(vcs);
+	err = bt_vcs_unmute(g_conn);
 	if (err) {
 		FAIL("Could not unmute VCS (err %d)\n", err);
 		return;

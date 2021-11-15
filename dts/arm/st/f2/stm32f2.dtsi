@@ -14,7 +14,6 @@
 
 / {
 	chosen {
-		zephyr,entropy = &rng;
 		zephyr,flash-controller = &flash;
 	};
 
@@ -79,12 +78,10 @@
 			#size-cells = <1>;
 
 			flash0: flash@8000000 {
-				compatible = "st,stm32-nv-flash", "soc-nv-flash";
+				compatible = "soc-nv-flash";
 				label = "FLASH_STM32";
 
 				write-block-size = <1>;
-				/* maximum erase time(ms) for a 128K sector */
-				max-erase-time = <4000>;
 			};
 		};
 
@@ -537,15 +534,6 @@
 				label = "PWM_12";
 				#pwm-cells = <3>;
 			};
-		};
-
-		rng: rng@50060800 {
-			compatible = "st,stm32-rng";
-			reg = <0x50060800 0x400>;
-			interrupts = <80 0>;
-			clocks = <&rcc STM32_CLOCK_BUS_AHB2 0x00000040>;
-			status = "disabled";
-			label = "RNG";
 		};
 
 		backup_sram: memory@40024000 {

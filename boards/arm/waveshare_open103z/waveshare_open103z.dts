@@ -17,7 +17,7 @@
 		zephyr,shell-uart = &usart1;
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
-		zephyr,canbus = &can1;
+		zephyr,can-primary = &can1;
 	};
 
 	leds {
@@ -147,7 +147,7 @@
 	phase-seg2 = <6>;
 };
 
-zephyr_udc0: &usb {
+&usb {
 	/*
 	 * make sure CAN and USB are not enabled at the same time
 	 * because they share interrupts 19, 20 (stm32f103Xb.dtsi)

@@ -1,11 +1,6 @@
 # Misc network drivers configuration options
 # SPDX-License-Identifier: Apache-2.0
 
-menuconfig NET_DRIVERS
-	bool "Network Drivers"
-
-if NET_DRIVERS
-
 #
 # PPP options
 #
@@ -95,7 +90,8 @@ endif # NET_PPP
 # SLIP options
 #
 menuconfig SLIP
-	bool "SLIP driver" if !QEMU_TARGET
+	bool "SLIP driver"
+	depends on (!QEMU_TARGET || NET_QEMU_SLIP)
 	depends on NET_NATIVE
 	select UART_PIPE
 	select UART_INTERRUPT_DRIVEN
@@ -153,5 +149,3 @@ module-help = Sets log level for network loopback driver.
 source "subsys/net/Kconfig.template.log_config.net"
 
 endif
-
-endif # NET_DRIVERS

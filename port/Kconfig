@@ -1,0 +1,270 @@
+#
+# For a description of the syntax of this configuration file,
+# see kconfig-language at https://www.kernel.org/doc/Documentation/kbuild/kconfig-language.txt
+#
+
+source "$APPSDIR/external/zblue/port/Kconfig.zephyr"
+
+config ZEPHYR_WORK_QUEUE
+	bool "Use zephyr system work queue"
+	default y
+	help
+	  This option enables support for generic system work
+	  queue.
+
+if ZEPHYR_WORK_QUEUE
+
+config SYSTEM_WORKQUEUE_STACK_SIZE
+	int "System workqueue stack size"
+	default 4096
+
+config SYSTEM_WORKQUEUE_PRIORITY
+	int "System workqueue priority"
+	default 110
+	help
+	  By default, system work queue priority is the lowest cooperative
+	  priority. This means that any work handler, once started, won't
+	  be preempted by any other thread until finished.
+
+config SYSTEM_WORKQUEUE_NO_YIELD
+	bool "Select whether system work queue yields"
+	help
+	  By default, the system work queue yields between each work item, to
+	  prevent other threads from being starved.  Selecting this removes
+	  this yield, which may be useful if the work queue thread is
+	  cooperative and a sequence of work items is expected to complete
+	  without yielding.
+
+endif
+
+config NET_BUF
+	bool "Network buffer support"
+	help
+	  This option enables support for generic network protocol
+	  buffers.
+
+config POLL
+	bool "Async I/O Framework"
+	help
+	  Asynchronous notification framework. Enable the k_poll() and
+	  k_poll_signal_raise() APIs.  The former can wait on multiple events
+	  concurrently, which can be either directly triggered or triggered by
+	  the availability of some kernel objects (semaphores and fifos).
+
+config NET_L2_BT
+  bool "Enable Bluetooth 6Lowpan support"
+  help
+    Enable Bluetooth driver that send and receives IPv6 packets,
+    does header compression on it and writes it to the
+    Bluetooth stack via L2CAP channel.
+
+config NET_BUF_RX_COUNT
+  int "How many network buffers are allocated for receiving data"
+  default 16
+  help
+    Each data buffer will occupy CONFIG_NET_BUF_DATA_SIZE + smallish
+    header (sizeof(struct net_buf)) amount of data.
+
+config NET_BUF_TX_COUNT
+  int "How many network buffers are allocated for sending data"
+  default 16
+  help
+    Each data buffer will occupy CONFIG_NET_BUF_DATA_SIZE + smallish
+    header (sizeof(struct net_buf)) amount of data.
+
+config NET_BUF_USER_DATA_SIZE
+  int "Size of user_data available in every network buffer"
+  default 4
+  help
+    Amount of memory reserved in each network buffer for user data. In
+    most cases this can be left as the default value.
+
+config NUM_COOP_PRIORITIES
+  int "Number of coop priorities"
+  default 103
+  help
+    Number of cooperative priorities configured in the system.
+
+config BT_UART_ON_DEV_NAME
+  string "Device Name of UART Device for Bluetooth"
+  default "/dev/ttyBT"
+  help
+    This option specifies the name of UART device to be used
+    for Bluetooth.
+
+config BT_DEBUG_LOG_LEVEL
+  int "BT Debug Log Level"
+  default 6
+  help
+    Sets log level for the BT stack.
+
+config BT_NO_DRIVER
+  bool "No default HCI driver"
+  help
+    This is intended for unit tests where no internal driver
+    should be selected.
+
+config BT_LIBUSB
+  bool "HCI using LIBUSB"
+  default n
+  help
+    Bluetooth HCI driver for communication with USB driver.
+
+config BT_H4
+  bool "H:4 UART"
+  default n
+  help
+    Bluetooth H:4 UART driver. Requires hardware flow control
+    lines to be available.
+
+if BT_H4
+
+config BT_H4_DEBUG
+  bool "H:4 Debug"
+  default n
+  help
+    Debug HCI ACL Command information.
+
+endif
+
+config BT_QUIRK_NO_RESET
+  bool "The host should never send HCI_Reset"
+  default n
+  help
+    The host should never send HCI_Reset
+
+config BT_TESTER
+  bool "Bluetooth Profile Tuning Suite Tester"
+  default n
+  help
+    Bluetooth Profile Tuning Suite Tester.
+
+if BT_TESTER
+
+config UART_PIPE_ON_DEV_NAME
+  string "Device Name of UART Device for pipe UART"
+  default "/dev/ttyS4"
+  help
+    This option specifies the name of UART device to be used
+    for pipe UART.
+
+config UART_PIPE_RX_PRIO
+  # Hidden option for Co-Operative Rx thread priority
+  int
+  default 8
+
+config UART_PIPE_RX_STACK_SIZE
+  int "Size of the pipe receiving thread stack"
+  default DEFAULT_TASK_STACKSIZE
+  help
+    Size of the pipe receiving thread stack.
+
+endif
+
+menuconfig BT_SAMPLE
+  tristate "Bluetooth Stack Examples"
+  default n
+  ---help---
+    Enable Bluetooth Stack Examples
+
+if BT_SAMPLE
+
+config BT_SAMPLE_STACKSIZE
+  int "BT sample stack size"
+  default 40960 if ARCH_SIM
+  default DEFAULT_TASK_STACKSIZE
+  help
+    Sets log level for the BT stack.
+
+config BT_SAMPLE_PERIPHERAL
+  bool "Enable Bluetooth peripheral example"
+  default n
+  depends on BT_PERIPHERAL
+  help
+    Enable Bluetooth peripheral example
+
+config BT_SAMPLE_CENTRAL
+  bool "Enable Bluetooth central example"
+  default n
+  depends on BT_CENTRAL
+  help
+    Enable Bluetooth central example
+
+config BT_SAMPLE_MESH
+  bool "Enable Bluetooth mesh example"
+  default n
+  depends on BT_MESH
+  help
+    Enable Bluetooth mesh example
+
+endif
+
+config SHELL_STR_SIZE
+  int "Shell Command String Size"
+  default 32
+  help
+    Shell Command String Size
+
+config FILE_SYSTEM
+  bool "File system support"
+  help
+    Enables support for file system.
+
+if FILE_SYSTEM
+
+config FILE_SYSTEM_MAX_FILE_NAME
+  int "Optional override for maximum file name length"
+  default 32
+  help
+    Specify the maximum file name allowed across all enabled file
+    system types.  Zero or a negative value selects the maximum
+    file name length for enabled in-tree file systems.  This
+    default may be inappropriate when registering an out-of-tree
+    file system.  Selecting a value less than the actual length
+    supported by a file system may result in memory access
+    violations.
+endif
+
+config ZTEST
+  bool "Test zblue subsystem"
+  help
+    Enables to test zblue subsystem
+
+if ZTEST
+
+config ZTEST_TIMEOUT
+  bool "Test zblue kernel timeout"
+  help
+    Enables to zblue kernel timeout
+
+config ZTEST_WORK_Q
+  bool "Test zblue kernel work queue"
+  help
+    Enables to zblue kernel work queue
+
+config ZTEST_THREAD
+  bool "Test zblue kernel thread"
+  help
+    Enables to zblue kernel thread
+
+config ZTEST_POLL
+  bool "Test zblue kernel poll"
+  help
+    Enables to zblue kernel poll
+
+config ZTEST_QUEUE
+  bool "Test zblue kernel queue"
+  help
+    Enables to zblue kernel queue
+
+config ZTEST_MEMSLAB
+  bool "Test zblue kernel mem slab"
+  help
+    Enables to zblue kernel mem slab
+
+config ZTEST_ATOMIC
+  bool "Test zblue kernel atomic"
+  help
+    Enables to zblue kernel atomic
+
+endif

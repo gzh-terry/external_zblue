@@ -10,8 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <zephyr/types.h>
-#include <device.h>
-#include <drivers/uart.h>
+
 #include <toolchain.h>
 #include <bluetooth/bluetooth.h>
 #include <sys/byteorder.h>
@@ -216,6 +215,10 @@ static void cmd_handler(void *p1, void *p2, void *p3)
 					   cmd->hdr.data, len);
 			break;
 #endif /* CONFIG_BT_MESH */
+		case BTP_SERVICE_ID_SYSTEM:
+			tester_handle_system(cmd->hdr.opcode, cmd->hdr.index,
+					     cmd->hdr.data, len);
+			break;
 		default:
 			LOG_WRN("unknown service: 0x%x", cmd->hdr.service);
 			tester_rsp(cmd->hdr.service, cmd->hdr.opcode,
@@ -261,56 +264,6 @@ static uint8_t *recv_cb(uint8_t *buf, size_t *off)
 	return new_buf->data;
 }
 
-#if defined(CONFIG_UART_PIPE)
-/* Uart Pipe */
-static void uart_init(uint8_t *data)
-{
-	uart_pipe_register(data, BTP_MTU, recv_cb);
-}
-
-static void uart_send(uint8_t *data, size_t len)
-{
-	uart_pipe_send(data, len);
-}
-#else /* !CONFIG_UART_PIPE */
-#define UART_DEV	"UART_0"
-static uint8_t *recv_buf;
-static size_t recv_off;
-static const struct device *dev;
-
-static void timer_expiry_cb(struct k_timer *timer)
-{
-	uint8_t c;
-
-	while (uart_poll_in(dev, &c) == 0) {
-		recv_buf[recv_off++] = c;
-		recv_buf = recv_cb(recv_buf, &recv_off);
-	}
-}
-
-K_TIMER_DEFINE(timer, timer_expiry_cb, NULL);
-
-/* Uart Poll */
-static void uart_init(uint8_t *data)
-{
-	dev = device_get_binding(UART_DEV);
-	__ASSERT_NO_MSG((void *)dev);
-
-	recv_buf = data;
-
-	k_timer_start(&timer, K_MSEC(10), K_MSEC(10));
-}
-
-static void uart_send(uint8_t *data, size_t len)
-{
-	int i;
-
-	for (i = 0; i < len; i++) {
-		uart_poll_out(dev, data[i]);
-	}
-}
-#endif /* CONFIG_UART_PIPE */
-
 void tester_init(void)
 {
 	int i;
@@ -326,8 +279,7 @@ void tester_init(void)
 			NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
 
 	buf = k_fifo_get(&avail_queue, K_NO_WAIT);
-
-	uart_init(buf->data);
+	uart_pipe_register(buf->data, BTP_MTU, recv_cb);
 
 	tester_send(BTP_SERVICE_ID_CORE, CORE_EV_IUT_READY, BTP_INDEX_NONE,
 		    NULL, 0);
@@ -343,9 +295,9 @@ void tester_send(uint8_t service, uint8_t opcode, uint8_t index, uint8_t *data,
 	msg.index = index;
 	msg.len = len;
 
-	uart_send((uint8_t *)&msg, sizeof(msg));
+	uart_pipe_send((uint8_t *)&msg, sizeof(msg));
 	if (data && len) {
-		uart_send(data, len);
+		uart_pipe_send(data, len);
 	}
 }
 

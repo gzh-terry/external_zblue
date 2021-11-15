@@ -17,15 +17,12 @@ properties:
     label:
       required: true
 
-    girqs:
-      type: array
-      required: true
-      description: Array of GIRQ numbers [8:26] and bit positions [0:31].
-
-    "#girq-cells":
+    girq:
       type: int
-      const: 2
+      required: true
+      description: GIRQ for this device
 
-girq-cells:
-    - girq_num
-    - bitpos
+    girq-bit:
+      type: int
+      required: true
+      description: Bit position in GIRQ for this device

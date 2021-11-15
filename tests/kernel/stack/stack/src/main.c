@@ -80,7 +80,6 @@ extern void test_stack_pop_can_wait(void);
 extern void test_stack_cleanup_error(void);
 extern void test_stack_push_full(void);
 extern void test_stack_multithread_competition(void);
-extern void test_stack_alloc_null(void);
 #ifdef CONFIG_USERSPACE
 extern void test_stack_user_thread2thread(void);
 extern void test_stack_user_pop_fail(void);
@@ -366,7 +365,6 @@ void test_main(void)
 			 ztest_user_unit_test(test_stack_user_pop_null),
 			 ztest_user_unit_test(test_stack_user_pop_permission),
 			 ztest_unit_test(test_stack_alloc_thread2thread),
-			 ztest_unit_test(test_stack_alloc_null),
 			 ztest_user_unit_test(test_single_stack_play),
 			 ztest_1cpu_user_unit_test(test_dual_stack_play),
 			 ztest_1cpu_unit_test(test_isr_stack_play),

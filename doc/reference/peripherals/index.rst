@@ -23,7 +23,6 @@ Peripherals
    ipm.rst
    kscan.rst
    led.rst
-   mbox.rst
    pinmux.rst
    pwm.rst
    ps2.rst
@@ -33,7 +32,5 @@ Peripherals
    sensor.rst
    spi.rst
    uart.rst
-   mdio.rst
    watchdog.rst
    video.rst
-   espi.rst

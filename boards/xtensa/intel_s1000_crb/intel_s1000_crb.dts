@@ -107,6 +107,6 @@
 	};
 };
 
-zephyr_udc0: &usb {
+&usb {
 	status = "okay";
 };

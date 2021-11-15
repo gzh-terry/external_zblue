@@ -221,7 +221,7 @@ static int gpio_dw_pin_interrupt_configure(const struct device *port,
 	uint32_t dir_reg;
 
 	/* Check for invalid pin number */
-	if (pin >= config->ngpios) {
+	if (pin >= config->bits) {
 		return -EINVAL;
 	}
 
@@ -313,7 +313,7 @@ static inline int gpio_dw_config(const struct device *port,
 	uint32_t io_flags;
 
 	/* Check for invalid pin number */
-	if (pin >= config->ngpios) {
+	if (pin >= config->bits) {
 		return -EINVAL;
 	}
 
@@ -425,26 +425,64 @@ static inline int gpio_dw_manage_callback(const struct device *port,
 }
 
 #ifdef CONFIG_PM_DEVICE
+static void gpio_dw_set_power_state(const struct device *port,
+				    uint32_t power_state)
+{
+	struct gpio_dw_runtime *context = port->data;
+
+	context->device_power_state = power_state;
+}
+
+static uint32_t gpio_dw_get_power_state(const struct device *port)
+{
+	struct gpio_dw_runtime *context = port->data;
+
+	return context->device_power_state;
+}
+
+static inline int gpio_dw_suspend_port(const struct device *port)
+{
+	gpio_dw_clock_off(port);
+	gpio_dw_set_power_state(port, PM_DEVICE_STATE_SUSPEND);
+
+	return 0;
+}
+
+static inline int gpio_dw_resume_from_suspend_port(const struct device *port)
+{
+	gpio_dw_clock_on(port);
+	gpio_dw_set_power_state(port, PM_DEVICE_STATE_ACTIVE);
+	return 0;
+}
+
 /*
 * Implements the driver control management functionality
 * the *context may include IN data or/and OUT data
 */
-static int gpio_dw_device_pm_action(const struct device *dev,
-				    enum pm_device_action action)
+static int gpio_dw_device_ctrl(const struct device *port,
+			       uint32_t ctrl_command,
+			       uint32_t *state, pm_device_cb cb, void *arg)
 {
-	switch (action) {
-	case PM_DEVICE_ACTION_SUSPEND:
-		gpio_dw_clock_off(dev);
-		break;
-	case PM_DEVICE_ACTION_RESUME:
-		gpio_dw_clock_on(dev);
-		break;
-	default:
-		return -ENOTSUP;
+	int ret = 0;
+
+	if (ctrl_command == PM_DEVICE_STATE_SET) {
+		if (*state == PM_DEVICE_STATE_SUSPEND) {
+			ret = gpio_dw_suspend_port(port);
+		} else if (*state == PM_DEVICE_STATE_ACTIVE) {
+			ret = gpio_dw_resume_from_suspend_port(port);
+		}
+	} else if (ctrl_command == PM_DEVICE_STATE_GET) {
+		*state = gpio_dw_get_power_state(port);
 	}
 
-	return 0;
+	if (cb) {
+		cb(port, ret, state, arg);
+	}
+	return ret;
 }
+
+#else
+#define gpio_dw_set_power_state(...)
 #endif
 
 #define gpio_dw_unmask_int(...)
@@ -506,6 +544,8 @@ static int gpio_dw_initialize(const struct device *port)
 		config->config_func(port);
 	}
 
+	gpio_dw_set_power_state(port, PM_DEVICE_STATE_ACTIVE);
+
 	return 0;
 }
 
@@ -520,7 +560,7 @@ static const struct gpio_dw_config gpio_config_0 = {
 #ifdef CONFIG_GPIO_DW_0_IRQ_DIRECT
 	.irq_num = DT_INST_IRQN(0),
 #endif
-	.ngpios = DT_INST_PROP(0, ngpios),
+	.bits = DT_INST_PROP(0, bits),
 	.config_func = gpio_config_0_irq,
 #ifdef CONFIG_GPIO_DW_0_IRQ_SHARED
 	.shared_irq_dev_name = DT_INST_IRQ_BY_NAME(0, shared_name, irq),
@@ -535,7 +575,7 @@ static struct gpio_dw_runtime gpio_0_runtime = {
 };
 
 DEVICE_DT_INST_DEFINE(0,
-	      gpio_dw_initialize, gpio_dw_device_pm_action, &gpio_0_runtime,
+	      gpio_dw_initialize, gpio_dw_device_ctrl, &gpio_0_runtime,
 	      &gpio_config_0, POST_KERNEL, CONFIG_GPIO_DW_INIT_PRIORITY,
 	      &api_funcs);
 
@@ -581,7 +621,7 @@ static const struct gpio_dw_config gpio_dw_config_1 = {
 #ifdef CONFIG_GPIO_DW_1_IRQ_DIRECT
 	.irq_num = DT_INST_IRQN(1),
 #endif
-	.ngpios = DT_INST_PROP(1, ngpios),
+	.bits = DT_INST_PROP(1, bits),
 	.config_func = gpio_config_1_irq,
 
 #ifdef CONFIG_GPIO_DW_1_IRQ_SHARED
@@ -597,7 +637,7 @@ static struct gpio_dw_runtime gpio_1_runtime = {
 };
 
 DEVICE_DT_INST_DEFINE(1,
-	      gpio_dw_initialize, gpio_dw_device_pm_action, &gpio_1_runtime,
+	      gpio_dw_initialize, gpio_dw_device_ctrl, &gpio_1_runtime,
 	      &gpio_dw_config_1, POST_KERNEL, CONFIG_GPIO_DW_INIT_PRIORITY,
 	      &api_funcs);
 
@@ -642,7 +682,7 @@ static const struct gpio_dw_config gpio_dw_config_2 = {
 #ifdef CONFIG_GPIO_DW_2_IRQ_DIRECT
 	.irq_num = DT_INST_IRQN(2),
 #endif
-	.ngpios = DT_INST_PROP(2, ngpios),
+	.bits = DT_INST_PROP(2, bits),
 	.config_func = gpio_config_2_irq,
 
 #ifdef CONFIG_GPIO_DW_2_IRQ_SHARED
@@ -658,7 +698,7 @@ static struct gpio_dw_runtime gpio_2_runtime = {
 };
 
 DEVICE_DT_INST_DEFINE(2,
-	      gpio_dw_initialize, gpio_dw_device_pm_action, &gpio_2_runtime,
+	      gpio_dw_initialize, gpio_dw_device_ctrl, &gpio_2_runtime,
 	      &gpio_dw_config_2, POST_KERNEL, CONFIG_GPIO_DW_INIT_PRIORITY,
 	      &api_funcs);
 
@@ -703,7 +743,7 @@ static const struct gpio_dw_config gpio_dw_config_3 = {
 #ifdef CONFIG_GPIO_DW_3_IRQ_DIRECT
 	.irq_num = DT_INST_IRQN(3),
 #endif
-	.ngpios = DT_INST_PROP(3, ngpios),
+	.bits = DT_INST_PROP(3, bits),
 	.config_func = gpio_config_3_irq,
 
 #ifdef CONFIG_GPIO_DW_3_IRQ_SHARED
@@ -719,7 +759,7 @@ static struct gpio_dw_runtime gpio_3_runtime = {
 };
 
 DEVICE_DT_INST_DEFINE(3,
-	      gpio_dw_initialize, gpio_dw_device_pm_action, &gpio_3_runtime,
+	      gpio_dw_initialize, gpio_dw_device_ctrl, &gpio_3_runtime,
 	      &gpio_dw_config_3, POST_KERNEL, CONFIG_GPIO_DW_INIT_PRIORITY,
 	      &api_funcs);
 

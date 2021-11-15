@@ -8,7 +8,6 @@
 #include <mgmt/hawkbit.h>
 #include <dfu/mcuboot.h>
 #include <sys/printk.h>
-#include <sys/reboot.h>
 #include <logging/log.h>
 
 #include "dhcp.h"
@@ -25,7 +24,6 @@ void main(void)
 	int ret = -1;
 
 	LOG_INF("Hawkbit sample app started");
-	LOG_INF("Image build time: " __DATE__ " " __TIME__);
 
 	app_dhcpv4_startup();
 
@@ -46,15 +44,15 @@ void main(void)
 #endif
 
 #if defined(CONFIG_HAWKBIT_MANUAL)
-	LOG_INF("Starting hawkbit manual mode");
+	LOG_INF("Starting Hawkbit manual mode");
+
+	enum hawkbit_response resp;
 
 	switch (hawkbit_probe()) {
 	case HAWKBIT_UNCONFIRMED_IMAGE:
-		LOG_ERR("Image is unconfirmed");
-		LOG_ERR("Rebooting to previous confirmed image");
-		LOG_ERR("If this image is flashed using a hardware tool");
-		LOG_ERR("Make sure that it is a confirmed image");
-		k_sleep(K_SECONDS(1));
+		LOG_ERR("Image in unconfirmed. Rebooting to revert back to");
+		LOG_ERR("previous confirmed image.");
+
 		sys_reboot(SYS_REBOOT_WARM);
 		break;
 
@@ -63,7 +61,7 @@ void main(void)
 		break;
 
 	case HAWKBIT_CANCEL_UPDATE:
-		LOG_INF("Hawkbit update cancelled from server");
+		LOG_INF("Hawkbit update Cancelled from server");
 		break;
 
 	case HAWKBIT_OK:
@@ -71,11 +69,7 @@ void main(void)
 		break;
 
 	case HAWKBIT_UPDATE_INSTALLED:
-		LOG_INF("Update installed");
-		break;
-
-	case HAWKBIT_PROBE_IN_PROGRESS:
-		LOG_INF("Hawkbit is already running");
+		LOG_INF("Update Installed");
 		break;
 
 	default:

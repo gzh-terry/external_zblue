@@ -11,15 +11,6 @@ To configure WiFi credentials, edit ``prj.conf``.
 Enabling the ``net_shell`` module provides a set of commands to test the connection.
 See :ref:`network shell <net_shell>` for more details.
 
-Supported SoCs
-**************
-
-The following SoCs are supported by this sample code so far:
-
-* ESP32
-* ESP32-S2
-* ESP32-C3
-
 Building and Running
 ********************
 
@@ -30,21 +21,17 @@ The sample can be built and flashed as follows:
 .. code-block:: console
 
    west build -b esp32 samples/boards/esp32/wifi_station
-   west flash
-
-If using another supported Espressif board, replace the board argument in the above
-command with your own board (e.g., `esp32s2_saola` board).
+   west flash --esp-device /dev/ttyUSB0
 
 Sample Output
 =============
 
-To check output of this sample, run ``west espressif monitor`` or any other serial console program (i.e. on Linux
-minicom, putty, screen, etc).
-This example uses ``west espressif monitor``, which automatically detects the serial port at ``/dev/ttyUSB0``:
+To check output of this sample, any serial console program can be used (i.e. on Linux minicom, putty, screen, etc)
+This example uses ``picocom`` on the serial port ``/dev/ttyUSB0``:
 
 .. code-block:: console
 
-   $ west espressif monitor
+   $ picocom /dev/ttyUSB0 - 115200
 
 .. code-block:: console
 
@@ -89,7 +76,7 @@ This example uses ``west espressif monitor``, which automatically detects the se
 Sample console interaction
 ==========================
 
-If the :kconfig:`CONFIG_NET_SHELL` option is set, network shell functions
+If the :option:`CONFIG_NET_SHELL` option is set, network shell functions
 can be used to check internet connection.
 
 .. code-block:: console

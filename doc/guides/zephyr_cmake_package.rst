@@ -248,6 +248,7 @@ For example:
 
   .. code-block:: cmake
 
+     cmake_minimum_required(VERSION 3.13.1)
      find_package(Zephyr 2.2.0)
      project(app)
 
@@ -282,6 +283,7 @@ syntax may be used:
 
 .. code-block:: cmake
 
+   cmake_minimum_required(VERSION 3.13.1)
    find_package(Zephyr 2.a)
    project(app)
 
@@ -293,6 +295,7 @@ In this case, the application CMakeLists.txt could be written as:
 
 .. code-block:: cmake
 
+   cmake_minimum_required(VERSION 3.13.1)
    find_package(Zephyr 2.a EXACT)
    project(app)
 
@@ -300,6 +303,7 @@ In case no Zephyr is found which satisfies the version required, as example, the
 
 .. code-block:: cmake
 
+   cmake_minimum_required(VERSION 3.13.1)
    find_package(Zephyr 2.z)
    project(app)
 
@@ -359,6 +363,8 @@ A Zephyr preference list can be specified as:
 
 .. code-block:: cmake
 
+   cmake_minimum_required(VERSION 3.13.1)
+
    set(ZEPHYR_PREFER "zephyr-custom" "zephyr-vendor")
    find_package(Zephyr)
 
@@ -375,6 +381,8 @@ Zephyr. When testing is done, the ``zephyr-test`` folder can simply be removed.
 Such a CMakeLists.txt could look as:
 
 .. code-block:: cmake
+
+   cmake_minimum_required(VERSION 3.13.1)
 
    set(ZEPHYR_PREFER "zephyr-test")
    find_package(Zephyr)

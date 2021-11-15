@@ -261,13 +261,11 @@ struct gmac_queue {
 /* Device constant configuration parameters */
 struct eth_sam_dev_cfg {
 	Gmac *regs;
-#ifdef CONFIG_SOC_FAMILY_SAM
 	uint32_t periph_id;
 	const struct soc_gpio_pin *pin_list;
 	uint32_t pin_list_size;
-#endif
 	void (*config_func)(void);
-	const struct device *phy_dev;
+	struct phy_sam_gmac_dev phy;
 };
 
 /* Device run time data */
@@ -277,6 +275,7 @@ struct eth_sam_dev_data {
 	const struct device *ptp_clock;
 #endif
 	uint8_t mac_addr[6];
+	struct k_work_delayable monitor_work;
 	bool link_up;
 	struct gmac_queue queue_list[GMAC_QUEUE_NUM];
 };

@@ -559,15 +559,16 @@ static int eeprom_emu_read(const struct device *dev, off_t address, void *data,
 	/* read from rambuffer if possible */
 	if (dev_config->rambuf) {
 		memcpy(data, dev_config->rambuf + address, len);
-	} else {
-		/* read from flash if no rambuffer */
-		while (ctx.rlen) {
-			rc = eeprom_emu_flash_get(dev, &ctx);
-			if (rc) {
-				break;
-			}
+		return 0;
+	}
 
+	/* read from flash if no rambuffer */
+	while (ctx.rlen) {
+		rc = eeprom_emu_flash_get(dev, &ctx);
+		if (rc) {
+			break;
 		}
+
 	}
 
 	k_mutex_unlock(&dev_data->lock);
@@ -809,6 +810,6 @@ static const struct eeprom_driver_api eeprom_emu_api = {
 	DEVICE_DT_INST_DEFINE(n, &eeprom_emu_init, \
 		NULL, &eeprom_emu_##n##_data, \
 		&eeprom_emu_##n##_config, POST_KERNEL, \
-		CONFIG_EEPROM_INIT_PRIORITY, &eeprom_emu_api); \
+		CONFIG_EEPROM_EMULATOR_INIT_PRIORITY, &eeprom_emu_api); \
 
 DT_INST_FOREACH_STATUS_OKAY(EEPROM_EMU_INIT)

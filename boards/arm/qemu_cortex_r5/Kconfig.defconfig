@@ -9,11 +9,4 @@ config BUILD_OUTPUT_BIN
 config BOARD
 	default "qemu_cortex_r5"
 
-if USERSPACE
-
-config COMPILER_ISA_THUMB2
-	default n
-
-endif
-
 endif # BOARD_QEMU_CORTEX_R5

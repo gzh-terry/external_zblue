@@ -258,6 +258,8 @@ static int spi_dw_configure(const struct spi_dw_config *info,
 		write_ser(1 << config->slave, info->regs);
 	}
 
+	spi_context_cs_configure(&spi->ctx);
+
 	if (spi_dw_is_slave(spi)) {
 		LOG_DBG("Installed slave config %p:"
 			    " ws/dfs %u/%u, mode %u/%u/%u",
@@ -342,8 +344,8 @@ static int transceive(const struct device *dev,
 	spi_context_lock(&spi->ctx, asynchronous, signal, config);
 
 #ifdef CONFIG_PM_DEVICE
-	if (!pm_device_is_busy(dev)) {
-		pm_device_busy_set(dev);
+	if (device_busy_check(dev) != (-EBUSY)) {
+		device_busy_set(dev);
 	}
 #endif /* CONFIG_PM_DEVICE */
 
@@ -432,7 +434,7 @@ static int transceive(const struct device *dev,
 out:
 	spi_context_release(&spi->ctx, ret);
 
-	pm_device_busy_clear(dev);
+	device_busy_clear(dev);
 
 	return ret;
 }
@@ -515,7 +517,6 @@ static const struct spi_driver_api dw_spi_api = {
 
 int spi_dw_init(const struct device *dev)
 {
-	int err;
 	const struct spi_dw_config *info = dev->config;
 	struct spi_dw_data *spi = dev->data;
 
@@ -526,11 +527,6 @@ int spi_dw_init(const struct device *dev)
 	clear_bit_ssienr(info->regs);
 
 	LOG_DBG("Designware SPI driver initialized on device: %p", dev);
-
-	err = spi_context_cs_configure_all(&spi->ctx);
-	if (err < 0) {
-		return err;
-	}
 
 	spi_context_unlock_unconditionally(&spi->ctx);
 
@@ -544,7 +540,6 @@ void spi_config_0_irq(void);
 struct spi_dw_data spi_dw_data_port_0 = {
 	SPI_CONTEXT_INIT_LOCK(spi_dw_data_port_0, ctx),
 	SPI_CONTEXT_INIT_SYNC(spi_dw_data_port_0, ctx),
-	SPI_CONTEXT_CS_GPIOS_INITIALIZE(DT_DRV_INST(0), ctx)
 };
 
 #if DT_NODE_HAS_PROP(DT_INST_PHANDLE(0, clocks), clock_frequency)
@@ -608,7 +603,6 @@ void spi_config_1_irq(void);
 struct spi_dw_data spi_dw_data_port_1 = {
 	SPI_CONTEXT_INIT_LOCK(spi_dw_data_port_1, ctx),
 	SPI_CONTEXT_INIT_SYNC(spi_dw_data_port_1, ctx),
-	SPI_CONTEXT_CS_GPIOS_INITIALIZE(DT_DRV_INST(1), ctx)
 };
 
 #if DT_NODE_HAS_PROP(DT_INST_PHANDLE(1, clocks), clock_frequency)
@@ -672,7 +666,6 @@ void spi_config_2_irq(void);
 struct spi_dw_data spi_dw_data_port_2 = {
 	SPI_CONTEXT_INIT_LOCK(spi_dw_data_port_2, ctx),
 	SPI_CONTEXT_INIT_SYNC(spi_dw_data_port_2, ctx),
-	SPI_CONTEXT_CS_GPIOS_INITIALIZE(DT_DRV_INST(2), ctx)
 };
 
 #if DT_NODE_HAS_PROP(DT_INST_PHANDLE(2, clocks), clock_frequency)
@@ -736,7 +729,6 @@ void spi_config_3_irq(void);
 struct spi_dw_data spi_dw_data_port_3 = {
 	SPI_CONTEXT_INIT_LOCK(spi_dw_data_port_3, ctx),
 	SPI_CONTEXT_INIT_SYNC(spi_dw_data_port_3, ctx),
-	SPI_CONTEXT_CS_GPIOS_INITIALIZE(DT_DRV_INST(3), ctx)
 };
 
 #if DT_NODE_HAS_PROP(DT_INST_PHANDLE(3, clocks), clock_frequency)

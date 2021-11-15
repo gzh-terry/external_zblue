@@ -122,6 +122,8 @@
 	RV_OP_STOREREG temp, __z_arch_esf_t_mstatus_OFFSET(to_reg)	;\
 	RV_OP_LOADREG temp, __z_arch_esf_t_ra_OFFSET(from_reg)		;\
 	RV_OP_STOREREG temp, __z_arch_esf_t_ra_OFFSET(to_reg)		;\
+	RV_OP_LOADREG temp, __z_arch_esf_t_gp_OFFSET(from_reg)		;\
+	RV_OP_STOREREG temp, __z_arch_esf_t_gp_OFFSET(to_reg)		;\
 	RV_OP_LOADREG temp, __z_arch_esf_t_tp_OFFSET(from_reg)		;\
 	RV_OP_STOREREG temp, __z_arch_esf_t_tp_OFFSET(to_reg)		;\
 	RV_OP_LOADREG temp, __z_arch_esf_t_t0_OFFSET(from_reg)		;\
@@ -172,11 +174,12 @@
 #define STORE_CALLEE_SAVED(reg) \
 	DO_CALLEE_SAVED(RV_OP_STOREREG, reg)
 
-#define LOAD_CALLEE_SAVED(reg) \
+#define LOAD_CALLER_SAVED(reg) \
 	DO_CALLEE_SAVED(RV_OP_LOADREG, reg)
 
 #define DO_CALLER_SAVED(op) \
 	op ra, __z_arch_esf_t_ra_OFFSET(sp)		;\
+	op gp, __z_arch_esf_t_gp_OFFSET(sp)		;\
 	op tp, __z_arch_esf_t_tp_OFFSET(sp)		;\
 	op t0, __z_arch_esf_t_t0_OFFSET(sp)		;\
 	op t1, __z_arch_esf_t_t1_OFFSET(sp)		;\
@@ -198,7 +201,7 @@
 	addi sp, sp, -__z_arch_esf_t_SIZEOF	;\
 	DO_CALLER_SAVED(RV_OP_STOREREG)		;
 
-#define LOAD_CALLER_SAVED() \
+#define LOAD_CALLEE_SAVED() \
 	DO_CALLER_SAVED(RV_OP_LOADREG)		;\
 	addi sp, sp, __z_arch_esf_t_SIZEOF	;
 
@@ -811,18 +814,6 @@ skip_fp_move_irq:
 #endif /* CONFIG_USERSPACE */
 
 reschedule:
-	/*
-	 * Check if the current thread is the same as the thread on the ready Q. If
-	 * so, do not reschedule.
-	 * Note:
-	 *   Sometimes this code is execute back-to-back before the target thread
-	 *   has a chance to run. If this happens, the current thread and the
-	 *   target thread will be the same.
-	 */
-	la t0, _kernel
-	RV_OP_LOADREG t2, _kernel_offset_to_current(t0)
-	RV_OP_LOADREG t3, _kernel_offset_to_ready_q_cache(t0)
-	beq t2, t3, no_reschedule
 
 #if CONFIG_INSTRUMENT_THREAD_SWITCHING
 	call z_thread_mark_switched_out
@@ -892,7 +883,7 @@ skip_callee_saved_reg:
 	RV_OP_LOADREG sp, _thread_offset_to_sp(t1)
 
 	/* Restore callee-saved registers of new thread */
-	LOAD_CALLEE_SAVED(t1)
+	LOAD_CALLER_SAVED(t1)
 
 #if defined(CONFIG_FPU) && defined(CONFIG_FPU_SHARING)
 	/* Determine if we need to restore floating-point registers. */
@@ -976,7 +967,7 @@ skip_load_fp_caller_saved_resched:
 #endif /* CONFIG_FPU && CONFIG_FPU_SHARING */
 
 	/* Restore caller-saved registers from thread stack */
-	LOAD_CALLER_SAVED()
+	LOAD_CALLEE_SAVED()
 
 	/* Call SOC_ERET to exit ISR */
 	SOC_ERET
@@ -1041,7 +1032,7 @@ skip_load_fp_caller_saved:
 #endif /* CONFIG_FPU && CONFIG_FPU_SHARING */
 
 	/* Restore caller-saved registers from thread stack */
-	LOAD_CALLER_SAVED()
+	LOAD_CALLEE_SAVED()
 
 #ifdef CONFIG_PMP_STACK_GUARD
 	csrrw sp, mscratch, sp

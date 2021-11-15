@@ -119,8 +119,6 @@ The Zephyr nucleo_l433rc_p board configuration supports the following hardware f
 +-----------+------------+-------------------------------------+
 | CAN       | on-chip    | can                                 |
 +-----------+------------+-------------------------------------+
-| SPI       | on-chip    | spi                                 |
-+-----------+------------+-------------------------------------+
 
 .. note:: CAN feature requires CAN transceiver
 
@@ -157,8 +155,6 @@ Default Zephyr Peripheral Mapping:
 - I2C_1_SDA : PB7
 - PWM_2_CH1 : PA0
 - LD4 : PB13
-- SPI_1: NSS/SCK/MISO/MOSI : PA4/PA5/PA6/PA7
-- SPI_2: NSS/SCK/MISO/MOSI : PA11/PB13/PB14/PB15 (Arduino SPI)
 
 System Clock
 ------------

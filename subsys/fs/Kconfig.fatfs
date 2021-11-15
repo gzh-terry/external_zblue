@@ -65,7 +65,7 @@ config FS_FATFS_LFN
 
 if FS_FATFS_LFN
 
-choice FS_FATFS_LFN_MODE
+choice
 	prompt "LFN memory mode"
 	default FS_FATFS_LFN_MODE_BSS
 
@@ -99,9 +99,11 @@ endif # FS_FATFS_LFN
 
 config FS_FATFS_CODEPAGE
 	int "FatFS code page (character set)"
-	default 437
+	default 437 if FS_FATFS_LFN
+	default 1
 	help
 	  Valid code page values:
+	  1   - ASCII (No extended character. Non-LFN cfg. only)
 	  437 - U.S.
 	  720 - Arabic
 	  737 - Greek

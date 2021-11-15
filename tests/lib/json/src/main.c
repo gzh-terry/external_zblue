@@ -147,10 +147,10 @@ static void test_json_encoding(void)
 
 	ret = json_obj_encode_buf(test_descr, ARRAY_SIZE(test_descr),
 				  &ts, buffer, sizeof(buffer));
-	zassert_equal(ret, 0, "Encoding function failed");
+	zassert_equal(ret, 0, "Encoding function returned no errors");
 
 	ret = strncmp(buffer, encoded, sizeof(encoded) - 1);
-	zassert_equal(ret, 0, "Encoded contents not consistent");
+	zassert_equal(ret, 0, "Encoded contents consistent");
 }
 
 static void test_json_decoding(void)
@@ -181,40 +181,39 @@ static void test_json_decoding(void)
 			     ARRAY_SIZE(test_descr), &ts);
 
 	zassert_equal(ret, (1 << ARRAY_SIZE(test_descr)) - 1,
-		      "Not all fields decoded correctly");
+		     "All fields decoded correctly");
 
 	zassert_true(!strcmp(ts.some_string, "zephyr 123\\uABCD456"),
-		     "String not decoded correctly");
-	zassert_equal(ts.some_int, 42, "Positive integer not decoded correctly");
-	zassert_equal(ts.some_bool, true, "Boolean not decoded correctly");
+		    "String decoded correctly");
+	zassert_equal(ts.some_int, 42, "Positive integer decoded correctly");
+	zassert_equal(ts.some_bool, true, "Boolean decoded correctly");
 	zassert_equal(ts.some_nested_struct.nested_int, -1234,
-		      "Nested negative integer not decoded correctly");
+		     "Nested negative integer decoded correctly");
 	zassert_equal(ts.some_nested_struct.nested_bool, false,
-		      "Nested boolean value not decoded correctly");
+		     "Nested boolean value decoded correctly");
 	zassert_true(!strcmp(ts.some_nested_struct.nested_string,
 			    "this should be escaped: \\t"),
-		     "Nested string not decoded correctly");
-	zassert_equal(ts.some_array_len, 5,
-		      "Array doesn't have correct number of items");
+		    "Nested string decoded correctly");
+	zassert_equal(ts.some_array_len, 5, "Array has correct number of items");
 	zassert_true(!memcmp(ts.some_array, expected_array,
 		    sizeof(expected_array)),
-		    "Array not decoded with expected values");
+		    "Array decoded with expected values");
 	zassert_true(ts.another_bxxl,
-		     "Named boolean (special chars) not decoded correctly");
+		     "Named boolean (special chars) decoded correctly");
 	zassert_false(ts.if_,
-		      "Named boolean (reserved word) not decoded correctly");
+		      "Named boolean (reserved word) decoded correctly");
 	zassert_equal(ts.another_array_len, 4,
-		      "Named array does not have correct number of items");
+		      "Named array has correct number of items");
 	zassert_true(!memcmp(ts.another_array, expected_other_array,
 			     sizeof(expected_other_array)),
-		     "Decoded named array not with expected values");
+		     "Decoded named array with expected values");
 	zassert_equal(ts.xnother_nexx.nested_int, 1234,
-		      "Named nested integer not decoded correctly");
+		      "Named nested integer decoded correctly");
 	zassert_equal(ts.xnother_nexx.nested_bool, true,
-		      "Named nested boolean not decoded correctly");
+		      "Named nested boolean decoded correctly");
 	zassert_true(!strcmp(ts.xnother_nexx.nested_string,
 			     "no escape necessary"),
-		     "Named nested string not decoded correctly");
+		     "Named nested string decoded correctly");
 }
 
 static void test_json_decoding_array_array(void)
@@ -232,24 +231,11 @@ static void test_json_decoding_array_array(void)
 			     ARRAY_SIZE(array_array_descr),
 			     &obj_array_array_ts);
 
-	zassert_equal(ret, 1, "Encoding array of objects returned error");
-	zassert_equal(obj_array_array_ts.objects_array_len, 3,
-		      "Array doesn't have correct number of items");
-
-	zassert_true(!strcmp(obj_array_array_ts.objects_array[0].objects.name,
-			 "Simón Bolívar"), "String not decoded correctly");
-	zassert_equal(obj_array_array_ts.objects_array[0].objects.height, 168,
-		      "Simón Bolívar height not decoded correctly");
-
+	zassert_equal(ret, 1, "Encoding array of object returned no errors");
 	zassert_true(!strcmp(obj_array_array_ts.objects_array[1].objects.name,
-			 "Pelé"), "String not decoded correctly");
-	zassert_equal(obj_array_array_ts.objects_array[1].objects.height, 173,
-		      "Pelé height not decoded correctly");
-
-	zassert_true(!strcmp(obj_array_array_ts.objects_array[2].objects.name,
-			 "Usain Bolt"), "String not decoded correctly");
+			 "Pelé"), "String decoded correctly");
 	zassert_equal(obj_array_array_ts.objects_array[2].objects.height, 195,
-		      "Usain Bolt height not decoded correctly");
+		      "Usain Bolt height decoded correctly");
 }
 
 static void test_json_obj_arr_encoding(void)
@@ -286,9 +272,9 @@ static void test_json_obj_arr_encoding(void)
 
 	ret = json_obj_encode_buf(obj_array_descr, ARRAY_SIZE(obj_array_descr),
 				  &oa, buffer, sizeof(buffer));
-	zassert_equal(ret, 0, "Encoding array of object returned error");
+	zassert_equal(ret, 0, "Encoding array of object returned no errors");
 	zassert_true(!strcmp(buffer, encoded),
-		     "Encoded array of objects is not consistent");
+		     "Encoded array of objects is consistent");
 }
 
 static void test_json_obj_arr_decoding(void)
@@ -327,17 +313,17 @@ static void test_json_obj_arr_decoding(void)
 			     ARRAY_SIZE(obj_array_descr), &oa);
 
 	zassert_equal(ret, (1 << ARRAY_SIZE(obj_array_descr)) - 1,
-		      "Array of object fields not decoded correctly");
+		      "Array of object fields decoded correctly");
 	zassert_equal(oa.num_elements, 10,
-		      "Number of object fields not decoded correctly");
+		      "Number of object fields decoded correctly");
 
 	for (int i = 0; i < expected.num_elements; i++) {
 		zassert_true(!strcmp(oa.elements[i].name,
 				     expected.elements[i].name),
-			     "Element %d name not decoded correctly", i);
+			     "Element %d name decoded correctly", i);
 		zassert_equal(oa.elements[i].height,
 			      expected.elements[i].height,
-			      "Element %d height not decoded correctly", i);
+			      "Element %d height decoded correctly", i);
 	}
 }
 
@@ -472,11 +458,11 @@ static void test_json_escape(void)
 	len = strlen(buf);
 
 	ret = json_escape(buf, &len, sizeof(buf));
-	zassert_equal(ret, 0, "Escape did not succeed");
+	zassert_equal(ret, 0, "Escape succeeded");
 	zassert_equal(len, sizeof(buf) - 1,
-		      "Escaped length not computed correctly");
+		      "Escaped length computed correctly");
 	zassert_true(!strcmp(buf, expected),
-		     "Escaped value is not correct");
+		     "Escaped value is correct");
 }
 
 /* Edge case: only one character, which must be escaped. */
@@ -489,11 +475,11 @@ static void test_json_escape_one(void)
 
 	ret = json_escape(buf, &len, sizeof(buf));
 	zassert_equal(ret, 0,
-		      "Escaping one character did not succeed");
+		      "Escaping one character succeeded");
 	zassert_equal(len, sizeof(buf) - 1,
-		      "Escaping one character length is not correct");
+		      "Escaping one character length is correct");
 	zassert_true(!strcmp(buf, expected),
-		     "Escaped value is not correct");
+		     "Escaped value is correct");
 }
 
 static void test_json_escape_empty(void)
@@ -503,9 +489,9 @@ static void test_json_escape_empty(void)
 	ssize_t ret;
 
 	ret = json_escape(empty, &len, sizeof(empty));
-	zassert_equal(ret, 0, "Escaping empty string not successful");
-	zassert_equal(len, 0, "Length of empty escaped string is not zero");
-	zassert_equal(empty[0], '\0', "Empty string does not remain empty");
+	zassert_equal(ret, 0, "Escaped empty string");
+	zassert_equal(len, 0, "Length of empty escaped string is zero");
+	zassert_equal(empty[0], '\0', "Empty string remains empty");
 }
 
 static void test_json_escape_no_op(void)
@@ -516,11 +502,11 @@ static void test_json_escape_no_op(void)
 	ssize_t ret;
 
 	ret = json_escape(nothing_to_escape, &len, sizeof(nothing_to_escape));
-	zassert_equal(ret, 0, "Escape no-op not handled correctly");
+	zassert_equal(ret, 0, "Nothing to escape handled correctly");
 	zassert_equal(len, sizeof(nothing_to_escape) - 1,
-		      "Changed length of already escaped string");
+		      "Didn't change length of already escaped string");
 	zassert_true(!strcmp(nothing_to_escape, expected),
-		     "Altered string with nothing to escape");
+		     "Didn't alter string with nothing to escape");
 }
 
 static void test_json_escape_bounds_check(void)
@@ -530,7 +516,7 @@ static void test_json_escape_bounds_check(void)
 	ssize_t ret;
 
 	ret = json_escape(not_enough_memory, &len, sizeof(not_enough_memory));
-	zassert_equal(ret, -ENOMEM, "Bounds check failed");
+	zassert_equal(ret, -ENOMEM, "Bounds check OK");
 }
 
 static void test_json_encode_bounds_check(void)
@@ -545,12 +531,12 @@ static void test_json_encode_bounds_check(void)
 	uint8_t buf[10];
 	ssize_t ret = json_obj_encode_buf(descr, ARRAY_SIZE(descr),
 					  &str, buf, 10);
-	zassert_equal(ret, 0, "Encoding failed despite large enough buffer");
-	zassert_equal(strlen(buf), 9, "Encoded string length mismatch");
+	zassert_equal(ret, 0, "Bounds check passed");
+	zassert_equal(strlen(buf), 9, "encoded value length");
 
 	ret = json_obj_encode_buf(descr, ARRAY_SIZE(descr),
 				     &str, buf, 9);
-	zassert_equal(ret, -ENOMEM, "Bounds check failed");
+	zassert_equal(ret, -ENOMEM, "Bounds check rejected");
 }
 
 void test_main(void)

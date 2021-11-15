@@ -132,6 +132,7 @@
 		sw2 = &button2;
 		sw3 = &button3;
 		bootloader-led0 = &led0;
+		usbd0 = &usbd;
 	};
 };
 
@@ -157,17 +158,14 @@
 	current-speed = <115200>;
 	tx-pin = <6>;
 	rx-pin = <8>;
-	rx-pull-up;
 	rts-pin = <5>;
 	cts-pin = <7>;
-	cts-pull-up;
 };
 
 arduino_serial: &uart1 {
 	status = "okay";
 	current-speed = <115200>;
 	rx-pin = <33>;
-	rx-pull-up;
 	tx-pin = <34>;
 };
 
@@ -273,7 +271,7 @@ fem_spi: &spi3 {
 	};
 };
 
-zephyr_udc0: &usbd {
+&usbd {
 	compatible = "nordic,nrf-usbd";
 	status = "okay";
 };

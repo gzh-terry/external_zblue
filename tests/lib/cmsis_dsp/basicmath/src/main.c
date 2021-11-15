@@ -10,7 +10,6 @@
 extern void test_basicmath_q7(void);
 extern void test_basicmath_q15(void);
 extern void test_basicmath_q31(void);
-extern void test_basicmath_f16(void);
 extern void test_basicmath_f32(void);
 
 void test_main(void)
@@ -18,8 +17,5 @@ void test_main(void)
 	test_basicmath_q7();
 	test_basicmath_q15();
 	test_basicmath_q31();
-#ifdef CONFIG_CMSIS_DSP_FLOAT16
-	test_basicmath_f16();
-#endif
 	test_basicmath_f32();
 }

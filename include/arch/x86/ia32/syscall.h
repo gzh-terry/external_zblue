@@ -24,7 +24,6 @@
 
 #include <zephyr/types.h>
 #include <stdbool.h>
-#include <linker/sections.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,7 +34,6 @@ extern "C" {
  * z_x86_syscall_entry_stub in userspace.S
  */
 
-__pinned_func
 static inline uintptr_t arch_syscall_invoke6(uintptr_t arg1, uintptr_t arg2,
 					     uintptr_t arg3, uintptr_t arg4,
 					     uintptr_t arg5, uintptr_t arg6,
@@ -55,7 +53,6 @@ static inline uintptr_t arch_syscall_invoke6(uintptr_t arg1, uintptr_t arg2,
 	return ret;
 }
 
-__pinned_func
 static inline uintptr_t arch_syscall_invoke5(uintptr_t arg1, uintptr_t arg2,
 					     uintptr_t arg3, uintptr_t arg4,
 					     uintptr_t arg5,
@@ -71,7 +68,6 @@ static inline uintptr_t arch_syscall_invoke5(uintptr_t arg1, uintptr_t arg2,
 	return ret;
 }
 
-__pinned_func
 static inline uintptr_t arch_syscall_invoke4(uintptr_t arg1, uintptr_t arg2,
 					     uintptr_t arg3, uintptr_t arg4,
 					     uintptr_t call_id)
@@ -86,7 +82,6 @@ static inline uintptr_t arch_syscall_invoke4(uintptr_t arg1, uintptr_t arg2,
 	return ret;
 }
 
-__pinned_func
 static inline uintptr_t arch_syscall_invoke3(uintptr_t arg1, uintptr_t arg2,
 					     uintptr_t arg3,
 					     uintptr_t call_id)
@@ -100,7 +95,6 @@ static inline uintptr_t arch_syscall_invoke3(uintptr_t arg1, uintptr_t arg2,
 	return ret;
 }
 
-__pinned_func
 static inline uintptr_t arch_syscall_invoke2(uintptr_t arg1, uintptr_t arg2,
 					     uintptr_t call_id)
 {
@@ -114,7 +108,6 @@ static inline uintptr_t arch_syscall_invoke2(uintptr_t arg1, uintptr_t arg2,
 	return ret;
 }
 
-__pinned_func
 static inline uintptr_t arch_syscall_invoke1(uintptr_t arg1,
 					     uintptr_t call_id)
 {
@@ -128,7 +121,6 @@ static inline uintptr_t arch_syscall_invoke1(uintptr_t arg1,
 	return ret;
 }
 
-__pinned_func
 static inline uintptr_t arch_syscall_invoke0(uintptr_t call_id)
 {
 	uint32_t ret;
@@ -141,7 +133,6 @@ static inline uintptr_t arch_syscall_invoke0(uintptr_t call_id)
 	return ret;
 }
 
-__pinned_func
 static inline bool arch_is_user_context(void)
 {
 	int cs;

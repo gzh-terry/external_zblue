@@ -19,6 +19,9 @@ struct i2c_nrfx_twi_data {
 	struct k_sem completion_sync;
 	volatile nrfx_err_t res;
 	uint32_t dev_config;
+#ifdef CONFIG_PM_DEVICE
+	uint32_t pm_state;
+#endif
 };
 
 struct i2c_nrfx_twi_config {
@@ -195,18 +198,9 @@ static int i2c_nrfx_twi_configure(const struct device *dev,
 	return 0;
 }
 
-static int i2c_nrfx_twi_recover_bus(const struct device *dev)
-{
-	nrfx_err_t err = nrfx_twi_bus_recover(get_dev_config(dev)->config.scl,
-					      get_dev_config(dev)->config.sda);
-
-	return (err == NRFX_SUCCESS ? 0 : -EBUSY);
-}
-
 static const struct i2c_driver_api i2c_nrfx_twi_driver_api = {
-	.configure   = i2c_nrfx_twi_configure,
-	.transfer    = i2c_nrfx_twi_transfer,
-	.recover_bus = i2c_nrfx_twi_recover_bus,
+	.configure = i2c_nrfx_twi_configure,
+	.transfer  = i2c_nrfx_twi_transfer,
 };
 
 static int init_twi(const struct device *dev)
@@ -220,31 +214,57 @@ static int init_twi(const struct device *dev)
 			    dev->name);
 		return -EBUSY;
 	}
+#ifdef CONFIG_PM_DEVICE
+	get_dev_data(dev)->pm_state = PM_DEVICE_STATE_ACTIVE;
+#endif
 
 	return 0;
 }
 
 #ifdef CONFIG_PM_DEVICE
-static int twi_nrfx_pm_action(const struct device *dev,
-			      enum pm_device_action action)
+static int twi_nrfx_pm_control(const struct device *dev,
+				uint32_t ctrl_command,
+				uint32_t *state, pm_device_cb cb, void *arg)
 {
 	int ret = 0;
+	uint32_t pm_current_state = get_dev_data(dev)->pm_state;
 
-	switch (action) {
-	case PM_DEVICE_ACTION_RESUME:
-		init_twi(dev);
-		if (get_dev_data(dev)->dev_config) {
-			i2c_nrfx_twi_configure(dev,
-					       get_dev_data(dev)->dev_config);
+	if (ctrl_command == PM_DEVICE_STATE_SET) {
+		uint32_t new_state = *state;
+
+		if (new_state != pm_current_state) {
+			switch (new_state) {
+			case PM_DEVICE_STATE_ACTIVE:
+				init_twi(dev);
+				if (get_dev_data(dev)->dev_config) {
+					i2c_nrfx_twi_configure(
+						dev,
+						get_dev_data(dev)->dev_config);
+				}
+				break;
+
+			case PM_DEVICE_STATE_LOW_POWER:
+			case PM_DEVICE_STATE_SUSPEND:
+			case PM_DEVICE_STATE_OFF:
+				if (pm_current_state == PM_DEVICE_STATE_ACTIVE) {
+					nrfx_twi_uninit(&get_dev_config(dev)->twi);
+				}
+				break;
+
+			default:
+				ret = -ENOTSUP;
+			}
+			if (!ret) {
+				get_dev_data(dev)->pm_state = new_state;
+			}
 		}
-		break;
+	} else {
+		__ASSERT_NO_MSG(ctrl_command == PM_DEVICE_STATE_GET);
+		*state = get_dev_data(dev)->pm_state;
+	}
 
-	case PM_DEVICE_ACTION_SUSPEND:
-		nrfx_twi_uninit(&get_dev_config(dev)->twi);
-		break;
-
-	default:
-		ret = -ENOTSUP;
+	if (cb) {
+		cb(dev, ret, state, arg);
 	}
 
 	return ret;
@@ -287,7 +307,7 @@ static int twi_nrfx_pm_action(const struct device *dev,
 	};								       \
 	DEVICE_DT_DEFINE(I2C(idx),					       \
 		      twi_##idx##_init,					       \
-		      twi_nrfx_pm_action,				       \
+		      twi_nrfx_pm_control,				       \
 		      &twi_##idx##_data,				       \
 		      &twi_##idx##z_config,				       \
 		      POST_KERNEL,					       \

@@ -103,7 +103,6 @@
 
 	pwm4: pwm {
 		status = "okay";
-		st,prescaler = <10000>;
 		pinctrl-0 = <&tim4_ch1_pd12
 			     &tim4_ch2_pd13
 			     &tim4_ch3_pd14
@@ -144,7 +143,7 @@
 	status = "okay";
 };
 
-zephyr_udc0: &usbotg_fs {
+&usbotg_fs {
 	pinctrl-0 = <&usb_otg_fs_dm_pa11 &usb_otg_fs_dp_pa12>;
 	status = "okay";
 };

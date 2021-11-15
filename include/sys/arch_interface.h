@@ -58,13 +58,6 @@ typedef void (*k_thread_entry_t)(void *p1, void *p2, void *p3);
  */
 static inline uint32_t arch_k_cycle_get_32(void);
 
-/**
- * Obtain the current cycle count, in units that are hardware-specific
- *
- * @see k_cycle_get_64()
- */
-static inline uint64_t arch_k_cycle_get_64(void);
-
 /** @} */
 
 
@@ -655,21 +648,6 @@ void arch_mem_domain_partition_add(struct k_mem_domain *domain,
  * @return nonzero if the permissions don't match.
  */
 int arch_buffer_validate(void *addr, size_t size, int write);
-
-/**
- * Get the optimal virtual region alignment to optimize the MMU table layout
- *
- * Some MMU HW requires some region to be aligned to some of the intermediate
- * block alignment in order to reduce table usage.
- * This call returns the optimal virtual address alignment in order to permit
- * such optimization in the following MMU mapping call.
- *
- * @param[in] phys Physical address of region to be mapped, aligned to MMU_PAGE_SIZE
- * @param[in] size Size of region to be mapped, aligned to MMU_PAGE_SIZE
- *
- * @retval alignment to apply on the virtual address of this region
- */
-size_t arch_virt_region_align(uintptr_t phys, size_t size);
 
 /**
  * Perform a one-way transition from supervisor to kernel mode.

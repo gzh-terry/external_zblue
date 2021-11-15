@@ -35,8 +35,6 @@ class Loglist:
         magic = read_bytes(slot[0:2])
 
         if magic == MAGIC:
-            # Sequence number starting from 1, see
-            # soc/xtensa/intel_adsp/common/trace_out.c
             id_num = read_bytes(slot[2:4])
             before_first_zero = slot[4:].split(b'\x00')[0]
             logstr = before_first_zero.decode(errors='replace')
@@ -51,6 +49,6 @@ class Loglist:
         for pair in sorted(self.loglist):
             if self.debug:
                 # Add slot number when debug is enabled
-                print('{{[{}] : {}}};  '.format(*pair), end='')
+                print('[{}] : {}'.format(*pair), end='')
             else:
                 print('{}'.format(pair[1]), end='')

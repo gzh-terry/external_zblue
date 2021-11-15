@@ -145,11 +145,7 @@
 	#define sys_port_trace_type_mask_k_timer(trace_call)
 #endif
 
-#if defined(CONFIG_TRACING_EVENT)
-	#define sys_port_trace_type_mask_k_event(trace_call) trace_call
-#else
-	#define sys_port_trace_type_mask_k_event(trace_call)
-#endif
+
 
 
 /**

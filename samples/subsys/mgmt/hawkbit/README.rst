@@ -85,62 +85,58 @@ Step 4: Build Hawkbit
 
 .. _hawkbit_sample_sign:
 
-Step 5: Sign and confirm the first image
-========================================
+Step 5: Sign the first image
+============================
 
 From this section onwards you use a binary (``.bin``) image format.
 
 .. code-block:: console
 
    west sign -t imgtool -- --key \
-   ~/zephyrproject/bootloader/mcuboot/root-rsa-2048.pem --confirm \
-   --version 1.0.0
+   ~/zephyrproject/bootloader/mcuboot/root-rsa-2048.pem
 
-The command above creates a signed and confirmed image file called
-:file:`zephyr.signed.confirmed.bin` in the build directory. It's important for
-the first image to be confirmed as MCUboot isn't able to confirm an image that
-is flashed using a hardware tool, and Hawkbit will reboot to trigger a firmware
-swap if it isn't able to confirm the running image on init.
+The command above creates an image file called :file:`zephyr.signed.bin` in the
+build directory.
 
 Step 6: Flash the first image
 =============================
 
-Upload the :file:`zephyr.signed.confirmed.bin` file from Step 5 to image slot-0
-of your board.
+Upload the :file:`signed.bin` file from Step 5 to image slot-0 of your board.
 
 .. code-block:: console
 
-   west flash --bin-file build/zephyr/zephyr.signed.confirmed.bin
+   west flash --bin-file build/zephyr/zephyr.signed.bin
 
-Once the image is flashed and booted, the sample will print the image build
-time to the console. After it connects to the internet, in hawkbit server UI,
-you should see the the frdm_k64f show up in the Targets pane. It's time to
-upload a firmware binary to the server, and update it using this UI.
+Once the image is flashed.In hawkbit server UI, you should see the the
+frdm_k64f show up in the Targets pane. It's time to upload a firmware binary
+to the server, and update it using this UI.
 
 Step 7: Building and signing the test image
 ===========================================
 
-The easiest way to test the functionality of Hawkbit is to repeat step 4 to
-build the sample again, so that the build time will be different. Then, similar
-to step 5, sign the image and assign it a different version number but without
-confirming it like so:
+Perhaps the easiest sample to test with is the :zephyr_file:`samples/hello_world`
+sample provided by Zephyr, documented in the :ref:`hello_world` section.
+
+Edit :zephyr_file:`sample/hello_world/prj.conf` and enable the required MCUboot
+Kconfig option as described in :ref:`mcuboot` by adding the following line to
+it:
 
 .. code-block:: console
 
-   west sign -t imgtool -- --key \
-   ~/zephyrproject/bootloader/mcuboot/root-rsa-2048.pem \
-   --version 1.0.1
+   CONFIG_BOOTLOADER_MCUBOOT=y
 
-The command above creates a signed image file called
-:file:`zephyr.signed.bin` in the build directory.
+Then build the sample as usual (see :ref:`hello_world`).
+
+Follow the Step 5 generate an image file called :file:`zephyr.signed.bin` in the
+build directory.
 
 Upload the signed image to the server. Click Upload icon in left pane of UI and
-create a new Software Module with type Apps (``name:hawkbit,version:1.0.1``).
+create a new Software Module with type Apps (``name:hello_world,version:1.0``).
 Then upload the signed image to the server with Upload file Icon.
 
 Click on distribution icon in the left pane of UI and create a new Distribution
-with type Apps only (``name:frdm_k64f_update,version:1.0.1``). Assign the
-``hawkbit`` software module to the created distribution. Click on Deployment
+with type Apps only (``name:frdm_k64f_update,version:1.0``). Assign the
+``hello_world`` software module to the created distribution. Click on Deployment
 icon in the left pane of UI and assign the ``frdm_k64f_update`` distribution to
 the target ``frdm_k64f``.
 
@@ -169,8 +165,8 @@ In the terminal you used for debugging the board, type the following command:
    kernel reboot cold
 
 Your board will reboot and then start with the new image. After rebooting, the
-board will print a different image build time then automatically ping the server
-again and the message ``No update available`` will be printed on the terminal.
+board will automatically ping the server again and the message ``No update
+available`` will be printed on the terminal.
 
 Step 10: Clone and build hawkbit with https
 ===========================================

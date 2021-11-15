@@ -10,8 +10,9 @@
  */
 
 #include <logging/log_msg2.h>
-#include <logging/log_internal.h>
+#include <logging/log_core.h>
 #include <logging/log_ctrl.h>
+#include <logging/log_instance.h>
 
 #include <tc_util.h>
 #include <stdbool.h>
@@ -28,7 +29,7 @@
 #define TEST_LOG_MSG2_RW_STRINGS 0
 #endif
 
-#if CONFIG_NO_OPTIMIZATIONS
+#if CONFIG_NO_OPTIMIZATIONS && CONFIG_ARM
 #define EXP_MODE(name) Z_LOG_MSG2_MODE_RUNTIME
 #else
 #define EXP_MODE(name) Z_LOG_MSG2_MODE_##name

@@ -52,7 +52,7 @@ static int bmp388_transceive(const struct device *dev,
 	const struct spi_buf buf = { .buf = data, .len = length };
 	const struct spi_buf_set s = { .buffers = &buf, .count = 1 };
 
-	return spi_transceive_dt(&cfg->spi_bus, &s, &s);
+	return spi_transceive(cfg->bus, &cfg->spi_cfg, &s, &s);
 }
 
 static int bmp388_read_spi(const struct device *dev,
@@ -71,7 +71,7 @@ static int bmp388_read_spi(const struct device *dev,
 	const struct spi_buf_set tx = { .buffers = buf, .count = 1 };
 	const struct spi_buf_set rx = { .buffers = buf, .count = 2 };
 
-	return spi_transceive_dt(&cfg->spi_bus, &tx, &rx);
+	return spi_transceive(cfg->bus, &cfg->spi_cfg, &tx, &rx);
 }
 
 static int bmp388_byte_read_spi(const struct device *dev,
@@ -311,10 +311,9 @@ static int bmp388_attr_set(const struct device *dev,
 	int ret;
 
 #ifdef CONFIG_PM_DEVICE
-	enum pm_device_state state;
+	struct bmp388_data *data = DEV_DATA(dev);
 
-	(void)pm_device_state_get(dev, &state);
-	if (state != PM_DEVICE_STATE_ACTIVE) {
+	if (data->device_power_state != PM_DEVICE_STATE_ACTIVE) {
 		return -EBUSY;
 	}
 #endif
@@ -349,15 +348,12 @@ static int bmp388_sample_fetch(const struct device *dev,
 	__ASSERT_NO_MSG(chan == SENSOR_CHAN_ALL);
 
 #ifdef CONFIG_PM_DEVICE
-	enum pm_device_state state;
-
-	(void)pm_device_state_get(dev, &state);
-	if (state != PM_DEVICE_STATE_ACTIVE) {
+	if (bmp388->device_power_state != PM_DEVICE_STATE_ACTIVE) {
 		return -EBUSY;
 	}
 #endif
 
-	pm_device_busy_set(dev);
+	device_busy_set(dev);
 
 	/* Wait for status to indicate that data is ready. */
 	raw[0] = 0U;
@@ -386,7 +382,7 @@ static int bmp388_sample_fetch(const struct device *dev,
 	bmp388->sample.comp_temp = 0;
 
 error:
-	pm_device_busy_clear(dev);
+	device_busy_clear(dev);
 	return ret;
 }
 
@@ -549,20 +545,25 @@ static int bmp388_get_calibration_data(const struct device *dev)
 }
 
 #ifdef CONFIG_PM_DEVICE
-static int bmp388_pm_action(const struct device *dev,
-			    enum pm_device_action action)
+static int bmp388_set_power_state(const struct device *dev,
+				  uint32_t power_state)
 {
 	uint8_t reg_val;
 
-	switch (action) {
-	case PM_DEVICE_ACTION_RESUME:
+	struct bmp388_data *data = DEV_DATA(dev);
+
+	if (data->device_power_state == power_state) {
+		/* We are already in the desired state. */
+		return 0;
+	}
+
+	if (power_state == PM_DEVICE_STATE_ACTIVE) {
 		reg_val = BMP388_PWR_CTRL_MODE_NORMAL;
-		break;
-	case PM_DEVICE_ACTION_SUSPEND:
+	} else if ((power_state == PM_DEVICE_STATE_SUSPEND) ||
+		   (power_state == PM_DEVICE_STATE_OFF)) {
 		reg_val = BMP388_PWR_CTRL_MODE_SLEEP;
-		break;
-	default:
-		return -ENOTSUP;
+	} else {
+		return 0;
 	}
 
 	if (bmp388_reg_field_update(dev,
@@ -573,7 +574,37 @@ static int bmp388_pm_action(const struct device *dev,
 		return -EIO;
 	}
 
+	data->device_power_state = power_state;
+
 	return 0;
+}
+
+static uint32_t bmp388_get_power_state(const struct device *dev)
+{
+	struct bmp388_data *ctx = DEV_DATA(dev);
+
+	return ctx->device_power_state;
+}
+
+static int bmp388_device_ctrl(
+	const struct device *dev,
+	uint32_t ctrl_command,
+	uint32_t *state,
+	pm_device_cb cb,
+	void *arg)
+{
+	int ret = 0;
+
+	if (ctrl_command == PM_DEVICE_STATE_SET) {
+		ret = bmp388_set_power_state(dev, *state);
+	} else if (ctrl_command == PM_DEVICE_STATE_GET) {
+		*state = bmp388_get_power_state(dev);
+	}
+
+	if (cb) {
+		cb(dev, ret, state, arg);
+	}
+	return ret;
 }
 #endif /* CONFIG_PM_DEVICE */
 
@@ -602,10 +633,10 @@ static int bmp388_init(const struct device *dev)
 	}
 
 #if DT_ANY_INST_ON_BUS_STATUS_OKAY(spi)
-	/* Verify the SPI bus */
-	if (is_spi) {
-		if (!spi_is_ready(&cfg->spi_bus)) {
-			LOG_ERR("SPI bus is not ready");
+	/* Verify that the CS device is ready if it is set in the DT. */
+	if (is_spi && (cfg->spi_cfg.cs != NULL)) {
+		if (!device_is_ready(cfg->spi_cfg.cs->gpio_dev)) {
+			LOG_ERR("SPI CS device is not ready");
 			return -ENODEV;
 		}
 	}
@@ -639,6 +670,10 @@ static int bmp388_init(const struct device *dev)
 		LOG_ERR("Unsupported chip detected (0x%x)!", val);
 		return -ENODEV;
 	}
+
+#ifdef CONFIG_PM_DEVICE
+	bmp388->device_power_state = PM_DEVICE_STATE_ACTIVE;
+#endif
 
 	/* Read calibration data */
 	if (bmp388_get_calibration_data(dev) < 0) {
@@ -694,7 +729,7 @@ static int bmp388_init(const struct device *dev)
 
 #define BMP388_BUS_CFG_SPI(inst) \
 	.ops = &bmp388_spi_ops,	 \
-	.spi_bus = SPI_DT_SPEC_INST_GET(inst, SPI_OP_MODE_MASTER | SPI_WORD_SET(8), 0)
+	.spi_cfg = SPI_CONFIG_DT_INST(inst, SPI_OP_MODE_MASTER | SPI_WORD_SET(8), 0)
 
 #define BMP388_BUS_CFG(inst)			\
 	COND_CODE_1(DT_INST_ON_BUS(inst, i2c),	\
@@ -723,7 +758,7 @@ static int bmp388_init(const struct device *dev)
 	DEVICE_DT_INST_DEFINE(						   \
 		inst,							   \
 		bmp388_init,						   \
-		bmp388_pm_action,					   \
+		bmp388_device_ctrl,					   \
 		&bmp388_data_##inst,					   \
 		&bmp388_config_##inst,					   \
 		POST_KERNEL,						   \

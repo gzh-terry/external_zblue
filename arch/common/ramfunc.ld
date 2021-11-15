@@ -9,12 +9,12 @@
 
 SECTION_DATA_PROLOGUE(.ramfunc,,)
 {
-	MPU_ALIGN(__ramfunc_size);
-	__ramfunc_start = .;
+	MPU_ALIGN(_ramfunc_ram_size);
+	_ramfunc_ram_start = .;
 	*(.ramfunc)
 	*(".ramfunc.*")
-	MPU_ALIGN(__ramfunc_size);
-	__ramfunc_end = .;
+	MPU_ALIGN(_ramfunc_ram_size);
+	_ramfunc_ram_end = .;
 } GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
-__ramfunc_size = __ramfunc_end - __ramfunc_start;
-__ramfunc_load_start = LOADADDR(.ramfunc);
+_ramfunc_ram_size = _ramfunc_ram_end - _ramfunc_ram_start;
+_ramfunc_rom_start = LOADADDR(.ramfunc);

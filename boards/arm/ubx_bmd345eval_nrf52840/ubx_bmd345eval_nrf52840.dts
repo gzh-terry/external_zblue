@@ -115,14 +115,6 @@
 			<5 &adc 7>;    /* A5 = P0.31 = AIN7 */
 	};
 
-	nrf_radio_fem: fem {
-		compatible = "generic-fem-two-ctrl-pins";
-		ctx-gpios = <&gpio1 5 0>;
-		ctx-settle-time-us = <1>;
-		crx-gpios = <&gpio1 6 0>;
-		crx-settle-time-us = <1>;
-	};
-
 	/* These aliases are provided for compatibility with samples */
 	aliases {
 		led0 = &led0;
@@ -136,10 +128,6 @@
 		sw3 = &button3;
 		bootloader-led0 = &led0;
 	};
-};
-
-&radio {
-	fem = <&nrf_radio_fem>;
 };
 
 &adc {
@@ -230,9 +218,9 @@ arduino_spi: &spi3 {
 	mx25r64: mx25r6435f@0 {
 		compatible = "nordic,qspi-nor";
 		reg = <0>;
-		/* MX25R64 supports only pp and pp4io */
+		/* MX24R64 supports only pp and pp4io */
 		writeoc = "pp4io";
-		/* MX25R64 supports all readoc options */
+		/* MX24R64 supports all readoc options */
 		readoc = "read4io";
 		sck-frequency = <8000000>;
 		label = "MX25R64";
@@ -294,7 +282,7 @@ arduino_spi: &spi3 {
 	};
 };
 
-zephyr_udc0: &usbd {
+&usbd {
 	compatible = "nordic,nrf-usbd";
 	status = "okay";
 };

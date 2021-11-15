@@ -24,15 +24,13 @@ from devicetree import dtlib
 #   - to run a particular test function or functions, use
 #     '-k test_function_pattern_goes_here'
 
-def parse(dts, include_path=(), **kwargs):
-    '''Parse a DTS string 'dts', using the given include path.
-
-    Any kwargs are passed on to DT().'''
+def parse(dts, include_path=()):
+    '''Parse a DTS string 'dts', using the given include path.'''
 
     fd, path = tempfile.mkstemp(prefix='pytest-', suffix='.dts')
     try:
         os.write(fd, dts.encode('utf-8'))
-        return dtlib.DT(path, include_path, **kwargs)
+        return dtlib.DT(path, include_path)
     finally:
         os.close(fd)
         os.unlink(path)
@@ -99,16 +97,6 @@ def temporary_chdir(dirname):
         yield
     finally:
         os.chdir(here)
-
-def test_invalid_nodenames():
-    # Regression test that verifies node names are not matched against
-    # the more permissive set of rules used for property names.
-
-    verify_error_endswith("""
-/dts-v1/;
-/ { node? {}; };
-""",
-                          "/node?: bad character '?' in node name")
 
 def test_cell_parsing():
     '''Miscellaneous properties containing zero or more cells'''
@@ -2117,12 +2105,15 @@ def test_reprs():
 def test_names():
     '''Tests for node/property names.'''
 
+    # The C tools disallow '@' in property names, but otherwise accept the same
+    # characters in node and property names. Emulate that instead of the DT spec
+    # (v0.2), which gives different characters for nodes and properties.
     verify_parse(r"""
 /dts-v1/;
 
 / {
 	// A leading \ is accepted but ignored in node/propert names
-	\aA0,._+*#?- = &_, &{/aA0,._+@-};
+	\aA0,._+*#?- = &_, &{/aA0,._+*#?@-};
 
 	// Names that overlap with operators and integer literals
 
@@ -2133,8 +2124,7 @@ def test_names():
 	0 = [ 04 ];
 	0x123 = [ 05 ];
 
-	// Node names are more restrictive than property names.
-	_: \aA0,._+@- {
+	_: \aA0,._+*#?@- {
 	};
 
 	0 {
@@ -2145,14 +2135,14 @@ def test_names():
 /dts-v1/;
 
 / {
-	aA0,._+*#?- = &_, &{/aA0,._+@-};
+	aA0,._+*#?- = &_, &{/aA0,._+*#?@-};
 	+ = [ 00 ];
 	* = [ 02 ];
 	- = [ 01 ];
 	? = [ 03 ];
 	0 = [ 04 ];
 	0x123 = [ 05 ];
-	_: aA0,._+@- {
+	_: aA0,._+*#?@- {
 	};
 	0 {
 	};
@@ -2260,13 +2250,3 @@ l1: l2: &foo {
 / {
 };
 """)
-
-def test_dangling_alias():
-    dt = parse('''
-/dts-v1/;
-
-/ {
-	aliases { foo = "/missing"; };
-};
-''', force=True)
-    assert dt.get_node('/aliases').props['foo'].to_string() == '/missing'

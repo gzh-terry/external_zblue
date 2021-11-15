@@ -1111,5 +1111,5 @@ DEVICE_DT_INST_DEFINE(0,
 		    &pax_dma_data,
 		    &pax_dma_cfg,
 		    POST_KERNEL,
-		    CONFIG_DMA_INIT_PRIORITY,
+		    CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    &pax_dma_driver_api);

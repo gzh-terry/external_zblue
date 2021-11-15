@@ -66,7 +66,8 @@ void z_smp_thread_swap(void)
 	z_swap_unlocked();
 }
 
-static inline FUNC_NORETURN void smp_init_top(void *arg)
+#ifndef CONFIG_SMP_BOOT_DELAY
+static FUNC_NORETURN void smp_init_top(void *arg)
 {
 	struct k_thread dummy_thread;
 
@@ -77,15 +78,7 @@ static inline FUNC_NORETURN void smp_init_top(void *arg)
 
 	CODE_UNREACHABLE; /* LCOV_EXCL_LINE */
 }
-
-void z_smp_start_cpu(int id)
-{
-	(void)atomic_clear(&start_flag);
-	arch_start_cpu(id, z_interrupt_stacks[id], CONFIG_ISR_STACK_SIZE,
-		       smp_init_top, &start_flag);
-	(void)atomic_set(&start_flag, 1);
-}
-
+#endif
 #endif
 
 void z_smp_init(void)

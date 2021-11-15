@@ -6,10 +6,9 @@
 #include <arch/x86/acpi.h>
 
 static struct acpi_rsdp *rsdp;
-static bool is_rsdp_searched;
-
+bool is_rdsp_searched = false;
 static struct acpi_dmar *dmar;
-static bool is_dmar_searched;
+bool is_dmar_searched;
 
 static bool check_sum(struct acpi_sdt *t)
 {
@@ -22,22 +21,22 @@ static bool check_sum(struct acpi_sdt *t)
 	return sum == 0U;
 }
 
+
+/* We never identity map the NULL page, but may need to read some BIOS data */
+static uint8_t *zero_page_base;
+
 static void find_rsdp(void)
 {
-	uint8_t *bda_seg, *zero_page_base;
-	uint64_t *search;
-	uintptr_t search_phys, rsdp_phys = 0U;
-	size_t search_length, rsdp_length;
+	uint8_t *bda_seg;
 
-	if (is_rsdp_searched) {
+	if (is_rdsp_searched) {
 		/* Looking up for RSDP has already been done */
 		return;
 	}
 
-	/* We never identity map the NULL page, so need to map it before
-	 * it can be accessed.
-	 */
-	z_phys_map(&zero_page_base, 0, 4096, 0);
+	if (zero_page_base == NULL) {
+		z_phys_map(&zero_page_base, 0, 4096, K_MEM_PERM_RW);
+	}
 
 	/* Physical (real mode!) address 0000:040e stores a (real
 	 * mode!!) segment descriptor pointing to the 1kb Extended
@@ -49,124 +48,61 @@ static void find_rsdp(void)
 	 * first megabyte and are directly accessible.
 	 */
 	bda_seg = 0x040e + zero_page_base;
-	search_phys = (long)(((int)*(uint16_t *)bda_seg) << 4);
-
-	/* Unmap after use */
-	z_phys_unmap(zero_page_base, 4096);
+	uint64_t *search = (void *)(long)(((int)*(uint16_t *)bda_seg) << 4);
 
 	/* Might be nothing there, check before we inspect.
 	 * Note that EBDA usually is in 0x80000 to 0x100000.
 	 */
-	if ((POINTER_TO_UINT(search_phys) >= 0x80000UL) &&
-	    (POINTER_TO_UINT(search_phys) < 0x100000UL)) {
-		search_length = 1024;
-		z_phys_map((uint8_t **)&search, search_phys, search_length, 0);
-
+	if ((POINTER_TO_UINT(search) >= 0x80000UL) &&
+	    (POINTER_TO_UINT(search) < 0x100000UL)) {
 		for (int i = 0; i < 1024/8; i++) {
 			if (search[i] == ACPI_RSDP_SIGNATURE) {
-				rsdp_phys = search_phys + i * 8;
 				rsdp = (void *)&search[i];
-				goto found;
+				goto out;
 			}
 		}
-
-		z_phys_unmap((uint8_t *)search, search_length);
 	}
 
 	/* If it's not there, then look for it in the last 128kb of
 	 * real mode memory.
 	 */
-	search_phys = 0xe0000;
-	search_length = 128 * 1024;
-	z_phys_map((uint8_t **)&search, search_phys, search_length, 0);
+	search = (uint64_t *)0xe0000;
 
-	rsdp_phys = 0U;
 	for (int i = 0; i < 128*1024/8; i++) {
 		if (search[i] == ACPI_RSDP_SIGNATURE) {
-			rsdp_phys = search_phys + i * 8;
 			rsdp = (void *)&search[i];
-			goto found;
+			goto out;
 		}
 	}
-
-	z_phys_unmap((uint8_t *)search, search_length);
 
 	/* Now we're supposed to look in the UEFI system table, which
 	 * is passed as a function argument to the bootloader and long
 	 * forgotten by now...
 	 */
 	rsdp = NULL;
-
-	is_rsdp_searched = true;
-
-	return;
-
-found:
-	/* Determine length of RSDP table.
-	 * ACPI v2 and above uses the length field.
-	 * Otherwise, just the size of struct itself.
-	 */
-	if (rsdp->revision < 2) {
-		rsdp_length = sizeof(*rsdp);
-	} else {
-		rsdp_length = rsdp->length;
-	}
-
-	/* Need to unmap search since it is still mapped */
-	z_phys_unmap((uint8_t *)search, search_length);
-
-	/* Now map the RSDP */
-	z_phys_map((uint8_t **)&rsdp, rsdp_phys, rsdp_length, 0);
-
-	is_rsdp_searched = true;
+out:
+	is_rdsp_searched = true;
 }
 
 void *z_acpi_find_table(uint32_t signature)
 {
-	uint8_t *mapped_tbl;
-	uint32_t length;
-	struct acpi_rsdt *rsdt;
-	struct acpi_xsdt *xsdt;
-	struct acpi_sdt *t;
-	uintptr_t t_phys;
-	bool tbl_found;
-
 	find_rsdp();
 
 	if (!rsdp) {
 		return NULL;
 	}
 
-	if (rsdp->rsdt_ptr) {
-		z_phys_map((uint8_t **)&rsdt, rsdp->rsdt_ptr, sizeof(*rsdt), 0);
-		tbl_found = false;
+	struct acpi_rsdt *rsdt = (void *)(long)rsdp->rsdt_ptr;
 
-		if (check_sum(&rsdt->sdt)) {
-			/* Remap the memory to the indicated length of RSDT */
-			length = rsdt->sdt.length;
-			z_phys_unmap((uint8_t *)rsdt, sizeof(*rsdt));
-			z_phys_map((uint8_t **)&rsdt, rsdp->rsdt_ptr, length, 0);
+	if (rsdt && check_sum(&rsdt->sdt)) {
+		uint32_t *end = (uint32_t *)((char *)rsdt + rsdt->sdt.length);
 
-			uint32_t *end = (uint32_t *)((char *)rsdt + rsdt->sdt.length);
+		for (uint32_t *tp = &rsdt->table_ptrs[0]; tp < end; tp++) {
+			struct acpi_sdt *t = (void *)(long)*tp;
 
-			for (uint32_t *tp = &rsdt->table_ptrs[0]; tp < end; tp++) {
-				t_phys = (long)*tp;
-				z_phys_map(&mapped_tbl, t_phys, sizeof(*t), 0);
-				t = (void *)mapped_tbl;
-
-				if (t->signature == signature && check_sum(t)) {
-					tbl_found = true;
-					break;
-				}
-
-				z_phys_unmap(mapped_tbl, sizeof(*t));
+			if (t->signature == signature && check_sum(t)) {
+				return t;
 			}
-		}
-
-		z_phys_unmap((uint8_t *)rsdt, sizeof(*rsdt));
-
-		if (tbl_found) {
-			goto found;
 		}
 	}
 
@@ -174,49 +110,21 @@ void *z_acpi_find_table(uint32_t signature)
 		return NULL;
 	}
 
-	if (rsdp->xsdt_ptr) {
-		z_phys_map((uint8_t **)&xsdt, rsdp->xsdt_ptr, sizeof(*xsdt), 0);
+	struct acpi_xsdt *xsdt = (void *)(long)rsdp->xsdt_ptr;
 
-		tbl_found = false;
-		if (check_sum(&xsdt->sdt)) {
-			/* Remap the memory to the indicated length of RSDT */
-			length = xsdt->sdt.length;
-			z_phys_unmap((uint8_t *)xsdt, sizeof(*xsdt));
-			z_phys_map((uint8_t **)&xsdt, rsdp->xsdt_ptr, length, 0);
+	if (xsdt && check_sum(&xsdt->sdt)) {
+		uint64_t *end = (uint64_t *)((char *)xsdt + xsdt->sdt.length);
 
-			uint64_t *end = (uint64_t *)((char *)xsdt + xsdt->sdt.length);
+		for (uint64_t *tp = &xsdt->table_ptrs[0]; tp < end; tp++) {
+			struct acpi_sdt *t = (void *)(long)*tp;
 
-			for (uint64_t *tp = &xsdt->table_ptrs[0]; tp < end; tp++) {
-				t_phys = (long)*tp;
-				z_phys_map(&mapped_tbl, t_phys, sizeof(*t), 0);
-				t = (void *)mapped_tbl;
-
-				if (t->signature == signature && check_sum(t)) {
-					tbl_found = true;
-					break;
-				}
-
-				z_phys_unmap(mapped_tbl, sizeof(*t));
+			if (t->signature == signature && check_sum(t)) {
+				return t;
 			}
-		}
-
-		z_phys_unmap((uint8_t *)xsdt, sizeof(*xsdt));
-
-		if (tbl_found) {
-			goto found;
 		}
 	}
 
 	return NULL;
-
-found:
-	/* Remap to indicated length of the table */
-	length = t->length;
-	z_phys_unmap(mapped_tbl, sizeof(*t));
-	z_phys_map(&mapped_tbl, t_phys, length, 0);
-	t = (void *)mapped_tbl;
-
-	return t;
 }
 
 /*

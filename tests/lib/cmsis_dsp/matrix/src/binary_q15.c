@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2021 Stephanos Ioannidis <root@stephanos.io>
- * Copyright (C) 2010-2021 ARM Limited or its affiliates. All rights reserved.
+ * Copyright (c) 2020 Stephanos Ioannidis <root@stephanos.io>
+ * Copyright (C) 2010-2020 ARM Limited or its affiliates. All rights reserved.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -32,7 +32,6 @@ static void test_op2(int op, const q15_t *input1, const q15_t *input2,
 	uint16_t *dims = (uint16_t *)in_dims;
 	q15_t *tmp1, *tmp2, *scratch, *output;
 	uint16_t rows, internal, columns;
-	arm_status status;
 
 	arm_matrix_instance_q15 mat_in1;
 	arm_matrix_instance_q15 mat_in2;
@@ -82,17 +81,12 @@ static void test_op2(int op, const q15_t *input1, const q15_t *input2,
 		/* Run test function */
 		switch (op) {
 		case OP2_MULT:
-			status = arm_mat_mult_q15(
-					&mat_in1, &mat_in2, &mat_out,
-					scratch);
+			arm_mat_mult_q15(
+				&mat_in1, &mat_in2, &mat_out, scratch);
 			break;
 		default:
 			zassert_unreachable("invalid operation");
 		}
-
-		/* Validate status */
-		zassert_equal(status, ARM_MATH_SUCCESS,
-			      ASSERT_MSG_INCORRECT_COMP_RESULT);
 
 		/* Increment output pointer */
 		mat_out.pData += (rows * columns);
@@ -127,7 +121,6 @@ static void test_op2c(int op, const q15_t *input1, const q15_t *input2,
 	uint16_t *dims = (uint16_t *)in_dims;
 	q15_t *tmp1, *tmp2, *scratch, *output;
 	uint16_t rows, internal, columns;
-	arm_status status;
 
 	arm_matrix_instance_q15 mat_in1;
 	arm_matrix_instance_q15 mat_in2;
@@ -177,17 +170,12 @@ static void test_op2c(int op, const q15_t *input1, const q15_t *input2,
 		/* Run test function */
 		switch (op) {
 		case OP2C_CMPLX_MULT:
-			status = arm_mat_cmplx_mult_q15(
-					&mat_in1, &mat_in2, &mat_out,
-					scratch);
+			arm_mat_cmplx_mult_q15(
+				&mat_in1, &mat_in2, &mat_out, scratch);
 			break;
 		default:
 			zassert_unreachable("invalid operation");
 		}
-
-		/* Validate status */
-		zassert_equal(status, ARM_MATH_SUCCESS,
-			      ASSERT_MSG_INCORRECT_COMP_RESULT);
 
 		/* Increment output pointer */
 		mat_out.pData += (2 * rows * columns);

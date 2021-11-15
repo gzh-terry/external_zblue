@@ -9,26 +9,28 @@ User and Developer Guides
    beyond-GSG.rst
    arch/index.rst
    bluetooth/index.rst
-   docs/index.rst
+   build/index
+   coding_guidelines/index
+   ../README.rst
+   documentation/index
    coccinelle.rst
    code-relocation.rst
    crypto/index
    flash_debug/index
-   debug_tools/index
    device_mgmt/index
+   device_mgmt/dfu
    dts/index
-   pinctrl/index
-   pm/index
    emulator/index.rst
-
+   coverage.rst
+   kconfig/index
    modules.rst
    networking/index
    platformio/index.rst
    portability/index.rst
    porting/index
-   smf/index.rst
    test/index
-   tfm/index
+   tracing/index
    west/index
    optimizations/index
    zephyr_cmake_package.rst
+   thread_local_storage.rst

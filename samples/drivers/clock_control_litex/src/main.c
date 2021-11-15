@@ -297,13 +297,14 @@ int litex_clk_test(const struct device *dev)
 
 void main(void)
 {
-	const struct device *dev = DEVICE_DT_GET(MMCM);
+	const struct device *dev;
 
 	printf("Clock Control Example! %s\n", CONFIG_ARCH);
 
-	printf("device name: %s\n", dev->name);
-	if (!device_is_ready(dev)) {
-		printf("error: device %s is not ready\n", dev->name);
+	printf("device name: %s\n", MMCM_NAME);
+	dev = device_get_binding(MMCM_NAME);
+	if (!dev) {
+		printf("error: no %s device\n", MMCM_NAME);
 		return;
 	}
 

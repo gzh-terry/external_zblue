@@ -21,7 +21,6 @@ def test_runner_imports():
                     'dediprog',
                     'dfu-util',
                     'esp32',
-                    'gd32isp',
                     'hifive1',
                     'intel_s1000',
                     'jlink',

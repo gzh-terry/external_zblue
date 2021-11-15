@@ -19,7 +19,9 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include <sys/ring_buffer.h>
 #include <sys/atomic.h>
 
+#ifdef CONFIG_OPENTHREAD_COPROCESSOR_SPINEL_ON_UART_ACM
 #include <usb/usb_device.h>
+#endif
 
 #include <openthread/ncp.h>
 #include <openthread-system.h>
@@ -157,10 +159,11 @@ void platformUartProcess(otInstance *aInstance)
 
 otError otPlatUartEnable(void)
 {
-	ot_uart.dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_ot_uart));
+	ot_uart.dev = device_get_binding(
+		CONFIG_OPENTHREAD_COPROCESSOR_SPINEL_ON_UART_DEV_NAME);
 
-	if (!device_is_ready(ot_uart.dev)) {
-		LOG_ERR("UART device not ready");
+	if ((&ot_uart)->dev == NULL) {
+		LOG_ERR("UART device not found");
 		return OT_ERROR_FAILED;
 	}
 
@@ -168,7 +171,8 @@ otError otPlatUartEnable(void)
 					uart_callback,
 					(void *)&ot_uart);
 
-	if (DT_NODE_HAS_COMPAT(DT_CHOSEN(zephyr_ot_uart), zephyr_cdc_acm_uart)) {
+#ifdef CONFIG_OPENTHREAD_COPROCESSOR_SPINEL_ON_UART_ACM
+	{
 		int ret;
 		uint32_t dtr = 0U;
 
@@ -197,6 +201,7 @@ otError otPlatUartEnable(void)
 		/* Data Set Ready - the NCP SoC is ready to communicate */
 		(void)uart_line_ctrl_set(ot_uart.dev, UART_LINE_CTRL_DSR, 1);
 	}
+#endif /* CONFIG_OPENTHREAD_COPROCESSOR_SPINEL_ON_UART_ACM */
 
 	uart_irq_rx_enable(ot_uart.dev);
 
@@ -205,13 +210,13 @@ otError otPlatUartEnable(void)
 
 otError otPlatUartDisable(void)
 {
-	if (DT_NODE_HAS_COMPAT(DT_CHOSEN(zephyr_ot_uart), zephyr_cdc_acm_uart)) {
-		int ret = usb_disable();
+#ifdef CONFIG_OPENTHREAD_COPROCESSOR_SPINEL_ON_UART_ACM
+	int ret = usb_disable();
 
-		if (ret) {
-			LOG_WRN("Failed to disable USB (%d)", ret);
-		}
+	if (ret) {
+		LOG_WRN("Failed to disable USB (%d)", ret);
 	}
+#endif
 
 	uart_irq_tx_disable(ot_uart.dev);
 	uart_irq_rx_disable(ot_uart.dev);

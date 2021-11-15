@@ -60,11 +60,6 @@ config TRACING_TEST
 	  Enable tracing for testing kinds of format purpose. It must
 	  implement the tracing hooks defined in tracing_test.h
 
-config TRACING_USER
-	bool "Tracing using user-defined functions"
-	help
-	  Use user-defined functions for tracing task switching and irqs
-
 endchoice
 
 
@@ -142,7 +137,7 @@ config TRACING_BACKEND_UART
 
 config TRACING_BACKEND_USB
 	bool "Enable USB backend"
-	depends on USB_DEVICE_STACK
+	depends on USB
 	depends on TRACING_ASYNC
 	help
 	  Use USB to output tracing data.
@@ -204,7 +199,7 @@ config TRACING_CMD_BUFFER_SIZE
 
 menu "Tracing Configuration"
 
-config TRACING_SYSCALL
+config SYSCALL_TRACING
 	bool "Enable tracing Syscalls"
 	default y
 	help
@@ -306,12 +301,6 @@ config TRACING_TIMER
 	default y
 	help
 	  Enable tracing Timers.
-
-config TRACING_EVENT
-	bool "Enable tracing Events"
-	default y
-	help
-	  Enable tracing Events.
 
 endmenu  # Tracing Configuration
 

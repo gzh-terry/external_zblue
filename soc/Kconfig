@@ -3,19 +3,13 @@
 choice
 	prompt "SoC/CPU/Configuration Selection"
 
-# This loads custom SoC root Kconfig (only available if custom SoC root are defined)
-osource "$(KCONFIG_BINARY_DIR)/Kconfig.soc"
-# This loads Zephyr base SoC root Kconfig
-osource "soc/$(ARCH)/*/Kconfig.soc"
+source "$(KCONFIG_BINARY_DIR)/Kconfig.soc"
 
 endchoice
 
 menu "Hardware Configuration"
-# This loads custom SoC root Kconfig (only available if custom SoC root are defined)
-osource "$(KCONFIG_BINARY_DIR)/Kconfig.soc.arch"
-# This loads Zephyr base SoC Kconfigs
-osource "soc/$(ARCH)/Kconfig"
-osource "soc/$(ARCH)/*/Kconfig"
+source "$(KCONFIG_BINARY_DIR)/Kconfig.soc.arch"
+
 
 module = SOC
 module-str = SOC

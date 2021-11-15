@@ -285,7 +285,7 @@ struct bt_conn_le_info {
 	/** Remote device address used during connection setup. */
 	const bt_addr_le_t *remote;
 	uint16_t interval; /** Connection interval */
-	uint16_t latency; /** Connection peripheral latency */
+	uint16_t latency; /** Connection slave latency */
 	uint16_t timeout; /** Connection supervision timeout */
 
 #if defined(CONFIG_BT_USER_PHY_UPDATE)
@@ -303,14 +303,11 @@ struct bt_conn_br_info {
 	const bt_addr_t *dst; /** Destination (Remote) BR/EDR address */
 };
 
+/** Connection role (master or slave) */
 enum {
-	BT_CONN_ROLE_CENTRAL = 0,
-	BT_CONN_ROLE_PERIPHERAL = 1,
+	BT_CONN_ROLE_MASTER,
+	BT_CONN_ROLE_SLAVE,
 };
-
-/** Connection role (central or peripheral) */
-#define BT_CONN_ROLE_MASTER __DEPRECATED_MACRO BT_CONN_ROLE_CENTRAL
-#define BT_CONN_ROLE_SLAVE __DEPRECATED_MACRO BT_CONN_ROLE_PERIPHERAL
 
 /** Connection Info Structure */
 struct bt_conn_info {
@@ -349,7 +346,7 @@ struct bt_conn_br_remote_info {
 /** @brief Connection Remote Info Structure
  *
  *  @note The version, manufacturer and subversion fields will only contain
- *        valid data if @kconfig{CONFIG_BT_REMOTE_VERSION} is enabled.
+ *        valid data if @option{CONFIG_BT_REMOTE_VERSION} is enabled.
  */
 struct bt_conn_remote_info {
 	/** Connection Type */
@@ -414,7 +411,7 @@ int bt_conn_get_info(const struct bt_conn *conn, struct bt_conn_info *info);
  *  @param remote_info Connection remote info object.
  *
  *  @note In order to retrieve the remote version (version, manufacturer
- *  and subversion) @kconfig{CONFIG_BT_REMOTE_VERSION} must be enabled
+ *  and subversion) @option{CONFIG_BT_REMOTE_VERSION} must be enabled
  *
  *  @note The remote information is exchanged directly after the connection has
  *  been established. The application can be notified about when the remote
@@ -441,7 +438,7 @@ int bt_conn_le_get_tx_power_level(struct bt_conn *conn,
  *
  *  If the local device is in the peripheral role then updating the connection
  *  parameters will be delayed. This delay can be configured by through the
- *  @kconfig{CONFIG_BT_CONN_PARAM_UPDATE_TIMEOUT} option.
+ *  @option{CONFIG_BT_CONN_PARAM_UPDATE_TIMEOUT} option.
  *
  *  @param conn Connection object.
  *  @param param Updated connection parameters.
@@ -542,7 +539,7 @@ struct bt_conn_le_create_param {
 
 	/** @brief Connection initiation timeout (N * 10 MS)
 	 *
-	 *  Set zero to use the default @kconfig{CONFIG_BT_CREATE_CONN_TIMEOUT}
+	 *  Set zero to use the default @option{CONFIG_BT_CREATE_CONN_TIMEOUT}
 	 *  timeout.
 	 *
 	 *  @note Unused in @ref bt_conn_le_create_auto
@@ -585,7 +582,7 @@ struct bt_conn_le_create_param {
 				BT_GAP_SCAN_FAST_INTERVAL, \
 				BT_GAP_SCAN_FAST_INTERVAL)
 
-/** Default LE create connection using filter accept list parameters.
+/** Default LE create connection using whitelist parameters.
  *  Scan window:   30 ms.
  *  Scan interval: 60 ms.
  */
@@ -618,14 +615,14 @@ int bt_conn_le_create(const bt_addr_le_t *peer,
 		      const struct bt_le_conn_param *conn_param,
 		      struct bt_conn **conn);
 
-/** @brief Automatically connect to remote devices in the filter accept list..
+/** @brief Automatically connect to remote devices in whitelist.
  *
  *  This uses the Auto Connection Establishment procedure.
  *  The procedure will continue until a single connection is established or the
  *  procedure is stopped through @ref bt_conn_create_auto_stop.
- *  To establish connections to all devices in the the filter accept list the
- *  procedure should be started again in the connected callback after a
- *  new connection has been established.
+ *  To establish connections to all devices in the whitelist the procedure
+ *  should be started again in the connected callback after a new connection has
+ *  been established.
  *
  *  @param create_param Create connection parameters
  *  @param conn_param   Initial connection parameters.
@@ -696,10 +693,10 @@ typedef enum __packed {
  *  This function may return error if the pairing procedure has already been
  *  initiated by the local device or the peer device.
  *
- *  @note When @kconfig{CONFIG_BT_SMP_SC_ONLY} is enabled then the security
+ *  @note When @option{CONFIG_BT_SMP_SC_ONLY} is enabled then the security
  *        level will always be level 4.
  *
- *  @note When @kconfig{CONFIG_BT_SMP_OOB_LEGACY_PAIR_ONLY} is enabled then the
+ *  @note When @option{CONFIG_BT_SMP_OOB_LEGACY_PAIR_ONLY} is enabled then the
  *        security level will always be level 3.
  *
  *  @param conn Connection object.
@@ -751,9 +748,6 @@ enum bt_security_err {
 	/** Invalid parameters. */
 	BT_SECURITY_ERR_INVALID_PARAM,
 
-	/** Distributed Key Rejected */
-	BT_SECURITY_ERR_KEY_REJECTED,
-
 	/** Pairing failed but the exact reason could not be specified. */
 	BT_SECURITY_ERR_UNSPECIFIED,
 };
@@ -788,7 +782,7 @@ struct bt_conn_cb {
 	 *    @ref bt_conn_le_create was canceled either by the user through
 	 *    @ref bt_conn_disconnect or by the timeout in the host through
 	 *    @ref bt_conn_le_create_param timeout parameter, which defaults to
-	 *    @kconfig{CONFIG_BT_CREATE_CONN_TIMEOUT} seconds.
+	 *    @option{CONFIG_BT_CREATE_CONN_TIMEOUT} seconds.
 	 *  - @p BT_HCI_ERR_ADV_TIMEOUT High duty cycle directed connectable
 	 *    advertiser started by @ref bt_le_adv_start failed to be connected
 	 *    within the timeout.
@@ -807,7 +801,7 @@ struct bt_conn_cb {
 	 *  available.
 	 *  To avoid this issue it is recommended to either start connectable
 	 *  advertise or create a new connection using @ref k_work_submit or
-	 *  increase @kconfig{CONFIG_BT_MAX_CONN}.
+	 *  increase @option{CONFIG_BT_MAX_CONN}.
 	 *
 	 *  @param conn Connection object.
 	 *  @param reason HCI reason for the disconnection.
@@ -925,7 +919,7 @@ struct bt_conn_cb {
 	 */
 	void (*le_data_len_updated)(struct bt_conn *conn,
 				    struct bt_conn_le_data_len_info *info);
-#endif /* defined(CONFIG_BT_USER_DATA_LEN_UPDATE) */
+#endif /* defined(CONFIG_BT_USER_PHY_UPDATE) */
 
 	struct bt_conn_cb *_next;
 };
@@ -937,17 +931,6 @@ struct bt_conn_cb {
  *  @param cb Callback struct. Must point to memory that remains valid.
  */
 void bt_conn_cb_register(struct bt_conn_cb *cb);
-
-/** @def BT_CONN_CB_DEFINE
- *
- *  @brief Register a callback structure for connection events.
- *
- *  @param _name Name of callback structure.
- */
-#define BT_CONN_CB_DEFINE(_name)					\
-	static const STRUCT_SECTION_ITERABLE(bt_conn_cb,		\
-						_CONCAT(bt_conn_cb_,	\
-							_name))
 
 /** @brief Enable/disable bonding.
  *

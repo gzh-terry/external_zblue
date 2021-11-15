@@ -106,8 +106,7 @@ static int skip_fqdn(uint8_t *answer, int buf_sz)
 	return i;
 }
 
-int dns_unpack_answer(struct dns_msg_t *dns_msg, int dname_ptr, uint32_t *ttl,
-		      enum dns_rr_type *type)
+int dns_unpack_answer(struct dns_msg_t *dns_msg, int dname_ptr, uint32_t *ttl)
 {
 	int dname_len;
 	uint16_t rem_size;
@@ -156,9 +155,8 @@ int dns_unpack_answer(struct dns_msg_t *dns_msg, int dname_ptr, uint32_t *ttl,
 		DNS_COMMON_UINT_SIZE + /* type length */
 		DNS_TTL_LEN +
 		DNS_RDLENGTH_LEN;
-	*type = dns_answer_type(dname_len, answer);
 
-	switch (*type) {
+	switch (dns_answer_type(dname_len, answer)) {
 	case DNS_RR_TYPE_A:
 	case DNS_RR_TYPE_AAAA:
 		set_dns_msg_response(dns_msg, DNS_RESPONSE_IP, pos, len);

@@ -28,6 +28,6 @@
 
 / {
 	chosen {
-		zephyr,canbus = &can1;
+		zephyr,can-primary = &can1;
 	};
 };

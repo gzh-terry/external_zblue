@@ -3,8 +3,6 @@
 # Copyright (c) 2019 ML!PA Consulting GmbH
 # SPDX-License-Identifier: Apache-2.0
 
-zephyr_sources(soc_port.c)
-
 zephyr_sources_ifdef(CONFIG_BOOTLOADER_BOSSA bossa.c)
 
 zephyr_sources_ifdef(CONFIG_SOC_SERIES_SAMD20 soc_samd2x.c)

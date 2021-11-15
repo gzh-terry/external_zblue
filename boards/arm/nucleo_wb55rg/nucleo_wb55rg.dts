@@ -133,21 +133,11 @@
 	status = "okay";
 };
 
-&timers1 {
-	status = "okay";
-
-	pwm1: pwm {
-		status = "okay";
-		st,prescaler = <10000>;
-		pinctrl-0 = <&tim1_ch1_pa8>;
-	};
-};
-
 &timers2 {
 	status = "okay";
 	pwm2: pwm {
 		status = "okay";
-		pinctrl-0 = <&tim2_ch1_pa15>;
+		pinctrl-0 = <&tim2_ch1_pa0>;
 	};
 };
 
@@ -170,13 +160,9 @@
 	status = "okay";
 };
 
-zephyr_udc0: &usb {
+&usb {
 	status = "okay";
 	pinctrl-0 = <&usb_dm_pa11 &usb_dp_pa12>;
-};
-
-&rng {
-	status = "okay";
 };
 
 &flash0 {
@@ -189,9 +175,9 @@ zephyr_udc0: &usb {
 		#address-cells = <1>;
 		#size-cells = <1>;
 
-		/* Set all partitions with first 808K of flash */
-		/* last 216K are reseved for M0 usage */
-		/* Configure partitions to make use of the whole 808K */
+		/* Set all partitions with first 812K of flash */
+		/* last 212K are reseved for M0 usage */
+		/* Configure partitions to make use of the whole 812K */
 
 		boot_partition: partition@0 {
 			label = "mcuboot";
@@ -211,7 +197,7 @@ zephyr_udc0: &usb {
 		};
 		storage_partition: partition@c8000 {
 			label = "storage";
-			reg = <0x000c8000 0x2000>;
+			reg = <0x000c8000 0x3000>;
 		};
 
 	};

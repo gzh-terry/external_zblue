@@ -78,7 +78,7 @@ static void security_changed(struct bt_conn *conn, bt_security_t level,
 	}
 }
 
-BT_CONN_CB_DEFINE(conn_callbacks) = {
+static struct bt_conn_cb conn_callbacks = {
 	.connected = connected,
 	.disconnected = disconnected,
 	.identity_resolved = identity_resolved,
@@ -136,6 +136,7 @@ void main(void)
 
 
 	bt_conn_auth_cb_register(&auth_cb_display);
+	bt_conn_cb_register(&conn_callbacks);
 
 	err = bt_le_adv_start(BT_LE_ADV_CONN_NAME, ad, ARRAY_SIZE(ad), NULL, 0);
 	if (err) {

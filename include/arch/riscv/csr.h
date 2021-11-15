@@ -1,8 +1,6 @@
 /*
- * Copyright (c) 2020 Michael Schaffner
  * Copyright (c) 2020 BayLibre, SAS
  *
- * SPDX-License-Identifier: SHL-0.51
  * SPDX-License-Identifier: Apache-2.0
  */
 

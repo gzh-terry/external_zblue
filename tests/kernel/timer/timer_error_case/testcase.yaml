@@ -1,3 +1,3 @@
 tests:
-  kernel.timer.error_case:
+  kernel.timer:
     tags: kernel timer userspace ignore_faults

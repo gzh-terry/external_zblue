@@ -67,7 +67,6 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <kernel.h>
-#include <sys/bitarray.h>
  
 #ifdef  __cplusplus
 extern "C"
@@ -173,8 +172,6 @@ typedef struct os_thread_def  {
   struct k_poll_signal *poll_signal;
   struct k_poll_event   *poll_event;
   int32_t            signal_results;
-  ///< a bitarray used to indicate whether the thread is used or not, 0: unused, 1: used
-  void                 *status_mask;
 } osThreadDef_t;
  
 /// Timer Definition structure contains timer parameters.
@@ -291,11 +288,8 @@ static K_THREAD_STACK_ARRAY_DEFINE(stacks_##name, instances, CONFIG_CMSIS_THREAD
 static struct k_thread cm_thread_##name[instances]; \
 static struct k_poll_signal wait_signal_##name; \
 static struct k_poll_event wait_events_##name; \
-static SYS_BITARRAY_DEFINE(bitarray_##name, instances); \
 static osThreadDef_t os_thread_def_##name = \
-{ (name), (priority), (instances), (stacksz), (void *)(stacks_##name), \
-	(cm_thread_##name), (&wait_signal_##name), \
-	(&wait_events_##name), 0, (void *)(&bitarray_##name)}
+{ (name), (priority), (instances), (stacksz), (void *)(stacks_##name), (cm_thread_##name), (&wait_signal_##name), (&wait_events_##name), 0 }
 #endif
  
 /// Access a Thread definition.

@@ -29,6 +29,11 @@ the LICENSE file in the project's `GitHub repo`_).  The Zephyr OS also
 imports or reuses packages, scripts, and other files that use other
 licensing, as described in :ref:`Zephyr_Licensing`.
 
+.. _Apache 2.0 license:
+   https://github.com/zephyrproject-rtos/zephyr/blob/main/LICENSE
+
+.. _GitHub repo: https://github.com/zephyrproject-rtos/zephyr
+
 
 .. raw:: html
 
@@ -94,8 +99,10 @@ licensing, as described in :ref:`Zephyr_Licensing`.
        </li>
    </ul>
 
-Sections
-********
+.. only:: html
+
+   Sections
+   ********
 
 .. toctree::
    :maxdepth: 1
@@ -105,7 +112,6 @@ Sections
    getting_started/index.rst
    contribute/index.rst
    development_process/index.rst
-   guides/build/index.rst
    application/index.rst
    reference/index.rst
    guides/index.rst
@@ -114,13 +120,11 @@ Sections
    boards/index.rst
    releases/index.rst
 
-Indices and Tables
-******************
+.. only:: html
+
+   Indices and Tables
+   ******************
 
 * :ref:`glossary`
+
 * :ref:`genindex`
-
-.. _Apache 2.0 license:
-   https://github.com/zephyrproject-rtos/zephyr/blob/main/LICENSE
-
-.. _GitHub repo: https://github.com/zephyrproject-rtos/zephyr

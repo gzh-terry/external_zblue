@@ -16,7 +16,6 @@
 
 #include "util/util.h"
 #include "util/memq.h"
-#include "util/mem.h"
 
 #include "pdu.h"
 
@@ -25,7 +24,6 @@
 #include "lll_adv.h"
 #include "lll/lll_adv_pdu.h"
 #include "lll_scan.h"
-#include "lll/lll_df_types.h"
 #include "lll_conn.h"
 
 #include "ull_adv_types.h"

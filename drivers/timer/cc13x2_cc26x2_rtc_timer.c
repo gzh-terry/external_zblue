@@ -240,10 +240,6 @@ uint32_t sys_clock_elapsed(void)
 
 uint32_t sys_clock_cycle_get_32(void)
 {
-	return (uint32_t)(AONRTCCurrent64BitValueGet() / RTC_COUNTS_PER_CYCLE);
-}
-
-uint64_t sys_clock_cycle_get_64(void)
-{
-	return AONRTCCurrent64BitValueGet() / RTC_COUNTS_PER_CYCLE;
+	return (AONRTCCurrent64BitValueGet() / RTC_COUNTS_PER_CYCLE)
+		& 0xFFFFFFFF;
 }

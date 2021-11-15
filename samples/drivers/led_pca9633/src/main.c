@@ -14,6 +14,7 @@
 #include <logging/log.h>
 LOG_MODULE_REGISTER(main);
 
+#define LED_DEV_NAME DT_LABEL(DT_INST(0, nxp_pca9633))
 #define NUM_LEDS 4
 #define MAX_BRIGHTNESS 100
 #define HALF_BRIGHTNESS (MAX_BRIGHTNESS / 2)
@@ -24,17 +25,15 @@ LOG_MODULE_REGISTER(main);
 
 void main(void)
 {
-	const struct device *led_dev = DEVICE_DT_GET_ANY(nxp_pca9633);
+	const struct device *led_dev;
 	int i, ret;
 
-	if (!led_dev) {
-		LOG_ERR("No devices with compatible nxp,pca9633 found");
-		return;
-	} else if (!device_is_ready(led_dev)) {
-		LOG_ERR("LED device %s is not ready", led_dev->name);
-		return;
+	led_dev = device_get_binding(LED_DEV_NAME);
+	if (led_dev) {
+		LOG_INF("Found LED device %s", LED_DEV_NAME);
 	} else {
-		LOG_INF("Found LED device %s", led_dev->name);
+		LOG_ERR("LED device %s not found", LED_DEV_NAME);
+		return;
 	}
 
 	LOG_INF("Testing leds");

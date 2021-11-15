@@ -5,25 +5,16 @@
  */
 
 #include <kernel.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <ctype.h>
 #include "lwm2m_util.h"
 
 #define SHIFT_LEFT(v, o, m) (((v) << (o)) & (m))
 #define SHIFT_RIGHT(v, o, m) (((v) >> (o)) & (m))
 
-#define PRECISION64_LEN 17U
-#define PRECISION64 100000000000000000ULL
-
-#define PRECISION32 1000000000UL
-
-/* convert from float to binary32 */
-int lwm2m_float_to_b32(double *in, uint8_t *b32, size_t len)
+/* convert from float32 to binary32 */
+int lwm2m_f32_to_b32(float32_value_t *f32, uint8_t *b32, size_t len)
 {
 	int32_t e = -1, v, f = 0;
-	int32_t val1 = (int32_t)*in;
-	int32_t val2 = (*in - (int32_t)*in) * PRECISION32;
 	int i;
 
 	if (len != 4) {
@@ -31,13 +22,13 @@ int lwm2m_float_to_b32(double *in, uint8_t *b32, size_t len)
 	}
 
 	/* handle zero value special case */
-	if (val1 == 0 && val2 == 0) {
+	if (f32->val1 == 0 && f32->val2 == 0) {
 		memset(b32, 0, len);
 		return 0;
 	}
 
 	/* sign handled later */
-	v = abs(val1);
+	v = abs(f32->val1);
 
 	/* add whole value to fraction */
 	while (v > 0) {
@@ -52,18 +43,18 @@ int lwm2m_float_to_b32(double *in, uint8_t *b32, size_t len)
 	}
 
 	/* sign handled later */
-	v = abs(val2);
+	v = abs(f32->val2);
 
 	/* add decimal to fraction */
 	i = e;
 	while (v > 0 && i < 23) {
 		v *= 2;
-		if (!f && e < 0 && v < PRECISION32) {
+		if (!f && e < 0 && v < LWM2M_FLOAT32_DEC_MAX) {
 			/* handle -e */
 			e--;
 			continue;
-		} else if (v >= PRECISION32) {
-			v -= PRECISION32;
+		} else if (v >= LWM2M_FLOAT32_DEC_MAX) {
+			v -= LWM2M_FLOAT32_DEC_MAX;
 			f |= 1 << (22 - i);
 		}
 
@@ -80,10 +71,10 @@ int lwm2m_float_to_b32(double *in, uint8_t *b32, size_t len)
 	memset(b32, 0, len);
 
 	/* sign: bit 31 */
-	if (val1 == 0) {
-		b32[0] = val2 < 0 ? 0x80 : 0;
+	if (f32->val1 == 0) {
+		b32[0] = f32->val2 < 0 ? 0x80 : 0;
 	} else {
-		b32[0] = val1 < 0 ? 0x80 : 0;
+		b32[0] = f32->val1 < 0 ? 0x80 : 0;
 	}
 
 	/* exponent: bits 30-23 */
@@ -99,13 +90,11 @@ int lwm2m_float_to_b32(double *in, uint8_t *b32, size_t len)
 	return 0;
 }
 
-/* convert from float to binary64 */
-int lwm2m_float_to_b64(double *in, uint8_t *b64, size_t len)
+/* convert from float64 to binary64 */
+int lwm2m_f64_to_b64(float64_value_t *f64, uint8_t *b64, size_t len)
 {
 	int64_t v, f = 0;
 	int32_t e = -1;
-	int64_t val1 = (int64_t)*in;
-	int64_t val2 = (*in - (int64_t)*in) * PRECISION64;
 	int i;
 
 	if (len != 8) {
@@ -113,13 +102,13 @@ int lwm2m_float_to_b64(double *in, uint8_t *b64, size_t len)
 	}
 
 	/* handle zero value special case */
-	if (val1 == 0 && val2 == 0) {
+	if (f64->val1 == 0LL && f64->val2 == 0LL) {
 		memset(b64, 0, len);
 		return 0;
 	}
 
 	/* sign handled later */
-	v = llabs(val1);
+	v = abs(f64->val1);
 
 	/* add whole value to fraction */
 	while (v > 0) {
@@ -134,18 +123,18 @@ int lwm2m_float_to_b64(double *in, uint8_t *b64, size_t len)
 	}
 
 	/* sign handled later */
-	v = llabs(val2);
+	v = abs(f64->val2);
 
 	/* add decimal to fraction */
 	i = e;
 	while (v > 0 && i < 52) {
 		v *= 2;
-		if (!f && e < 0 && v < PRECISION64) {
+		if (!f && e < 0 && v < LWM2M_FLOAT64_DEC_MAX) {
 			/* handle -e */
 			e--;
 			continue;
-		} else if (v >= PRECISION64) {
-			v -= PRECISION64;
+		} else if (v >= LWM2M_FLOAT64_DEC_MAX) {
+			v -= LWM2M_FLOAT64_DEC_MAX;
 			f |= (int64_t)1 << (51 - i);
 		}
 
@@ -162,10 +151,10 @@ int lwm2m_float_to_b64(double *in, uint8_t *b64, size_t len)
 	memset(b64, 0, len);
 
 	/* sign: bit 63 */
-	if (val1 == 0) {
-		b64[0] = val2 < 0 ? 0x80 : 0;
+	if (f64->val1 == 0) {
+		b64[0] = f64->val2 < 0 ? 0x80 : 0;
 	} else {
-		b64[0] = val1 < 0 ? 0x80 : 0;
+		b64[0] = f64->val1 < 0 ? 0x80 : 0;
 	}
 
 	/* exponent: bits 62-52 */
@@ -185,19 +174,18 @@ int lwm2m_float_to_b64(double *in, uint8_t *b64, size_t len)
 	return 0;
 }
 
-/* convert from binary32 to float */
-int lwm2m_b32_to_float(uint8_t *b32, size_t len, double *out)
+/* convert from binary32 to float32 */
+int lwm2m_b32_to_f32(uint8_t *b32, size_t len, float32_value_t *f32)
 {
 	int32_t f, k, i, e;
 	bool sign = false;
-	int32_t val1, val2;
 
 	if (len != 4) {
 		return -EINVAL;
 	}
 
-	val1 = 0;
-	val2 = 0;
+	f32->val1 = 0;
+	f32->val2 = 0;
 
 	/* calc sign: bit 31 */
 	sign = SHIFT_RIGHT(b32[0], 7, 0x1);
@@ -208,8 +196,8 @@ int lwm2m_b32_to_float(uint8_t *b32, size_t len, double *out)
 	/* remove bias */
 	e -= 127;
 
-	/* enable "hidden" fraction bit 24 which is always 1 */
-	f  = ((int32_t)1 << 23);
+	/* enable "hidden" fraction bit 23 which is always 1 */
+	f  = ((int32_t)1 << 22);
 	/* calc fraction: bits 22-0 */
 	f += ((int32_t)(b32[1] & 0x7F) << 16);
 	f += ((int32_t)b32[2] << 8);
@@ -222,11 +210,11 @@ int lwm2m_b32_to_float(uint8_t *b32, size_t len, double *out)
 			e = 23;
 		}
 
-		val1 = (f >> (23 - e)) * (sign ? -1 : 1);
+		f32->val1 = (f >> (23 - e)) * (sign ? -1 : 1);
 	}
 
 	/* calculate the rest of the decimal */
-	k = PRECISION32;
+	k = LWM2M_FLOAT32_DEC_MAX;
 
 	/* account for -e */
 	while (e < -1) {
@@ -237,34 +225,27 @@ int lwm2m_b32_to_float(uint8_t *b32, size_t len, double *out)
 	for (i = 22 - e; i >= 0; i--) {
 		k /= 2;
 		if (f & (1 << i)) {
-			val2 += k;
+			f32->val2 += k;
 
 		}
-	}
-
-	if (sign) {
-		*out = (double)val1 - (double)val2 / PRECISION32;
-	} else {
-		*out = (double)val1 + (double)val2 / PRECISION32;
 	}
 
 	return 0;
 }
 
-/* convert from binary64 to float */
-int lwm2m_b64_to_float(uint8_t *b64, size_t len, double *out)
+/* convert from binary64 to float64 */
+int lwm2m_b64_to_f64(uint8_t *b64, size_t len, float64_value_t *f64)
 {
 	int64_t f, k;
 	int i, e;
 	bool sign = false;
-	int64_t val1, val2;
 
 	if (len != 8) {
 		return -EINVAL;
 	}
 
-	val1 = 0LL;
-	val2 = 0LL;
+	f64->val1 = 0LL;
+	f64->val2 = 0LL;
 
 	/* calc sign: bit 63 */
 	sign = SHIFT_RIGHT(b64[0], 7, 0x1);
@@ -293,11 +274,11 @@ int lwm2m_b64_to_float(uint8_t *b64, size_t len, double *out)
 			e = 52;
 		}
 
-		val1 = (f >> (52 - e)) * (sign ? -1 : 1);
+		f64->val1 = (f >> (52 - e)) * (sign ? -1 : 1);
 	}
 
 	/* calculate the rest of the decimal */
-	k = PRECISION64;
+	k = LWM2M_FLOAT64_DEC_MAX;
 
 	/* account for -e */
 	while (e < -1) {
@@ -308,114 +289,10 @@ int lwm2m_b64_to_float(uint8_t *b64, size_t len, double *out)
 	for (i = 51 - e; i >= 0; i--) {
 		k /= 2;
 		if (f & ((int64_t)1 << i)) {
-			val2 += k;
+			f64->val2 += k;
 
 		}
-	}
-
-	if (sign) {
-		*out = (double)val1 - (double)val2 / PRECISION64;
-	} else {
-		*out = (double)val1 + (double)val2 / PRECISION64;
 	}
 
 	return 0;
-}
-
-int lwm2m_atof(const char *input, double *out)
-{
-	char *pos, *end, buf[24];
-	long val;
-	int64_t base = PRECISION64, sign = 1;
-	int64_t val1, val2;
-
-	if (!input || !out) {
-		return -EINVAL;
-	}
-
-	strncpy(buf, input, sizeof(buf) - 1);
-	buf[sizeof(buf) - 1] = '\0';
-
-	if (strchr(buf, '-')) {
-		sign = -1;
-	}
-
-	pos = strchr(buf, '.');
-	if (pos) {
-		*pos = '\0';
-	}
-
-	errno = 0;
-	val = strtol(buf, &end, 10);
-	if (errno || *end) {
-		return -EINVAL;
-	}
-
-	val1 = (int64_t)val;
-	val2 = 0;
-
-	if (!pos) {
-		return 0;
-	}
-
-	while (*(++pos) && base > 1 && isdigit((unsigned char)*pos)) {
-		val2 = val2 * 10 + (*pos - '0');
-		base /= 10;
-	}
-
-	val2 *= sign * base;
-
-	*out = (double)val1 + (double)val2 / PRECISION64;
-
-	return !*pos || base == 1 ? 0 : -EINVAL;
-}
-
-int lwm2m_ftoa(double *input, char *out, size_t outlen, int8_t dec_limit)
-{
-	size_t len;
-	char buf[PRECISION64_LEN + 1];
-	int64_t val1 = (int64_t)*input;
-	int64_t val2 = (*input - (int64_t)*input) * PRECISION64;
-
-	len = snprintk(buf, sizeof(buf), "%0*lld", PRECISION64_LEN, llabs(val2));
-	if (len != PRECISION64_LEN) {
-		strcpy(buf, "0");
-	} else {
-		/* Round the value to the specified decimal point. */
-		if (dec_limit > 0 && dec_limit < sizeof(buf) &&
-		    buf[dec_limit] != '\0') {
-			bool round_up = buf[dec_limit] >= '5';
-
-			buf[dec_limit] = '\0';
-			len = dec_limit;
-
-			while (round_up && dec_limit > 0) {
-				dec_limit--;
-				buf[dec_limit]++;
-
-				if (buf[dec_limit] > '9') {
-					buf[dec_limit] = '0';
-				} else {
-					round_up = false;
-				}
-			}
-
-			if (round_up) {
-				if (*input < 0) {
-					val1--;
-				} else {
-					val1++;
-				}
-			}
-		}
-
-		/* clear ending zeroes, but leave 1 if needed */
-		while (len > 1U && buf[len - 1] == '0') {
-			buf[--len] = '\0';
-		}
-	}
-
-	return snprintk(out, outlen, "%s%lld.%s",
-			/* handle negative val2 when val1 is 0 */
-			(val1 == 0 && val2 < 0) ? "-" : "", val1, buf);
 }

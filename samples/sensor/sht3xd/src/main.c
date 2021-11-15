@@ -16,7 +16,7 @@
 static volatile bool alerted;
 
 static void trigger_handler(const struct device *dev,
-			    const struct sensor_trigger *trig)
+			    struct sensor_trigger *trig)
 {
 	alerted = !alerted;
 }

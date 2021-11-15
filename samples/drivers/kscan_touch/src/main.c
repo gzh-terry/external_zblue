@@ -15,9 +15,9 @@
 
 LOG_MODULE_REGISTER(main);
 
-#define TOUCH_CONTROLLER_NODE DT_ALIAS(kscan0)
+const struct device *kscan_dev;
 
-const struct device *kscan_dev = DEVICE_DT_GET(TOUCH_CONTROLLER_NODE);
+#define TOUCH_CONTROLLER_LABEL DT_LABEL(DT_ALIAS(kscan0))
 
 static void k_callback(const struct device *dev, uint32_t row, uint32_t col,
 		       bool pressed)
@@ -32,8 +32,9 @@ void main(void)
 {
 	printk("Kscan touch panel sample application\n");
 
-	if (!device_is_ready(kscan_dev)) {
-		LOG_ERR("kscan device %s not ready", kscan_dev->name);
+	kscan_dev = device_get_binding(TOUCH_CONTROLLER_LABEL);
+	if (!kscan_dev) {
+		LOG_ERR("kscan device %s not found", TOUCH_CONTROLLER_LABEL);
 		return;
 	}
 

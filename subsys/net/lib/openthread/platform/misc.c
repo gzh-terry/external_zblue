@@ -30,8 +30,3 @@ void otPlatWakeHost(void)
 {
 	/* TODO */
 }
-
-void otPlatAssertFail(const char *aFilename, int aLineNumber)
-{
-	__ASSERT(false, "OpenThread ASSERT @ %s:%d", aFilename, aLineNumber);
-}

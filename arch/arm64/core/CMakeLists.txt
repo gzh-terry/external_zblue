@@ -2,6 +2,11 @@
 
 zephyr_library()
 
+if (CONFIG_COVERAGE)
+  zephyr_compile_options($<TARGET_PROPERTY:compiler,coverage>)
+  zephyr_link_libraries($<TARGET_PROPERTY:linker,coverage>)
+endif ()
+
 zephyr_library_sources(
   cpu_idle.S
   fatal.c
@@ -17,7 +22,6 @@ zephyr_library_sources(
 
 zephyr_library_sources_ifdef(CONFIG_FPU_SHARING fpu.c fpu.S)
 zephyr_library_sources_ifdef(CONFIG_ARM_MMU mmu.c mmu.S)
-zephyr_library_sources_ifdef(CONFIG_ARM_MPU cortex_r/arm_mpu.c)
 zephyr_library_sources_ifdef(CONFIG_USERSPACE userspace.S)
 zephyr_library_sources_ifdef(CONFIG_GEN_SW_ISR_TABLE isr_wrapper.S)
 zephyr_library_sources_ifdef(CONFIG_IRQ_OFFLOAD irq_offload.c)
@@ -29,6 +33,6 @@ if ((CONFIG_MP_NUM_CPUS GREATER 1) OR (CONFIG_SMP))
   zephyr_library_sources(smp.c)
 endif ()
 
-zephyr_cc_option_ifdef(CONFIG_USERSPACE -mno-outline-atomics)
+add_subdirectory_ifdef(CONFIG_ARM_MPU cortex_r/mpu)
 
-add_subdirectory_ifdef(CONFIG_SOC_XENVM xen)
+zephyr_cc_option_ifdef(CONFIG_USERSPACE -mno-outline-atomics)

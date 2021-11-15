@@ -37,8 +37,8 @@ LOG_MODULE_REGISTER(net_ctx, CONFIG_NET_CONTEXT_LOG_LEVEL);
 #include "tcp_internal.h"
 #include "net_stats.h"
 
-#if IS_ENABLED(CONFIG_NET_TCP)
-#include "tcp.h"
+#if IS_ENABLED(CONFIG_NET_TCP2)
+#include "tcp2.h"
 #endif
 
 #ifndef EPFNOSUPPORT
@@ -80,10 +80,6 @@ static int check_used_port(enum net_ip_protocol ip_proto,
 
 		if (IS_ENABLED(CONFIG_NET_IPV6) &&
 		    local_addr->sa_family == AF_INET6) {
-			if (net_sin6_ptr(&contexts[i].local)->sin6_addr == NULL) {
-				continue;
-			}
-
 			if (net_ipv6_addr_cmp(
 				    net_sin6_ptr(&contexts[i].local)->
 							     sin6_addr,
@@ -93,10 +89,6 @@ static int check_used_port(enum net_ip_protocol ip_proto,
 			}
 		} else if (IS_ENABLED(CONFIG_NET_IPV4) &&
 			   local_addr->sa_family == AF_INET) {
-			if (net_sin_ptr(&contexts[i].local)->sin_addr == NULL) {
-				continue;
-			}
-
 			if (net_ipv4_addr_cmp(
 				    net_sin_ptr(&contexts[i].local)->
 							      sin_addr,
@@ -411,11 +403,11 @@ int net_context_put(struct net_context *context)
 	context->recv_cb = NULL;
 	context->send_cb = NULL;
 
-	/* net_tcp_put() will handle decrementing refcount on stack's behalf */
-	net_tcp_put(context);
-
 	/* Decrement refcount on user app's behalf */
 	net_context_unref(context);
+
+	/* net_tcp_put() will handle decrementing refcount on stack's behalf */
+	net_tcp_put(context);
 
 unlock:
 	k_mutex_unlock(&context->lock);
@@ -1257,16 +1249,9 @@ static int context_write_data(struct net_pkt *pkt, const void *buf,
 		int i;
 
 		for (i = 0; i < msghdr->msg_iovlen; i++) {
-			int len = MIN(msghdr->msg_iov[i].iov_len, buf_len);
-
 			ret = net_pkt_write(pkt, msghdr->msg_iov[i].iov_base,
-					    len);
+					    msghdr->msg_iov[i].iov_len);
 			if (ret < 0) {
-				break;
-			}
-
-			buf_len -= len;
-			if (buf_len == 0) {
 				break;
 			}
 		}

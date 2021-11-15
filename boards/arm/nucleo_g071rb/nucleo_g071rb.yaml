@@ -22,4 +22,3 @@ supported:
   - adc
   - dac
   - dma
-  - lptim

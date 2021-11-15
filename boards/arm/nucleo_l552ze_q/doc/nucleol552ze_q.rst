@@ -132,53 +132,35 @@ More information about STM32L552ZE can be found here:
 Supported Features
 ==================
 
-The Zephyr nucleo_l552ze_q board configuration supports the following
-hardware features:
+The Zephyr nucleo_l552ze_q board configuration supports the following hardware features:
 
 +-----------+------------+-------------------------------------+
 | Interface | Controller | Driver/Component                    |
 +===========+============+=====================================+
-| ADC       | on-chip    | ADC Controller                      |
+| NVIC      | on-chip    | nested vector interrupt controller  |
 +-----------+------------+-------------------------------------+
-| CLOCK     | on-chip    | reset and clock control             |
+| UART      | on-chip    | serial port-polling;                |
+|           |            | serial port-interrupt               |
 +-----------+------------+-------------------------------------+
-| DAC       | on-chip    | DAC Controller                      |
-+-----------+------------+-------------------------------------+
-| DMA       | on-chip    | Direct Memory Access                |
+| PINMUX    | on-chip    | pinmux                              |
 +-----------+------------+-------------------------------------+
 | GPIO      | on-chip    | gpio                                |
 +-----------+------------+-------------------------------------+
 | I2C       | on-chip    | i2c                                 |
 +-----------+------------+-------------------------------------+
-| NVIC      | on-chip    | nested vector interrupt controller  |
-+-----------+------------+-------------------------------------+
-| PINMUX    | on-chip    | pinmux                              |
-+-----------+------------+-------------------------------------+
-| RNG       | on-chip    | entropy                             |
+| PWM       | on-chip    | pwm                                 |
 +-----------+------------+-------------------------------------+
 | SPI       | on-chip    | spi                                 |
 +-----------+------------+-------------------------------------+
 | TrustZone | on-chip    | Trusted Firmware-M                  |
 +-----------+------------+-------------------------------------+
-| UART      | on-chip    | serial port-polling;                |
-|           |            | serial port-interrupt               |
+| RNG       | on-chip    | True Random Number Generator        |
 +-----------+------------+-------------------------------------+
 
-The default configuration can be found in the defconfig and dts files:
+Other hardware features are not yet supported on this Zephyr port.
 
-- Common:
-
-  - :zephyr_file:`boards/arm/nucleo_l552ze_q/nucleo_l552ze_q-common.dtsi`
-
-- Secure target:
-
-  - :zephyr_file:`boards/arm/nucleo_l552ze_q/nucleo_l552ze_q_defconfig`
-  - :zephyr_file:`boards/arm/nucleo_l552ze_q/nucleo_l552ze_q.dts`
-
-- Non-Secure target:
-
-  - :zephyr_file:`boards/arm/nucleo_l552ze_q/nucleo_l552ze_q_ns_defconfig`
-  - :zephyr_file:`boards/arm/nucleo_l552ze_q/nucleo_l552ze_q_ns.dts`
+The default configuration can be found in the defconfig file:
+``boards/arm/nucleo_l552ze_q/nucleo_l552ze_q_defconfig``
 
 
 Connections and IOs
@@ -209,12 +191,12 @@ Default Zephyr Peripheral Mapping:
 - UART_1_RX : PA10
 - UART_2_TX : PA2
 - UART_2_RX : PA3
-- UART_3_TX : PD8
-- UART_3_RX : PD9
+- UART_3_TX : PB10
+- UART_3_RX : PB11
 - I2C_1_SCL : PB6
 - I2C_1_SDA : PB7
 - SPI_1_NSS : PA4
-- SPI_1_SCK : PA5
+- SPI_1_SCK : PB3
 - SPI_1_MISO : PA6
 - SPI_1_MOSI : PA7
 - SPI_2_NSS : PB12
@@ -228,8 +210,6 @@ Default Zephyr Peripheral Mapping:
 - PWM_2_CH1 : PA0
 - USER_PB : PC13
 - LD2 : PA5
-- DAC1 : PA4
-- ADC1 : PC0
 
 System Clock
 ------------
@@ -255,17 +235,19 @@ flashed in the usual way (see :ref:`build_an_application` and
 Flashing
 ========
 
-Nucleo L552ZE Q board includes an ST-LINK/V2-1 embedded debug tool
-interface. Support can be enabled on pyocd by adding "pack" support with the
-following pyocd command:
+Nucleo L552ZE Q board includes an ST-LINK/V3E embedded debug tool
+interface. This interface is not yet supported by the openocd version.
+Instead, support can be enabled on pyocd by adding "pack" support with
+the following pyocd command:
 
 .. code-block:: console
 
    $ pyocd pack --update
    $ pyocd pack --install stm32l552ze
 
-Alternatively, this interface is supported by the openocd version
-included in the Zephyr SDK since v0.13.1.
+Nucleo L552ZE Q board includes an ST-LINK/V2-1 embedded debug tool
+interface.  This interface is supported by the openocd version
+included in the Zephyr SDK since v0.9.2.
 
 Flashing an application to Nucleo L552ZE Q
 ------------------------------------------

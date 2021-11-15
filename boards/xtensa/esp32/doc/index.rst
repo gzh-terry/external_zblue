@@ -6,6 +6,7 @@ ESP32
 Overview
 ********
 
+
 ESP32 is a series of low cost, low power system on a chip microcontrollers
 with integrated Wi-Fi & dual-mode Bluetooth.  The ESP32 series employs a
 Tensilica Xtensa LX6 microprocessor in both dual-core and single-core
@@ -82,19 +83,22 @@ On Linux and macOS:
 .. code-block:: console
 
    export ZEPHYR_TOOLCHAIN_VARIANT="espressif"
-   export ESPRESSIF_TOOLCHAIN_PATH="${HOME}/.espressif/tools/zephyr"
+   export ESPRESSIF_TOOLCHAIN_PATH="${HOME}/.espressif/tools/xtensa-esp32-elf/esp-2020r3-8.4.0/xtensa-esp32-elf"
+   export PATH=$PATH:$ESPRESSIF_TOOLCHAIN_PATH/bin
 
 On Windows:
 
 .. code-block:: console
 
   # on CMD:
-  set ESPRESSIF_TOOLCHAIN_PATH=%USERPROFILE%\.espressif\tools\zephyr
+  set ESPRESSIF_TOOLCHAIN_PATH=%USERPROFILE%\.espressif\tools\xtensa-esp32-elf\esp-2020r3-8.4.0\xtensa-esp32-elf
   set ZEPHYR_TOOLCHAIN_VARIANT=espressif
+  set PATH=%PATH%;%ESPRESSIF_TOOLCHAIN_PATH%\bin
 
   # on PowerShell
-  $env:ESPRESSIF_TOOLCHAIN_PATH="$env:USERPROFILE\.espressif\tools\zephyr"
+  $env:ESPRESSIF_TOOLCHAIN_PATH="$env:USERPROFILE\.espressif\tools\xtensa-esp32-elf\esp-2020r3-8.4.0\xtensa-esp32-elf"
   $env:ZEPHYR_TOOLCHAIN_VARIANT="espressif"
+  $env:Path += "$env:ESPRESSIF_TOOLCHAIN_PATH\bin"
 
 Finally, retrieve required submodules to build this port. This might take a while for the first time:
 
@@ -139,9 +143,7 @@ specific options for the ESP32 board, as listed here:
   --esp-idf-path ESP_IDF_PATH
                         path to ESP-IDF
   --esp-device ESP_DEVICE
-                        serial port to flash, default $ESPTOOL_PORT if defined.
-                        If not, esptool will loop over available serial ports until
-                        it finds ESP32 device to flash.
+                        serial port to flash, default /dev/ttyUSB0
   --esp-baud-rate ESP_BAUD_RATE
                         serial baud rate, default 921600
   --esp-flash-size ESP_FLASH_SIZE

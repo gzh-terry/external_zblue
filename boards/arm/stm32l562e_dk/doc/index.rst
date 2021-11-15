@@ -148,63 +148,33 @@ More information about STM32L562QE can be found here:
 Supported Features
 ==================
 
-The Zephyr stm32l562e_dk board configuration supports the following
-hardware features:
+The Zephyr stm32l562e_dk board configuration supports the following hardware features:
 
 +-----------+------------+-------------------------------------+
 | Interface | Controller | Driver/Component                    |
 +===========+============+=====================================+
-| ADC       | on-chip    | ADC Controller                      |
+| NVIC      | on-chip    | nested vector interrupt controller  |
 +-----------+------------+-------------------------------------+
-| AES       | on-chip    | crypto                              |
+| UART      | on-chip    | serial port-polling;                |
+|           |            | serial port-interrupt               |
 +-----------+------------+-------------------------------------+
-| CLOCK     | on-chip    | reset and clock control             |
-+-----------+------------+-------------------------------------+
-| DAC       | on-chip    | DAC Controller                      |
-+-----------+------------+-------------------------------------+
-| DMA       | on-chip    | Direct Memory Access                |
+| PINMUX    | on-chip    | pinmux                              |
 +-----------+------------+-------------------------------------+
 | GPIO      | on-chip    | gpio                                |
 +-----------+------------+-------------------------------------+
 | I2C       | on-chip    | i2c                                 |
 +-----------+------------+-------------------------------------+
-| NVIC      | on-chip    | nested vector interrupt controller  |
-+-----------+------------+-------------------------------------+
-| PINMUX    | on-chip    | pinmux                              |
-+-----------+------------+-------------------------------------+
-| PWM       | on-chip    | PWM                                 |
-+-----------+------------+-------------------------------------+
-| RNG       | on-chip    | entropy                             |
-+-----------+------------+-------------------------------------+
 | SPI       | on-chip    | spi                                 |
 +-----------+------------+-------------------------------------+
 | TrustZone | on-chip    | Trusted Firmware-M                  |
 +-----------+------------+-------------------------------------+
-| UART      | on-chip    | serial port-polling;                |
-|           |            | serial port-interrupt               |
-+-----------+------------+-------------------------------------+
-| WATCHDOG  | on-chip    | independent watchdog                |
-+-----------+------------+-------------------------------------+
-| USB       | on-chip    | usb                                 |
+| RNG       | on-chip    | True Random Number Generator        |
 +-----------+------------+-------------------------------------+
 
 Other hardware features are not yet supported on this Zephyr port.
 
-The default configuration can be found in the defconfig and dts files:
-
-- Common:
-
-  - :zephyr_file:`boards/arm/stm32l562e_dk/stm32l562e_dk_common.dtsi`
-
-- Secure target:
-
-  - :zephyr_file:`boards/arm/stm32l562e_dk/stm32l562e_dk_defconfig`
-  - :zephyr_file:`boards/arm/stm32l562e_dk/stm32l562e_dk.dts`
-
-- Non-Secure target:
-
-  - :zephyr_file:`boards/arm/stm32l562e_dk/stm32l562e_dk_ns_defconfig`
-  - :zephyr_file:`boards/arm/stm32l562e_dk/stm32l562e_dk_ns.dts`
+The default configuration can be found in the defconfig file:
+``boards/arm/stm32l562e_dk/stm32l562e_dk_defconfig``
 
 
 Connections and IOs
@@ -219,15 +189,10 @@ Default Zephyr Peripheral Mapping:
 ----------------------------------
 
 - USART_1 TX/RX : PA9/PA10
-- USART_3 TX/RX : PC10/PC11
 - I2C_1 SCL/SDA : PB6/PB7
 - SPI_1 SCK/MISO/MOSI : PG2/PG3/PG4 (BT SPI bus)
-- SPI_3 NSS/SCK/MISO/MOSI : PE0/PG9/PB4/PB5 (Arduino SPI)
 - USER_PB : PC13
 - LD10 : PG12
-- PWM_2_CH1 : PA0
-- DAC1 : PA4
-- ADC1 : PC4
 
 System Clock
 ------------
@@ -254,16 +219,18 @@ Flashing
 ========
 
 STM32L562E-DK Discovery board includes an ST-LINK/V3E embedded debug tool
-interface. Support can be enabled on pyocd by adding "pack" support with the
-following pyocd command:
+interface. This interface is not yet supported by the openocd version.
+Instead, support can be enabled on pyocd by adding "pack" support with
+the following pyocd command:
 
 .. code-block:: console
 
    $ pyocd pack --update
    $ pyocd pack --install stm32l562qe
 
-Alternatively, this interface is supported by the openocd version
-included in the Zephyr SDK since v0.13.1.
+STM32L562E-DK Discovery board includes an ST-LINK/V2-1 embedded debug tool
+interface.  This interface is supported by the openocd version
+included in the Zephyr SDK since v0.9.2.
 
 Flashing an application to STM32L562E-DK Discovery
 --------------------------------------------------

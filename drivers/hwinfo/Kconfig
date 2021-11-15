@@ -10,9 +10,8 @@ menuconfig HWINFO
 
 if HWINFO
 
-module = HWINFO
-module-str = HWINFO
-source "subsys/logging/Kconfig.template.log_config"
+config HWINFO_HAS_DRIVER
+	bool
 
 config HWINFO_SHELL
 	bool "Enable HWINFO Shell"
@@ -25,6 +24,7 @@ config HWINFO_STM32
 	bool "STM32 hwinfo"
 	default y
 	depends on SOC_FAMILY_STM32
+	select HWINFO_HAS_DRIVER
 	help
 	  Enable STM32 hwinfo driver.
 
@@ -32,41 +32,23 @@ config HWINFO_NRF
 	bool "NRF device ID"
 	default y
 	depends on SOC_FAMILY_NRF && !TRUSTED_EXECUTION_NONSECURE
+	select HWINFO_HAS_DRIVER
 	help
 	  Enable Nordic NRF hwinfo driver.
 
-config HWINFO_MCUX_RCM
-	bool "NXP kinetis reset cause"
-	default y
-	depends on HAS_MCUX_RCM
-	help
-	  Enable NXP kinetis mcux RCM hwinfo driver.
-
 config HWINFO_MCUX_SIM
-	bool "NXP kinetis SIM device ID"
+	bool "NXP kinetis device ID"
 	default y
 	depends on HAS_MCUX_SIM
+	select HWINFO_HAS_DRIVER
 	help
-	  Enable NXP kinetis mcux SIM hwinfo driver.
-
-config HWINFO_MCUX_SRC
-	bool "NXP SRC reset cause"
-	default y
-	depends on HAS_MCUX_SRC
-	help
-	  Enable NXP i.MX mcux SRC hwinfo driver.
-
-config HWINFO_MCUX_SYSCON
-	bool "NXP LPC device ID"
-	default y
-	depends on HAS_MCUX_SYSCON && !SOC_SERIES_LPC54XXX
-	help
-	  Enable NXP LPC mcux hwinfo driver.
+	  Enable NXP kinetis mcux hwinfo driver.
 
 config HWINFO_IMXRT
 	bool "NXP i.mx RT device ID"
 	default y
 	depends on SOC_SERIES_IMX_RT
+	select HWINFO_HAS_DRIVER
 	help
 	  Enable NXP i.mx RT hwinfo driver.
 
@@ -74,6 +56,7 @@ config HWINFO_SAM
 	bool "Atmel SAM device ID"
 	default y
 	depends on SOC_FAMILY_SAM && !SOC_SERIES_SAM4L
+	select HWINFO_HAS_DRIVER
 	help
 	  Enable Atmel SAM hwinfo driver.
 
@@ -81,6 +64,7 @@ config HWINFO_SAM4L
 	bool "Atmel SAM4L device ID"
 	default y
 	depends on SOC_SERIES_SAM4L
+	select HWINFO_HAS_DRIVER
 	help
 	  Enable Atmel SAM4L hwinfo driver.
 
@@ -88,6 +72,7 @@ config HWINFO_SAM0
 	bool "Atmel SAM0 device ID"
 	default y
 	depends on SOC_FAMILY_SAM0
+	select HWINFO_HAS_DRIVER
 	help
 	  Enable Atmel SAM0 hwinfo driver.
 
@@ -95,6 +80,7 @@ config HWINFO_ESP32
 	bool "ESP32 device ID"
 	default y
 	depends on SOC_ESP32
+	select HWINFO_HAS_DRIVER
 	help
 	  Enable ESP32 hwinfo driver.
 
@@ -102,6 +88,7 @@ config HWINFO_LITEX
 	bool "LiteX device ID"
 	default y
 	depends on SOC_RISCV32_LITEX_VEXRISCV
+	select HWINFO_HAS_DRIVER
 	help
 	  Enable LiteX hwinfo driver
 
@@ -109,14 +96,15 @@ config HWINFO_PSOC6
 	bool "Cypress PSoC-6 unique device ID"
 	default y
 	depends on SOC_FAMILY_PSOC6
+	select HWINFO_HAS_DRIVER
 	help
 	  Enable Cypress PSoC-6 hwinfo driver.
 
 config HWINFO_GECKO
 	bool "GECKO hwinfo"
 	default y
-	depends on SOC_FAMILY_EXX32 && !SOC_SERIES_EFR32MG21
-	select SOC_GECKO_RMU
+	depends on SOC_FAMILY_EXX32
+	select HWINFO_HAS_DRIVER
 	help
 	  Enable Silabs GECKO hwinfo driver.
 

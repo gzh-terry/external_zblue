@@ -7,20 +7,17 @@
 #include <stdint.h>
 
 #include <bt_common.h>
-#include <ztest.h>
 #include "common.h"
-
-struct bt_test_state test_state;
+#include "test_set_cl_cte_tx_params.h"
+#include "test_set_cl_cte_tx_enable.h"
 
 /*test case main entry*/
 void test_main(void)
 {
 	ut_bt_setup();
-	test_state.is_setup = true;
 
 	common_create_adv_set();
-	ztest_run_registered_test_suites(&test_state);
-
+	run_set_cl_cte_tx_params_tests();
 	common_delete_adv_set();
-	ztest_run_registered_test_suites(&test_state);
+	run_set_cl_cte_tx_enable_tests();
 }

@@ -1,7 +1,7 @@
 .. _emulators:
 
-Peripheral and Hardware Emulators
-#################################
+Emulators
+#########
 
 Overview
 ========

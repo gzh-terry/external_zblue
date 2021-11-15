@@ -130,11 +130,6 @@ typedef void (*bt_ready_cb_t)(int err);
  * Enable Bluetooth. Must be the called before any calls that
  * require communication with the local Bluetooth hardware.
  *
- * When @kconfig{CONFIG_BT_SETTINGS} has been enabled and the application is not
- * managing identities of the stack itself then the application must call
- * @ref settings_load() before the stack is fully enabled.
- * See @ref bt_id_create() for more information.
- *
  * @param cb Callback to notify completion or NULL to perform the
  * enabling synchronously.
  *
@@ -165,6 +160,24 @@ int bt_set_name(const char *name);
  * @return Bluetooth Device Name
  */
 const char *bt_get_name(void);
+
+/**
+ * @brief Set the local Identity Address
+ *
+ * Allows setting the local Identity Address from the application.
+ * This API must be called before calling bt_enable(). Calling it at any
+ * other time will cause it to fail. In most cases the application doesn't
+ * need to use this API, however there are a few valid cases where
+ * it can be useful (such as for testing).
+ *
+ * At the moment, the given address must be a static random address. In the
+ * future support for public addresses may be added.
+ *
+ * @deprecated in 2.5 release, replace with bt_id_create before bt_enable.
+ *
+ * @return Zero on success or (negative) error code otherwise.
+ */
+__deprecated int bt_set_id_addr(const bt_addr_le_t *addr);
 
 /**
  * @brief Get the currently configured identities.
@@ -223,7 +236,7 @@ void bt_id_get(bt_addr_le_t *addrs, size_t *count);
  *             generate a random IRK for the identity and copy it back
  *             to the parameter upon return from this function (in case
  *             the parameter was non-NULL). If privacy
- *             @kconfig{CONFIG_BT_PRIVACY} is not enabled this parameter must
+ *             @option{CONFIG_BT_PRIVACY} is not enabled this parameter must
  *             be NULL.
  *
  * @return Identity identifier (>= 0) in case of success, or a negative
@@ -257,7 +270,7 @@ int bt_id_create(bt_addr_le_t *addr, uint8_t *irk);
  *             generate a random IRK for the identity and copy it back
  *             to the parameter upon return from this function (in case
  *             the parameter was non-NULL). If privacy
- *             @kconfig{CONFIG_BT_PRIVACY} is not enabled this parameter must
+ *             @option{CONFIG_BT_PRIVACY} is not enabled this parameter must
  *             be NULL.
  *
  * @return Identity identifier (>= 0) in case of success, or a negative
@@ -337,7 +350,7 @@ enum {
 	 * Advertise as connectable. If not connectable then the type of
 	 * advertising is determined by providing scan response data.
 	 * The advertiser address is determined by the type of advertising
-	 * and/or enabling privacy @kconfig{CONFIG_BT_PRIVACY}.
+	 * and/or enabling privacy @option{CONFIG_BT_PRIVACY}.
 	 */
 	BT_LE_ADV_OPT_CONNECTABLE = BIT(0),
 
@@ -347,7 +360,7 @@ enum {
 	 * Don't try to resume connectable advertising after a connection.
 	 * This option is only meaningful when used together with
 	 * BT_LE_ADV_OPT_CONNECTABLE. If set the advertising will be stopped
-	 * when bt_le_adv_stop() is called or when an incoming (peripheral)
+	 * when bt_le_adv_stop() is called or when an incoming (slave)
 	 * connection happens. If this option is not set the stack will
 	 * take care of keeping advertising enabled even as connections
 	 * occur.
@@ -386,7 +399,7 @@ enum {
 	 *  The application can set the device name itself by including the
 	 *  following in the advertising data.
 	 *  @code
-	 *  BT_DATA(BT_DATA_NAME_COMPLETE, name, sizeof(name) - 1)
+	 *  BT_DATA(BT_DATA_NAME_COMPLETE, name, strlen(name))
 	 *  @endcode
 	 */
 	BT_LE_ADV_OPT_USE_NAME = BIT(3),
@@ -413,12 +426,11 @@ enum {
 	 */
 	BT_LE_ADV_OPT_DIR_ADDR_RPA = BIT(5),
 
-	/** Use filter accept list to filter devices that can request scan
-	 *  response data.
+	/** Use whitelist to filter devices that can request scan response data.
 	 */
 	BT_LE_ADV_OPT_FILTER_SCAN_REQ = BIT(6),
 
-	/** Use filter accept list to filter devices that can connect. */
+	/** Use whitelist to filter devices that can connect. */
 	BT_LE_ADV_OPT_FILTER_CONN = BIT(7),
 
 	/** Notify the application when a scan response data has been sent to an
@@ -524,7 +536,7 @@ struct bt_le_adv_param {
 	/**
 	 * @brief Local identity.
 	 *
-	 * @note When extended advertising @kconfig{CONFIG_BT_EXT_ADV} is not
+	 * @note When extended advertising @option{CONFIG_BT_EXT_ADV} is not
 	 *       enabled or not supported by the controller it is not possible
 	 *       to scan and advertise simultaneously using two different
 	 *       random addresses.
@@ -705,14 +717,6 @@ struct bt_le_per_adv_param {
 						BT_GAP_ADV_FAST_INT_MAX_2, \
 						NULL)
 
-/** Scannable extended advertising with @ref BT_LE_ADV_OPT_USE_NAME */
-#define BT_LE_EXT_ADV_SCAN_NAME BT_LE_ADV_PARAM(BT_LE_ADV_OPT_EXT_ADV | \
-						BT_LE_ADV_OPT_SCANNABLE | \
-						BT_LE_ADV_OPT_USE_NAME, \
-						BT_GAP_ADV_FAST_INT_MIN_2, \
-						BT_GAP_ADV_FAST_INT_MAX_2, \
-						NULL)
-
 /** Non-connectable extended advertising with private address */
 #define BT_LE_EXT_ADV_NCONN BT_LE_ADV_PARAM(BT_LE_ADV_OPT_EXT_ADV, \
 					    BT_GAP_ADV_FAST_INT_MIN_2, \
@@ -808,8 +812,8 @@ struct bt_le_per_adv_param {
 		BT_LE_PER_ADV_PARAM_INIT(_int_min, _int_max, _options) \
 	})
 
-#define BT_LE_PER_ADV_DEFAULT BT_LE_PER_ADV_PARAM(BT_GAP_PER_ADV_SLOW_INT_MIN, \
-						  BT_GAP_PER_ADV_SLOW_INT_MAX, \
+#define BT_LE_PER_ADV_DEFAULT BT_LE_PER_ADV_PARAM(BT_GAP_ADV_SLOW_INT_MIN, \
+						  BT_GAP_ADV_SLOW_INT_MAX, \
 						  BT_LE_PER_ADV_OPT_NONE)
 
 /**
@@ -896,8 +900,8 @@ struct bt_le_ext_adv_start_param {
 	 * this parameters must be set to a non-zero value less than or equal
 	 * to the maximum of @ref BT_GAP_ADV_HIGH_DUTY_CYCLE_MAX_TIMEOUT.
 	 *
-	 * If privacy @kconfig{CONFIG_BT_PRIVACY} is enabled then the timeout
-	 * must be less than @kconfig{CONFIG_BT_RPA_TIMEOUT}.
+	 * If privacy @option{CONFIG_BT_PRIVACY} is enabled then the timeout
+	 * must be less than @option{CONFIG_BT_RPA_TIMEOUT}.
 	 */
 	uint16_t timeout;
 	/**
@@ -981,10 +985,6 @@ int bt_le_ext_adv_set_data(struct bt_le_ext_adv *adv,
  * Update the advertising parameters. The function will return an error if the
  * advertiser set is currently advertising. Stop the advertising set before
  * calling this function.
- *
- * @note When changing the option @ref BT_LE_ADV_OPT_USE_NAME then
- *       @ref bt_le_ext_adv_set_data needs to be called in order to update the
- *       advertising data and scan response data.
  *
  * @param adv   Advertising set object.
  * @param param Advertising parameters.
@@ -1276,20 +1276,17 @@ enum {
 	 */
 	BT_LE_PER_ADV_SYNC_OPT_REPORTING_INITIALLY_DISABLED = BIT(1),
 
-	/** Filter duplicate Periodic Advertising reports */
-	BT_LE_PER_ADV_SYNC_OPT_FILTER_DUPLICATE = BIT(2),
-
 	/** Sync with Angle of Arrival (AoA) constant tone extension */
-	BT_LE_PER_ADV_SYNC_OPT_DONT_SYNC_AOA = BIT(3),
+	BT_LE_PER_ADV_SYNC_OPT_DONT_SYNC_AOA = BIT(2),
 
 	/** Sync with Angle of Departure (AoD) 1 us constant tone extension */
-	BT_LE_PER_ADV_SYNC_OPT_DONT_SYNC_AOD_1US = BIT(4),
+	BT_LE_PER_ADV_SYNC_OPT_DONT_SYNC_AOD_1US = BIT(3),
 
 	/** Sync with Angle of Departure (AoD) 2 us constant tone extension */
-	BT_LE_PER_ADV_SYNC_OPT_DONT_SYNC_AOD_2US = BIT(5),
+	BT_LE_PER_ADV_SYNC_OPT_DONT_SYNC_AOD_2US = BIT(4),
 
 	/** Do not sync to packets without a constant tone extension */
-	BT_LE_PER_ADV_SYNC_OPT_SYNC_ONLY_CONST_TONE_EXT = BIT(6),
+	BT_LE_PER_ADV_SYNC_OPT_SYNC_ONLY_CONST_TONE_EXT = BIT(5),
 };
 
 struct bt_le_per_adv_sync_param {
@@ -1600,7 +1597,6 @@ int bt_le_per_adv_list_remove(const bt_addr_le_t *addr, uint8_t sid);
  */
 int bt_le_per_adv_list_clear(void);
 
-
 enum {
 	/** Convenience value when no options are specified. */
 	BT_LE_SCAN_OPT_NONE = 0,
@@ -1608,8 +1604,8 @@ enum {
 	/** Filter duplicates. */
 	BT_LE_SCAN_OPT_FILTER_DUPLICATE = BIT(0),
 
-	/** Filter using filter accept list. */
-	BT_LE_SCAN_OPT_FILTER_ACCEPT_LIST = BIT(1),
+	/** Filter using whitelist. */
+	BT_LE_SCAN_OPT_FILTER_WHITELIST = BIT(1),
 
 	/** Enable scan on coded PHY (Long Range).*/
 	BT_LE_SCAN_OPT_CODED = BIT(2),
@@ -1621,8 +1617,6 @@ enum {
 	 */
 	BT_LE_SCAN_OPT_NO_1M = BIT(3),
 };
-
-#define BT_LE_SCAN_OPT_FILTER_WHITELIST __DEPRECATED_MACRO BT_LE_SCAN_OPT_FILTER_ACCEPT_LIST
 
 enum {
 	/** Scan without requesting additional information from advertisers. */
@@ -1811,11 +1805,11 @@ struct bt_le_scan_cb {
  * the specified callback.
  *
  * @note The LE scanner by default does not use the Identity Address of the
- *       local device when @kconfig{CONFIG_BT_PRIVACY} is disabled. This is to
+ *       local device when @option{CONFIG_BT_PRIVACY} is disabled. This is to
  *       prevent the active scanner from disclosing the identity information
  *       when requesting additional information from advertisers.
  *       In order to enable directed advertiser reports then
- *       @kconfig{CONFIG_BT_SCAN_WITH_IDENTITY} must be enabled.
+ *       @option{CONFIG_BT_SCAN_WITH_IDENTITY} must be enabled.
  *
  * @param param Scan parameters.
  * @param cb Callback to notify scan results. May be NULL if callback
@@ -1859,65 +1853,50 @@ void bt_le_scan_cb_register(struct bt_le_scan_cb *cb);
 void bt_le_scan_cb_unregister(struct bt_le_scan_cb *cb);
 
 /**
- * @brief Add device (LE) to filter accept list.
+ * @brief Add device (LE) to whitelist.
  *
- * Add peer device LE address to the filter accept list.
+ * Add peer device LE address to the whitelist.
  *
- * @note The filter accept list cannot be modified when an LE role is using
- * the filter accept list, i.e advertiser or scanner using a filter accept list
- * or automatic connecting to devices using filter accept list.
- *
- * @param addr Bluetooth LE identity address.
- *
- * @return Zero on success or error code otherwise, positive in case of
- *         protocol error or negative (POSIX) in case of stack internal error.
- */
-int bt_le_filter_accept_list_add(const bt_addr_le_t *addr);
-__deprecated
-static inline int bt_le_whitelist_add(const bt_addr_le_t *addr)
-{
-	return bt_le_filter_accept_list_add(addr);
-}
-
-/**
- * @brief Remove device (LE) from filter accept list.
- *
- * Remove peer device LE address from the filter accept list.
- *
- * @note The filter accept list cannot be modified when an LE role is using
- * the filter accept list, i.e advertiser or scanner using a filter accept list
- * or automatic connecting to devices using filter accept list.
+ * @note The whitelist cannot be modified when an LE role is using
+ * the whitelist, i.e advertiser or scanner using a whitelist or automatic
+ * connecting to devices using whitelist.
  *
  * @param addr Bluetooth LE identity address.
  *
  * @return Zero on success or error code otherwise, positive in case of
  *         protocol error or negative (POSIX) in case of stack internal error.
  */
-int bt_le_filter_accept_list_remove(const bt_addr_le_t *addr);
-__deprecated
-static inline int bt_le_whitelist_rem(const bt_addr_le_t *addr)
-{
-	return bt_le_filter_accept_list_remove(addr);
-}
+int bt_le_whitelist_add(const bt_addr_le_t *addr);
 
 /**
- * @brief Clear filter accept list.
+ * @brief Remove device (LE) from whitelist.
  *
- * Clear all devices from the filter accept list.
+ * Remove peer device LE address from the whitelist.
  *
- * @note The filter accept list cannot be modified when an LE role is using
- * the filter accept list, i.e advertiser or scanner using a filter accept
- * list or automatic connecting to devices using filter accept list.
+ * @note The whitelist cannot be modified when an LE role is using
+ * the whitelist, i.e advertiser or scanner using a whitelist or automatic
+ * connecting to devices using whitelist.
+ *
+ * @param addr Bluetooth LE identity address.
  *
  * @return Zero on success or error code otherwise, positive in case of
  *         protocol error or negative (POSIX) in case of stack internal error.
  */
-int bt_le_filter_accept_list_clear(void);
-__deprecated
-static inline int bt_le_whitelist_clear(void)
-{
-	return bt_le_filter_accept_list_clear();
-}
+int bt_le_whitelist_rem(const bt_addr_le_t *addr);
+
+/**
+ * @brief Clear whitelist.
+ *
+ * Clear all devices from the whitelist.
+ *
+ * @note The whitelist cannot be modified when an LE role is using
+ * the whitelist, i.e advertiser or scanner using a whitelist or automatic
+ * connecting to devices using whitelist.
+ *
+ * @return Zero on success or error code otherwise, positive in case of
+ *         protocol error or negative (POSIX) in case of stack internal error.
+ */
+int bt_le_whitelist_clear(void);
 
 /**
  * @brief Set (LE) channel map.
@@ -1973,16 +1952,16 @@ struct bt_le_oob {
  * This function allows to get local information that are useful for
  * Out of Band pairing or connection creation.
  *
- * If privacy @kconfig{CONFIG_BT_PRIVACY} is enabled this will result in
+ * If privacy @option{CONFIG_BT_PRIVACY} is enabled this will result in
  * generating new Resolvable Private Address (RPA) that is valid for
- * @kconfig{CONFIG_BT_RPA_TIMEOUT} seconds. This address will be used for
+ * @option{CONFIG_BT_RPA_TIMEOUT} seconds. This address will be used for
  * advertising started by @ref bt_le_adv_start, active scanning and
  * connection creation.
  *
  * @note If privacy is enabled the RPA cannot be refreshed in the following
  *       cases:
  *       - Creating a connection in progress, wait for the connected callback.
- *      In addition when extended advertising @kconfig{CONFIG_BT_EXT_ADV} is
+ *      In addition when extended advertising @option{CONFIG_BT_EXT_ADV} is
  *      not enabled or not supported by the controller:
  *       - Advertiser is enabled using a Random Static Identity Address for a
  *         different local identity.
@@ -2003,9 +1982,9 @@ int bt_le_oob_get_local(uint8_t id, struct bt_le_oob *oob);
  * This function allows to get local information that are useful for
  * Out of Band pairing or connection creation.
  *
- * If privacy @kconfig{CONFIG_BT_PRIVACY} is enabled this will result in
+ * If privacy @option{CONFIG_BT_PRIVACY} is enabled this will result in
  * generating new Resolvable Private Address (RPA) that is valid for
- * @kconfig{CONFIG_BT_RPA_TIMEOUT} seconds. This address will be used by the
+ * @option{CONFIG_BT_RPA_TIMEOUT} seconds. This address will be used by the
  * advertising set.
  *
  * @note When generating OOB information for multiple advertising set all
@@ -2171,23 +2150,6 @@ struct bt_bond_info {
 void bt_foreach_bond(uint8_t id, void (*func)(const struct bt_bond_info *info,
 					   void *user_data),
 		     void *user_data);
-
-/** @brief Configure vendor data path
- *
- *  Request the Controller to configure the data transport path in a given direction between
- *  the Controller and the Host.
- *
- *  @param dir            Direction to be configured, BT_HCI_DATAPATH_DIR_HOST_TO_CTLR or
- *                        BT_HCI_DATAPATH_DIR_CTLR_TO_HOST
- *  @param id             Vendor specific logical transport channel ID, range
- *                        [BT_HCI_DATAPATH_ID_VS..BT_HCI_DATAPATH_ID_VS_END]
- *  @param vs_config_len  Length of additional vendor specific configuration data
- *  @param vs_config      Pointer to additional vendor specific configuration data
- *
- *  @return 0 in case of success or negative value in case of error.
- */
-int bt_configure_data_path(uint8_t dir, uint8_t id, uint8_t vs_config_len,
-			   const uint8_t *vs_config);
 
 /**
  * @}

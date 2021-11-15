@@ -485,7 +485,9 @@ static int dma_mcux_lpc_init(const struct device *dev)
 		return -ENOMEM;
 	}
 
-	memset(data->data_cb, 0, size_channel_data);
+	for (int i = 0; i < DEV_CFG(dev)->num_of_channels; i++) {
+		data->data_cb[i].dma_descriptor_table = NULL;
+	}
 
 #if defined FSL_FEATURE_DMA_NUMBER_OF_CHANNELS
 	total_dma_channels = FSL_FEATURE_DMA_NUMBER_OF_CHANNELS;
@@ -561,7 +563,7 @@ static const struct dma_mcux_lpc_config dma_##n##_config = {	\
 			    &dma_mcux_lpc_init,				\
 			    NULL,					\
 			    &dma_data_##n, &dma_##n##_config,\
-			    POST_KERNEL, CONFIG_DMA_INIT_PRIORITY,	\
+			    POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,\
 			    &dma_mcux_lpc_api);			\
 									\
 	DMA_MCUX_LPC_CONFIG_FUNC(n)				\

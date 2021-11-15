@@ -17,7 +17,23 @@ LOG_MODULE_DECLARE(ms5607);
 
 #if DT_ANY_INST_ON_BUS_STATUS_OKAY(spi)
 
-static int ms5607_spi_raw_cmd(const struct ms5607_config *config, uint8_t cmd)
+#if DT_INST_SPI_DEV_HAS_CS_GPIOS(0)
+static struct spi_cs_control ms5607_cs_ctrl;
+#endif
+
+#define SPI_CS NULL
+
+static struct spi_config ms5607_spi_conf = {
+	.frequency = DT_INST_PROP(0, spi_max_frequency),
+	.operation = (SPI_OP_MODE_MASTER | SPI_WORD_SET(8) |
+		      SPI_MODE_CPOL | SPI_MODE_CPHA |
+		      SPI_TRANSFER_MSB |
+		      SPI_LINES_SINGLE),
+	.slave = DT_INST_REG_ADDR(0),
+	.cs = SPI_CS,
+};
+
+static int ms5607_spi_raw_cmd(const struct ms5607_data *data, uint8_t cmd)
 {
 	const struct spi_buf buf = {
 		.buf = &cmd,
@@ -29,12 +45,12 @@ static int ms5607_spi_raw_cmd(const struct ms5607_config *config, uint8_t cmd)
 		.count = 1,
 	};
 
-	return spi_write_dt(&config->bus_cfg.spi_bus, &buf_set);
+	return spi_write(data->ms5607_device, &ms5607_spi_conf, &buf_set);
 }
 
-static int ms5607_spi_reset(const struct ms5607_config *config)
+static int ms5607_spi_reset(const struct ms5607_data *data)
 {
-	int err = ms5607_spi_raw_cmd(config, MS5607_CMD_RESET);
+	int err = ms5607_spi_raw_cmd(data, MS5607_CMD_RESET);
 
 	if (err < 0) {
 		return err;
@@ -44,7 +60,7 @@ static int ms5607_spi_reset(const struct ms5607_config *config)
 	return 0;
 }
 
-static int ms5607_spi_read_prom(const struct ms5607_config *config, uint8_t cmd,
+static int ms5607_spi_read_prom(const struct ms5607_data *data, uint8_t cmd,
 				uint16_t *val)
 {
 	int err;
@@ -79,7 +95,8 @@ static int ms5607_spi_read_prom(const struct ms5607_config *config, uint8_t cmd,
 		.count = 1,
 	};
 
-	err = spi_transceive_dt(&config->bus_cfg.spi_bus,
+	err = spi_transceive(data->ms5607_device,
+			     &ms5607_spi_conf,
 			     &tx_buf_set,
 			     &rx_buf_set);
 	if (err < 0) {
@@ -92,12 +109,12 @@ static int ms5607_spi_read_prom(const struct ms5607_config *config, uint8_t cmd,
 }
 
 
-static int ms5607_spi_start_conversion(const struct ms5607_config *config, uint8_t cmd)
+static int ms5607_spi_start_conversion(const struct ms5607_data *data, uint8_t cmd)
 {
-	return ms5607_spi_raw_cmd(config, cmd);
+	return ms5607_spi_raw_cmd(data, cmd);
 }
 
-static int ms5607_spi_read_adc(const struct ms5607_config *config, uint32_t *val)
+static int ms5607_spi_read_adc(const struct ms5607_data *data, uint32_t *val)
 {
 	int err;
 
@@ -129,7 +146,8 @@ static int ms5607_spi_read_adc(const struct ms5607_config *config, uint32_t *val
 		.count = 1,
 	};
 
-	err = spi_transceive_dt(&config->bus_cfg.spi_bus,
+	err = spi_transceive(data->ms5607_device,
+			     &ms5607_spi_conf,
 			     &tx_buf_set,
 			     &rx_buf_set);
 	if (err < 0) {
@@ -141,22 +159,38 @@ static int ms5607_spi_read_adc(const struct ms5607_config *config, uint32_t *val
 	return 0;
 }
 
-static int ms5607_spi_check(const struct ms5607_config *config)
-{
-	if (!spi_is_ready(&config->bus_cfg.spi_bus)) {
-		LOG_DBG("SPI bus %s not ready", config->bus->name);
-		return -ENODEV;
-	}
-
-	return 0;
-}
-
-const struct ms5607_transfer_function ms5607_spi_transfer_function = {
-	.bus_check = ms5607_spi_check,
+static const struct ms5607_transfer_function ms5607_spi_transfer_function = {
 	.reset = ms5607_spi_reset,
 	.read_prom = ms5607_spi_read_prom,
 	.start_conversion = ms5607_spi_start_conversion,
 	.read_adc = ms5607_spi_read_adc,
 };
+
+int ms5607_spi_init(const struct device *dev)
+{
+	struct ms5607_data *data = dev->data;
+
+	data->tf = &ms5607_spi_transfer_function;
+
+#if DT_INST_SPI_DEV_HAS_CS_GPIOS(0)
+	ms5607_cs_ctrl.gpio_dev = device_get_binding(
+		DT_INST_SPI_DEV_CS_GPIOS_LABEL(0));
+	if (!ms5607_cs_ctrl.gpio_dev) {
+		LOG_ERR("Unable to get GPIO SPI CS device");
+		return -ENODEV;
+	}
+
+	ms5607_cs_ctrl.gpio_pin = DT_INST_SPI_DEV_CS_GPIOS_PIN(0);
+	ms5607_cs_ctrl.gpio_dt_flags = DT_INST_SPI_DEV_CS_GPIOS_FLAGS(0);
+	ms5607_cs_ctrl.delay = 0U;
+
+	ms5607_spi_conf.cs = &ms5607_cs_ctrl;
+
+	LOG_DBG("SPI GPIO CS configured on %s:%u",
+		DT_INST_SPI_DEV_CS_GPIOS_LABEL(0),
+		DT_INST_SPI_DEV_CS_GPIOS_PIN(0));
+#endif
+	return 0;
+}
 
 #endif

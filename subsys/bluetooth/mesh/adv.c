@@ -1,3 +1,5 @@
+/*  Bluetooth Mesh */
+
 /*
  * Copyright (c) 2018 Nordic Semiconductor ASA
  * Copyright (c) 2017 Intel Corporation
@@ -23,7 +25,6 @@
 #include "net.h"
 #include "foundation.h"
 #include "beacon.h"
-#include "host/ecc.h"
 #include "prov.h"
 #include "proxy.h"
 
@@ -40,18 +41,8 @@ const uint8_t bt_mesh_adv_type[BT_MESH_ADV_TYPES] = {
 
 K_FIFO_DEFINE(bt_mesh_adv_queue);
 
-static void adv_buf_destroy(struct net_buf *buf)
-{
-	struct bt_mesh_adv adv = *BT_MESH_ADV(buf);
-
-	net_buf_destroy(buf);
-
-	bt_mesh_adv_send_end(0, &adv);
-}
-
 NET_BUF_POOL_DEFINE(adv_buf_pool, CONFIG_BT_MESH_ADV_BUF_COUNT,
-		    BT_MESH_ADV_DATA_SIZE, BT_MESH_ADV_USER_DATA_SIZE,
-		    adv_buf_destroy);
+		    BT_MESH_ADV_DATA_SIZE, BT_MESH_ADV_USER_DATA_SIZE, NULL);
 
 static struct bt_mesh_adv adv_pool[CONFIG_BT_MESH_ADV_BUF_COUNT];
 

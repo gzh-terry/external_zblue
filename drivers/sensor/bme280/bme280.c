@@ -55,11 +55,16 @@ struct bme280_data {
 	int32_t t_fine;
 
 	uint8_t chip_id;
+
+#ifdef CONFIG_PM_DEVICE
+	uint32_t pm_state; /* Current power state */
+#endif
 };
 
 struct bme280_config {
-	union bme280_bus bus;
+	const struct device *bus;
 	const struct bme280_bus_io *bus_io;
+	const union bme280_bus_config bus_config;
 };
 
 static inline struct bme280_data *to_data(const struct device *dev)
@@ -67,27 +72,39 @@ static inline struct bme280_data *to_data(const struct device *dev)
 	return dev->data;
 }
 
+static inline const struct bme280_config *to_config(const struct device *dev)
+{
+	return dev->config;
+}
+
+static inline const struct device *to_bus(const struct device *dev)
+{
+	return to_config(dev)->bus;
+}
+
+static inline const union bme280_bus_config*
+to_bus_config(const struct device *dev)
+{
+	return &to_config(dev)->bus_config;
+}
+
 static inline int bme280_bus_check(const struct device *dev)
 {
-	const struct bme280_config *cfg = dev->config;
-
-	return cfg->bus_io->check(&cfg->bus);
+	return to_config(dev)->bus_io->check(to_bus(dev), to_bus_config(dev));
 }
 
 static inline int bme280_reg_read(const struct device *dev,
 				  uint8_t start, uint8_t *buf, int size)
 {
-	const struct bme280_config *cfg = dev->config;
-
-	return cfg->bus_io->read(&cfg->bus, start, buf, size);
+	return to_config(dev)->bus_io->read(to_bus(dev), to_bus_config(dev),
+					    start, buf, size);
 }
 
 static inline int bme280_reg_write(const struct device *dev, uint8_t reg,
 				   uint8_t val)
 {
-	const struct bme280_config *cfg = dev->config;
-
-	return cfg->bus_io->write(&cfg->bus, reg, val);
+	return to_config(dev)->bus_io->write(to_bus(dev), to_bus_config(dev),
+					     reg, val);
 }
 
 /*
@@ -153,23 +170,6 @@ static void bme280_compensate_humidity(struct bme280_data *data,
 	data->comp_humidity = (uint32_t)(h >> 12);
 }
 
-static int bme280_wait_until_ready(const struct device *dev)
-{
-	uint8_t status = 0;
-	int ret;
-
-	/* Wait for NVM to copy and and measurement to be completed */
-	do {
-		k_sleep(K_MSEC(3));
-		ret = bme280_reg_read(dev, BME280_REG_STATUS, &status, 1);
-		if (ret < 0) {
-			return ret;
-		}
-	} while (status & (BME280_STATUS_MEASURING | BME280_STATUS_IM_UPDATE));
-
-	return 0;
-}
-
 static int bme280_sample_fetch(const struct device *dev,
 			       enum sensor_channel chan)
 {
@@ -182,10 +182,8 @@ static int bme280_sample_fetch(const struct device *dev,
 	__ASSERT_NO_MSG(chan == SENSOR_CHAN_ALL);
 
 #ifdef CONFIG_PM_DEVICE
-	enum pm_device_state state;
-	(void)pm_device_state_get(dev, &state);
-	/* Do not allow sample fetching from suspended state */
-	if (state == PM_DEVICE_STATE_SUSPENDED)
+	/* Do not allow sample fetching from OFF state */
+	if (data->pm_state == PM_DEVICE_STATE_OFF)
 		return -EIO;
 #endif
 
@@ -194,12 +192,15 @@ static int bme280_sample_fetch(const struct device *dev,
 	if (ret < 0) {
 		return ret;
 	}
-#endif
 
-	ret = bme280_wait_until_ready(dev);
-	if (ret < 0) {
-		return ret;
-	}
+	do {
+		k_sleep(K_MSEC(3));
+		ret = bme280_reg_read(dev, BME280_REG_STATUS, buf, 1);
+		if (ret < 0) {
+			return ret;
+		}
+	} while (buf[0] & 0x08);
+#endif
 
 	if (data->chip_id == BME280_CHIP_ID) {
 		size = 8;
@@ -327,6 +328,9 @@ static int bme280_chip_init(const struct device *dev)
 	struct bme280_data *data = to_data(dev);
 	int err;
 
+	LOG_DBG("initializing \"%s\" on bus \"%s\"",
+		dev->name, to_bus(dev)->name);
+
 	err = bme280_bus_check(dev);
 	if (err < 0) {
 		LOG_DBG("bus check failed: %d", err);
@@ -347,16 +351,6 @@ static int bme280_chip_init(const struct device *dev)
 	} else {
 		LOG_DBG("bad chip id 0x%x", data->chip_id);
 		return -ENOTSUP;
-	}
-
-	err = bme280_reg_write(dev, BME280_REG_RESET, BME280_CMD_SOFT_RESET);
-	if (err < 0) {
-		LOG_DBG("Soft-reset failed: %d", err);
-	}
-
-	err = bme280_wait_until_ready(dev);
-	if (err < 0) {
-		return err;
 	}
 
 	err = bme280_read_compensation(dev);
@@ -386,55 +380,84 @@ static int bme280_chip_init(const struct device *dev)
 		LOG_DBG("CONFIG write failed: %d", err);
 		return err;
 	}
-	/* Wait for the sensor to be ready */
-	k_sleep(K_MSEC(1));
 
+#ifdef CONFIG_PM_DEVICE
+	/* Set power state to ACTIVE */
+	data->pm_state = PM_DEVICE_STATE_ACTIVE;
+#endif
 	LOG_DBG("\"%s\" OK", dev->name);
 	return 0;
 }
 
 #ifdef CONFIG_PM_DEVICE
-static int bme280_pm_action(const struct device *dev,
-			    enum pm_device_action action)
+int bme280_pm_ctrl(const struct device *dev, uint32_t ctrl_command,
+		   uint32_t *state, pm_device_cb cb, void *arg)
 {
+	struct bme280_data *data = to_data(dev);
+
 	int ret = 0;
 
-	switch (action) {
-	case PM_DEVICE_ACTION_RESUME:
-		/* Re-initialize the chip */
-		ret = bme280_chip_init(dev);
-		break;
-	case PM_DEVICE_ACTION_SUSPEND:
-		/* Put the chip into sleep mode */
-		ret = bme280_reg_write(dev,
-			BME280_REG_CTRL_MEAS,
-			BME280_CTRL_MEAS_OFF_VAL);
+	/* Set power state */
+	if (ctrl_command == PM_DEVICE_STATE_SET) {
+		uint32_t new_pm_state = *state;
 
-		if (ret < 0) {
-			LOG_DBG("CTRL_MEAS write failed: %d", ret);
+		if (new_pm_state != data->pm_state) {
+
+			/* Switching from OFF to any */
+			if (data->pm_state == PM_DEVICE_STATE_OFF) {
+
+				/* Re-initialize the chip */
+				ret = bme280_chip_init(dev);
+			}
+			/* Switching to OFF from any */
+			else if (new_pm_state == PM_DEVICE_STATE_OFF) {
+
+				/* Put the chip into sleep mode */
+				ret = bme280_reg_write(dev,
+					BME280_REG_CTRL_MEAS,
+					BME280_CTRL_MEAS_OFF_VAL);
+
+				if (ret < 0)
+					LOG_DBG("CTRL_MEAS write failed: %d",
+						ret);
+			}
+
+			/* Store the new state */
+			if (!ret)
+				data->pm_state = new_pm_state;
 		}
-		break;
-	default:
-		return -ENOTSUP;
 	}
+	/* Get power state */
+	else {
+		__ASSERT_NO_MSG(ctrl_command == PM_DEVICE_STATE_GET);
+		*state = data->pm_state;
+	}
+
+	/* Invoke callback if any */
+	if (cb)
+		cb(dev, ret, state, arg);
 
 	return ret;
 }
 #endif /* CONFIG_PM_DEVICE */
 
 /* Initializes a struct bme280_config for an instance on a SPI bus. */
-#define BME280_CONFIG_SPI(inst)				\
-	{						\
-		.bus.spi = SPI_DT_SPEC_INST_GET(	\
-			inst, BME280_SPI_OPERATION, 0),	\
-		.bus_io = &bme280_bus_io_spi,		\
+#define BME280_CONFIG_SPI(inst)						\
+	{								\
+		.bus = DEVICE_DT_GET(DT_INST_BUS(inst)),		\
+		.bus_io = &bme280_bus_io_spi,				\
+		.bus_config.spi_cfg =					\
+			SPI_CONFIG_DT_INST(inst,			\
+					   BME280_SPI_OPERATION,	\
+					   0),				\
 	}
 
 /* Initializes a struct bme280_config for an instance on an I2C bus. */
-#define BME280_CONFIG_I2C(inst)			       \
-	{					       \
-		.bus.i2c = I2C_DT_SPEC_INST_GET(inst), \
-		.bus_io = &bme280_bus_io_i2c,	       \
+#define BME280_CONFIG_I2C(inst)						\
+	{								\
+		.bus = DEVICE_DT_GET(DT_INST_BUS(inst)),		\
+		.bus_io = &bme280_bus_io_i2c,				\
+		.bus_config.i2c_addr = DT_INST_REG_ADDR(inst),		\
 	}
 
 /*
@@ -449,7 +472,7 @@ static int bme280_pm_action(const struct device *dev,
 			    (BME280_CONFIG_I2C(inst)));			\
 	DEVICE_DT_INST_DEFINE(inst,					\
 			 bme280_chip_init,				\
-			 bme280_pm_action,				\
+			 bme280_pm_ctrl,				\
 			 &bme280_data_##inst,				\
 			 &bme280_config_##inst,				\
 			 POST_KERNEL,					\

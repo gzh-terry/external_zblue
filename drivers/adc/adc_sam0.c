@@ -605,15 +605,15 @@ do {									\
 	DEVICE_DT_INST_DEFINE(n, adc_sam0_init, NULL,			\
 			    &adc_sam_data_##n,				\
 			    &adc_sam_cfg_##n, POST_KERNEL,		\
-			    CONFIG_ADC_INIT_PRIORITY,			\
+			    CONFIG_KERNEL_INIT_PRIORITY_DEVICE,		\
 			    &adc_sam0_api);				\
 	static void adc_sam0_config_##n(const struct device *dev)	\
 	{								\
-		IRQ_CONNECT(DT_INST_IRQ_BY_NAME(n, resrdy, irq),	\
-			    DT_INST_IRQ_BY_NAME(n, resrdy, priority),	\
+		IRQ_CONNECT(DT_INST_IRQN(n),				\
+			    DT_INST_IRQ(n, priority),			\
 			    adc_sam0_isr,				\
 			    DEVICE_DT_INST_GET(n), 0);			\
-		irq_enable(DT_INST_IRQ_BY_NAME(n, resrdy, irq));	\
+		irq_enable(DT_INST_IRQN(n));				\
 		ADC_SAM0_CONFIGURE(n);					\
 	}
 

@@ -467,14 +467,15 @@ int modem_cmd_handler_update_cmds(struct modem_cmd_handler_data *data,
 	return 0;
 }
 
-int modem_cmd_send_ext(struct modem_iface *iface,
-		       struct modem_cmd_handler *handler,
-		       const struct modem_cmd *handler_cmds,
-		       size_t handler_cmds_len, const uint8_t *buf,
-		       struct k_sem *sem, k_timeout_t timeout, int flags)
+static int _modem_cmd_send(struct modem_iface *iface,
+			   struct modem_cmd_handler *handler,
+			   const struct modem_cmd *handler_cmds,
+			   size_t handler_cmds_len,
+			   const uint8_t *buf, struct k_sem *sem,
+			   k_timeout_t timeout, bool no_tx_lock)
 {
 	struct modem_cmd_handler_data *data;
-	int ret = 0;
+	int ret;
 
 	if (!iface || !handler || !handler->cmd_handler_data || !buf) {
 		return -EINVAL;
@@ -489,16 +490,14 @@ int modem_cmd_send_ext(struct modem_iface *iface,
 	}
 
 	data = (struct modem_cmd_handler_data *)(handler->cmd_handler_data);
-	if (!(flags & MODEM_NO_TX_LOCK)) {
+	if (!no_tx_lock) {
 		k_sem_take(&data->sem_tx_lock, K_FOREVER);
 	}
 
-	if (!(flags & MODEM_NO_SET_CMDS)) {
-		ret = modem_cmd_handler_update_cmds(data, handler_cmds,
-						    handler_cmds_len, true);
-		if (ret < 0) {
-			goto unlock_tx_lock;
-		}
+	ret = modem_cmd_handler_update_cmds(data, handler_cmds,
+					    handler_cmds_len, true);
+	if (ret < 0) {
+		goto unlock_tx_lock;
 	}
 
 #if defined(CONFIG_MODEM_CONTEXT_VERBOSE_DEBUG)
@@ -532,17 +531,36 @@ int modem_cmd_send_ext(struct modem_iface *iface,
 		}
 	}
 
-	if (!(flags & MODEM_NO_UNSET_CMDS)) {
-		/* unset handlers and ignore any errors */
-		(void)modem_cmd_handler_update_cmds(data, NULL, 0U, false);
-	}
+	/* unset handlers and ignore any errors */
+	(void)modem_cmd_handler_update_cmds(data, NULL, 0U, false);
 
 unlock_tx_lock:
-	if (!(flags & MODEM_NO_TX_LOCK)) {
+	if (!no_tx_lock) {
 		k_sem_give(&data->sem_tx_lock);
 	}
 
 	return ret;
+}
+
+int modem_cmd_send_nolock(struct modem_iface *iface,
+			  struct modem_cmd_handler *handler,
+			  const struct modem_cmd *handler_cmds,
+			  size_t handler_cmds_len,
+			  const uint8_t *buf, struct k_sem *sem,
+			  k_timeout_t timeout)
+{
+	return _modem_cmd_send(iface, handler, handler_cmds, handler_cmds_len,
+			       buf, sem, timeout, true);
+}
+
+int modem_cmd_send(struct modem_iface *iface,
+		   struct modem_cmd_handler *handler,
+		   const struct modem_cmd *handler_cmds,
+		   size_t handler_cmds_len, const uint8_t *buf,
+		   struct k_sem *sem, k_timeout_t timeout)
+{
+	return _modem_cmd_send(iface, handler, handler_cmds, handler_cmds_len,
+			       buf, sem, timeout, false);
 }
 
 /* run a set of AT commands */

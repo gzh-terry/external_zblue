@@ -19,15 +19,6 @@ zephyr_library_sources_ifdef(
   )
 
 if(CONFIG_BT_LL_SW_SPLIT)
-  if(CONFIG_BT_CTLR_ADVANCED_FEATURES)
-    message(WARNING "\nCONFIG_BT_CTLR_ADVANCED_FEATURES=y, Advanced Features' "
-		    "default value change could change Zephyr Bluetooth "
-		    "Controller's functional behavior.")
-  endif()
-  if(CONFIG_BT_CTLR_ADV_EXT)
-    message(WARNING "\nCONFIG_BT_CTLR_ADV_EXT=y, Advertising Extensions "
-		    "Feature in Zephyr Bluetooth Controller is EXPERIMENTAL.")
-  endif()
   zephyr_library_sources(
     ll_sw/ll_feat.c
     ll_sw/ull.c
@@ -73,7 +64,7 @@ if(CONFIG_BT_LL_SW_SPLIT)
       )
     if(CONFIG_BT_PERIPHERAL)
       zephyr_library_sources(
-        ll_sw/ull_peripheral.c
+        ll_sw/ull_slave.c
       )
     zephyr_library_sources_ifdef(
         CONFIG_BT_CTLR_PERIPHERAL_ISO
@@ -82,7 +73,7 @@ if(CONFIG_BT_LL_SW_SPLIT)
     endif()
     if(CONFIG_BT_CENTRAL)
       zephyr_library_sources(
-        ll_sw/ull_central.c
+        ll_sw/ull_master.c
         )
       zephyr_library_sources_ifdef(
         CONFIG_BT_CTLR_CENTRAL_ISO
@@ -112,8 +103,6 @@ if(CONFIG_BT_LL_SW_SPLIT)
       )
   endif()
   if(CONFIG_BT_CONN OR
-     (CONFIG_BT_BROADCASTER AND
-      CONFIG_BT_CTLR_ADV_EXT) OR
      CONFIG_BT_CTLR_ADV_PERIODIC OR
      CONFIG_BT_CTLR_SYNC_PERIODIC)
     zephyr_library_sources(
@@ -121,12 +110,10 @@ if(CONFIG_BT_LL_SW_SPLIT)
       ll_sw/lll_chan.c
       )
   endif()
-  if(CONFIG_BT_CTLR_FILTER_ACCEPT_LIST OR
-     CONFIG_BT_CTLR_SYNC_PERIODIC_ADV_LIST)
-    zephyr_library_sources(
-      ll_sw/ull_filter.c
-      )
-  endif()
+  zephyr_library_sources_ifdef(
+    CONFIG_BT_CTLR_FILTER
+    ll_sw/ull_filter.c
+    )
   zephyr_library_sources_ifdef(
     CONFIG_BT_HCI_MESH_EXT
     ll_sw/ll_mesh.c

@@ -318,8 +318,8 @@ static int counter_xec_init(const struct device *dev)
 		.config_func = counter_xec_irq_config_##inst,		\
 		.base_address = DT_INST_REG_ADDR(inst),			\
 		.prescaler = DT_INST_PROP(inst, prescaler),		\
-		.girq_id = DT_INST_PROP_BY_IDX(0, girqs, 0),		\
-		.girq_bit = DT_INST_PROP_BY_IDX(0, girqs, 1),		\
+		.girq_id = DT_INST_PROP(inst, girq),			\
+		.girq_bit = DT_INST_PROP(inst, girq_bit),		\
 	};								\
 									\
 	DEVICE_DT_INST_DEFINE(inst,					\
@@ -328,7 +328,7 @@ static int counter_xec_init(const struct device *dev)
 			    &counter_xec_dev_data_##inst,		\
 			    &counter_xec_dev_config_##inst,		\
 			    POST_KERNEL,				\
-			    CONFIG_COUNTER_INIT_PRIORITY,		\
+			    CONFIG_KERNEL_INIT_PRIORITY_DEVICE,		\
 			    &counter_xec_api);				\
 									\
 	static void counter_xec_irq_config_##inst(void)			\

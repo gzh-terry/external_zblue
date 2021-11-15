@@ -43,7 +43,7 @@ static void process_sample(const struct device *dev)
 }
 
 static void lps22hh_handler(const struct device *dev,
-			    const struct sensor_trigger *trig)
+			    struct sensor_trigger *trig)
 {
 	process_sample(dev);
 }

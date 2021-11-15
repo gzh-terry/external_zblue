@@ -7,7 +7,6 @@
 #include <ztest.h>
 #include <ztest_test.h>
 #include <drivers/eeprom.h>
-#include <drivers/i2c.h>
 #include <device.h>
 
 /* There is no obvious way to pass this to tests, so use a global */
@@ -183,24 +182,13 @@ static void test_zero_length_write(void)
 }
 
 /* Run all of our tests on EEPROM device with the given label */
-static void run_tests_on_eeprom(const char *label_eeprom, const char *label_i2c)
+static void run_tests_on_eeprom(const char *label)
 {
-	const struct device *eeprom = device_get_binding(label_eeprom);
-	const struct device *i2c;
+	const struct device *eeprom = device_get_binding(label);
 
 	zassert_not_null(eeprom, "Unable to get EEPROM device");
 	k_object_access_grant(eeprom, k_current_get());
-	eeprom_label = label_eeprom;
-	if (label_i2c != NULL) {
-		i2c = device_get_binding(label_i2c);
-		if (i2c != NULL) {
-			/* If the test is using I2C, configure it */
-			k_object_access_grant(i2c, k_current_get());
-			i2c_configure(i2c, I2C_MODE_MASTER |
-					I2C_SPEED_SET(I2C_SPEED_STANDARD));
-		}
-	}
-
+	eeprom_label = label;
 	ztest_test_suite(eeprom_api,
 			 ztest_user_unit_test(test_size),
 			 ztest_user_unit_test(test_out_of_bounds),
@@ -214,22 +202,10 @@ static void run_tests_on_eeprom(const char *label_eeprom, const char *label_i2c)
 
 void test_main(void)
 {
-	const char *i2c_eeprom_0;
-#ifdef DT_N_ALIAS_eeprom_1
-	const char *i2c_eeprom_1;
-#endif
-
-	i2c_eeprom_0 = COND_CODE_1(DT_NODE_EXISTS(DT_BUS(DT_ALIAS(eeprom_0))),
-			(DT_BUS_LABEL(DT_ALIAS(eeprom_0))), (NULL));
-#ifdef DT_N_ALIAS_eeprom_1
-	i2c_eeprom_1 = COND_CODE_1(DT_NODE_EXISTS(DT_BUS(DT_ALIAS(eeprom_1))),
-			(DT_BUS_LABEL(DT_ALIAS(eeprom_1))), (NULL));
-#endif
-
-	run_tests_on_eeprom(DT_LABEL(DT_ALIAS(eeprom_0)), i2c_eeprom_0);
+	run_tests_on_eeprom(DT_LABEL(DT_ALIAS(eeprom_0)));
 
 #ifdef DT_N_ALIAS_eeprom_1
-	run_tests_on_eeprom(DT_LABEL(DT_ALIAS(eeprom_1)), i2c_eeprom_1);
+	run_tests_on_eeprom(DT_LABEL(DT_ALIAS(eeprom_1)));
 #endif
 
 }

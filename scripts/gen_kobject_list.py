@@ -106,8 +106,7 @@ kobjects = OrderedDict([
     ("net_if", (None, False, False)),
     ("sys_mutex", (None, True, False)),
     ("k_futex", (None, True, False)),
-    ("k_condvar", (None, False, True)),
-    ("k_event", ("CONFIG_EVENTS", False, True))
+    ("k_condvar", (None, False, True))
 ])
 
 def kobject_to_enum(kobj):
@@ -453,7 +452,7 @@ def analyze_die_array(die):
             continue
 
     if not elements:
-        if type_offset in type_env:
+        if type_offset in type_env.keys():
             mt = type_env[type_offset]
             if mt.has_kobject():
                 if isinstance(mt, KobjectType) and mt.name == STACK_TYPE:
@@ -515,14 +514,6 @@ def find_kobjects(elf, syms):
 
     app_smem_start = syms["_app_smem_start"]
     app_smem_end = syms["_app_smem_end"]
-
-    if "CONFIG_LINKER_USE_PINNED_SECTION" in syms and "_app_smem_pinned_start" in syms:
-        app_smem_pinned_start = syms["_app_smem_pinned_start"]
-        app_smem_pinned_end = syms["_app_smem_pinned_end"]
-    else:
-        app_smem_pinned_start = app_smem_start
-        app_smem_pinned_end = app_smem_end
-
     user_stack_start = syms["z_user_stacks_start"]
     user_stack_end = syms["z_user_stacks_end"]
 
@@ -589,7 +580,8 @@ def find_kobjects(elf, syms):
             continue
 
         loc = die.attributes["DW_AT_location"]
-        if loc.form not in ("DW_FORM_exprloc", "DW_FORM_block1"):
+        if loc.form != "DW_FORM_exprloc" and \
+           loc.form != "DW_FORM_block1":
             debug_die(die, "kernel object '%s' unexpected location format" %
                       name)
             continue
@@ -638,9 +630,7 @@ def find_kobjects(elf, syms):
             continue
 
         _, user_ram_allowed, _ = kobjects[ko.type_obj.name]
-        if (not user_ram_allowed and
-            ((app_smem_start <= addr < app_smem_end)
-             or (app_smem_pinned_start <= addr < app_smem_pinned_end))):
+        if not user_ram_allowed and app_smem_start <= addr < app_smem_end:
             debug("object '%s' found in invalid location %s"
                   % (ko.type_obj.name, hex(addr)))
             continue

@@ -10,8 +10,13 @@ source "soc/arm/st_stm32/stm32l5/Kconfig.defconfig.stm32l5*"
 config SOC_SERIES
 	default "stm32l5"
 
+if PM
+config PM_DEVICE
+	default y
+
 config STM32_LPTIM_TIMER
-	default y if PM
+	default y
+endif # PM
 
 if ENTROPY_GENERATOR
 

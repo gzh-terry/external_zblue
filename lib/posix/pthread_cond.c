@@ -9,8 +9,6 @@
 #include <wait_q.h>
 #include <posix/pthread.h>
 
-extern struct k_spinlock z_pthread_spinlock;
-
 int64_t timespec_to_timeoutms(const struct timespec *abstime);
 
 static int cond_wait(pthread_cond_t *cv, pthread_mutex_t *mut,
@@ -18,13 +16,12 @@ static int cond_wait(pthread_cond_t *cv, pthread_mutex_t *mut,
 {
 	__ASSERT(mut->lock_count == 1U, "");
 
-	int ret;
-	k_spinlock_key_t key = k_spin_lock(&z_pthread_spinlock);
+	int ret, key = irq_lock();
 
 	mut->lock_count = 0U;
 	mut->owner = NULL;
 	_ready_one_thread(&mut->wait_q);
-	ret = z_pend_curr(&z_pthread_spinlock, key, &cv->wait_q, timeout);
+	ret = z_pend_curr_irqlock(key, &cv->wait_q, timeout);
 
 	/* FIXME: this extra lock (and the potential context switch it
 	 * can cause) could be optimized out.  At the point of the
@@ -52,23 +49,23 @@ static int cond_wait(pthread_cond_t *cv, pthread_mutex_t *mut,
 
 int pthread_cond_signal(pthread_cond_t *cv)
 {
-	k_spinlock_key_t key = k_spin_lock(&z_pthread_spinlock);
+	int key = irq_lock();
 
 	_ready_one_thread(&cv->wait_q);
-	z_reschedule(&z_pthread_spinlock, key);
+	z_reschedule_irqlock(key);
 
 	return 0;
 }
 
 int pthread_cond_broadcast(pthread_cond_t *cv)
 {
-	k_spinlock_key_t key = k_spin_lock(&z_pthread_spinlock);
+	int key = irq_lock();
 
 	while (z_waitq_head(&cv->wait_q)) {
 		_ready_one_thread(&cv->wait_q);
 	}
 
-	z_reschedule(&z_pthread_spinlock, key);
+	z_reschedule_irqlock(key);
 
 	return 0;
 }

@@ -102,7 +102,7 @@ static const struct mdm_control_pinconfig pinconfig[] = {
 #endif
 };
 
-#define MDM_UART_DEV			DEVICE_DT_GET(DT_INST_BUS(0))
+#define MDM_UART_DEV_NAME		DT_INST_BUS_LABEL(0)
 
 #define MDM_BOOT_MODE_SPECIAL		0
 #define MDM_BOOT_MODE_NORMAL		1
@@ -204,7 +204,6 @@ struct wncm14a2a_iface_ctx {
 	char mdm_model[MDM_MODEL_LENGTH];
 	char mdm_revision[MDM_REVISION_LENGTH];
 	char mdm_imei[MDM_IMEI_LENGTH];
-	int mdm_rssi;
 
 	/* modem state */
 	int ev_csps;
@@ -664,8 +663,8 @@ static void on_cmd_atcmdinfo_rssi(struct net_buf **buf, uint16_t len)
 	}
 
 	if (i > 0) {
-		ictx.mdm_rssi = atoi(value);
-		LOG_INF("RSSI: %d", ictx.mdm_rssi);
+		ictx.mdm_ctx.data_rssi = atoi(value);
+		LOG_INF("RSSI: %d", ictx.mdm_ctx.data_rssi);
 	} else {
 		LOG_WRN("Bad format found for RSSI");
 	}
@@ -1399,15 +1398,15 @@ restart:
 	counter = 0;
 	/* wait for RSSI > -1000 and != 0 */
 	while (counter++ < 15 &&
-	       (ictx.mdm_rssi <= -1000 ||
-		ictx.mdm_rssi == 0)) {
+	       (ictx.mdm_ctx.data_rssi <= -1000 ||
+		ictx.mdm_ctx.data_rssi == 0)) {
 		/* stop RSSI delay work */
 		k_work_cancel_delayable(&ictx.rssi_query_work);
 		wncm14a2a_rssi_query_work(NULL);
 		k_sleep(K_SECONDS(2));
 	}
 
-	if (ictx.mdm_rssi <= -1000 || ictx.mdm_rssi == 0) {
+	if (ictx.mdm_ctx.data_rssi <= -1000 || ictx.mdm_ctx.data_rssi == 0) {
 		retry_count++;
 		if (retry_count > 3) {
 			LOG_ERR("Failed network init.  Too many attempts!");
@@ -1487,9 +1486,8 @@ static int wncm14a2a_init(const struct device *dev)
 #ifdef CONFIG_MODEM_SIM_NUMBERS
 	ictx.mdm_ctx.data_imei = ictx.mdm_imei;
 #endif
-	ictx.mdm_ctx.data_rssi = &ictx.mdm_rssi;
 
-	ret = mdm_receiver_register(&ictx.mdm_ctx, MDM_UART_DEV,
+	ret = mdm_receiver_register(&ictx.mdm_ctx, MDM_UART_DEV_NAME,
 				    mdm_recv_buf, sizeof(mdm_recv_buf));
 	if (ret < 0) {
 		LOG_ERR("Error registering modem receiver (%d)!", ret);

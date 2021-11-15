@@ -393,16 +393,16 @@ code,
 .ui.tabular.menu .active.item,
 .ui.segment,
 .sphinx-tabs-panel {
-    background-color: var(--code-background-color) !important;
+    background-color: var(--code-background-color);
 }
 
 .sphinx-tabs-tab {
-    color: var(--link-color) !important;
+    color: var(--link-color);
 }
 
 .sphinx-tabs-tab[aria-selected="true"] {
-    background-color: var(--code-background-color) !important;
-    border-bottom: 1px solid var(--code-background-color) !important;
+    background-color: var(--code-background-color);
+    border-bottom: 1px solid var(--code-background-color);
 }
 
 /* Code literals */
@@ -927,16 +927,8 @@ kbd, .kbd {
     background-color: var(--admonition-danger-background-color);
 }
 
-
-dark-mode-toggle::part(fieldset) {
-  padding-inline: 0.75rem;
-  padding-block: 0;
-}
-
-dark-mode-toggle::part(darkLabel),
-dark-mode-toggle::part(lightLabel),
-dark-mode-toggle::part(toggleLabel){
-  font-size: unset;
+#dark-mode-toggle {
+    float: right;
 }
 
 /* Home page grid display */

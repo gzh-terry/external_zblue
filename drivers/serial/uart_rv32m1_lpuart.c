@@ -334,7 +334,7 @@ static const struct uart_driver_api rv32m1_lpuart_driver_api = {
 			    &rv32m1_lpuart_##n##_data,			\
 			    &rv32m1_lpuart_##n##_cfg,			\
 			    PRE_KERNEL_1,				\
-			    CONFIG_SERIAL_INIT_PRIORITY,		\
+			    CONFIG_KERNEL_INIT_PRIORITY_DEVICE,		\
 			    &rv32m1_lpuart_driver_api);			\
 									\
 	RV32M1_LPUART_CONFIG_FUNC(n)					\

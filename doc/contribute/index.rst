@@ -69,18 +69,6 @@ this contributing and review process for imported components.
 
       ../LICENSING.rst
 
-.. _copyrights:
-
-Copyrights Notices
-*******************
-
-Please follow this `Community Best Practice`_ for Copyright Notices from the
-Linux Foundation.
-
-
-.. _Community Best Practice:
-   https://www.linuxfoundation.org/blog/copyright-notices-in-open-source-software-projects/
-
 .. _DCO:
 
 Developer Certification of Origin (DCO)
@@ -205,16 +193,15 @@ Pull Requests and Issues
 
 .. _Zephyr devel mailing list: https://lists.zephyrproject.org/g/devel
 
-.. _Zephyr Discord Server: https://chat.zephyrproject.org
+.. _Zephyr Slack channel: https://zephyrproject.slack.com
 
 Before starting on a patch, first check in our issues `Zephyr Project Issues`_
 system to see what's been reported on the issue you'd like to address.  Have a
-conversation on the `Zephyr devel mailing list`_ (or the the `Zephyr Discord
-Server`_) to see what others think of your issue (and proposed solution).  You
-may find others that have encountered the issue you're finding, or that have
-similar ideas for changes or additions.  Send a message to the `Zephyr devel
-mailing list`_ to introduce and discuss your idea with the development
-community.
+conversation on the `Zephyr devel mailing list`_ (or the the `Zephyr Slack channel`_)
+to see what others think of your issue (and proposed solution).  You may find
+others that have encountered the issue you're finding, or that have similar
+ideas for changes or additions.  Send a message to the `Zephyr devel mailing list`_
+to introduce and discuss your idea with the development community.
 
 It's always a good practice to search for existing or related issues before
 submitting your own. When you submit an issue (bug or feature request), the
@@ -379,19 +366,14 @@ issues, you can add option --no-verify to the git push command.
 A more complete alternative to this is using check_compliance.py script from
 ci-tools repo.
 
-Other Guidelines
-****************
+
+Coding Guidelines
+*****************
 
 Beyond the :ref:`coding_style` that Zephyr enforces for all code that is
 submitted for inclusion, the project targets compliance with a series of
 coding guidelines. Refer to the :ref:`coding_guidelines` section of the
 documentation for additional details.
-
-.. toctree::
-   :maxdepth: 1
-
-   coding_guidelines/index.rst
-   documentation/index.rst
 
 .. _Contribution Tools:
 

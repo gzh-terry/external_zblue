@@ -168,7 +168,8 @@ static int pwm_npcx_init(const struct device *dev)
 	const struct pwm_npcx_config *const config = DRV_CONFIG(dev);
 	struct pwm_npcx_data *const data = DRV_DATA(dev);
 	struct pwm_reg *const inst = HAL_INSTANCE(dev);
-	const struct device *const clk_dev = DEVICE_DT_GET(NPCX_CLK_CTRL_NODE);
+	const struct device *const clk_dev =
+					device_get_binding(NPCX_CLK_CTRL_NAME);
 	int ret;
 
 	/*

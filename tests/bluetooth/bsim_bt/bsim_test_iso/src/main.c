@@ -14,7 +14,6 @@
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
-#include <bluetooth/iso.h>
 
 #include "bs_types.h"
 #include "bs_tracing.h"
@@ -45,26 +44,16 @@ extern enum bst_result_t bst_result;
 #include "subsys/bluetooth/host/hci_core.h"
 #endif /* !USE_HOST_API */
 
-static uint8_t mfg_data1[] = { 0xff, 0xff, 0x01, 0x02, 0x03, 0x04 };
-static uint8_t mfg_data2[] = { 0xff, 0xff, 0x05 };
-
-static const struct bt_data per_ad_data1[] = {
-	BT_DATA(BT_DATA_MANUFACTURER_DATA, mfg_data1, 6),
-};
-
-static const struct bt_data per_ad_data2[] = {
-	BT_DATA(BT_DATA_MANUFACTURER_DATA, mfg_data2, 3),
-};
-
 static void test_iso_main(void)
 {
 	struct bt_le_ext_adv *adv;
 	int err;
+	int index;
 	uint8_t bis_count = 1; /* TODO: Add support for multiple BIS per BIG */
 
 	printk("\n*ISO broadcast test*\n");
 
-	printk("Bluetooth initializing...");
+	printk("Bluetooth initializing...\n");
 	err = bt_enable(NULL);
 	if (err) {
 		FAIL("Could not init BT: %d\n", err);
@@ -72,7 +61,7 @@ static void test_iso_main(void)
 	}
 	printk("success.\n");
 
-	printk("Create advertising set...");
+	printk("Create advertising set...\n");
 	err = bt_le_ext_adv_create(BT_LE_EXT_ADV_NCONN_NAME, NULL, &adv);
 	if (err) {
 		FAIL("Failed to create advertising set (err %d)\n", err);
@@ -81,7 +70,7 @@ static void test_iso_main(void)
 	printk("success.\n");
 
 
-	printk("Setting Periodic Advertising parameters...");
+	printk("Setting Periodic Advertising parameters...\n");
 	err = bt_le_per_adv_set_param(adv, BT_LE_PER_ADV_DEFAULT);
 	if (err) {
 		FAIL("Failed to set periodic advertising parameters (err %d)\n",
@@ -90,25 +79,22 @@ static void test_iso_main(void)
 	}
 	printk("success.\n");
 
-	printk("Enable Periodic Advertising...");
+	printk("Enable Periodic Advertising...\n");
 	err = bt_le_per_adv_start(adv);
 	if (err) {
 		FAIL("Failed to enable periodic advertising (err %d)\n", err);
 		return;
 	}
-	printk("success.\n");
 
-	printk("Start extended advertising...");
+	/* Start extended advertising */
 	err = bt_le_ext_adv_start(adv, BT_LE_EXT_ADV_START_DEFAULT);
 	if (err) {
 		printk("Failed to start extended advertising (err %d)\n", err);
 		return;
 	}
-	printk("success.\n");
 
 #if !IS_ENABLED(USE_HOST_API)
 	uint8_t big_handle = 0;
-	uint8_t adv_handle;
 	uint32_t sdu_interval = 0x10000; /*us */
 	uint16_t max_sdu = 0x10;
 	uint16_t max_latency = 0x0A;
@@ -117,13 +103,13 @@ static void test_iso_main(void)
 	uint8_t packing = 0;
 	uint8_t framing = 0;
 	uint8_t encryption = 0;
-	uint8_t bcode[BT_ISO_BROADCAST_CODE_SIZE] = { 0 };
+	uint8_t bcode[16] = { 0 };
 
 	/* Assume that index == handle */
-	adv_handle = bt_le_ext_adv_get_index(adv);
+	index = bt_le_ext_adv_get_index(adv);
 
-	printk("Creating BIG...");
-	err = ll_big_create(big_handle, adv_handle, bis_count, sdu_interval, max_sdu,
+	printk("Creating BIG...\n");
+	err = ll_big_create(big_handle, index, bis_count, sdu_interval, max_sdu,
 			    max_latency, rtn, phy, packing, framing, encryption,
 			    bcode);
 	if (err) {
@@ -134,29 +120,7 @@ static void test_iso_main(void)
 
 	k_sleep(K_MSEC(5000));
 
-	printk("Update periodic advertising data 1...");
-	err = bt_le_per_adv_set_data(adv, per_ad_data1,
-				     ARRAY_SIZE(per_ad_data1));
-	if (err) {
-		FAIL("Failed to update periodic advertising data 1 (%d).\n",
-		     err);
-	}
-	printk("success.\n");
-
-	k_sleep(K_MSEC(5000));
-
-	printk("Update periodic advertising data 2...");
-	err = bt_le_per_adv_set_data(adv, per_ad_data2,
-				     ARRAY_SIZE(per_ad_data2));
-	if (err) {
-		FAIL("Failed to update periodic advertising data 2 (%d).\n",
-		     err);
-	}
-	printk("success.\n");
-
-	k_sleep(K_MSEC(5000));
-
-	printk("Terminating BIG...");
+	printk("Terminating BIG...\n");
 	err = ll_big_terminate(big_handle, BT_HCI_ERR_LOCALHOST_TERM_CONN);
 	if (err) {
 		FAIL("Could not terminate BIG: %d\n", err);
@@ -281,7 +245,7 @@ static void test_iso_recv_main(void)
 
 	printk("\n*ISO broadcast test*\n");
 
-	printk("Bluetooth initializing...");
+	printk("Bluetooth initializing...\n");
 	err = bt_enable(NULL);
 	if (err) {
 		FAIL("Could not init BT: %d\n", err);
@@ -345,11 +309,11 @@ static void test_iso_recv_main(void)
 	uint8_t big_handle = 0;
 	uint8_t mse = 0;
 	uint8_t encryption = 0;
-	uint8_t bcode[BT_ISO_BROADCAST_CODE_SIZE] = { 0 };
+	uint8_t bcode[16] = { 0 };
 	uint16_t sync_timeout = 0;
 	struct node_rx_hdr *node_rx;
 
-	printk("Creating BIG...");
+	printk("Creating BIG...\n");
 	err = ll_big_sync_create(big_handle, sync->handle, encryption, bcode,
 				 mse, sync_timeout, bis_count, &bis_handle);
 	if (err) {
@@ -358,9 +322,9 @@ static void test_iso_recv_main(void)
 	}
 	printk("success.\n");
 
-	k_sleep(K_MSEC(13800));
+	k_sleep(K_MSEC(5000));
 
-	printk("Terminating BIG...");
+	printk("Terminating BIG...\n");
 	err = ll_big_sync_terminate(big_handle, (void **)&node_rx);
 	if (err) {
 		FAIL("Could not terminate BIG sync: %d\n", err);
@@ -378,7 +342,7 @@ static void test_iso_recv_main(void)
 
 static void test_iso_init(void)
 {
-	bst_ticker_set_next_tick_absolute(30e6);
+	bst_ticker_set_next_tick_absolute(20e6);
 	bst_result = In_progress;
 }
 

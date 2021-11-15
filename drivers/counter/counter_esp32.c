@@ -12,27 +12,22 @@
 #include <driver/periph_ctrl.h>
 #include <soc/periph_defs.h>
 #include <hal/timer_types.h>
+#include <driver/timer.h>
 #include <hal/timer_hal.h>
+#include <soc.h>
 #include <string.h>
 #include <drivers/counter.h>
-#ifndef CONFIG_SOC_ESP32C3
-#include <drivers/interrupt_controller/intc_esp32.h>
-#else
-#include <drivers/interrupt_controller/intc_esp32c3.h>
-#endif
 #include <device.h>
 #include <logging/log.h>
 LOG_MODULE_REGISTER(esp32_counter, CONFIG_COUNTER_LOG_LEVEL);
 
-#ifdef CONFIG_SOC_ESP32C3
-#define ISR_HANDLER isr_handler_t
-#else
-#define ISR_HANDLER intr_handler_t
-#endif
-
 #define INITIAL_COUNT (0x00000000ULL)
 
-#ifndef CONFIG_SOC_ESP32C3
+#define INTR_SRC_0 ETS_TG0_T0_LEVEL_INTR_SOURCE
+#define INTR_SRC_1 ETS_TG0_T1_LEVEL_INTR_SOURCE
+#define INTR_SRC_2 ETS_TG1_T0_LEVEL_INTR_SOURCE
+#define INTR_SRC_3 ETS_TG1_T1_LEVEL_INTR_SOURCE
+
 #define INST_0_INDEX TIMER_0
 #define INST_1_INDEX TIMER_1
 #define INST_2_INDEX TIMER_0
@@ -42,13 +37,6 @@ LOG_MODULE_REGISTER(esp32_counter, CONFIG_COUNTER_LOG_LEVEL);
 #define INST_1_GROUP TIMER_GROUP_0
 #define INST_2_GROUP TIMER_GROUP_1
 #define INST_3_GROUP TIMER_GROUP_1
-#else
-#define INST_0_INDEX TIMER_0
-#define INST_1_INDEX TIMER_0
-
-#define INST_0_GROUP TIMER_GROUP_0
-#define INST_1_GROUP TIMER_GROUP_1
-#endif
 
 #define TIMX p_timer_obj[TIMG(dev)][TIDX(dev)]
 #define DEV_CFG(dev) ((const struct counter_esp32_config *const)(dev)->config)
@@ -56,14 +44,12 @@ LOG_MODULE_REGISTER(esp32_counter, CONFIG_COUNTER_LOG_LEVEL);
 #define TIMG(dev) (DEV_CFG(dev)->group)
 #define TIDX(dev) (DEV_CFG(dev)->idx)
 
-static void counter_esp32_isr(void *arg);
-
-typedef bool (*timer_isr_t)(void *);
+typedef void (*counter_irq_config_func_t)(const struct device *dev);
 
 struct timer_isr_func_t {
 	timer_isr_t fn;
 	void *args;
-	struct intr_handle_data_t *timer_isr_handle;
+	timer_isr_handle_t timer_isr_handle;
 	timer_group_t isr_timer_group;
 };
 
@@ -77,7 +63,13 @@ struct counter_esp32_config {
 	timer_config_t config;
 	timer_group_t group;
 	timer_idx_t idx;
-	int irq_source;
+
+	const struct {
+		int source;
+		int line;
+	} irq;
+
+	counter_irq_config_func_t irq_config_fn;
 };
 
 struct counter_esp32_data {
@@ -87,10 +79,6 @@ struct counter_esp32_data {
 
 static struct counter_obj_t *p_timer_obj[TIMER_GROUP_MAX][TIMER_MAX] = { 0 };
 static struct k_spinlock lock;
-
-#ifdef CONFIG_SOC_ESP32C3
-static struct counter_obj_t timer_pool[TIMER_GROUP_MAX] = {0};
-#endif
 
 static int counter_esp32_init(const struct device *dev)
 {
@@ -105,15 +93,11 @@ static int counter_esp32_init(const struct device *dev)
 	}
 
 	if (TIMX == NULL) {
-		#ifndef CONFIG_SOC_ESP32C3
 		TIMX = (struct counter_obj_t *)k_calloc(1, sizeof(struct counter_obj_t));
 		if (TIMX == NULL) {
 			LOG_ERR("TIMER driver malloc error");
 			return -ENOMEM;
 		}
-		#else
-		TIMX = &timer_pool[TIMG(dev)];
-		#endif
 	}
 
 	k_spinlock_key_t key = k_spin_lock(&lock);
@@ -131,11 +115,7 @@ static int counter_esp32_init(const struct device *dev)
 	}
 	timer_hal_set_counter_value(&TIMX->hal, INITIAL_COUNT);
 	timer_hal_set_counter_enable(&TIMX->hal, cfg->config.counter_en);
-	esp_intr_alloc(DEV_CFG(dev)->irq_source,
-			0,
-			(ISR_HANDLER)counter_esp32_isr,
-			(void *)dev,
-			NULL);
+	DEV_CFG(dev)->irq_config_fn(dev);
 	k_spin_unlock(&lock, key);
 
 	return 0;
@@ -236,9 +216,8 @@ static const struct counter_driver_api counter_api = {
 	.get_top_value = counter_esp32_get_top_value,
 };
 
-static void counter_esp32_isr(void *arg)
+static void counter_esp32_isr(struct device *dev)
 {
-	struct device *dev = (struct device *)arg;
 	counter_esp32_cancel_alarm(dev, 0);
 	uint32_t now;
 
@@ -256,6 +235,7 @@ static void counter_esp32_isr(void *arg)
 #define ESP32_COUNTER_INIT(n)							 \
 										 \
 	static struct counter_esp32_data counter_data_##n;			 \
+	static void counter_esp32_irq_config_##n(const struct device *dev);	 \
 										 \
 	static const struct counter_esp32_config counter_config_##n = {		 \
 		.counter_info = {						 \
@@ -274,14 +254,27 @@ static void counter_esp32_isr(void *arg)
 		},								 \
 		.group = INST_##n##_GROUP,					 \
 		.idx = INST_##n##_INDEX,					 \
-		.irq_source = DT_IRQN(DT_NODELABEL(timer##n))                    \
+		.irq = {							 \
+			.source =  INTR_SRC_##n,				 \
+			.line =  CONFIG_COUNTER_ESP32_IRQ_##n,			 \
+		},								 \
+		.irq_config_fn = counter_esp32_irq_config_##n			 \
 	};									 \
 										 \
+	static void counter_esp32_irq_config_##n(const struct device *dev)	 \
+	{									 \
+		intr_matrix_set(0, INTR_SRC_##n,				 \
+				CONFIG_COUNTER_ESP32_IRQ_##n);			 \
+		IRQ_CONNECT(CONFIG_COUNTER_ESP32_IRQ_##n,			 \
+			    DT_INST_IRQ(n, priority), counter_esp32_isr,	 \
+			    DEVICE_DT_INST_GET(n), 0);				 \
+		irq_enable(CONFIG_COUNTER_ESP32_IRQ_##n);			 \
+	}									 \
 										 \
 	DEVICE_DT_INST_DEFINE(n,						 \
 			      counter_esp32_init,				 \
 			      NULL, &counter_data_##n,				 \
 			      &counter_config_##n, PRE_KERNEL_1,		 \
-			      CONFIG_COUNTER_INIT_PRIORITY, &counter_api);
+			      CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &counter_api);
 
-DT_INST_FOREACH_STATUS_OKAY(ESP32_COUNTER_INIT);
+DT_INST_FOREACH_STATUS_OKAY(ESP32_COUNTER_INIT)

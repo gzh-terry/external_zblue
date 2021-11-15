@@ -1,3 +1,5 @@
+/*  Bluetooth Mesh */
+
 /*
  * Copyright (c) 2017 Intel Corporation
  *
@@ -35,9 +37,9 @@ struct health_fault_param {
 	size_t *fault_count;
 };
 
-static int health_fault_status(struct bt_mesh_model *model,
-			       struct bt_mesh_msg_ctx *ctx,
-			       struct net_buf_simple *buf)
+static void health_fault_status(struct bt_mesh_model *model,
+				struct bt_mesh_msg_ctx *ctx,
+				struct net_buf_simple *buf)
 {
 	struct health_fault_param *param;
 	uint8_t test_id;
@@ -49,19 +51,19 @@ static int health_fault_status(struct bt_mesh_model *model,
 
 	if (!bt_mesh_msg_ack_ctx_match(&health_cli->ack_ctx, OP_HEALTH_FAULT_STATUS, ctx->addr,
 				       (void **)&param)) {
-		return -ENOENT;
+		return;
 	}
 
 	test_id = net_buf_simple_pull_u8(buf);
 	if (param->expect_test_id && test_id != *param->expect_test_id) {
 		BT_WARN("Health fault with unexpected Test ID");
-		return -ENOENT;
+		return;
 	}
 
 	cid = net_buf_simple_pull_le16(buf);
 	if (cid != param->cid) {
 		BT_WARN("Health fault with unexpected Company ID");
-		return -ENOENT;
+		return;
 	}
 
 	if (param->test_id) {
@@ -77,13 +79,11 @@ static int health_fault_status(struct bt_mesh_model *model,
 	memcpy(param->faults, buf->data, *param->fault_count);
 
 	bt_mesh_msg_ack_ctx_rx(&health_cli->ack_ctx);
-
-	return 0;
 }
 
-static int health_current_status(struct bt_mesh_model *model,
-				 struct bt_mesh_msg_ctx *ctx,
-				 struct net_buf_simple *buf)
+static void health_current_status(struct bt_mesh_model *model,
+				  struct bt_mesh_msg_ctx *ctx,
+				  struct net_buf_simple *buf)
 {
 	struct bt_mesh_health_cli *cli = model->user_data;
 	uint8_t test_id;
@@ -101,21 +101,19 @@ static int health_current_status(struct bt_mesh_model *model,
 
 	if (!cli->current_status) {
 		BT_WARN("No Current Status callback available");
-		return 0;
+		return;
 	}
 
 	cli->current_status(cli, ctx->addr, test_id, cid, buf->data, buf->len);
-
-	return 0;
 }
 
 struct health_period_param {
 	uint8_t *divisor;
 };
 
-static int health_period_status(struct bt_mesh_model *model,
-				struct bt_mesh_msg_ctx *ctx,
-				struct net_buf_simple *buf)
+static void health_period_status(struct bt_mesh_model *model,
+				 struct bt_mesh_msg_ctx *ctx,
+				 struct net_buf_simple *buf)
 {
 	struct health_period_param *param;
 
@@ -125,23 +123,21 @@ static int health_period_status(struct bt_mesh_model *model,
 
 	if (!bt_mesh_msg_ack_ctx_match(&health_cli->ack_ctx, OP_HEALTH_PERIOD_STATUS, ctx->addr,
 				       (void **)&param)) {
-		return -ENOENT;
+		return;
 	}
 
 	*param->divisor = net_buf_simple_pull_u8(buf);
 
 	bt_mesh_msg_ack_ctx_rx(&health_cli->ack_ctx);
-
-	return 0;
 }
 
 struct health_attention_param {
 	uint8_t *attention;
 };
 
-static int health_attention_status(struct bt_mesh_model *model,
-				   struct bt_mesh_msg_ctx *ctx,
-				   struct net_buf_simple *buf)
+static void health_attention_status(struct bt_mesh_model *model,
+				    struct bt_mesh_msg_ctx *ctx,
+				    struct net_buf_simple *buf)
 {
 	struct health_attention_param *param;
 
@@ -151,7 +147,7 @@ static int health_attention_status(struct bt_mesh_model *model,
 
 	if (!bt_mesh_msg_ack_ctx_match(&health_cli->ack_ctx, OP_ATTENTION_STATUS, ctx->addr,
 				       (void **)&param)) {
-		return -ENOENT;
+		return;
 	}
 
 	if (param->attention) {
@@ -159,15 +155,13 @@ static int health_attention_status(struct bt_mesh_model *model,
 	}
 
 	bt_mesh_msg_ack_ctx_rx(&health_cli->ack_ctx);
-
-	return 0;
 }
 
 const struct bt_mesh_model_op bt_mesh_health_cli_op[] = {
-	{ OP_HEALTH_FAULT_STATUS,     BT_MESH_LEN_MIN(3),    health_fault_status },
-	{ OP_HEALTH_CURRENT_STATUS,   BT_MESH_LEN_MIN(3),    health_current_status },
-	{ OP_HEALTH_PERIOD_STATUS,    BT_MESH_LEN_EXACT(1),  health_period_status },
-	{ OP_ATTENTION_STATUS,        BT_MESH_LEN_EXACT(1),  health_attention_status },
+	{ OP_HEALTH_FAULT_STATUS,    3,   health_fault_status },
+	{ OP_HEALTH_CURRENT_STATUS,  3,   health_current_status },
+	{ OP_HEALTH_PERIOD_STATUS,   1,   health_period_status },
+	{ OP_ATTENTION_STATUS,       1,   health_attention_status },
 	BT_MESH_MODEL_OP_END,
 };
 
@@ -490,7 +484,6 @@ static int health_cli_init(struct bt_mesh_model *model)
 
 	cli = model->user_data;
 	cli->model = model;
-	msg_timeout = 2 * MSEC_PER_SEC;
 
 	/* Set the default health client pointer */
 	if (!health_cli) {

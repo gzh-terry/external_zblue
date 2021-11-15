@@ -148,17 +148,6 @@
 &gmac {
 	status = "okay";
 	zephyr,random-mac-address;
-
-	phy: phy {
-		compatible = "ethernet-phy";
-		status = "okay";
-		address = <0>;
-		mdio = <&mdio>;
-	};
-};
-
-&mdio {
-	status = "okay";
 };
 
 &wdt {

@@ -185,7 +185,7 @@ static union mpsc_pbuf_generic *drop_item_locked(struct mpsc_pbuf_buffer *buffer
 }
 
 void mpsc_pbuf_put_word(struct mpsc_pbuf_buffer *buffer,
-			const union mpsc_pbuf_generic item)
+			union mpsc_pbuf_generic item)
 {
 	bool cont;
 	uint32_t free_wlen;
@@ -305,8 +305,7 @@ void mpsc_pbuf_commit(struct mpsc_pbuf_buffer *buffer,
 }
 
 void mpsc_pbuf_put_word_ext(struct mpsc_pbuf_buffer *buffer,
-			    const union mpsc_pbuf_generic item,
-			    const void *data)
+			union mpsc_pbuf_generic item, void *data)
 {
 	static const size_t l =
 		(sizeof(item) + sizeof(data)) / sizeof(uint32_t);
@@ -328,7 +327,7 @@ void mpsc_pbuf_put_word_ext(struct mpsc_pbuf_buffer *buffer,
 			void **p =
 				(void **)&buffer->buf[buffer->tmp_wr_idx + 1];
 
-			*p = (void *)data;
+			*p = data;
 			buffer->tmp_wr_idx =
 				idx_inc(buffer, buffer->tmp_wr_idx, l);
 			buffer->wr_idx = idx_inc(buffer, buffer->wr_idx, l);
@@ -353,7 +352,7 @@ void mpsc_pbuf_put_word_ext(struct mpsc_pbuf_buffer *buffer,
 	} while (cont);
 }
 
-void mpsc_pbuf_put_data(struct mpsc_pbuf_buffer *buffer, const uint32_t *data,
+void mpsc_pbuf_put_data(struct mpsc_pbuf_buffer *buffer, uint32_t *data,
 			size_t wlen)
 {
 	bool cont;
@@ -396,7 +395,7 @@ void mpsc_pbuf_put_data(struct mpsc_pbuf_buffer *buffer, const uint32_t *data,
 	} while (cont);
 }
 
-const union mpsc_pbuf_generic *mpsc_pbuf_claim(struct mpsc_pbuf_buffer *buffer)
+union mpsc_pbuf_generic *mpsc_pbuf_claim(struct mpsc_pbuf_buffer *buffer)
 {
 	union mpsc_pbuf_generic *item;
 	bool cont;

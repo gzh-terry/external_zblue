@@ -13,7 +13,6 @@ extern void test_mslab_alloc_free_thread(void);
 extern void test_mslab_alloc_align(void);
 extern void test_mslab_alloc_timeout(void);
 extern void test_mslab_used_get(void);
-extern void test_mslab_pending(void);
 
 /*test case main entry*/
 void test_main(void)
@@ -25,7 +24,6 @@ void test_main(void)
 			 ztest_unit_test(test_mslab_alloc_free_thread),
 			 ztest_unit_test(test_mslab_alloc_align),
 			 ztest_1cpu_unit_test(test_mslab_alloc_timeout),
-			 ztest_unit_test(test_mslab_used_get),
-			 ztest_unit_test(test_mslab_pending));
+			 ztest_unit_test(test_mslab_used_get));
 	ztest_run_test_suite(mslab_api);
 }

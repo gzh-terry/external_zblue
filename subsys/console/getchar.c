@@ -52,11 +52,7 @@ int console_init(void)
 	const struct device *uart_dev;
 	int ret;
 
-	uart_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
-	if (!device_is_ready(uart_dev)) {
-		return -ENODEV;
-	}
-
+	uart_dev = device_get_binding(CONFIG_UART_CONSOLE_ON_DEV_NAME);
 	ret = tty_init(&console_serial, uart_dev);
 
 	if (ret) {
