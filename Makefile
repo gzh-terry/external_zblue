@@ -244,6 +244,10 @@ ifeq ($(CONFIG_BT_SHELL),y)
   CSRCS += $(SUBDIR)/shell/bt.c
   CSRCS += $(SUBDIR)/shell/hci.c
 
+  ifeq ($(CONFIG_BT_MIBLE_TEST),y)
+    CSRCS += $(SUBDIR)/shell/mible_test.c
+  endif
+
   ifeq ($(CONFIG_BT_CONN),y)
     CSRCS += $(SUBDIR)/shell/gatt.c
   endif
