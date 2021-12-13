@@ -1276,7 +1276,7 @@ send_last:
 	net_buf_unref(buf);
 }
 
-static void subnet_evt_friend(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
+static void subnet_evt(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
 {
 	int i, err;
 

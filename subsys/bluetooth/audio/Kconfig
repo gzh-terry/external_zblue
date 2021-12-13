@@ -25,13 +25,12 @@ config BT_CCID
 	  This hidden option is enabled when any of the content control
 	  features are enabled.
 
-source "$APPSDIR/external/zblue/subsys/bluetooth/audio/Kconfig.baps"
-source "$APPSDIR/external/zblue/subsys/bluetooth/audio/Kconfig.vocs"
-source "$APPSDIR/external/zblue/subsys/bluetooth/audio/Kconfig.aics"
-source "$APPSDIR/external/zblue/subsys/bluetooth/audio/Kconfig.vcs"
-source "$APPSDIR/external/zblue/subsys/bluetooth/audio/Kconfig.mics"
-source "$APPSDIR/external/zblue/subsys/bluetooth/audio/Kconfig.csis"
-source "$APPSDIR/external/zblue/subsys/bluetooth/audio/Kconfig.otc"
-source "$APPSDIR/external/zblue/subsys/bluetooth/audio/Kconfig.mcs"
+rsource "Kconfig.baps"
+rsource "Kconfig.vocs"
+rsource "Kconfig.aics"
+rsource "Kconfig.vcs"
+rsource "Kconfig.mics"
+rsource "Kconfig.csis"
+rsource "Kconfig.mcs"
 
 endif # BT_AUDIO

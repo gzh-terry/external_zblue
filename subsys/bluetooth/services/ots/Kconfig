@@ -88,4 +88,8 @@ config BT_OTS_OBJ_MAX_NAME_LEN
 config BT_OTS_OBJ_NAME_WRITE_SUPPORT
 	bool "Support object name write"
 
+module = BT_OTS
+module-str = BT_OTS
+source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
+
 endif # BT_OTS

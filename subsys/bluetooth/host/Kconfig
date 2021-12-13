@@ -101,7 +101,7 @@ config BT_RX_PRIO
 	# Hidden option for Co-Operative Rx thread priority
 	int
 	depends on BT_HCI_HOST || BT_RECV_IS_RX_THREAD
-	default 7
+	default 8
 
 config BT_DRIVER_RX_HIGH_PRIO
 	# Hidden option for Co-Operative HCI driver RX thread priority
@@ -441,8 +441,8 @@ config BT_SMP_MIN_ENC_KEY_SIZE
 
 endif # BT_SMP
 
-source "$APPSDIR/external/zblue/subsys/bluetooth/host/Kconfig.l2cap"
-source "$APPSDIR/external/zblue/subsys/bluetooth/host/Kconfig.gatt"
+rsource "Kconfig.l2cap"
+rsource "Kconfig.gatt"
 
 config BT_MAX_PAIRED
 	int "Maximum number of paired devices"

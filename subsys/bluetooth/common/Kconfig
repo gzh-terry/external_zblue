@@ -320,7 +320,7 @@ if BT_DEBUG_MONITOR_RTT
 
 config BT_DEBUG_MONITOR_RTT_BUFFER
 	int "Buffer number used for custom logger output."
-	range 1 1
+	range 1 SEGGER_RTT_MAX_NUM_UP_BUFFERS
 	default 1
 	help
 	  Select index of up-buffer used for logger output.

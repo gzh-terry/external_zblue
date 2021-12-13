@@ -418,7 +418,7 @@ void bt_mesh_beacon_update(struct bt_mesh_subnet *sub)
 	}
 }
 
-static void subnet_evt_beacon(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
+static void subnet_evt(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
 {
 	if (evt != BT_MESH_KEY_DELETED) {
 		bt_mesh_beacon_update(sub);

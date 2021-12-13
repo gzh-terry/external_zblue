@@ -56,7 +56,7 @@ typedef void (*k_thread_entry_t)(void *p1, void *p2, void *p3);
  *
  * @see k_cycle_get_32()
  */
-uint32_t arch_k_cycle_get_32(void);
+static inline uint32_t arch_k_cycle_get_32(void);
 
 /**
  * Obtain the current cycle count, in units that are hardware-specific
@@ -244,14 +244,14 @@ bool arch_cpu_active(int cpu_num);
  *
  * @see irq_lock()
  */
-unsigned int arch_irq_lock(void);
+static inline unsigned int arch_irq_lock(void);
 
 /**
  * Unlock interrupts on the current CPU
  *
  * @see irq_unlock()
  */
-void arch_irq_unlock(unsigned int key);
+static inline void arch_irq_unlock(unsigned int key);
 
 /**
  * Test if calling arch_irq_unlock() with this key would unlock irqs
@@ -260,7 +260,7 @@ void arch_irq_unlock(unsigned int key);
  * @return true if interrupts were unlocked prior to the arch_irq_lock()
  * call that produced the key argument.
  */
-bool arch_irq_unlocked(unsigned int key);
+static inline bool arch_irq_unlocked(unsigned int key);
 
 /**
  * Disable the specified interrupt line
