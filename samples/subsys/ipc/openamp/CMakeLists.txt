@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13.1)
+cmake_minimum_required(VERSION 3.20.0)
 # Copyright (c) 2018 Nordic Semiconductor ASA
 # Copyright (c) 2019 Linaro Limited
 #
@@ -15,12 +15,12 @@ elseif("${BOARD}" STREQUAL "mps2_an521")
   set(QEMU_EXTRA_FLAGS "-device;loader,file=${REMOTE_ZEPHYR_DIR}/zephyr.elf")
   set(BOARD_REMOTE "mps2_an521_remote")
 elseif("${BOARD}" STREQUAL "v2m_musca_b1")
-  set(BOARD_REMOTE "v2m_musca_b1_nonsecure")
+  set(BOARD_REMOTE "v2m_musca_b1_ns")
 else()
   message(FATAL_ERROR "${BOARD} was not supported for this sample")
 endif()
 
-message(INFO " ${BOARD} compile as Master in this sample")
+message(STATUS "${BOARD} compile as Master in this sample")
 
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(openamp)

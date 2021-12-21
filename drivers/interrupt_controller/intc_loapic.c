@@ -10,6 +10,7 @@
 #include <kernel.h>
 #include <kernel_structs.h>
 #include <arch/cpu.h>
+#include <pm/device.h>
 #include <zephyr/types.h>
 #include <string.h>
 #include <sys/__assert.h>
@@ -64,9 +65,6 @@
 #include <pm/device.h>
 __pinned_bss
 uint32_t loapic_suspend_buf[LOPIC_SUSPEND_BITS_REQD / 32] = {0};
-
-__pinned_data
-static uint32_t loapic_device_power_state = PM_DEVICE_STATE_ACTIVE;
 #endif
 
 #ifdef DEVICE_MMIO_IS_IN_RAM
@@ -185,7 +183,6 @@ void z_loapic_enable(unsigned char cpu_number)
 }
 
 /**
- *
  * @brief Dummy initialization function.
  *
  * The local APIC is initialized via z_loapic_enable() long before the
@@ -206,12 +203,9 @@ uint32_t z_loapic_irq_base(void)
 }
 
 /**
- *
  * @brief Set the vector field in the specified RTE
  *
  * This associates an IRQ with the desired vector in the IDT.
- *
- * @return N/A
  */
 __boot_func
 void z_loapic_int_vec_set(unsigned int irq, /* IRQ number of the interrupt */
@@ -243,14 +237,11 @@ void z_loapic_int_vec_set(unsigned int irq, /* IRQ number of the interrupt */
 }
 
 /**
- *
  * @brief Enable an individual LOAPIC interrupt (IRQ)
  *
  * @param irq the IRQ number of the interrupt
  *
  * This routine clears the interrupt mask bit in the LVT for the specified IRQ
- *
- * @return N/A
  */
 __pinned_func
 void z_loapic_irq_enable(unsigned int irq)
@@ -272,14 +263,11 @@ void z_loapic_irq_enable(unsigned int irq)
 }
 
 /**
- *
  * @brief Disable an individual LOAPIC interrupt (IRQ)
  *
  * @param irq the IRQ number of the interrupt
  *
  * This routine clears the interrupt mask bit in the LVT for the specified IRQ
- *
- * @return N/A
  */
 __pinned_func
 void z_loapic_irq_disable(unsigned int irq)
@@ -372,7 +360,7 @@ static int loapic_suspend(const struct device *port)
 			}
 		}
 	}
-	loapic_device_power_state = PM_DEVICE_STATE_SUSPEND;
+
 	return 0;
 }
 
@@ -402,7 +390,6 @@ int loapic_resume(const struct device *port)
 			}
 		}
 	}
-	loapic_device_power_state = PM_DEVICE_STATE_ACTIVE;
 
 	return 0;
 }
@@ -412,35 +399,30 @@ int loapic_resume(const struct device *port)
 * the *context may include IN data or/and OUT data
 */
 __pinned_func
-static int loapic_device_ctrl(const struct device *port,
-			      uint32_t ctrl_command,
-			      uint32_t *context, pm_device_cb cb, void *arg)
+static int loapic_pm_action(const struct device *dev,
+			    enum pm_device_action action)
 {
 	int ret = 0;
 
-	if (ctrl_command == PM_DEVICE_STATE_SET) {
-		if (*context == PM_DEVICE_STATE_SUSPEND) {
-			ret = loapic_suspend(port);
-		} else if (*context == PM_DEVICE_STATE_ACTIVE) {
-			ret = loapic_resume(port);
-		}
-	} else if (ctrl_command == PM_DEVICE_STATE_GET) {
-		*context = loapic_device_power_state;
-	}
-
-	if (cb) {
-		cb(port, ret, context, arg);
+	switch (action) {
+	case PM_DEVICE_ACTION_SUSPEND:
+		ret = loapic_suspend(dev);
+		break;
+	case PM_DEVICE_ACTION_RESUME:
+		ret = loapic_resume(dev);
+		break;
+	default:
+		return -ENOTSUP;
 	}
 
 	return ret;
 }
+#endif /* CONFIG_PM_DEVICE */
 
-SYS_DEVICE_DEFINE("loapic", loapic_init, loapic_device_ctrl, PRE_KERNEL_1,
-		  CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
-#else
-SYS_INIT(loapic_init, PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
-#endif   /* CONFIG_PM_DEVICE */
+PM_DEVICE_DEFINE(loapic, loapic_pm_action);
 
+DEVICE_DEFINE(loapic, "loapic", loapic_init, PM_DEVICE_GET(loapic), NULL, NULL,
+	      PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT, NULL);
 
 #if CONFIG_LOAPIC_SPURIOUS_VECTOR
 extern void z_loapic_spurious_handler(void);

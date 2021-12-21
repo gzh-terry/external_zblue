@@ -12,29 +12,14 @@ extern "C" {
 #endif
 
 /**
- * @brief Receive whether the module for the console is in use.
- *
- * @return 1 if console is in use. Otherwise
- * @return
- *  - True if the console is in use.
- *  - False otherwise,  the module for console is reday to enter low power mode.
+ * @brief Disable UART RX wake-up interrupt.
  */
-bool npcx_power_console_is_in_use(void);
+void npcx_uart_disable_access_interrupt(void);
 
 /**
- * @brief Notify the power module that the module for the console is in use.
- *
- * Notify the power module that the module for the console is in use. It also
- * extends expired time by CONFIG_UART_CONSOLE_INPUT_EXPIRED_TIMEOUT.
+ * @brief Enable UART RX wake-up interrupt.
  */
-void npcx_power_console_is_in_use_refresh(void);
-
-/**
- * @brief Set expired time-out directly for the console is in use.
- *
- * @param timeout Expired time-out for the console is in use.
- */
-void npcx_power_set_console_in_use_timeout(int64_t timeout);
+void npcx_uart_enable_access_interrupt(void);
 
 #ifdef __cplusplus
 }

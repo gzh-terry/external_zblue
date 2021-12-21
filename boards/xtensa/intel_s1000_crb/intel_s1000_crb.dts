@@ -39,6 +39,10 @@
 	clock-frequency = <400000000>;
 };
 
+&gpio0 {
+	status = "okay";
+};
+
 &uart0 {
 	status = "okay";
 	current-speed = <115200>;
@@ -107,6 +111,6 @@
 	};
 };
 
-&usb {
+zephyr_udc0: &usb {
 	status = "okay";
 };

@@ -69,6 +69,18 @@ this contributing and review process for imported components.
 
       ../LICENSING.rst
 
+.. _copyrights:
+
+Copyrights Notices
+*******************
+
+Please follow this `Community Best Practice`_ for Copyright Notices from the
+Linux Foundation.
+
+
+.. _Community Best Practice:
+   https://www.linuxfoundation.org/blog/copyright-notices-in-open-source-software-projects/
+
 .. _DCO:
 
 Developer Certification of Origin (DCO)
@@ -116,19 +128,35 @@ below and at http://developercertificate.org/.
         consistent with this project or the open source license(s)
         involved.
 
-DCO Sign-Off Methods
-====================
+DCO Sign-Off
+============
 
-The DCO requires a sign-off message in the following format appear on each
-commit in the pull request::
+The "sign-off" in the DCO is a "Signed-off-by:" line in each commit's log
+message. The Signed-off-by: line must be in the following format::
 
-   Signed-off-by: Zephyrus Zephyr <zephyrus@zephyrproject.org>
+   Signed-off-by: Your Name <your.email@example.com>
 
-The DCO text can either be manually added to your commit body, or you can add
-either ``-s`` or ``--signoff`` to your usual Git commit commands. If you forget
-to add the sign-off you can also amend a previous commit with the sign-off by
-running ``git commit --amend -s``. If you've pushed your changes to GitHub
-already you'll need to force push your branch after this with ``git push -f``.
+For your commits, replace:
+
+- ``Your Name`` with your legal name (pseudonyms, hacker handles, and the
+  names of groups are not allowed)
+
+- ``your.email@example.com`` with the same email address you are using to
+  author the commit (CI will fail if there is no match)
+
+You can automatically add the Signed-off-by: line to your commit body using
+``git commit -s``. Use other commits in the zephyr git history as examples.
+
+Additional requirements:
+
+- If you are altering an existing commit created by someone else, you must add
+  your Signed-off-by: line without removing the existing one.
+
+- If you forget to add the Signed-off-by: line, you can add it to your previous
+  commit by running ``git commit --amend -s``.
+
+- If you've pushed your changes to GitHub already you'll need to force push
+  your branch after this with ``git push -f``.
 
 Notes
 =====
@@ -167,8 +195,8 @@ on https://github.com and have Git tools available on your development system.
    (Linux, macOS, and Windows) but some of the tools used in the sections below
    are only available on Linux and macOS. On Windows, instead of running these
    tools yourself, you will need to rely on the Continuous Integration (CI)
-   service ``buildkite``, which runs automatically on GitHub when you submit
-   your Pull Request (PR).  You can see any failure results in the Buildkite
+   service using Github Actions, which runs automatically on GitHub when you submit
+   your Pull Request (PR).  You can see any failure results in the workflow
    details link near the end of the PR conversation list. See
    `Continuous Integration`_ for more information
 
@@ -193,15 +221,16 @@ Pull Requests and Issues
 
 .. _Zephyr devel mailing list: https://lists.zephyrproject.org/g/devel
 
-.. _Zephyr Slack channel: https://zephyrproject.slack.com
+.. _Zephyr Discord Server: https://chat.zephyrproject.org
 
 Before starting on a patch, first check in our issues `Zephyr Project Issues`_
 system to see what's been reported on the issue you'd like to address.  Have a
-conversation on the `Zephyr devel mailing list`_ (or the the `Zephyr Slack channel`_)
-to see what others think of your issue (and proposed solution).  You may find
-others that have encountered the issue you're finding, or that have similar
-ideas for changes or additions.  Send a message to the `Zephyr devel mailing list`_
-to introduce and discuss your idea with the development community.
+conversation on the `Zephyr devel mailing list`_ (or the the `Zephyr Discord
+Server`_) to see what others think of your issue (and proposed solution).  You
+may find others that have encountered the issue you're finding, or that have
+similar ideas for changes or additions.  Send a message to the `Zephyr devel
+mailing list`_ to introduce and discuss your idea with the development
+community.
 
 It's always a good practice to search for existing or related issues before
 submitting your own. When you submit an issue (bug or feature request), the
@@ -366,14 +395,19 @@ issues, you can add option --no-verify to the git push command.
 A more complete alternative to this is using check_compliance.py script from
 ci-tools repo.
 
-
-Coding Guidelines
-*****************
+Other Guidelines
+****************
 
 Beyond the :ref:`coding_style` that Zephyr enforces for all code that is
 submitted for inclusion, the project targets compliance with a series of
 coding guidelines. Refer to the :ref:`coding_guidelines` section of the
 documentation for additional details.
+
+.. toctree::
+   :maxdepth: 1
+
+   coding_guidelines/index.rst
+   documentation/index.rst
 
 .. _Contribution Tools:
 
@@ -678,11 +712,10 @@ every Pull Request (PR) in order to verify several aspects of the PR:
 * Twister builds for multiple architectures and boards
 * Documentation build to verify any doc changes
 
-CI is run both on the ``buildkite`` cloud service and Github Actions and it uses
-the same tools described in the `Contribution Tools`_ section.
-The CI results must be green indicating "All checks have passed" before
-the Pull Request can be merged.  CI is run when the PR is created, and
-again every time the PR is modified with a commit.
+CI is run on Github Actions and it uses the same tools described in the
+`Contribution Tools`_ section.  The CI results must be green indicating "All
+checks have passed" before the Pull Request can be merged.  CI is run when the
+PR is created, and again every time the PR is modified with a commit.
 
 The current status of the CI run can always be found at the bottom of the
 GitHub PR page, below the review status. Depending on the success or failure
@@ -692,17 +725,16 @@ of the run you will see:
 * "All checks have failed"
 
 In case of failure you can click on the "Details" link presented below the
-failure message in order to navigate to ``buildkite`` or ``Github Actions``
-and inspect the results.
-Once you click on the link you will be taken to the ``buildkite`` summary
+failure message in order to navigate to ``Github Actions`` and inspect the
+results.
+Once you click on the link you will be taken to the ``Github actions`` summary
 results page where a table with all the different builds will be shown. To see
 what build or test failed click on the row that contains the failed (i.e.
-non-green) build and then click on the "Tests" tab to see the console output
-messages indicating the failure.
+non-green) build.
 
 The `builds@lists.zephyrproject.org mailing list
-<https://lists.zephyrproject.org/g/builds>`_
-archives the CI (buildkite) nightly build results.
+<https://lists.zephyrproject.org/g/builds>`_ archives any nightly build results
+produced by CI.
 
 Contributions to External Modules
 **********************************

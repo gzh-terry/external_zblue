@@ -18,8 +18,6 @@
 
 #ifndef _ASMLANGUAGE
 
-/* Add include for DTS generated information */
-#include <devicetree.h>
 
 #define DONT_USE_CMSIS_INIT
 #define DONT_USE_PREDEFINED_CORE_HANDLERS
@@ -77,5 +75,7 @@
 	(SOC_ATMEL_SAM_HCLK_FREQ_HZ / CONFIG_SOC_ATMEL_SAMV71_MDIV)
 
 #endif /* _ASMLANGUAGE */
+
+#include "pwm_fixup.h"
 
 #endif /* _ATMEL_SAMV71_SOC_H_ */

@@ -119,6 +119,16 @@ static int set(const char *name, size_t len_rd, settings_read_cb read_cb,
 	ssize_t len;
 	const char *next;
 
+	if (!atomic_test_bit(bt_dev.flags, BT_DEV_ENABLE)) {
+		/* The Bluetooth settings loader needs to communicate with the Bluetooth
+		 * controller to setup identities. This will not work before
+		 * bt_enable(). The doc on @ref bt_enable requires the "bt/" settings
+		 * tree to be loaded after @ref bt_enable is completed, so this handler
+		 * will be called again later.
+		 */
+		return 0;
+	}
+
 	if (!name) {
 		BT_ERR("Insufficient number of arguments");
 		return -ENOENT;
@@ -231,7 +241,19 @@ void bt_settings_save_id(void)
 
 static int commit(void)
 {
+	int err;
+
 	BT_DBG("");
+
+	if (!atomic_test_bit(bt_dev.flags, BT_DEV_ENABLE)) {
+		/* The Bluetooth settings loader needs to communicate with the Bluetooth
+		 * controller to setup identities. This will not work before
+		 * bt_enable(). The doc on @ref bt_enable requires the "bt/" settings
+		 * tree to be loaded after @ref bt_enable is completed, so this handler
+		 * will be called again later.
+		 */
+		return 0;
+	}
 
 #if defined(CONFIG_BT_DEVICE_NAME_DYNAMIC)
 	if (bt_dev.name[0] == '\0') {
@@ -239,12 +261,14 @@ static int commit(void)
 	}
 #endif
 	if (!bt_dev.id_count) {
-		bt_setup_public_id_addr();
+		err = bt_setup_public_id_addr();
+		if (err) {
+			BT_ERR("Unable to setup an identity address");
+			return err;
+		}
 	}
 
 	if (!bt_dev.id_count) {
-		int err;
-
 		err = bt_setup_random_id_addr();
 		if (err) {
 			BT_ERR("Unable to setup an identity address");

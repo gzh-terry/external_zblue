@@ -83,9 +83,9 @@ Zephyr Storage Backends
 ***********************
 
 Zephyr has three storage backends: a Flash Circular Buffer
-(:option:`CONFIG_SETTINGS_FCB`), a file in the filesystem
-(:option:`CONFIG_SETTINGS_FS`), or non-volatile storage
-(:option:`CONFIG_SETTINGS_NVS`).
+(:kconfig:`CONFIG_SETTINGS_FCB`), a file in the filesystem
+(:kconfig:`CONFIG_SETTINGS_FS`), or non-volatile storage
+(:kconfig:`CONFIG_SETTINGS_NVS`).
 
 You can declare multiple sources for settings; settings from
 all of these are restored when ``settings_load()`` is called.
@@ -138,6 +138,14 @@ Garbage collection
 When storage becomes full (FCB) or consumes too much space (file system),
 the backend removes non-recent key-value pairs records and unnecessary
 key-delete records.
+
+Secure domain settings
+**********************
+Currently settings doesn't provide scheme of being secure, and non-secure
+configuration storage simultaneously for the same instance.
+It is recommended that secure domain uses its own settings instance and it might
+provide data for non-secure domain using dedicated interface if needed
+(case dependent).
 
 Example: Device Configuration
 *****************************
@@ -263,7 +271,7 @@ Example: Custom Backend Implementation
 **************************************
 
 This is a simple example showing how to register a simple custom backend
-handler (:option:`CONFIG_SETTINGS_CUSTOM`).
+handler (:kconfig:`CONFIG_SETTINGS_CUSTOM`).
 
 .. code-block:: c
 

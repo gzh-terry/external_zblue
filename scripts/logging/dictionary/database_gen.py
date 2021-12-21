@@ -15,11 +15,12 @@ with the parser to decode binary log messages.
 import argparse
 import logging
 import os
+import re
 import struct
 import sys
 
-import parser.log_database
-from parser.log_database import LogDatabase
+import dictionary_parser.log_database
+from dictionary_parser.log_database import LogDatabase
 
 import elftools
 from elftools.elf.elffile import ELFFile
@@ -32,7 +33,12 @@ logger = logging.getLogger(os.path.basename(sys.argv[0]))
 
 
 # Sections that contains static strings
-STATIC_STRING_SECTIONS = ['rodata', '.rodata', 'log_strings_sections']
+STATIC_STRING_SECTIONS = [
+    'rodata',
+    '.rodata',
+    'pinned.rodata',
+    'log_strings_sections'
+]
 
 
 def parse_args():
@@ -42,6 +48,8 @@ def parse_args():
     argparser.add_argument("elffile", help="Zephyr ELF binary")
     argparser.add_argument("dbfile", help="Dictionary Logging Database file")
     argparser.add_argument("--build", help="Build ID")
+    argparser.add_argument("--build-header",
+                           help="Header file containing BUILD_VERSION define")
     argparser.add_argument("--debug", action="store_true",
                            help="Print extra debugging information")
     argparser.add_argument("-v", "--verbose", action="store_true",
@@ -175,7 +183,7 @@ def process_kconfigs(elf, database):
     database.set_tgt_bits(64 if "CONFIG_64BIT" in kconfigs else 32)
 
     # Architecture
-    for name, arch in parser.log_database.ARCHS.items():
+    for name, arch in dictionary_parser.log_database.ARCHS.items():
         if arch['kconfig'] in kconfigs:
             database.set_arch(name)
             break
@@ -194,7 +202,7 @@ def extract_static_string_sections(elf, database):
 
     # Some architectures may put static strings into additional sections.
     # So need to extract them too.
-    arch_data = parser.log_database.ARCHS[database.get_arch()]
+    arch_data = dictionary_parser.log_database.ARCHS[database.get_arch()]
     if "extra_string_section" in arch_data:
         string_sections.extend(arch_data['extra_string_section'])
 
@@ -258,6 +266,14 @@ def main():
     elf = ELFFile(elffile)
 
     database = LogDatabase()
+
+    if args.build_header:
+        with open(args.build_header) as f:
+            for l in f:
+                match = re.match(r'\s*#define\s+BUILD_VERSION\s+(.*)', l)
+                if match:
+                    database.set_build_id(match.group(1))
+                    break
 
     if args.build:
         database.set_build_id(args.build)

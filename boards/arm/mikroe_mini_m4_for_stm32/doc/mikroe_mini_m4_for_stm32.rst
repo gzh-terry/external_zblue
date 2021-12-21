@@ -63,6 +63,8 @@ features:
 +-----------+------------+----------------------+
 | Interface | Controller | Driver/Component     |
 +===========+============+======================+
+| CRYP      | on-chip    | crypto               |
++-----------+------------+----------------------+
 | NVIC      | on-chip    | nested vectored      |
 |           |            | interrupt controller |
 +-----------+------------+----------------------+
@@ -82,7 +84,7 @@ features:
 +-----------+------------+----------------------+
 
 
-Other hardware features are not supported by the Zephyr kernel.
+Other hardware features have not been enabled yet for this board.
 
 The default configuration can be found in the defconfig file:
 

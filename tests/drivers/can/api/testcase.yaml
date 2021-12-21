@@ -1,4 +1,7 @@
 tests:
   drivers.can:
-    tags: driver can
+    tags: drivers can
     depends_on: can
+  drivers.can.loopback:
+    tags: drivers can
+    platform_allow: native_posix native_posix_64

@@ -11,6 +11,7 @@
 #define ZEPHYR_INCLUDE_BLUETOOTH_ATT_H_
 
 #include <sys/slist.h>
+#include <bluetooth/conn.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -48,9 +49,21 @@ extern "C" {
 #define BT_ATT_MAX_ATTRIBUTE_LEN		512
 
 /* Handle 0x0000 is reserved for future use */
-#define BT_ATT_FIRST_ATTTRIBUTE_HANDLE          0x0001
+#define BT_ATT_FIRST_ATTRIBUTE_HANDLE           0x0001
+#define BT_ATT_FIRST_ATTTRIBUTE_HANDLE __DEPRECATED_MACRO BT_ATT_FIRST_ATTRIBUTE_HANDLE
 /* 0xffff is defined as the maximum, and thus last, valid attribute handle */
-#define BT_ATT_LAST_ATTTRIBUTE_HANDLE           0xffff
+#define BT_ATT_LAST_ATTRIBUTE_HANDLE            0xffff
+#define BT_ATT_LAST_ATTTRIBUTE_HANDLE __DEPRECATED_MACRO BT_ATT_LAST_ATTRIBUTE_HANDLE
+
+#if defined(CONFIG_BT_EATT)
+#if defined(CONFIG_BT_TESTING)
+
+int bt_eatt_disconnect_one(struct bt_conn *conn);
+int bt_eatt_connect(struct bt_conn *conn, uint8_t num_channels);
+size_t bt_eatt_count(struct bt_conn *conn);
+
+#endif /* CONFIG_BT_TESTING */
+#endif /* CONFIG_BT_EATT */
 
 #ifdef __cplusplus
 }

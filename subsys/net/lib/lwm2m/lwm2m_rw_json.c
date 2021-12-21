@@ -73,6 +73,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include "lwm2m_rw_json.h"
 #include "lwm2m_rw_plain_text.h"
 #include "lwm2m_engine.h"
+#include "lwm2m_util.h"
 
 #define T_OBJECT_BEGIN	BIT(0)
 #define T_OBJECT_END	BIT(1)
@@ -251,10 +252,10 @@ static int json_next_token(struct lwm2m_input_context *in,
 	return (cont == 0U);
 }
 
-static size_t put_begin(struct lwm2m_output_context *out,
-			struct lwm2m_obj_path *path)
+static int put_begin(struct lwm2m_output_context *out,
+		     struct lwm2m_obj_path *path)
 {
-	int len = -1;
+	int len = -1, res;
 
 	if (path->level >= 2U) {
 		len = snprintk(json_buffer, sizeof(json_buffer),
@@ -267,80 +268,80 @@ static size_t put_begin(struct lwm2m_output_context *out,
 	}
 
 	if (len < 0) {
-		/* TODO: Generate error? */
-		return 0;
+		return len;
 	}
 
-
-	if (buf_append(CPKT_BUF_WRITE(out->out_cpkt), json_buffer, len) < 0) {
-		/* TODO: Generate error? */
-		return 0;
+	res = buf_append(CPKT_BUF_WRITE(out->out_cpkt), json_buffer, len);
+	if (res < 0) {
+		return res;
 	}
 
-	return (size_t)len;
+	return len;
 }
 
-static size_t put_end(struct lwm2m_output_context *out,
-		      struct lwm2m_obj_path *path)
+static int put_end(struct lwm2m_output_context *out,
+		   struct lwm2m_obj_path *path)
 {
-	if (buf_append(CPKT_BUF_WRITE(out->out_cpkt), "]}", 2) < 0) {
-		/* TODO: Generate error? */
-		return 0;
+	int res;
+
+	res = buf_append(CPKT_BUF_WRITE(out->out_cpkt), "]}", 2);
+	if (res < 0) {
+		return res;
 	}
 
 	return 2;
 }
 
-static size_t put_begin_ri(struct lwm2m_output_context *out,
-			   struct lwm2m_obj_path *path)
+static int put_begin_ri(struct lwm2m_output_context *out,
+			struct lwm2m_obj_path *path)
 {
 	struct json_out_formatter_data *fd;
 
 	fd = engine_get_out_user_data(out);
 	if (!fd) {
-		return 0;
+		return -EINVAL;
 	}
 
 	fd->writer_flags |= WRITER_RESOURCE_INSTANCE;
 	return 0;
 }
 
-static size_t put_end_ri(struct lwm2m_output_context *out,
-			 struct lwm2m_obj_path *path)
+static int put_end_ri(struct lwm2m_output_context *out,
+		      struct lwm2m_obj_path *path)
 {
 	struct json_out_formatter_data *fd;
 
 	fd = engine_get_out_user_data(out);
 	if (!fd) {
-		return 0;
+		return -EINVAL;
 	}
 
 	fd->writer_flags &= ~WRITER_RESOURCE_INSTANCE;
 	return 0;
 }
 
-static size_t put_char(struct lwm2m_output_context *out,
-		       char c)
+static int put_char(struct lwm2m_output_context *out, char c)
 {
-	if (buf_append(CPKT_BUF_WRITE(out->out_cpkt), &c, sizeof(c)) < 0) {
-		/* TODO: Generate error? */
-		return 0;
+	int res;
+
+	res = buf_append(CPKT_BUF_WRITE(out->out_cpkt), &c, sizeof(c));
+	if (res < 0) {
+		return res;
 	}
 
 	return 1;
 }
 
-static size_t put_json_prefix(struct lwm2m_output_context *out,
-			      struct lwm2m_obj_path *path,
-			      const char *format)
+static int put_json_prefix(struct lwm2m_output_context *out,
+			   struct lwm2m_obj_path *path, const char *format)
 {
 	struct json_out_formatter_data *fd;
 	char *sep;
-	int len = 0;
+	int len = 0, res;
 
 	fd = engine_get_out_user_data(out);
 	if (!fd) {
-		return 0;
+		return -EINVAL;
 	}
 
 	sep = SEPARATOR(fd->writer_flags);
@@ -370,87 +371,116 @@ static size_t put_json_prefix(struct lwm2m_output_context *out,
 	}
 
 	if (len < 0) {
-		/* TODO: Generate error? */
-		return 0;
+		return len;
 	}
 
-	if (buf_append(CPKT_BUF_WRITE(out->out_cpkt), json_buffer, len) < 0) {
-		/* TODO: Generate error? */
-		return 0;
+	res = buf_append(CPKT_BUF_WRITE(out->out_cpkt), json_buffer, len);
+	if (res < 0) {
+		return res;
 	}
 
 	return len;
 }
 
-static size_t put_json_postfix(struct lwm2m_output_context *out)
+static int put_json_postfix(struct lwm2m_output_context *out)
 {
 	struct json_out_formatter_data *fd;
+	int res;
 
 	fd = engine_get_out_user_data(out);
 	if (!fd) {
-		return 0;
+		return -EINVAL;
 	}
 
-	if (put_char(out, '}') < 1) {
-		/* TODO: Generate error? */
-		return 0;
+	res = put_char(out, '}');
+	if (res < 0) {
+		return res;
 	}
 
 	fd->writer_flags |= WRITER_OUTPUT_VALUE;
 	return 1;
 }
 
-static size_t put_s32(struct lwm2m_output_context *out,
-		      struct lwm2m_obj_path *path, int32_t value)
+static int put_s32(struct lwm2m_output_context *out,
+		   struct lwm2m_obj_path *path, int32_t value)
 {
-	int len;
+	int res, len;
 
-	len = put_json_prefix(out, path, "\"v\"");
-	len += plain_text_put_format(out, "%d", value);
-	len += put_json_postfix(out);
+	res = put_json_prefix(out, path, "\"v\"");
+	if (res < 0) {
+		return res;
+	}
+	len = res;
 
-	return (size_t)len;
+	res = plain_text_put_format(out, "%d", value);
+	if (res < 0) {
+		return res;
+	}
+	len += res;
+
+	res = put_json_postfix(out);
+	if (res < 0) {
+		return res;
+	}
+	len += res;
+
+	return len;
 }
 
-static size_t put_s16(struct lwm2m_output_context *out,
-		      struct lwm2m_obj_path *path, int16_t value)
+static int put_s16(struct lwm2m_output_context *out,
+		   struct lwm2m_obj_path *path, int16_t value)
 {
 	return put_s32(out, path, (int32_t)value);
 }
 
-static size_t put_s8(struct lwm2m_output_context *out,
-		     struct lwm2m_obj_path *path, int8_t value)
+static int put_s8(struct lwm2m_output_context *out, struct lwm2m_obj_path *path,
+		  int8_t value)
 {
 	return put_s32(out, path, (int32_t)value);
 }
 
-static size_t put_s64(struct lwm2m_output_context *out,
-		      struct lwm2m_obj_path *path, int64_t value)
+static int put_s64(struct lwm2m_output_context *out,
+		   struct lwm2m_obj_path *path, int64_t value)
 {
-	int len;
+	int res, len;
 
-	len = put_json_prefix(out, path, "\"v\"");
-	len += plain_text_put_format(out, "%lld", value);
-	len += put_json_postfix(out);
-	return (size_t)len;
+	res = put_json_prefix(out, path, "\"v\"");
+	if (res < 0) {
+		return res;
+	}
+	len = res;
+
+	res = plain_text_put_format(out, "%lld", value);
+	if (res < 0) {
+		return res;
+	}
+	len += res;
+
+	res = put_json_postfix(out);
+	if (res < 0) {
+		return res;
+	}
+	len += res;
+
+	return len;
 }
 
-static size_t put_string(struct lwm2m_output_context *out,
-			 struct lwm2m_obj_path *path,
-			 char *buf, size_t buflen)
+static int put_string(struct lwm2m_output_context *out,
+		      struct lwm2m_obj_path *path, char *buf, size_t buflen)
 {
 	size_t i;
-	size_t len = 0;
-	int res;
+	int res, len;
 
 	res = put_json_prefix(out, path, "\"sv\"");
-	res += put_char(out, '"');
-
 	if (res < 0) {
-		/* TODO: Generate error? */
-		return 0;
+		return res;
 	}
+	len = res;
 
+	res = put_char(out, '"');
+	if (res < 0) {
+		return res;
+	}
 	len += res;
 
 	for (i = 0; i < buflen; ++i) {
@@ -460,107 +490,144 @@ static size_t put_string(struct lwm2m_output_context *out,
 			res = snprintk(json_buffer, sizeof(json_buffer),
 				       "\\x%x", buf[i]);
 			if (res < 0) {
-				/* TODO: Generate error? */
-				return 0;
+				return res;
 			}
 
 			if (buf_append(CPKT_BUF_WRITE(out->out_cpkt),
 				       json_buffer, res) < 0) {
-				/* TODO: Generate error? */
-				return 0;
+				return -ENOMEM;
 			}
 
 			len += res;
 			continue;
 		} else if (buf[i] == '"' || buf[i] == '\\') {
-			len += put_char(out, '\\');
+			res = put_char(out, '\\');
+			if (res < 0) {
+				return res;
+			}
+			len += res;
 		}
 
-		len += put_char(out, buf[i]);
+		res = put_char(out, buf[i]);
+		if (res < 0) {
+			return res;
+		}
+		len += res;
 	}
 
 	res = put_char(out, '"');
 	if (res < 0) {
-		/* TODO: Generate error? */
-		return 0;
+		return res;
 	}
-
 	len += res;
-	len += put_json_postfix(out);
+
+	res = put_json_postfix(out);
+	if (res < 0) {
+		return res;
+	}
+	len += res;
+
 	return len;
 }
 
-static size_t put_float32fix(struct lwm2m_output_context *out,
-			     struct lwm2m_obj_path *path,
-			     float32_value_t *value)
+static int put_float(struct lwm2m_output_context *out,
+		     struct lwm2m_obj_path *path, double *value)
 {
-	size_t len;
+	int res, len;
 
-	len = put_json_prefix(out, path, "\"v\"");
-	len += plain_text_put_float32fix(out, path, value);
+	res = put_json_prefix(out, path, "\"v\"");
+	if (res < 0) {
+		return res;
+	}
+	len = res;
+
+	len += plain_text_put_float(out, path, value);
+	if (res < 0) {
+		return res;
+	}
+	len += res;
+
 	len += put_json_postfix(out);
+	if (res < 0) {
+		return res;
+	}
+	len += res;
+
 	return len;
 }
 
-static size_t put_float64fix(struct lwm2m_output_context *out,
-			     struct lwm2m_obj_path *path,
-			     float64_value_t *value)
+static int put_bool(struct lwm2m_output_context *out,
+		    struct lwm2m_obj_path *path, bool value)
 {
-	size_t len;
+	int res, len;
 
-	len = put_json_prefix(out, path, "\"v\"");
-	len += plain_text_put_float64fix(out, path, value);
-	len += put_json_postfix(out);
-	return len;
-}
+	res = put_json_prefix(out, path, "\"bv\"");
+	if (res < 0) {
+		return res;
+	}
+	len = res;
 
-static size_t put_bool(struct lwm2m_output_context *out,
-		       struct lwm2m_obj_path *path,
-		       bool value)
-{
-	size_t len;
-
-	len = put_json_prefix(out, path, "\"bv\"");
 	len += plain_text_put_format(out, "%s", value ? "true" : "false");
-	len += put_json_postfix(out);
-	return (size_t)len;
-}
+	if (res < 0) {
+		return res;
+	}
+	len += res;
 
-static size_t put_objlnk(struct lwm2m_output_context *out,
-			 struct lwm2m_obj_path *path,
-			 struct lwm2m_objlnk *value)
-{
-	size_t len;
-
-	len = put_json_prefix(out, path, "\"ov\"");
-	len += plain_text_put_format(out, "\"%u:%u\"", value->obj_id,
-				     value->obj_inst);
 	len += put_json_postfix(out);
+	if (res < 0) {
+		return res;
+	}
+	len += res;
 
 	return len;
 }
 
-static size_t read_number(struct lwm2m_input_context *in,
-			  int64_t *value1, int64_t *value2,
-			  bool accept_sign, bool accept_dot)
+static int put_objlnk(struct lwm2m_output_context *out,
+		      struct lwm2m_obj_path *path, struct lwm2m_objlnk *value)
+{
+	int res, len;
+
+	res = put_json_prefix(out, path, "\"ov\"");
+	if (res < 0) {
+		return res;
+	}
+	len = res;
+
+	res = plain_text_put_format(out, "\"%u:%u\"", value->obj_id,
+				     value->obj_inst);
+	if (res < 0) {
+		return res;
+	}
+	len += res;
+
+	res = put_json_postfix(out);
+	if (res < 0) {
+		return res;
+	}
+	len += res;
+
+	return len;
+}
+
+static int read_int(struct lwm2m_input_context *in, int64_t *value,
+		    bool accept_sign)
 {
 	struct json_in_formatter_data *fd;
-	int64_t *counter = value1;
 	uint8_t *buf;
-	size_t i = 0;
+	int i = 0;
 	bool neg = false;
-	bool dot_found = false;
 	char c;
 
 	/* initialize values to 0 */
-	*value1 = 0;
-	if (value2) {
-		*value2 = 0;
-	}
+	*value = 0;
 
 	fd = engine_get_in_user_data(in);
 	if (!fd) {
-		return 0;
+		return -EINVAL;
+	}
+
+	if (fd->value_len == 0) {
+		return -ENODATA;
 	}
 
 	buf = in->in_cpkt->data + fd->value_offset;
@@ -568,12 +635,8 @@ static size_t read_number(struct lwm2m_input_context *in,
 		c = *(buf + i);
 		if (c == '-' && accept_sign && i == 0) {
 			neg = true;
-		} else if (c == '.' && i > 0 && accept_dot && !dot_found &&
-			   value2) {
-			dot_found = true;
-			counter = value2;
 		} else if (isdigit(c)) {
-			*counter = *counter * 10 + (c - '0');
+			*value = *value * 10 + (c - '0');
 		} else {
 			/* anything else stop reading */
 			break;
@@ -583,23 +646,23 @@ static size_t read_number(struct lwm2m_input_context *in,
 	}
 
 	if (neg) {
-		*value1 = -*value1;
+		*value = -*value;
 	}
 
 	return i;
 }
 
-static size_t get_s64(struct lwm2m_input_context *in, int64_t *value)
+static int get_s64(struct lwm2m_input_context *in, int64_t *value)
 {
-	return read_number(in, value, NULL, true, true);
+	return read_int(in, value, true);
 }
 
-static size_t get_s32(struct lwm2m_input_context *in, int32_t *value)
+static int get_s32(struct lwm2m_input_context *in, int32_t *value)
 {
 	int64_t tmp = 0;
-	size_t len = 0;
+	int len = 0;
 
-	len = read_number(in, &tmp, NULL, true, true);
+	len = read_int(in, &tmp, true);
 	if (len > 0) {
 		*value = (int32_t)tmp;
 	}
@@ -607,19 +670,19 @@ static size_t get_s32(struct lwm2m_input_context *in, int32_t *value)
 	return len;
 }
 
-static size_t get_string(struct lwm2m_input_context *in,
-			 uint8_t *buf, size_t buflen)
+static int get_string(struct lwm2m_input_context *in, uint8_t *buf,
+		      size_t buflen)
 {
 	struct json_in_formatter_data *fd;
 	int ret;
 
 	fd = engine_get_in_user_data(in);
 	if (!fd) {
-		return 0;
+		return -EINVAL;
 	}
 
 	if (fd->value_len > buflen) {
-		/* TODO: generate warning? */
+		LOG_WRN("Buffer too small to accommodate string, truncating");
 		fd->value_len = buflen - 1;
 	}
 
@@ -627,49 +690,70 @@ static size_t get_string(struct lwm2m_input_context *in,
 	ret = buf_read(buf, fd->value_len, CPKT_BUF_READ(in->in_cpkt),
 		       &fd->value_offset);
 	if (ret < 0) {
-		return 0;
+		return ret;
 	}
 
 	return fd->value_len;
 }
 
-static size_t get_float32fix(struct lwm2m_input_context *in,
-			     float32_value_t *value)
+static int get_float(struct lwm2m_input_context *in, double *value)
 {
-	int64_t tmp1, tmp2;
-	size_t len;
+	struct json_in_formatter_data *fd;
 
-	len = read_number(in, &tmp1, &tmp2, true, true);
-	if (len > 0) {
-		value->val1 = (int32_t)tmp1;
-		value->val2 = (int32_t)tmp2;
+	int i = 0, len = 0;
+	bool has_dot = false;
+	uint8_t tmp, buf[24];
+	uint8_t *json_buf;
+
+	fd = engine_get_in_user_data(in);
+	if (!fd) {
+		return -EINVAL;
+	}
+
+	if (fd->value_len == 0) {
+		return -ENODATA;
+	}
+
+	json_buf = in->in_cpkt->data + fd->value_offset;
+	while (*(json_buf + len) && len < fd->value_len) {
+		tmp = *(json_buf + len);
+
+		if ((tmp == '-' && i == 0) || (tmp == '.' && !has_dot) ||
+		    isdigit(tmp)) {
+			len++;
+
+			/* Copy only if it fits into provided buffer - we won't
+			 * get better precision anyway.
+			 */
+			if (i < sizeof(buf) - 1) {
+				buf[i++] = tmp;
+			}
+
+			if (tmp == '.') {
+				has_dot = true;
+			}
+		} else {
+			break;
+		}
+	}
+
+	buf[i] = '\0';
+
+	if (lwm2m_atof(buf, value) != 0) {
+		LOG_ERR("Failed to parse float value");
+		return -EBADMSG;
 	}
 
 	return len;
 }
 
-static size_t get_float64fix(struct lwm2m_input_context *in,
-			     float64_value_t *value)
-{
-	int64_t tmp1, tmp2;
-	size_t len;
-
-	len = read_number(in, &tmp1, &tmp2, true, true);
-	if (len > 0) {
-		value->val1 = tmp1;
-		value->val2 = tmp2;
-	}
-
-	return len;
-}
-
-static size_t get_bool(struct lwm2m_input_context *in, bool *value)
+static int get_bool(struct lwm2m_input_context *in, bool *value)
 {
 	struct json_in_formatter_data *fd;
 
 	fd = engine_get_in_user_data(in);
 	if (!fd) {
-		return 0;
+		return -EINVAL;
 	}
 
 	if (strncmp(in->in_cpkt->data + fd->value_offset,
@@ -683,38 +767,47 @@ static size_t get_bool(struct lwm2m_input_context *in, bool *value)
 	return fd->value_len;
 }
 
-static size_t get_opaque(struct lwm2m_input_context *in,
-			 uint8_t *value, size_t buflen,
-			 struct lwm2m_opaque_context *opaque,
-			 bool *last_block)
+static int get_opaque(struct lwm2m_input_context *in, uint8_t *value,
+		      size_t buflen, struct lwm2m_opaque_context *opaque,
+		      bool *last_block)
 {
 	/* TODO */
-	return 0;
+	return -EOPNOTSUPP;
 }
 
-static size_t get_objlnk(struct lwm2m_input_context *in,
-			 struct lwm2m_objlnk *value)
+static int get_objlnk(struct lwm2m_input_context *in,
+		      struct lwm2m_objlnk *value)
 {
 	int64_t tmp;
-	size_t len;
+	int len, total_len;
 	uint16_t value_offset;
 	struct json_in_formatter_data *fd;
 
 	fd = engine_get_in_user_data(in);
 	if (!fd) {
-		return 0;
+		return -EINVAL;
 	}
 
 	/* Store the original value offset. */
 	value_offset = fd->value_offset;
 
-	len = read_number(in, &tmp, NULL, false, false);
+	len = read_int(in, &tmp, false);
+	if (len <= 0) {
+		return -ENODATA;
+	}
+
+	total_len = len;
 	value->obj_id = (uint16_t)tmp;
 
 	len++;  /* +1 for ':' delimeter. */
 	fd->value_offset += len;
 
-	len += read_number(in, &tmp, NULL, false, false);
+	len = read_int(in, &tmp, false);
+	if (len <= 0) {
+		return -ENODATA;
+	}
+
+	total_len += len;
 	value->obj_inst = (uint16_t)tmp;
 
 	/* Restore the original value offset. */
@@ -733,8 +826,8 @@ const struct lwm2m_writer json_writer = {
 	.put_s32 = put_s32,
 	.put_s64 = put_s64,
 	.put_string = put_string,
-	.put_float32fix = put_float32fix,
-	.put_float64fix = put_float64fix,
+	.put_float = put_float,
+	.put_time = put_s64,
 	.put_bool = put_bool,
 	.put_objlnk = put_objlnk,
 };
@@ -743,8 +836,8 @@ const struct lwm2m_reader json_reader = {
 	.get_s32 = get_s32,
 	.get_s64 = get_s64,
 	.get_string = get_string,
-	.get_float32fix = get_float32fix,
-	.get_float64fix = get_float64fix,
+	.get_time = get_s64,
+	.get_float = get_float,
 	.get_bool = get_bool,
 	.get_opaque = get_opaque,
 	.get_objlnk = get_objlnk,
@@ -804,7 +897,7 @@ static int parse_path(const uint8_t *buf, uint16_t buflen,
 		} else {
 			LOG_ERR("Error: illegal char '%c' at pos:%d",
 				c, pos);
-			return -1;
+			return -EINVAL;
 		}
 	} while (pos < buflen);
 
@@ -819,7 +912,7 @@ int do_write_op_json(struct lwm2m_message *msg)
 	struct lwm2m_engine_res_inst *res_inst = NULL;
 	struct lwm2m_obj_path orig_path;
 	struct json_in_formatter_data fd;
-	int ret = 0, index;
+	int ret = 0;
 	uint8_t value[TOKEN_BUF_LEN];
 	uint8_t base_name[MAX_RESOURCE_LEN];
 	uint8_t full_name[MAX_RESOURCE_LEN];
@@ -832,7 +925,15 @@ int do_write_op_json(struct lwm2m_message *msg)
 	memcpy(&orig_path, &msg->path, sizeof(msg->path));
 
 	/* PARSE base name "bn" */
-	json_next_token(&msg->in, &fd);
+	if (!json_next_token(&msg->in, &fd)) {
+		return -ENODATA;
+	}
+
+	if (fd.value_len >= sizeof(base_name)) {
+		LOG_ERR("Base name too long");
+		return -EINVAL;
+	}
+
 	/* TODO: validate name == "bn" */
 	if (buf_read(base_name, fd.value_len,
 		     CPKT_BUF_READ(msg->in.in_cpkt),
@@ -841,9 +942,13 @@ int do_write_op_json(struct lwm2m_message *msg)
 		return -EINVAL;
 	}
 
-	/* skip to elements */
+	base_name[fd.value_len] = '\0';
+
+	/* Relative name is optional - preinitialize full name with base name */
+	snprintk(full_name, sizeof(full_name), "%s", base_name);
+
+	/* skip to elements ("e")*/
 	json_next_token(&msg->in, &fd);
-	/* TODO: validate name == "bv" */
 
 	while (json_next_token(&msg->in, &fd)) {
 
@@ -851,29 +956,46 @@ int do_write_op_json(struct lwm2m_message *msg)
 			continue;
 		}
 
+		if (fd.name_len > sizeof(value)) {
+			LOG_ERR("Token value too long");
+			ret = -EINVAL;
+			break;
+		}
+
 		if (buf_read(value, fd.name_len,
 			     CPKT_BUF_READ(msg->in.in_cpkt),
 			     &fd.name_offset) < 0) {
 			LOG_ERR("Error parsing name!");
-			continue;
+			ret = -EINVAL;
+			break;
 		}
 
-		/* handle resource name */
 		if (value[0] == 'n') {
-			/* reset values */
-			created = 0U;
+			/* handle resource name */
+			if (fd.value_len >= sizeof(value)) {
+				LOG_ERR("Relative name too long");
+				ret = -EINVAL;
+				break;
+			}
 
 			/* get value for relative path */
 			if (buf_read(value, fd.value_len,
 				     CPKT_BUF_READ(msg->in.in_cpkt),
 				     &fd.value_offset) < 0) {
 				LOG_ERR("Error parsing relative path!");
-				continue;
+				ret = -EINVAL;
+				break;
 			}
+
+			value[fd.value_len] = '\0';
 
 			/* combine base_name + name */
 			snprintk(full_name, sizeof(full_name), "%s%s",
 				 base_name, value);
+		} else {
+			/* handle resource value */
+			/* reset values */
+			created = 0U;
 
 			/* parse full_name into path */
 			ret = parse_path(full_name, strlen(full_name),
@@ -891,70 +1013,23 @@ int do_write_op_json(struct lwm2m_message *msg)
 				break;
 			}
 
-			obj_field = lwm2m_get_engine_obj_field(
-							obj_inst->obj,
-							msg->path.res_id);
-			/*
-			 * if obj_field is not found,
-			 * treat as an optional resource
-			 */
-			if (!obj_field) {
-				ret = -ENOENT;
-				break;
+			ret = lwm2m_engine_validate_write_access(msg, obj_inst, &obj_field);
+			if (ret < 0) {
+				return ret;
 			}
 
-			/*
-			 * TODO: support BOOTSTRAP WRITE where optional
-			 * resources are ignored
-			 */
-
-			if (!LWM2M_HAS_PERM(obj_field, LWM2M_PERM_W)) {
-				ret = -EPERM;
-				break;
+			ret = lwm2m_engine_get_create_res_inst(&msg->path, &res, &res_inst);
+			if (ret < 0) {
+				return -ENOENT;
 			}
 
-			if (!obj_inst->resources ||
-			    obj_inst->resource_count == 0U) {
-				ret = -EINVAL;
-				break;
-			}
-
-			for (index = 0; index < obj_inst->resource_count;
-			     index++) {
-				if (obj_inst->resources[index].res_id ==
-				    msg->path.res_id) {
-					res = &obj_inst->resources[index];
-					break;
-				}
-			}
-
-			if (!res) {
-				ret = -ENOENT;
-				break;
-			}
-
-			for (index = 0; index < res->res_inst_count; index++) {
-				if (res->res_instances[index].res_inst_id ==
-				    msg->path.res_inst_id) {
-					res_inst = &res->res_instances[index];
-					break;
-				}
-			}
-
-			if (!res_inst) {
-				ret = -ENOENT;
-				break;
-			}
-		} else if (res && res_inst) {
-			/* handle value assignment */
+			/* Write the resource value */
 			ret = lwm2m_write_handler(obj_inst, res, res_inst,
 						  obj_field, msg);
 			if (orig_path.level >= 3U && ret < 0) {
 				/* return errors on a single write */
 				break;
 			}
-		} else {
-			/* complain about error? */
 		}
 	}
 

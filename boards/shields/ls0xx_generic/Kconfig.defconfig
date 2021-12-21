@@ -13,28 +13,13 @@ config LS0XX
 
 if LVGL
 
-config LVGL_DISPLAY_DEV_NAME
-	string "Display device name"
-	default "LS0XX"
-
-config LVGL_HOR_RES_MAX
-	int "Horizantal resolution"
-	default 128
-
-config LVGL_VER_RES_MAX
-	int "Vertical resolution"
-	default 128
-
 config LVGL_VDB_SIZE
-	int "Display buffer percentage"
 	default 16
 
 config LVGL_DPI
-	int "Dots per inch"
 	default 150
 
 config LVGL_BITS_PER_PIXEL
-	int "Number of bits per pixel"
 	default 1
 
 choice LVGL_COLOR_DEPTH

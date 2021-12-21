@@ -68,8 +68,14 @@ static int32_t next_timeout(void)
 {
 	struct _timeout *to = first();
 	int32_t ticks_elapsed = elapsed();
-	int32_t ret = to == NULL ? MAX_WAIT
-		: CLAMP(to->dticks - ticks_elapsed, 0, MAX_WAIT);
+	int32_t ret;
+
+	if ((to == NULL) ||
+	    ((int64_t)(to->dticks - ticks_elapsed) > (int64_t)INT_MAX)) {
+		ret = MAX_WAIT;
+	} else {
+		ret = MAX(0, to->dticks - ticks_elapsed);
+	}
 
 #ifdef CONFIG_TIMESLICING
 	if (_current_cpu->slice_ticks && _current_cpu->slice_ticks < ret) {
@@ -122,10 +128,10 @@ void z_add_timeout(struct _timeout *to, _timeout_func_t fn,
 #if CONFIG_TIMESLICING
 			/*
 			 * This is not ideal, since it does not
-			 * account the time elapsed since the the
+			 * account the time elapsed since the
 			 * last announcement, and slice_ticks is based
-			 * on that. It means the that time remaining for
-			 * the next announcement can be lesser than
+			 * on that. It means that the time remaining for
+			 * the next announcement can be less than
 			 * slice_ticks.
 			 */
 			int32_t next_time = next_timeout();

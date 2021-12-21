@@ -11,6 +11,7 @@
 #include <sys/slist.h>
 #include <pm/state.h>
 #include <toolchain.h>
+#include <errno.h>
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -18,18 +19,17 @@ extern "C" {
 #endif
 
 /**
- * @defgroup power_management_api Power Management
+ * @brief System and device power management
+ * @defgroup subsys_pm Power Management (PM)
+ * @ingroup subsys
  * @{
  * @}
  */
 
-#ifdef CONFIG_PM
-
 /**
  * @brief System Power Management API
- *
- * @defgroup system_power_management_api System Power Management API
- * @ingroup power_management_api
+ * @defgroup subsys_pm_sys System
+ * @ingroup subsys_pm
  * @{
  */
 
@@ -65,28 +65,20 @@ struct pm_notifier {
 	void (*state_exit)(enum pm_state state);
 };
 
+#if defined(CONFIG_PM) || defined(__DOXYGEN__)
 /**
  * @brief Force usage of given power state.
  *
  * This function overrides decision made by PM policy forcing
- * usage of given power state immediately.
+ * usage of given power state upon next entry of the idle thread.
  *
  * @note This function can only run in thread context
  *
+ * @param cpu CPU index.
  * @param info Power state which should be used in the ongoing
  *	suspend operation.
  */
-void pm_power_state_force(struct pm_state_info info);
-
-#ifdef CONFIG_PM_DEBUG
-/**
- * @brief Dump Low Power states related debug info
- *
- * Dump Low Power states debug info like LPS entry count and residencies.
- */
-void pm_dump_debug_info(void);
-
-#endif /* CONFIG_PM_DEBUG */
+bool pm_state_force(uint8_t cpu, const struct pm_state_info *info);
 
 /**
  * @brief Register a power management notifier
@@ -112,14 +104,24 @@ void pm_notifier_register(struct pm_notifier *notifier);
 int pm_notifier_unregister(struct pm_notifier *notifier);
 
 /**
+ * @brief Gets the next power state that will be used.
+ *
+ * This function returns the next power state that will be used by the
+ * SoC.
+ *
+ * @param cpu CPU index.
+ * @return next pm_state_info that will be used
+ */
+const struct pm_state_info *pm_state_next_get(uint8_t cpu);
+
+/**
  * @}
  */
 
 /**
- * @brief System Power Management Constraint API
- *
- * @defgroup system_power_management_constraint_api Constraint API
- * @ingroup power_management_api
+ * @brief System Power Management Constraints API
+ * @defgroup subsys_pm_sys_constraint Constraints
+ * @ingroup subsys_pm_sys
  * @{
  */
 
@@ -166,10 +168,9 @@ bool pm_constraint_get(enum pm_state state);
  */
 
 /**
- * @brief Power Management Hooks
- *
- * @defgroup power_management_hook_interface Power Management Hooks
- * @ingroup power_management_api
+ * @brief System Power Management Hooks
+ * @defgroup subsys_pm_sys_hooks Hooks
+ * @ingroup subsys_pm_sys
  * @{
  */
 
@@ -179,10 +180,10 @@ bool pm_constraint_get(enum pm_state state);
  * This function implements the SoC specific details necessary
  * to put the processor into available power states.
  *
- * @param info Power state which should be used in the ongoing
- *	suspend operation.
+ * @param state Power state.
+ * @param substate_id Power substate id.
  */
-void pm_power_state_set(struct pm_state_info info);
+void pm_state_set(enum pm_state state, uint8_t substate_id);
 
 /**
  * @brief Do any SoC or architecture specific post ops after sleep state exits.
@@ -191,16 +192,69 @@ void pm_power_state_set(struct pm_state_info info);
  * be needed to be done after sleep state exits. Currently it enables
  * interrupts after resuming from sleep state. In future, the enabling
  * of interrupts may be moved into the kernel.
+ *
+ * @param state Power state.
+ * @param substate_id Power substate id.
  */
-void pm_power_state_exit_post_ops(struct pm_state_info info);
+void pm_state_exit_post_ops(enum pm_state state, uint8_t substate_id);
 
 /**
  * @}
  */
 
+#else  /* CONFIG_PM */
 
-void z_pm_save_idle_exit(int32_t ticks);
+static inline void pm_notifier_register(struct pm_notifier *notifier)
+{
+	ARG_UNUSED(notifier);
+}
+
+static inline int pm_notifier_unregister(struct pm_notifier *notifier)
+{
+	ARG_UNUSED(notifier);
+
+	return -ENOSYS;
+}
+
+static inline void pm_constraint_set(enum pm_state state)
+{
+	ARG_UNUSED(state);
+}
+
+static inline void pm_constraint_release(enum pm_state state)
+{
+	ARG_UNUSED(state);
+}
+
+static inline bool pm_constraint_get(enum pm_state state)
+{
+	ARG_UNUSED(state);
+
+	return true;
+}
+
+static inline void pm_state_set(enum pm_state state, uint8_t substate_id)
+{
+	ARG_UNUSED(state);
+	ARG_UNUSED(substate_id);
+}
+
+static inline void pm_state_exit_post_ops(enum pm_state state,
+					  uint8_t substate_id)
+{
+	ARG_UNUSED(state);
+	ARG_UNUSED(substate_id);
+}
+
+static inline const struct pm_state_info *pm_state_next_get(uint8_t cpu)
+{
+	ARG_UNUSED(cpu);
+
+	return NULL;
+}
 #endif /* CONFIG_PM */
+
+void z_pm_save_idle_exit(void);
 
 #ifdef __cplusplus
 }

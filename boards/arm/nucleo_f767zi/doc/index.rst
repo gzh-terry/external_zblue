@@ -127,7 +127,7 @@ features:
 
 
 (*) nucleo_f767zi with soc cut-A (Device marking A) has some ethernet
-    instability (https://github.com/zephyrproject-rtos/zephyr/issues/26519).
+    instability (:github:`26519`).
     Use of cut-Z is advised.
     see restrictions errata:
     https://www.st.com/content/ccc/resource/technical/document/errata_sheet/group0/23/a6/11/0b/30/24/46/a5/DM00257543/files/DM00257543.pdf/jcr:content/translations/en.DM00257543.pdf
@@ -157,7 +157,7 @@ and a ST morpho connector. Board is configured as follows:
 - USB DP : PA12
 - I2C : PB8, PB9
 - PWM : PE13
-- SPI : PA4, PA5, PA6, PA7
+- SPI : PD14, PA5, PA6, PA7
 
 .. note::
    The Arduino Uno v3 specified SPI device conflicts with the on-board ETH

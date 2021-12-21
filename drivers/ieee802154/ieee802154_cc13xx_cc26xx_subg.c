@@ -36,6 +36,8 @@ static void ieee802154_cc13xx_cc26xx_subg_data_init(
 	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data);
 static int ieee802154_cc13xx_cc26xx_subg_stop(
 	const struct device *dev);
+static int ieee802154_cc13xx_cc26xx_subg_stop_if(
+	const struct device *dev);
 static int ieee802154_cc13xx_cc26xx_subg_rx(
 	const struct device *dev);
 static void ieee802154_cc13xx_cc26xx_subg_setup_rx_buffers(
@@ -64,6 +66,12 @@ static uint32_t overrides_sub_ghz[] = {
 	/* Tx: Set PA trim to max to maximize its output power (in ADI0, set PACTL0=0xF8) */
 	ADI_REG_OVERRIDE(0, 12, 0xF8),
 	(uint32_t)0xFFFFFFFF
+};
+
+/** RF patches to use (note: RF core keeps a pointer to this, so no stack). */
+static RF_Mode rf_mode = {
+	.rfMode = RF_MODE_MULTIPLE,
+	.cpePatchFxn = &rf_patch_cpe_multi_protocol,
 };
 
 /* Sub GHz power table */
@@ -124,19 +132,12 @@ static inline bool is_subghz(uint16_t channel)
 	return (channel <= IEEE802154_SUB_GHZ_CHANNEL_MAX);
 }
 
-static inline struct ieee802154_cc13xx_cc26xx_subg_data *
-get_dev_data(const struct device *dev)
-{
-	return dev->data;
-}
-
 static void cmd_prop_tx_adv_callback(RF_Handle h, RF_CmdHandle ch,
 	RF_EventMask e)
 {
 	const struct device *dev =
 		&DEVICE_NAME_GET(ieee802154_cc13xx_cc26xx_subg);
-	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data =
-		get_dev_data(dev);
+	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data = dev->data;
 	RF_Op *op = RF_getCmdOp(h, ch);
 
 	LOG_DBG("ch: %u cmd: %04x cs st: %04x tx st: %04x e: 0x%" PRIx64, ch,
@@ -148,8 +149,7 @@ static void cmd_prop_rx_adv_callback(RF_Handle h, RF_CmdHandle ch,
 {
 	const struct device *dev =
 		&DEVICE_NAME_GET(ieee802154_cc13xx_cc26xx_subg);
-	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data =
-		get_dev_data(dev);
+	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data = dev->data;
 	RF_Op *op = RF_getCmdOp(h, ch);
 
 	LOG_DBG("ch: %u cmd: %04x st: %04x e: 0x%" PRIx64, ch,
@@ -193,8 +193,7 @@ ieee802154_cc13xx_cc26xx_subg_get_capabilities(const struct device *dev)
 
 static int ieee802154_cc13xx_cc26xx_subg_cca(const struct device *dev)
 {
-	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data =
-		get_dev_data(dev);
+	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data = dev->data;
 	RF_Stat status;
 
 	drv_data->cmd_prop_cs.status = IDLE;
@@ -220,8 +219,7 @@ static int ieee802154_cc13xx_cc26xx_subg_cca(const struct device *dev)
 
 static int ieee802154_cc13xx_cc26xx_subg_rx(const struct device *dev)
 {
-	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data =
-		get_dev_data(dev);
+	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data = dev->data;
 	RF_CmdHandle cmd_handle;
 
 	/* Set all RX entries to empty */
@@ -242,8 +240,7 @@ static int ieee802154_cc13xx_cc26xx_subg_rx(const struct device *dev)
 static int ieee802154_cc13xx_cc26xx_subg_set_channel(
 	const struct device *dev, uint16_t channel)
 {
-	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data =
-		get_dev_data(dev);
+	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data = dev->data;
 	RF_EventMask reason;
 	uint16_t freq, fract;
 	int r;
@@ -301,7 +298,7 @@ ieee802154_cc13xx_cc26xx_subg_filter(const struct device *dev, bool set,
 static int ieee802154_cc13xx_cc26xx_subg_set_txpower(
 	const struct device *dev, int16_t dbm)
 {
-	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data = get_dev_data(dev);
+	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data = dev->data;
 	RF_Stat status;
 
 	RF_TxPowerTable_Value power_table_value = RF_TxPowerTable_findValue(
@@ -327,8 +324,7 @@ static int ieee802154_cc13xx_cc26xx_subg_tx(const struct device *dev,
 					    struct net_pkt *pkt,
 					    struct net_buf *frag)
 {
-	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data =
-		get_dev_data(dev);
+	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data = dev->data;
 	int retry = CONFIG_IEEE802154_CC13XX_CC26XX_SUB_GHZ_RADIO_TX_RETRIES;
 	RF_EventMask reason;
 	int r;
@@ -493,14 +489,17 @@ static void ieee802154_cc13xx_cc26xx_subg_rx_done(
 
 static int ieee802154_cc13xx_cc26xx_subg_start(const struct device *dev)
 {
-	ARG_UNUSED(dev);
+	/* Start RX */
+	(void)ieee802154_cc13xx_cc26xx_subg_rx(dev);
 	return 0;
 }
 
+/**
+ * Flushes / stops all radio commands in RF queue.
+ */
 static int ieee802154_cc13xx_cc26xx_subg_stop(const struct device *dev)
 {
-	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data =
-		get_dev_data(dev);
+	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data = dev->data;
 	RF_Stat status;
 
 	status = RF_flushCmd(drv_data->rf_handle, RF_CMDHANDLE_FLUSH_ALL, 0);
@@ -512,6 +511,25 @@ static int ieee802154_cc13xx_cc26xx_subg_stop(const struct device *dev)
 		return -EIO;
 	}
 
+	return 0;
+}
+
+/**
+ * Stops the sub-GHz interface and yields the radio (tells RF module to power
+ * down).
+ */
+static int ieee802154_cc13xx_cc26xx_subg_stop_if(const struct device *dev)
+{
+	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data = dev->data;
+	int ret;
+
+	ret = ieee802154_cc13xx_cc26xx_subg_stop(dev);
+	if (ret < 0) {
+		return ret;
+	}
+
+	/* power down radio */
+	RF_yield(drv_data->rf_handle);
 	return 0;
 }
 
@@ -580,8 +598,7 @@ static void ieee802154_cc13xx_cc26xx_subg_data_init(
 static void ieee802154_cc13xx_cc26xx_subg_iface_init(struct net_if *iface)
 {
 	const struct device *dev = net_if_get_device(iface);
-	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data =
-		get_dev_data(dev);
+	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data = dev->data;
 
 	net_if_set_link_addr(iface, drv_data->mac, sizeof(drv_data->mac),
 			     NET_LINK_IEEE802154);
@@ -602,7 +619,7 @@ static struct ieee802154_radio_api
 	.set_txpower = ieee802154_cc13xx_cc26xx_subg_set_txpower,
 	.tx = ieee802154_cc13xx_cc26xx_subg_tx,
 	.start = ieee802154_cc13xx_cc26xx_subg_start,
-	.stop = ieee802154_cc13xx_cc26xx_subg_stop,
+	.stop = ieee802154_cc13xx_cc26xx_subg_stop_if,
 	.configure = ieee802154_cc13xx_cc26xx_subg_configure,
 	.get_subg_channel_count =
 		ieee802154_cc13xx_cc26xx_subg_get_subg_channel_count,
@@ -612,12 +629,7 @@ static int ieee802154_cc13xx_cc26xx_subg_init(const struct device *dev)
 {
 	RF_Params rf_params;
 	RF_EventMask reason;
-	RF_Mode rf_mode = {
-		.rfMode = RF_MODE_MULTIPLE,
-		.cpePatchFxn = &rf_patch_cpe_multi_protocol,
-	};
-	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data =
-		get_dev_data(dev);
+	struct ieee802154_cc13xx_cc26xx_subg_data *drv_data = dev->data;
 
 	/* Initialize driver data */
 	ieee802154_cc13xx_cc26xx_subg_data_init(drv_data);

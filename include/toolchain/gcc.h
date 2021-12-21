@@ -49,9 +49,8 @@
 
 
 /* C++11 has static_assert built in */
-#ifdef __cplusplus
+#if defined(__cplusplus) && (__cplusplus >= 201103L)
 #define BUILD_ASSERT(EXPR, MSG...) static_assert(EXPR, "" MSG)
-#define BUILD_ASSERT_MSG(EXPR, MSG) __DEPRECATED_MACRO BUILD_ASSERT(EXPR, MSG)
 
 /*
  * GCC 4.6 and higher have the C11 _Static_assert built in, and its
@@ -60,10 +59,14 @@
 #elif (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)) || \
 	(__STDC_VERSION__) >= 201100
 #define BUILD_ASSERT(EXPR, MSG...) _Static_assert(EXPR, "" MSG)
-#define BUILD_ASSERT_MSG(EXPR, MSG) __DEPRECATED_MACRO BUILD_ASSERT(EXPR, MSG)
 #else
 #define BUILD_ASSERT(EXPR, MSG...)
-#define BUILD_ASSERT_MSG(EXPR, MSG)
+#endif
+
+#ifdef __cplusplus
+#define ZRESTRICT __restrict
+#else
+#define ZRESTRICT restrict
 #endif
 
 #include <toolchain/common.h>
@@ -159,6 +162,9 @@ do {                                                                    \
 
 #define __in_section_unique(seg) ___in_section(seg, __FILE__, __COUNTER__)
 
+#define __in_section_unique_named(seg, name) \
+	___in_section(seg, __FILE__, name)
+
 /* When using XIP, using '__ramfunc' places a function into RAM instead
  * of FLASH. Make sure '__ramfunc' is defined only when
  * CONFIG_ARCH_HAS_RAMFUNC_SUPPORT is defined, so that the compiler can
@@ -196,6 +202,9 @@ do {                                                                    \
 #endif
 #ifndef __attribute_const__
 #define __attribute_const__ __attribute__((__const__))
+#endif
+#ifndef __must_check
+#define __must_check __attribute__((warn_unused_result))
 #endif
 #define ARG_UNUSED(x) (void)(x)
 
@@ -286,7 +295,8 @@ do {                                                                    \
 #if defined(_ASMLANGUAGE)
 
 #if defined(CONFIG_ARM) || defined(CONFIG_NIOS2) || defined(CONFIG_RISCV) \
-	|| defined(CONFIG_XTENSA) || defined(CONFIG_ARM64)
+	|| defined(CONFIG_XTENSA) || defined(CONFIG_ARM64) \
+	|| defined(CONFIG_MIPS)
 #define GTEXT(sym) .global sym; .type sym, %function
 #define GDATA(sym) .global sym; .type sym, %object
 #define WTEXT(sym) .weak sym; .type sym, %function
@@ -467,7 +477,8 @@ do {                                                                    \
 		"\n\t.equ\t" #name "," #value       \
 		"\n\t.type\t" #name ",@object")
 
-#elif defined(CONFIG_NIOS2) || defined(CONFIG_RISCV) || defined(CONFIG_XTENSA)
+#elif defined(CONFIG_NIOS2) || defined(CONFIG_RISCV) || \
+	defined(CONFIG_XTENSA) || defined(CONFIG_MIPS)
 
 /* No special prefixes necessary for constants in this arch AFAICT */
 #define GEN_ABSOLUTE_SYM(name, value)		\
