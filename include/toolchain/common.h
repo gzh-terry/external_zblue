@@ -142,7 +142,7 @@
  * not used).
  */
 #ifndef ZTEST_UNITTEST
-#define __syscall
+#define __syscall static inline
 #else
 #define __syscall
 #endif /* ZTEST_UNITTEST */
@@ -234,10 +234,14 @@
  * ITERABLE_SECTION_ROM() or ITERABLE_SECTION_RAM() in the linker script.
  */
 #define STRUCT_SECTION_FOREACH(struct_type, iterator) \
-	extern struct struct_type * const _CONCAT(_##struct_type, _list)[]; \
-	struct struct_type * const *_iterator = _CONCAT(_##struct_type, _list); \
-	for (struct struct_type *iterator = (struct struct_type *) *_iterator; \
-		*_iterator; iterator = (struct struct_type *) *(++_iterator))
+	extern struct struct_type _CONCAT(_##struct_type, _list_start)[]; \
+	extern struct struct_type _CONCAT(_##struct_type, _list_end)[]; \
+	for (struct struct_type *iterator = \
+			_CONCAT(_##struct_type, _list_start); \
+	     ({ __ASSERT(iterator <= _CONCAT(_##struct_type, _list_end), \
+			 "unexpected list end location"); \
+		iterator < _CONCAT(_##struct_type, _list_end); }); \
+	     iterator++)
 
 /**
  * @}

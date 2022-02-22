@@ -15,7 +15,7 @@ config BT_OTS
 if BT_OTS
 
 config BT_OTS_DIR_LIST_OBJ
-	bool "Enables the Directory Listing Object"
+	bool "The Directory Listing Object"
 	help
 	  Enables the Directory Listing Object, which is an object that contains all the metadata
 	  from all other objects, for easy exposure to a client. Enabling this will use one of the
@@ -116,5 +116,9 @@ config BT_OTS_OBJ_MAX_NAME_LEN
 	# servers may use the full 120 octets.
 	default 120
 	range 1 120
+
+module = BT_OTS
+module-str = BT_OTS
+source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
 
 endif # BT_OTS || BT_OTS_CLIENT

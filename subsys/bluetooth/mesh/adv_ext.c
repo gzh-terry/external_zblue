@@ -26,6 +26,10 @@
 /* Convert from ms to 0.625ms units */
 #define ADV_INT_FAST_MS    20
 
+#ifndef CONFIG_BT_MESH_RELAY_ADV_SETS
+#define CONFIG_BT_MESH_RELAY_ADV_SETS 0
+#endif
+
 enum {
 	/** Controller is currently advertising */
 	ADV_FLAG_ACTIVE,
@@ -88,8 +92,6 @@ static STRUCT_SECTION_ITERABLE(bt_mesh_ext_adv, adv_gatt) = {
 
 BUILD_ASSERT(CONFIG_BT_EXT_ADV_MAX_ADV_SET >= BT_MESH_ADV_COUNT,
 	     "Insufficient adv instances");
-
-#include "adv_ext_internal.h"
 
 static inline struct bt_mesh_ext_adv *relay_adv_get(void)
 {
