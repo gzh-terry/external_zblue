@@ -262,28 +262,28 @@ struct bt_codec_lc3_frame_len {
 #define BT_CODEC_LC3_CONFIG_8_1 \
 	BT_CODEC_LC3_CONFIG(BT_CODEC_CONFIG_LC3_FREQ_8KHZ, \
 			    BT_CODEC_CONFIG_LC3_DURATION_7_5, 26u, \
-			    BT_CODEC_META_CONTEXT_VOICE)
+			    BT_AUDIO_CONTEXT_TYPE_CONVERSATIONAL)
 /** @def BT_CODEC_LC3_CONFIG_8_2
  *  @brief Helper to declare LC3 8.2 codec configuration
  */
 #define BT_CODEC_LC3_CONFIG_8_2 \
 	BT_CODEC_LC3_CONFIG(BT_CODEC_CONFIG_LC3_FREQ_8KHZ, \
 			    BT_CODEC_CONFIG_LC3_DURATION_10, 30u, \
-			    BT_CODEC_META_CONTEXT_VOICE)
+			    BT_AUDIO_CONTEXT_TYPE_CONVERSATIONAL)
 /** @def BT_CODEC_LC3_CONFIG_16_1
  *  @brief Helper to declare LC3 16.1 codec configuration
  */
 #define BT_CODEC_LC3_CONFIG_16_1 \
 	BT_CODEC_LC3_CONFIG(BT_CODEC_CONFIG_LC3_FREQ_16KHZ, \
 			    BT_CODEC_CONFIG_LC3_DURATION_7_5, 30u, \
-			    BT_CODEC_META_CONTEXT_VOICE)
+			    BT_AUDIO_CONTEXT_TYPE_CONVERSATIONAL)
 /** @def BT_CODEC_LC3_CONFIG_16_2
  *  @brief Helper to declare LC3 16.2 codec configuration
  */
 #define BT_CODEC_LC3_CONFIG_16_2 \
 	BT_CODEC_LC3_CONFIG(BT_CODEC_CONFIG_LC3_FREQ_16KHZ, \
 			    BT_CODEC_CONFIG_LC3_DURATION_10, 40u, \
-			    BT_CODEC_META_CONTEXT_VOICE)
+			    BT_AUDIO_CONTEXT_TYPE_CONVERSATIONAL)
 
 /** @def BT_CODEC_LC3_CONFIG_24_1
  *  @brief Helper to declare LC3 24.1 codec configuration
@@ -291,126 +291,106 @@ struct bt_codec_lc3_frame_len {
 #define BT_CODEC_LC3_CONFIG_24_1 \
 	BT_CODEC_LC3_CONFIG(BT_CODEC_CONFIG_LC3_FREQ_24KHZ, \
 			    BT_CODEC_CONFIG_LC3_DURATION_7_5, 45u, \
-			    BT_CODEC_META_CONTEXT_VOICE)
+			    BT_AUDIO_CONTEXT_TYPE_CONVERSATIONAL)
 /** @def BT_CODEC_LC3_CONFIG_24_2
  *  @brief Helper to declare LC3 24.2 codec configuration
  */
 #define BT_CODEC_LC3_CONFIG_24_2 \
 	BT_CODEC_LC3_CONFIG(BT_CODEC_CONFIG_LC3_FREQ_24KHZ, \
 			    BT_CODEC_CONFIG_LC3_DURATION_10, 60u, \
-			    BT_CODEC_META_CONTEXT_VOICE)
+			    BT_AUDIO_CONTEXT_TYPE_CONVERSATIONAL)
 /** @def BT_CODEC_LC3_CONFIG_32_1
  *  @brief Helper to declare LC3 32.1 codec configuration
  */
 #define BT_CODEC_LC3_CONFIG_32_1 \
 	BT_CODEC_LC3_CONFIG(BT_CODEC_CONFIG_LC3_FREQ_32KHZ, \
 			    BT_CODEC_CONFIG_LC3_DURATION_7_5, 60u, \
-			    BT_CODEC_META_CONTEXT_VOICE)
+			    BT_AUDIO_CONTEXT_TYPE_CONVERSATIONAL)
 /** @def BT_CODEC_LC3_CONFIG_32_2
  *  @brief Helper to declare LC3 32.2 codec configuration
  */
 #define BT_CODEC_LC3_CONFIG_32_2 \
 	BT_CODEC_LC3_CONFIG(BT_CODEC_CONFIG_LC3_FREQ_32KHZ, \
 			    BT_CODEC_CONFIG_LC3_DURATION_10, 80u, \
-			    BT_CODEC_META_CONTEXT_VOICE)
+			    BT_AUDIO_CONTEXT_TYPE_CONVERSATIONAL)
 /** @def BT_CODEC_LC3_CONFIG_441_1
  *  @brief Helper to declare LC3 441.1 codec configuration
  */
 #define BT_CODEC_LC3_CONFIG_441_1 \
 	BT_CODEC_LC3_CONFIG(BT_CODEC_CONFIG_LC3_FREQ_44KHZ, \
 			    BT_CODEC_CONFIG_LC3_DURATION_7_5, 98u, \
-			    BT_CODEC_META_CONTEXT_MEDIA)
+			    BT_AUDIO_CONTEXT_TYPE_MEDIA)
 /** @def BT_CODEC_LC3_CONFIG_441_2
  *  @brief Helper to declare LC3 441.2 codec configuration
  */
 #define BT_CODEC_LC3_CONFIG_441_2 \
 	BT_CODEC_LC3_CONFIG(BT_CODEC_CONFIG_LC3_FREQ_44KHZ, \
 			    BT_CODEC_CONFIG_LC3_DURATION_10, 130u, \
-			    BT_CODEC_META_CONTEXT_MEDIA)
+			    BT_AUDIO_CONTEXT_TYPE_MEDIA)
 /** @def BT_CODEC_LC3_CONFIG_48_1
  *  @brief Helper to declare LC3 48.1 codec configuration
  */
 #define BT_CODEC_LC3_CONFIG_48_1 \
 	BT_CODEC_LC3_CONFIG(BT_CODEC_CONFIG_LC3_FREQ_48KHZ, \
 			    BT_CODEC_CONFIG_LC3_DURATION_7_5, 75u, \
-			    BT_CODEC_META_CONTEXT_MEDIA)
+			    BT_AUDIO_CONTEXT_TYPE_MEDIA)
 /** @def BT_CODEC_LC3_CONFIG_48_2
  *  @brief Helper to declare LC3 48.2 codec configuration
  */
 #define BT_CODEC_LC3_CONFIG_48_2 \
 	BT_CODEC_LC3_CONFIG(BT_CODEC_CONFIG_LC3_FREQ_48KHZ, \
 			    BT_CODEC_CONFIG_LC3_DURATION_10, 100u, \
-			    BT_CODEC_META_CONTEXT_MEDIA)
+			    BT_AUDIO_CONTEXT_TYPE_MEDIA)
 /** @def BT_CODEC_LC3_CONFIG_48_3
  *  @brief Helper to declare LC3 48.3 codec configuration
  */
 #define BT_CODEC_LC3_CONFIG_48_3 \
 	BT_CODEC_LC3_CONFIG(BT_CODEC_CONFIG_LC3_FREQ_48KHZ, \
 			    BT_CODEC_CONFIG_LC3_DURATION_7_5, 90u, \
-			    BT_CODEC_META_CONTEXT_MEDIA)
+			    BT_AUDIO_CONTEXT_TYPE_MEDIA)
 /** @def BT_CODEC_LC3_CONFIG_48_4
  *  @brief Helper to declare LC3 48.4 codec configuration
  */
 #define BT_CODEC_LC3_CONFIG_48_4 \
 	BT_CODEC_LC3_CONFIG(BT_CODEC_CONFIG_LC3_FREQ_48KHZ, \
 			    BT_CODEC_CONFIG_LC3_DURATION_10, 120u, \
-			    BT_CODEC_META_CONTEXT_MEDIA)
+			    BT_AUDIO_CONTEXT_TYPE_MEDIA)
 /** @def BT_CODEC_LC3_CONFIG_48_5
  *  @brief Helper to declare LC3 48.5 codec configuration
  */
 #define BT_CODEC_LC3_CONFIG_48_5 \
 	BT_CODEC_LC3_CONFIG(BT_CODEC_CONFIG_LC3_FREQ_48KHZ, \
 			    BT_CODEC_CONFIG_LC3_DURATION_7_5, 117u, \
-			    BT_CODEC_META_CONTEXT_MEDIA)
+			    BT_AUDIO_CONTEXT_TYPE_MEDIA)
 /** @def BT_CODEC_LC3_CONFIG_48_6
  *  @brief Helper to declare LC3 48.6 codec configuration
  */
 #define BT_CODEC_LC3_CONFIG_48_6 \
 	BT_CODEC_LC3_CONFIG(BT_CODEC_CONFIG_LC3_FREQ_48KHZ, \
 			    BT_CODEC_CONFIG_LC3_DURATION_10, 155u, \
-			    BT_CODEC_META_CONTEXT_MEDIA)
+			    BT_AUDIO_CONTEXT_TYPE_MEDIA)
 /** @def BT_CODEC_LC3_QOS_7_5
  *  @brief Helper to declare LC3 codec QoS for 7.5ms interval
  */
-#define BT_CODEC_LC3_QOS_7_5(_dir, _framing, _sdu, _rtn, _latency, _pd) \
-	BT_CODEC_QOS(_dir, 7500u, _framing, BT_CODEC_QOS_2M, _sdu, _rtn, \
+#define BT_CODEC_LC3_QOS_7_5(_framing, _sdu, _rtn, _latency, _pd) \
+	BT_CODEC_QOS(7500u, _framing, BT_CODEC_QOS_2M, _sdu, _rtn, \
 		     _latency, _pd)
-/** @def BT_CODEC_LC3_QOS_7_5_IN_UNFRAMED
+/** @def BT_CODEC_LC3_QOS_7_5_UNFRAMED
  *  @brief Helper to declare LC3 codec QoS for 7.5ms interval unframed input
  */
-#define BT_CODEC_LC3_QOS_7_5_IN_UNFRAMED(_sdu, _rtn, _latency, _pd) \
-	BT_CODEC_QOS_IN_UNFRAMED(7500u, _sdu, _rtn, _latency, _pd)
-/** @def BT_CODEC_LC3_QOS_7_5_OUT_UNFRAMED
- *  @brief Helper to declare LC3 codec QoS for 7.5ms interval unframed output
- */
-#define BT_CODEC_LC3_QOS_7_5_OUT_UNFRAMED(_sdu, _rtn, _latency, _pd) \
-	BT_CODEC_QOS_OUT_UNFRAMED(7500u, _sdu, _rtn, _latency, _pd)
-/** @def BT_CODEC_LC3_QOS_7_5_INOUT_UNFRAMED
- *  @brief Helper to declare LC3 codec QoS for 7.5ms interval unframed in/out
- */
-#define BT_CODEC_LC3_QOS_7_5_INOUT_UNFRAMED(_sdu, _rtn, _latency, _pd) \
-	BT_CODEC_QOS_INOUT_UNFRAMED(7500u, _sdu, _rtn, _latency, _pd)
+#define BT_CODEC_LC3_QOS_7_5_UNFRAMED(_sdu, _rtn, _latency, _pd) \
+	BT_CODEC_QOS_UNFRAMED(7500u, _sdu, _rtn, _latency, _pd)
 /** @def BT_CODEC_LC3_QOS_10
  *  @brief Helper to declare LC3 codec QoS for 10ms frame internal
  */
-#define BT_CODEC_LC3_QOS_10(_dir, _framing, _sdu, _rtn, _latency, _pd) \
-	BT_CODEC_QOS(_dir, 10000u, _framing, BT_CODEC_QOS_2M, _sdu, _rtn, \
+#define BT_CODEC_LC3_QOS_10(_framing, _sdu, _rtn, _latency, _pd) \
+	BT_CODEC_QOS(10000u, _framing, BT_CODEC_QOS_2M, _sdu, _rtn, \
 		     _latency, _pd)
-/** @def BT_CODEC_LC3_QOS_10_IN_UNFRAMED
+/** @def BT_CODEC_LC3_QOS_10_UNFRAMED
  *  @brief Helper to declare LC3 codec QoS for 10ms interval unframed input
  */
-#define BT_CODEC_LC3_QOS_10_IN_UNFRAMED(_sdu, _rtn, _latency, _pd) \
-	BT_CODEC_QOS_IN_UNFRAMED(10000u, _sdu, _rtn, _latency, _pd)
-/** @def BT_CODEC_LC3_QOS_10_OUT_UNFRAMED
- *  @brief Helper to declare LC3 codec QoS for 10ms interval unframed output
- */
-#define BT_CODEC_LC3_QOS_10_OUT_UNFRAMED(_sdu, _rtn, _latency, _pd) \
-	BT_CODEC_QOS_OUT_UNFRAMED(10000u, _sdu, _rtn, _latency, _pd)
-/** @def BT_CODEC_LC3_QOS_10_INOUT_UNFRAMED
- *  @brief Helper to declare LC3 codec QoS for 10ms interval unframed in/out
- */
-#define BT_CODEC_LC3_QOS_10_INOUT_UNFRAMED(_sdu, _rtn, _latency, _pd) \
-	BT_CODEC_QOS_INOUT_UNFRAMED(10000u, _sdu, _rtn, _latency, _pd)
+#define BT_CODEC_LC3_QOS_10_UNFRAMED(_sdu, _rtn, _latency, _pd) \
+	BT_CODEC_QOS_UNFRAMED(10000u, _sdu, _rtn, _latency, _pd)
 
 #ifdef __cplusplus
 }

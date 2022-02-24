@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <drivers/can/transceiver.h>
 #include <drivers/clock_control/stm32_clock_control.h>
 #include <drivers/clock_control.h>
 #include <drivers/pinctrl.h>
@@ -118,34 +119,81 @@ void can_stm32_rx_isr_handler(CAN_TypeDef *can, struct can_stm32_data *data)
 	}
 }
 
-static inline void can_stm32_bus_state_change_isr(CAN_TypeDef *can,
-						  struct can_stm32_data *data)
+static int can_stm32_get_state(const struct device *dev, enum can_state *state,
+			       struct can_bus_err_cnt *err_cnt)
 {
+	const struct can_stm32_config *cfg = dev->config;
+	CAN_TypeDef *can = cfg->can;
+
+	if (state != NULL) {
+		if (can->ESR & CAN_ESR_BOFF) {
+			*state = CAN_BUS_OFF;
+		} else if (can->ESR & CAN_ESR_EPVF) {
+			*state = CAN_ERROR_PASSIVE;
+		} else if (can->ESR & CAN_ESR_EWGF) {
+			*state = CAN_ERROR_WARNING;
+		} else {
+			*state = CAN_ERROR_ACTIVE;
+		}
+	}
+
+	if (err_cnt != NULL) {
+		err_cnt->tx_err_cnt =
+			((can->ESR & CAN_ESR_TEC) >> CAN_ESR_TEC_Pos);
+		err_cnt->rx_err_cnt =
+			((can->ESR & CAN_ESR_REC) >> CAN_ESR_REC_Pos);
+	}
+
+	return 0;
+}
+
+static inline void can_stm32_bus_state_change_isr(const struct device *dev)
+{
+	struct can_stm32_data *data = dev->data;
 	struct can_bus_err_cnt err_cnt;
 	enum can_state state;
 	const can_state_change_callback_t cb = data->state_change_cb;
 	void *state_change_cb_data = data->state_change_cb_data;
 
-	if (!(can->ESR & CAN_ESR_EPVF) && !(can->ESR & CAN_ESR_BOFF) &&
-	    !(can->ESR & CAN_ESR_EWGF)) {
-		return;
+#ifdef CONFIG_CAN_STATS
+	const struct can_stm32_config *cfg = dev->config;
+	CAN_TypeDef *can = cfg->can;
+
+	switch (can->ESR & CAN_ESR_LEC) {
+	case (CAN_ESR_LEC_0):
+		CAN_STATS_STUFF_ERROR_INC(dev);
+		break;
+	case (CAN_ESR_LEC_1):
+		CAN_STATS_FORM_ERROR_INC(dev);
+		break;
+	case (CAN_ESR_LEC_1 | CAN_ESR_LEC_0):
+		CAN_STATS_ACK_ERROR_INC(dev);
+		break;
+	case (CAN_ESR_LEC_2):
+		CAN_STATS_BIT1_ERROR_INC(dev);
+		break;
+	case (CAN_ESR_LEC_2 | CAN_ESR_LEC_0):
+		CAN_STATS_BIT0_ERROR_INC(dev);
+		break;
+	case (CAN_ESR_LEC_2 | CAN_ESR_LEC_1):
+		CAN_STATS_CRC_ERROR_INC(dev);
+		break;
+	default:
+		break;
 	}
 
-	err_cnt.tx_err_cnt = ((can->ESR & CAN_ESR_TEC) >> CAN_ESR_TEC_Pos);
-	err_cnt.rx_err_cnt = ((can->ESR & CAN_ESR_REC) >> CAN_ESR_REC_Pos);
+	/* Clear last error code flag */
+	can->ESR |= CAN_ESR_LEC;
+#endif /* CONFIG_CAN_STATS */
 
-	if (can->ESR & CAN_ESR_BOFF) {
-		state = CAN_BUS_OFF;
-	} else if (can->ESR & CAN_ESR_EPVF) {
-		state = CAN_ERROR_PASSIVE;
-	} else if (can->ESR & CAN_ESR_EWGF) {
-		state = CAN_ERROR_WARNING;
-	} else {
-		state = CAN_ERROR_ACTIVE;
-	}
+	(void)can_stm32_get_state(dev, &state, &err_cnt);
 
-	if (cb != NULL) {
-		cb(state, err_cnt, state_change_cb_data);
+	if (state != data->state) {
+		data->state = state;
+
+		if (cb != NULL) {
+			cb(state, err_cnt, state_change_cb_data);
+		}
 	}
 }
 
@@ -212,7 +260,7 @@ static void can_stm32_isr(const struct device *dev)
 	can_stm32_tx_isr_handler(can, data);
 	can_stm32_rx_isr_handler(can, data);
 	if (can->MSR & CAN_MSR_ERRI) {
-		can_stm32_bus_state_change_isr(can, data);
+		can_stm32_bus_state_change_isr(dev);
 		can->MSR |= CAN_MSR_ERRI;
 	}
 }
@@ -259,7 +307,7 @@ static void can_stm32_state_change_isr(const struct device *dev)
 	/*Signal bus-off to waiting tx*/
 	if (can->MSR & CAN_MSR_ERRI) {
 		can_stm32_tx_isr_handler(can, data);
-		can_stm32_bus_state_change_isr(can, data);
+		can_stm32_bus_state_change_isr(dev);
 		can->MSR |= CAN_MSR_ERRI;
 	}
 }
@@ -325,6 +373,15 @@ int can_stm32_set_mode(const struct device *dev, enum can_mode mode)
 	LOG_DBG("Set mode %d", mode);
 
 	k_mutex_lock(&data->inst_mutex, K_FOREVER);
+
+	if (cfg->phy != NULL) {
+		ret = can_transceiver_enable(cfg->phy);
+		if (ret != 0) {
+			LOG_ERR("failed to enable CAN transceiver (err %d)", ret);
+			goto done;
+		}
+	}
+
 	ret = can_enter_init_mode(can);
 	if (ret) {
 		LOG_ERR("Failed to enter init mode");
@@ -354,8 +411,15 @@ done:
 	ret = can_leave_init_mode(can);
 	if (ret) {
 		LOG_ERR("Failed to leave init mode");
+
+		if (cfg->phy != NULL) {
+			/* Attempt to disable the CAN transceiver in case of error */
+			(void)can_transceiver_disable(cfg->phy);
+		}
 	}
+
 	k_mutex_unlock(&data->inst_mutex);
+
 	return ret;
 }
 
@@ -425,6 +489,15 @@ int can_stm32_get_max_filters(const struct device *dev, enum can_ide id_type)
 	return CONFIG_CAN_MAX_FILTER;
 }
 
+int can_stm32_get_max_bitrate(const struct device *dev, uint32_t *max_bitrate)
+{
+	const struct can_stm32_config *config = dev->config;
+
+	*max_bitrate = config->max_bitrate;
+
+	return 0;
+}
+
 static int can_stm32_init(const struct device *dev)
 {
 	const struct can_stm32_config *cfg = dev->config;
@@ -451,6 +524,13 @@ static int can_stm32_init(const struct device *dev)
 	data->filter_usage = (1ULL << CAN_MAX_NUMBER_OF_FILTERS) - 1ULL;
 	(void)memset(data->rx_cb, 0, sizeof(data->rx_cb));
 	(void)memset(data->cb_arg, 0, sizeof(data->cb_arg));
+
+	if (cfg->phy != NULL) {
+		if (!device_is_ready(cfg->phy)) {
+			LOG_ERR("CAN transceiver not ready");
+			return -ENODEV;
+		}
+	}
 
 	clock = DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE);
 
@@ -525,6 +605,8 @@ static int can_stm32_init(const struct device *dev)
 		return ret;
 	}
 
+	(void)can_stm32_get_state(dev, &data->state, NULL);
+
 	cfg->config_irq(can);
 	can->IER |= CAN_IER_TMEIE;
 	LOG_INF("Init of %s done", dev->name);
@@ -547,34 +629,6 @@ static void can_stm32_set_state_change_callback(const struct device *dev,
 	} else {
 		can->IER |= CAN_IER_BOFIE | CAN_IER_EPVIE | CAN_IER_EWGIE;
 	}
-}
-
-static int can_stm32_get_state(const struct device *dev, enum can_state *state,
-			       struct can_bus_err_cnt *err_cnt)
-{
-	const struct can_stm32_config *cfg = dev->config;
-	CAN_TypeDef *can = cfg->can;
-
-	if (state != NULL) {
-		if (can->ESR & CAN_ESR_BOFF) {
-			*state = CAN_BUS_OFF;
-		} else if (can->ESR & CAN_ESR_EPVF) {
-			*state = CAN_ERROR_PASSIVE;
-		} else if (can->ESR & CAN_ESR_EWGF) {
-			*state = CAN_ERROR_WARNING;
-		} else {
-			*state = CAN_ERROR_ACTIVE;
-		}
-	}
-
-	if (err_cnt != NULL) {
-		err_cnt->tx_err_cnt =
-			((can->ESR & CAN_ESR_TEC) >> CAN_ESR_TEC_Pos);
-		err_cnt->rx_err_cnt =
-			((can->ESR & CAN_ESR_REC) >> CAN_ESR_REC_Pos);
-	}
-
-	return 0;
 }
 
 #ifndef CONFIG_CAN_AUTO_BUS_OFF_RECOVERY
@@ -1102,7 +1156,7 @@ void can_stm32_remove_rx_filter(const struct device *dev, int filter_id)
 	if (!CAN_BANK_IS_EMPTY(data->filter_usage, bank_nr)) {
 		can->FA1R |= bank_bit;
 	} else {
-		LOG_DBG("Bank number %d is empty -> deakivate", bank_nr);
+		LOG_DBG("Bank number %d is empty -> deactivate", bank_nr);
 	}
 
 	can->FMR &= ~(CAN_FMR_FINIT);
@@ -1125,6 +1179,7 @@ static const struct can_driver_api can_api_funcs = {
 	.set_state_change_callback = can_stm32_set_state_change_callback,
 	.get_core_clock = can_stm32_get_core_clock,
 	.get_max_filters = can_stm32_get_max_filters,
+	.get_max_bitrate = can_stm32_get_max_bitrate,
 	.timing_min = {
 		.sjw = 0x1,
 		.prop_seg = 0x00,
@@ -1162,15 +1217,17 @@ static const struct can_stm32_config can_stm32_cfg_1 = {
 		.bus = DT_CLOCKS_CELL(DT_NODELABEL(can1), bus),
 	},
 	.config_irq = config_can_1_irq,
-	.pcfg = PINCTRL_DT_DEV_CONFIG_GET(DT_NODELABEL(can1))
+	.pcfg = PINCTRL_DT_DEV_CONFIG_GET(DT_NODELABEL(can1)),
+	.phy = DEVICE_DT_GET_OR_NULL(DT_PHANDLE(DT_NODELABEL(can1), phys)),
+	.max_bitrate = DT_CAN_TRANSCEIVER_MAX_BITRATE(DT_NODELABEL(can1), 1000000),
 };
 
 static struct can_stm32_data can_stm32_dev_data_1;
 
-DEVICE_DT_DEFINE(DT_NODELABEL(can1), &can_stm32_init, NULL,
-		    &can_stm32_dev_data_1, &can_stm32_cfg_1,
-		    POST_KERNEL, CONFIG_CAN_INIT_PRIORITY,
-		    &can_api_funcs);
+CAN_DEVICE_DT_DEFINE(DT_NODELABEL(can1), can_stm32_init, NULL,
+		     &can_stm32_dev_data_1, &can_stm32_cfg_1,
+		     POST_KERNEL, CONFIG_CAN_INIT_PRIORITY,
+		     &can_api_funcs);
 
 static void config_can_1_irq(CAN_TypeDef *can)
 {
@@ -1199,6 +1256,9 @@ static void config_can_1_irq(CAN_TypeDef *can)
 #endif
 	can->IER |= CAN_IER_TMEIE | CAN_IER_ERRIE | CAN_IER_FMPIE0 |
 		    CAN_IER_FMPIE1 | CAN_IER_BOFIE;
+#ifdef CONFIG_CAN_STATS
+	can->IER |= CAN_IER_LECIE;
+#endif /* CONFIG_CAN_STATS */
 }
 
 #if defined(CONFIG_NET_SOCKETS_CAN)
@@ -1260,15 +1320,17 @@ static const struct can_stm32_config can_stm32_cfg_2 = {
 		.bus = DT_CLOCKS_CELL(DT_NODELABEL(can2), bus),
 	},
 	.config_irq = config_can_2_irq,
-	.pcfg = PINCTRL_DT_DEV_CONFIG_GET(DT_NODELABEL(can2))
+	.pcfg = PINCTRL_DT_DEV_CONFIG_GET(DT_NODELABEL(can2)),
+	.phy = DEVICE_DT_GET_OR_NULL(DT_PHANDLE(DT_NODELABEL(can2), phys)),
+	.max_bitrate = DT_CAN_TRANSCEIVER_MAX_BITRATE(DT_NODELABEL(can2), 1000000),
 };
 
 static struct can_stm32_data can_stm32_dev_data_2;
 
-DEVICE_DT_DEFINE(DT_NODELABEL(can2), &can_stm32_init, NULL,
-		    &can_stm32_dev_data_2, &can_stm32_cfg_2,
-		    POST_KERNEL, CONFIG_CAN_INIT_PRIORITY,
-		    &can_api_funcs);
+CAN_DEVICE_DT_DEFINE(DT_NODELABEL(can2), can_stm32_init, NULL,
+		     &can_stm32_dev_data_2, &can_stm32_cfg_2,
+		     POST_KERNEL, CONFIG_CAN_INIT_PRIORITY,
+		     &can_api_funcs);
 
 static void config_can_2_irq(CAN_TypeDef *can)
 {
@@ -1290,6 +1352,9 @@ static void config_can_2_irq(CAN_TypeDef *can)
 	irq_enable(DT_IRQ_BY_NAME(DT_NODELABEL(can2), sce, irq));
 	can->IER |= CAN_IER_TMEIE | CAN_IER_ERRIE | CAN_IER_FMPIE0 |
 		    CAN_IER_FMPIE1 | CAN_IER_BOFIE;
+#ifdef CONFIG_CAN_STATS
+	can->IER |= CAN_IER_LECIE;
+#endif /* CONFIG_CAN_STATS */
 }
 
 #if defined(CONFIG_NET_SOCKETS_CAN)

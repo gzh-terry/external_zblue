@@ -233,11 +233,6 @@ static const uint32_t table_samp_time[] = {
 };
 #endif
 
-/* Bugfix for STM32G4 HAL */
-#if !defined(ADC_CHANNEL_TEMPSENSOR)
-#define ADC_CHANNEL_TEMPSENSOR ADC_CHANNEL_TEMPSENSOR_ADC1
-#endif
-
 /* External channels (maximum). */
 #define STM32_CHANNEL_COUNT		20
 
@@ -261,6 +256,8 @@ struct adc_stm32_cfg {
 	void (*irq_cfg_func)(void);
 	struct stm32_pclken pclken;
 	const struct pinctrl_dev_config *pcfg;
+	bool has_temp_channel;
+	bool has_vref_channel;
 };
 
 #ifdef CONFIG_ADC_STM32_SHARED_IRQS
@@ -762,7 +759,7 @@ static int adc_stm32_check_acq_time(uint16_t acq_time)
 		return 0;
 	}
 
-	LOG_ERR("Conversion time not supportted.");
+	LOG_ERR("Conversion time not supported.");
 	return -EINVAL;
 }
 
@@ -799,6 +796,21 @@ static void adc_stm32_setup_speed(const struct device *dev, uint8_t id,
 		__LL_ADC_DECIMAL_NB_TO_CHANNEL(id),
 		table_samp_time[acq_time_index]);
 #endif
+}
+
+static void adc_stm32_setup_channels(const struct device *dev, uint8_t channel_id)
+{
+	const struct adc_stm32_cfg *config = dev->config;
+
+	if (config->has_temp_channel &&
+		__LL_ADC_CHANNEL_TO_DECIMAL_NB(ADC_CHANNEL_TEMPSENSOR) == channel_id) {
+		adc_stm32_set_common_path(dev, LL_ADC_PATH_INTERNAL_TEMPSENSOR);
+	}
+
+	if (config->has_vref_channel &&
+		__LL_ADC_CHANNEL_TO_DECIMAL_NB(ADC_CHANNEL_VREFINT) == channel_id) {
+		adc_stm32_set_common_path(dev, LL_ADC_PATH_INTERNAL_VREFINT);
+	}
 }
 
 static int adc_stm32_channel_setup(const struct device *dev,
@@ -849,11 +861,7 @@ static int adc_stm32_channel_setup(const struct device *dev,
 		return -EINVAL;
 	}
 
-	if (__LL_ADC_CHANNEL_TO_DECIMAL_NB(ADC_CHANNEL_TEMPSENSOR) == channel_cfg->channel_id) {
-		adc_stm32_set_common_path(dev, LL_ADC_PATH_INTERNAL_TEMPSENSOR);
-	} else if (__LL_ADC_CHANNEL_TO_DECIMAL_NB(ADC_CHANNEL_VREFINT) == channel_cfg->channel_id) {
-		adc_stm32_set_common_path(dev, LL_ADC_PATH_INTERNAL_VREFINT);
-	}
+	adc_stm32_setup_channels(dev, channel_cfg->channel_id);
 
 	adc_stm32_setup_speed(dev, channel_cfg->channel_id,
 				  acq_time_index);
@@ -1117,6 +1125,8 @@ static const struct adc_stm32_cfg adc_stm32_cfg_##index = {		\
 		.bus = DT_INST_CLOCKS_CELL(index, bus),			\
 	},								\
 	.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(index),			\
+	.has_temp_channel = DT_INST_PROP(index, has_temp_channel),		\
+	.has_vref_channel = DT_INST_PROP(index, has_vref_channel),		\
 };
 #else
 #define ADC_STM32_CONFIG(index)						\
@@ -1136,6 +1146,8 @@ static const struct adc_stm32_cfg adc_stm32_cfg_##index = {		\
 		.bus = DT_INST_CLOCKS_CELL(index, bus),			\
 	},								\
 	.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(index),			\
+	.has_temp_channel = DT_INST_PROP(index, has_temp_channel),		\
+	.has_vref_channel = DT_INST_PROP(index, has_vref_channel),		\
 };
 #endif /* CONFIG_ADC_STM32_SHARED_IRQS */
 

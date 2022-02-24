@@ -8,8 +8,6 @@
  * http://ae-bst.resource.bosch.com/media/_tech/media/datasheets/BST-BMI160-DS000-07.pdf
  */
 
-#define DT_DRV_COMPAT bosch_bmi160
-
 #include <init.h>
 #include <drivers/i2c.h>
 #include <drivers/sensor.h>
@@ -426,7 +424,7 @@ static int bmi160_acc_ofs_set(const struct device *dev,
 	}
 
 	for (i = 0; i < BMI160_AXES; i++, ofs++) {
-		/* convert ofset to micro m/s^2 */
+		/* convert offset to micro m/s^2 */
 		ofs_u = ofs->val1 * 1000000ULL + ofs->val2;
 		reg_val = ofs_u / BMI160_ACC_OFS_LSB;
 

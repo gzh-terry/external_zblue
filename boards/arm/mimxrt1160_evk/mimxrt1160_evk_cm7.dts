@@ -40,6 +40,10 @@
 &flexcan3 {
 	status = "okay";
 	bus-speed = <125000>;
+
+	can-transceiver {
+		max-bitrate = <5000000>;
+	};
 };
 
 &lpi2c1 {
@@ -120,4 +124,8 @@
 	ptp {
 		status = "okay";
 	};
+};
+
+zephyr_udc0: &usb1 {
+	status = "okay";
 };

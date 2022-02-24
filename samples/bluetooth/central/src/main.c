@@ -116,7 +116,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	start_scan();
 }
 
-BT_CONN_CB_DEFINE(central) = {
+BT_CONN_CB_DEFINE(conn_callbacks) = {
 	.connected = connected,
 	.disconnected = disconnected,
 };

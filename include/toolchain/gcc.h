@@ -170,7 +170,10 @@ do {                                                                    \
 	__attribute__((section("." STRINGIFY(segment))))
 #define Z_GENERIC_DOT_SECTION(segment) __GENERIC_DOT_SECTION(segment)
 
-#define ___in_section(a, b, c)
+#define ___in_section(a, b, c) \
+	__attribute__((section("." Z_STRINGIFY(a)			\
+				"." Z_STRINGIFY(b)			\
+				"." Z_STRINGIFY(c))))
 #define __in_section(a, b, c) ___in_section(a, b, c)
 
 #define __in_section_unique(seg) ___in_section(seg, __FILE__, __COUNTER__)
@@ -434,7 +437,7 @@ do {                                                                    \
  * and toolchain, may restrict the range of values permitted
  * for assignment to the named symbol.
  *
- * For example, on x86, "value" is interpreated as signed
+ * For example, on x86, "value" is interpreted as signed
  * 32-bit integer. Passing in an unsigned 32-bit integer
  * with MSB set would result in a negative integer.
  * Moreover, GCC would error out if an integer larger
@@ -527,8 +530,7 @@ do {                                                                    \
 		"\n\t.type\t" #name ",#object")
 
 #else
-#define GEN_ABSOLUTE_SYM(name, value)
-#define GEN_ABSOLUTE_SYM_KCONFIG(name, value)
+#error processor architecture not supported
 #endif
 
 #define compiler_barrier() do { \

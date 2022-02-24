@@ -15,14 +15,14 @@
 #include <bluetooth/mesh/msg.h>
 
 /* Internal macros used to initialize array members */
-#define BT_MESH_KEY_UNUSED_ELT_(IDX, _) BT_MESH_KEY_UNUSED,
-#define BT_MESH_ADDR_UNASSIGNED_ELT_(IDX, _) BT_MESH_ADDR_UNASSIGNED,
+#define BT_MESH_KEY_UNUSED_ELT_(IDX, _) BT_MESH_KEY_UNUSED
+#define BT_MESH_ADDR_UNASSIGNED_ELT_(IDX, _) BT_MESH_ADDR_UNASSIGNED
 #define BT_MESH_MODEL_KEYS_UNUSED			\
-	{ UTIL_LISTIFY(CONFIG_BT_MESH_MODEL_KEY_COUNT,	\
-		       BT_MESH_KEY_UNUSED_ELT_) }
-#define BT_MESH_MODEL_GROUPS_UNASSIGNED				\
-	{ UTIL_LISTIFY(CONFIG_BT_MESH_MODEL_GROUP_COUNT,	\
-		       BT_MESH_ADDR_UNASSIGNED_ELT_) }
+	{ LISTIFY(CONFIG_BT_MESH_MODEL_KEY_COUNT,	\
+		  BT_MESH_KEY_UNUSED_ELT_, (,)) }
+#define BT_MESH_MODEL_GROUPS_UNASSIGNED			\
+	{ LISTIFY(CONFIG_BT_MESH_MODEL_GROUP_COUNT,	\
+		  BT_MESH_ADDR_UNASSIGNED_ELT_, (,)) }
 
 /**
  * @brief Access layer
@@ -434,7 +434,7 @@ struct bt_mesh_model_pub {
 	 *  When @ref bt_mesh_model_pub.retr_update is set to 1,
 	 *  the callback will be called on every retransmission.
 	 *
-	 *  @param mod The Model the Publication Context belogs to.
+	 *  @param mod The Model the Publication Context belongs to.
 	 *
 	 *  @return Zero on success or (negative) error code otherwise.
 	 */

@@ -311,7 +311,7 @@ struct bt_gatt_ccc {
  */
 #define BT_GATT_SCC_BROADCAST                   0x0001
 
-/** Server Characterestic Configuration Attribute Value */
+/** Server Characteristic Configuration Attribute Value */
 struct bt_gatt_scc {
 	/** Server Characteristic Configuration flags */
 	uint16_t flags;
@@ -539,9 +539,9 @@ ssize_t bt_gatt_attr_read_service(struct bt_conn *conn,
 					BT_GATT_SERVICE(attr_##_name)
 
 #define _BT_GATT_ATTRS_ARRAY_DEFINE(n, _instances, _attrs_def)	\
-	static struct bt_gatt_attr attrs_##n[] = _attrs_def(_instances[n]);
+	static struct bt_gatt_attr attrs_##n[] = _attrs_def(_instances[n])
 
-#define _BT_GATT_SERVICE_ARRAY_ITEM(_n, _) BT_GATT_SERVICE(attrs_##_n),
+#define _BT_GATT_SERVICE_ARRAY_ITEM(_n, _) BT_GATT_SERVICE(attrs_##_n)
 
 /** @def BT_GATT_SERVICE_INSTANCE_DEFINE
  *  @brief Statically define service structure array.
@@ -555,18 +555,17 @@ ssize_t bt_gatt_attr_read_service(struct bt_conn *conn,
  *                       attribute callbacks.
  *  @param _instance_num Number of elements in instance array.
  *  @param _attrs_def    Macro provided by the user that defines attribute
- *                       array for the serivce. This macro should accept single
+ *                       array for the service. This macro should accept single
  *                       parameter which is the instance context.
  */
 #define BT_GATT_SERVICE_INSTANCE_DEFINE(				 \
 	_name, _instances, _instance_num, _attrs_def)			 \
 	BUILD_ASSERT(ARRAY_SIZE(_instances) == _instance_num,		 \
 		"The number of array elements does not match its size"); \
-	UTIL_EVAL(UTIL_REPEAT(						 \
-		_instance_num, _BT_GATT_ATTRS_ARRAY_DEFINE, _instances,  \
-		_attrs_def))						 \
+	LISTIFY(_instance_num, _BT_GATT_ATTRS_ARRAY_DEFINE, (;),	 \
+		_instances, _attrs_def);				 \
 	static struct bt_gatt_service _name[] = {			 \
-		UTIL_LISTIFY(_instance_num, _BT_GATT_SERVICE_ARRAY_ITEM) \
+		LISTIFY(_instance_num, _BT_GATT_SERVICE_ARRAY_ITEM, (,)) \
 	}
 
 /** @def BT_GATT_SERVICE
@@ -1304,7 +1303,7 @@ enum {
 	BT_GATT_DISCOVER_ATTRIBUTE,
 	/** @brief Discover standard characteristic descriptor values.
 	 *
-	 *  Discover standard characterestic descriptor values and their
+	 *  Discover standard characteristic descriptor values and their
 	 *  properties.
 	 *  Supported descriptors:
 	 *   - Characteristic Extended Properties

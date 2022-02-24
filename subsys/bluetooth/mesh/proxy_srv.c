@@ -900,7 +900,7 @@ int bt_mesh_proxy_adv_start(void)
 	return gatt_proxy_advertise(next_sub());
 }
 
-BT_CONN_CB_DEFINE(proxy_srv) = {
+BT_CONN_CB_DEFINE(conn_callbacks) = {
 	.connected = gatt_connected,
 	.disconnected = gatt_disconnected,
 };

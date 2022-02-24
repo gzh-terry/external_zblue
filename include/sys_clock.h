@@ -16,17 +16,11 @@
 #ifndef ZEPHYR_INCLUDE_SYS_CLOCK_H_
 #define ZEPHYR_INCLUDE_SYS_CLOCK_H_
 
-#include <nuttx/clock.h>
-
 #include <sys/util.h>
 #include <sys/dlist.h>
 
 #include <toolchain.h>
 #include <zephyr/types.h>
-
-#ifndef CONFIG_SYS_CLOCK_TICKS_PER_SEC
-#define CONFIG_SYS_CLOCK_TICKS_PER_SEC (USEC_PER_SEC / CONFIG_USEC_PER_TICK)
-#endif
 
 #include <sys/time_units.h>
 
@@ -108,7 +102,7 @@ typedef struct {
 /* Converts between absolute timeout expiration values (packed into
  * the negative space below K_TICKS_FOREVER) and (non-negative) delta
  * timeout values.  If the result of Z_TICK_ABS(t) is >= 0, then the
- * value was an absolute timeout with the returend expiration time.
+ * value was an absolute timeout with the returned expiration time.
  * Note that this macro is bidirectional: Z_TICK_ABS(Z_TICK_ABS(t)) ==
  * t for all inputs, and that the representation of K_TICKS_FOREVER is
  * the same value in both spaces!  Clever, huh?
@@ -125,6 +119,22 @@ extern void z_enable_sys_clock(void);
 	(CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC == 0)
 #error "SYS_CLOCK_HW_CYCLES_PER_SEC must be non-zero!"
 #endif
+
+/* number of nsec per usec */
+#define NSEC_PER_USEC 1000U
+
+/* number of microseconds per millisecond */
+#define USEC_PER_MSEC 1000U
+
+/* number of milliseconds per second */
+#define MSEC_PER_SEC 1000U
+
+/* number of microseconds per second */
+#define USEC_PER_SEC ((USEC_PER_MSEC) * (MSEC_PER_SEC))
+
+/* number of nanoseconds per second */
+#define NSEC_PER_SEC ((NSEC_PER_USEC) * (USEC_PER_MSEC) * (MSEC_PER_SEC))
+
 
 /* kernel clocks */
 

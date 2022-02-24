@@ -192,6 +192,9 @@ Bluetooth:
         - subsys/bluetooth/audio/
         - include/bluetooth/audio/
         - tests/bluetooth/bsim_bt/bsim_test_audio/
+        - tests/bluetooth/controller/
+        - tests/bluetooth/mesh_*/
+        - tests/bluetooth/mesh/
     labels:
         - "area: Bluetooth"
 
@@ -206,8 +209,10 @@ Bluetooth controller:
         - ppryga
         - mtpr-ot
         - wopu-ot
+        - erbr-ot
     files:
         - subsys/bluetooth/controller/
+        - tests/bluetooth/controller/
     labels:
         - "area: Bluetooth Controller"
         - "area: Bluetooth"
@@ -494,7 +499,9 @@ Documentation:
         - subsys/net/l2/canbus/
         - tests/subsys/canbus/
         - dts/bindings/can/
+        - include/devicetree/can.h
         - include/drivers/can.h
+        - include/drivers/can/
         - samples/drivers/can/
         - tests/drivers/can/
         - samples/subsys/canbus/
@@ -998,6 +1005,19 @@ Filesystems:
     labels:
         - "area: File System"
 
+Formatted Output:
+    status: maintained
+    maintainers:
+      - nordic-krch
+    files:
+      - include/sys/cbprintf*
+      - tests/unit/cbprintf/
+      - tests/lib/cbprintf_*/
+      - lib/os/cbprintf*
+      - lib/os/Kconfig.cbprintf
+    labels:
+      - "area: Formatting Output"
+
 IPC:
     status: maintained
     maintainers:
@@ -1066,6 +1086,12 @@ Base OS:
     files:
         - include/sys/
         - lib/os/
+    files-exclude:
+      - include/sys/cbprintf*
+      - tests/unit/cbprintf/
+      - tests/lib/cbprintf_*/
+      - lib/os/cbprintf*
+      - lib/os/Kconfig.cbprintf
     labels:
         - "area: Base OS"
 
@@ -1345,7 +1371,7 @@ RISCV arch:
         - fkokosinski
         - mgielda
         - katsuster
-        - henrikbrixandersen
+        - edersondisouza
     files:
         - arch/riscv/
         - boards/riscv/
