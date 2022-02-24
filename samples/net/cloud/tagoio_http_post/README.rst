@@ -87,24 +87,14 @@ Modem
 The Modem support is quite similar to WIFI, you need a board with an embedded
 Modem support or you can add a shield.  Currently, the overlay was created to
 allow modems with PPP support.  This was tested using ``SIMcom SIM808 EVB``.
-Additionally you need fill ``CONFIG_MODEM_GSM_APN`` with the correspondent Access
-Point Name (APN) at
-:zephyr_file:`samples/net/cloud/tagoio_http_post/overlay-modem.conf` file. A
-DTC overlay file should be used to configure the glue between the modem and the
-uart port. It can reside at boards directory, with the board name, or it can be
-a special designator like defined at ``arduino.overlay``.
+Additionally you need fill ``CONFIG_MODEM_GSM_UART_NAME`` with the UART label
+``CONFIG_MODEM_GSM_APN`` with the correspondent Access Point Name (APN) at
+:zephyr_file:`samples/net/cloud/tagoio_http_post/overlay-modem.conf` file.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/net/cloud/tagoio_http_post
-   :board: sam4e_xpro
+   :board: [sam4e_xpro | frdm_k64f]
    :gen-args: -DOVERLAY_CONFIG=overlay-modem.conf
-   :goals: build flash
-   :compact:
-
-.. zephyr-app-commands::
-   :zephyr-app: samples/net/cloud/tagoio_http_post
-   :board: frdm_k64f
-   :gen-args: -DOVERLAY_CONFIG=overlay-modem.conf -DDTC_OVERLAY_FILE=arduino.overlay
    :goals: build flash
    :compact:
 

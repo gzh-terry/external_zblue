@@ -30,8 +30,9 @@ extern void z_arm_init_stacks(void);
  *
  * @brief Setup interrupt stack
  *
- * On Cortex-A and Cortex-R, the interrupt stack is set up by reset.S
+ * On Cortex-R, the interrupt stack is set up by reset.S
  *
+ * @return N/A
  */
 static ALWAYS_INLINE void z_arm_interrupt_stack_setup(void)
 {

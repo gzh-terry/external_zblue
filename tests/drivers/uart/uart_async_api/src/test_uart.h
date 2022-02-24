@@ -29,33 +29,20 @@
 #define UART_DEVICE_NAME DT_LABEL(DT_NODELABEL(sercom3))
 #elif defined(CONFIG_BOARD_ATSAME54_XPRO)
 #define UART_DEVICE_NAME DT_LABEL(DT_NODELABEL(sercom1))
-#elif defined(CONFIG_BOARD_NUCLEO_F103RB) || \
-	defined(CONFIG_BOARD_NUCLEO_G071RB) || \
-	defined(CONFIG_BOARD_NUCLEO_G474RE) || \
-	defined(CONFIG_BOARD_NUCLEO_WL55JC)
+#elif defined(CONFIG_BOARD_NUCLEO_G071RB) || \
+	defined(CONFIG_BOARD_NUCLEO_G474RE)
 #define UART_DEVICE_NAME DT_LABEL(DT_NODELABEL(usart1))
-#elif defined(CONFIG_BOARD_NUCLEO_H723ZG) || \
-	defined(CONFIG_BOARD_NUCLEO_H743ZI) || \
-	defined(CONFIG_BOARD_STM32F3_DISCO)
-#define UART_DEVICE_NAME DT_LABEL(DT_NODELABEL(usart2))
-#elif defined(CONFIG_BOARD_NUCLEO_L4R5ZI) || \
-	defined(CONFIG_BOARD_NUCLEO_L152RE) || \
-	defined(CONFIG_BOARD_STM32L562E_DK) || \
-	defined(CONFIG_BOARD_NUCLEO_L552ZE_Q)
+#elif defined(CONFIG_BOARD_NUCLEO_L4R5ZI)
 #define UART_DEVICE_NAME DT_LABEL(DT_NODELABEL(usart3))
 #elif defined(CONFIG_BOARD_DISCO_L475_IOT1)
 #define UART_DEVICE_NAME DT_LABEL(DT_NODELABEL(uart4))
-#elif defined(CONFIG_BOARD_NUCLEO_F429ZI) || \
-	defined(CONFIG_BOARD_NUCLEO_F207ZG)
-#define UART_DEVICE_NAME DT_LABEL(DT_NODELABEL(usart6))
 #else
-#define UART_DEVICE_NAME DT_LABEL(DT_CHOSEN(zephyr_console))
+#define UART_DEVICE_NAME CONFIG_UART_CONSOLE_ON_DEV_NAME
 #endif
 
 void init_test(void);
 
 void test_single_read(void);
-void test_multiple_rx_enable(void);
 void test_chained_read(void);
 void test_double_buffer(void);
 void test_read_abort(void);
@@ -65,7 +52,6 @@ void test_long_buffers(void);
 void test_chained_write(void);
 
 void test_single_read_setup(void);
-void test_multiple_rx_enable_setup(void);
 void test_chained_read_setup(void);
 void test_double_buffer_setup(void);
 void test_read_abort_setup(void);

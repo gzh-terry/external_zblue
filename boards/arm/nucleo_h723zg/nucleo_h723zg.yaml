@@ -17,4 +17,3 @@ supported:
   - i2c
   - pwm
   - netif:eth
-  - backup_sram

@@ -18,6 +18,8 @@
 
 LOG_MODULE_DECLARE(bt_ots, CONFIG_BT_OTS_LOG_LEVEL);
 
+/**Start of the usable range of Object IDs (values 0 to 0x100 are reserved)*/
+#define OTS_OBJ_ID_START_RANGE  0x000000000100
 
 struct bt_gatt_ots_pool_item {
 	sys_dnode_t dnode;
@@ -37,10 +39,10 @@ static uint64_t obj_id_to_index(uint64_t id)
 		if (id == OTS_OBJ_ID_DIR_LIST) {
 			return id;
 		} else {
-			return id - BT_OTS_OBJ_ID_MIN + 1;
+			return id - OTS_OBJ_ID_START_RANGE + 1;
 		}
 	} else {
-		return id - BT_OTS_OBJ_ID_MIN;
+		return id - OTS_OBJ_ID_START_RANGE;
 	}
 }
 
@@ -50,10 +52,10 @@ static uint64_t obj_index_to_id(uint64_t index)
 		if (index == 0) {
 			return OTS_OBJ_ID_DIR_LIST;
 		} else {
-			return BT_OTS_OBJ_ID_MIN + index - 1;
+			return OTS_OBJ_ID_START_RANGE + index - 1;
 		}
 	} else {
-		return BT_OTS_OBJ_ID_MIN + index;
+		return OTS_OBJ_ID_START_RANGE + index;
 	}
 }
 
@@ -159,7 +161,7 @@ int bt_gatt_ots_obj_manager_obj_get(
 		return -ENOENT;
 	}
 
-	if (id < BT_OTS_OBJ_ID_MIN &&
+	if (id < OTS_OBJ_ID_START_RANGE &&
 	    (IS_ENABLED(CONFIG_BT_OTS_DIR_LIST_OBJ) &&
 		id != OTS_OBJ_ID_DIR_LIST)) {
 		return -EINVAL;

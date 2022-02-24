@@ -14,17 +14,13 @@
 #include "coredump_internal.h"
 
 #if defined(CONFIG_DEBUG_COREDUMP_BACKEND_LOGGING)
-extern struct coredump_backend_api coredump_backend_logging;
-static struct coredump_backend_api
-	*backend_api = &coredump_backend_logging;
+extern struct z_coredump_backend_api z_coredump_backend_logging;
+static struct z_coredump_backend_api
+	*backend_api = &z_coredump_backend_logging;
 #elif defined(CONFIG_DEBUG_COREDUMP_BACKEND_FLASH_PARTITION)
-extern struct coredump_backend_api coredump_backend_flash_partition;
-static struct coredump_backend_api
-	*backend_api = &coredump_backend_flash_partition;
-#elif defined(CONFIG_DEBUG_COREDUMP_BACKEND_OTHER)
-extern struct coredump_backend_api coredump_backend_other;
-static struct coredump_backend_api
-	*backend_api = &coredump_backend_other;
+extern struct z_coredump_backend_api z_coredump_backend_flash_partition;
+static struct z_coredump_backend_api
+	*backend_api = &z_coredump_backend_flash_partition;
 #else
 #error "Need to select a coredump backend"
 #endif

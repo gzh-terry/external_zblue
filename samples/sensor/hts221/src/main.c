@@ -41,7 +41,7 @@ static void process_sample(const struct device *dev)
 }
 
 static void hts221_handler(const struct device *dev,
-			   const struct sensor_trigger *trig)
+			   struct sensor_trigger *trig)
 {
 	process_sample(dev);
 }

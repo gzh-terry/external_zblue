@@ -513,7 +513,8 @@ int handle_usb_control(struct usbip_header *hdr)
 	}
 
 	if ((ntohl(hdr->common.direction) == USBIP_DIR_IN) ^
-	    USB_REQTYPE_GET_DIR(hdr->u.submit.bmRequestType)) {
+	    (REQTYPE_GET_DIR(hdr->u.submit.bmRequestType) ==
+	     REQTYPE_DIR_TO_HOST)) {
 		LOG_ERR("Failed to verify bmRequestType");
 		return -EIO;
 	}
@@ -526,10 +527,7 @@ int handle_usb_control(struct usbip_header *hdr)
 	if (ntohl(hdr->common.direction) == USBIP_DIR_OUT) {
 		/* Data OUT stage availably */
 		ep_ctrl->data_len = ntohl(hdr->u.submit.transfer_buffer_length);
-		if (usbip_recv(ep_ctrl->buf, ep_ctrl->data_len) < 0) {
-			return -EIO;
-		}
-
+		usbip_recv(ep_ctrl->buf, ep_ctrl->data_len);
 		LOG_DBG("DATA OUT event ep 0x%02x %u",
 			ep_idx, ep_ctrl->data_len);
 		ep_ctrl->cb(ep_idx, USB_DC_EP_DATA_OUT);
@@ -552,15 +550,13 @@ int handle_usb_data(struct usbip_header *hdr)
 		ep_ctrl = &usbip_ctrl.out_ep_ctrl[ep_idx];
 		ep = ep_idx | USB_EP_DIR_OUT;
 		ep_ctrl->data_len = ntohl(hdr->u.submit.transfer_buffer_length);
-		if (usbip_recv(ep_ctrl->buf, ep_ctrl->data_len) < 0) {
-			return -EIO;
-		}
-
+		usbip_recv(ep_ctrl->buf, ep_ctrl->data_len);
 		LOG_DBG("DATA OUT event ep 0x%02x %u", ep, ep_ctrl->data_len);
+
 		ep_ctrl->cb(ep, USB_DC_EP_DATA_OUT);
 
 		/* Send ACK reply */
-		if (!usbip_send_common(ep, ep_ctrl->data_len)) {
+		if (!usbip_send_common(ep, 0)) {
 			return -EIO;
 		}
 	} else {

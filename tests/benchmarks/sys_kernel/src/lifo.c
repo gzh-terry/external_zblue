@@ -17,6 +17,7 @@ static struct k_fifo sync_fifo; /* for synchronization */
  *
  * @brief Initialize LIFOs for the test
  *
+ * @return N/A
  */
 void lifo_test_init(void)
 {
@@ -33,6 +34,7 @@ void lifo_test_init(void)
  * @param par2   Number of test loops.
  * @param par3	 unused
  *
+ * @return N/A
  */
 void lifo_thread1(void *par1, void *par2, void *par3)
 {
@@ -71,6 +73,7 @@ void lifo_thread1(void *par1, void *par2, void *par3)
  * @param par2   Number of test cycles.
  * @param par3   unused
  *
+ * @return N/A
  */
 void lifo_thread2(void *par1, void *par2, void *par3)
 {
@@ -101,6 +104,7 @@ void lifo_thread2(void *par1, void *par2, void *par3)
  * @param par2   Number of test loops.
  * @param par3   unused
  *
+ * @return N/A
  */
 void lifo_thread3(void *par1, void *par2, void *par3)
 {

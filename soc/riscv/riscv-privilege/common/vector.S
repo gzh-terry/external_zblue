@@ -15,14 +15,6 @@ GTEXT(__initialize)
 GTEXT(__irq_wrapper)
 
 SECTION_FUNC(vectors, __start)
-#if defined(CONFIG_RISCV_GP)
-	/* Initialize global pointer */
-	.option push
-	.option norelax
-	la gp, __global_pointer$
-	.option pop
-#endif
-
 	.option norvc;
 
 	/*
@@ -32,5 +24,5 @@ SECTION_FUNC(vectors, __start)
 	la t0, __irq_wrapper
 	csrw mtvec, t0
 
-	/* Jump to __reset */
-	tail __reset
+	/* Jump to __initialize */
+	tail __initialize

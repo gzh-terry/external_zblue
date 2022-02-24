@@ -1,6 +1,6 @@
 .. _modbus:
 
-Modbus
+MODBUS
 ######
 
 Modbus is an industrial messaging protocol. The protocol is specified
@@ -25,13 +25,13 @@ More information about Modbus and Modbus RTU can be found on the website
 Samples
 *******
 
-:ref:`modbus-rtu-server-sample` and :ref:`modbus-rtu-client-sample` give
+`modbus-rtu-server-sample` and `modbus-rtu-client-sample` give
 the possibility to try out RTU server and RTU client implementation with
 an evaluation board.
 
-:ref:`modbus-tcp-server-sample` is a simple Modbus TCP server.
+`modbus-tcp-server-sample` is a simple Modbus TCP server.
 
-:ref:`modbus-gateway-sample` is an example how to build a TCP to serial line
+`modbus-gateway-sample` is an example how to build a TCP to serial line
 gateway with Zephyr OS.
 
 API Reference

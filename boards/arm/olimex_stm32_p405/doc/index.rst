@@ -44,7 +44,7 @@ hardware features:
 | GPIO      | on-chip    | gpio                 |
 +-----------+------------+----------------------+
 
-Other hardware features have not been enabled yet for this board.
+Other hardware features are not supported by the Zephyr kernel.
 
 Pin Mapping
 ===========

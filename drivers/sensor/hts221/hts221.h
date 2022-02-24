@@ -10,23 +10,29 @@
 #include <device.h>
 #include <sys/util.h>
 #include <zephyr/types.h>
-#include <stmemsc.h>
 #include <drivers/gpio.h>
-#include <drivers/sensor.h>
 
-#include "hts221_reg.h"
+#define HTS221_TRIGGER_ENABLED (DT_INST_NODE_HAS_PROP(0, drdy_gpios) && \
+				IS_ENABLED(CONFIG_HTS221_TRIGGER))
 
-#define HTS221_AUTOINCREMENT_ADDR      BIT(7)
+#define HTS221_AUTOINCREMENT_ADDR	BIT(7)
 
-#if DT_ANY_INST_ON_BUS_STATUS_OKAY(spi)
-#include <drivers/spi.h>
-#endif /* DT_ANY_INST_ON_BUS_STATUS_OKAY(spi) */
+#define HTS221_REG_WHO_AM_I		0x0F
+#define HTS221_CHIP_ID			0xBC
 
-#if DT_ANY_INST_ON_BUS_STATUS_OKAY(i2c)
-#include <drivers/i2c.h>
-#endif /* DT_ANY_INST_ON_BUS_STATUS_OKAY(i2c) */
+#define HTS221_REG_CTRL1		0x20
+#define HTS221_PD_BIT			BIT(7)
+#define HTS221_BDU_BIT			BIT(2)
+#define HTS221_ODR_SHIFT		0
+
+#define HTS221_REG_CTRL3		0x22
+#define HTS221_DRDY_EN			BIT(2)
+
+#define HTS221_REG_DATA_START		0x28
+#define HTS221_REG_CONVERSION_START	0x30
 
 struct hts221_data {
+	const struct device *i2c;
 	int16_t rh_sample;
 	int16_t t_sample;
 
@@ -39,8 +45,9 @@ struct hts221_data {
 	int16_t t0_out;
 	int16_t t1_out;
 
-#ifdef CONFIG_HTS221_TRIGGER
+#if HTS221_TRIGGER_ENABLED
 	const struct device *dev;
+	const struct device *drdy_dev;
 	struct gpio_callback drdy_cb;
 
 	struct sensor_trigger data_ready_trigger;
@@ -53,35 +60,26 @@ struct hts221_data {
 #elif defined(CONFIG_HTS221_TRIGGER_GLOBAL_THREAD)
 	struct k_work work;
 #endif
-#endif /* CONFIG_HTS221_TRIGGER */
+
+#endif /* HTS221_TRIGGER_ENABLED */
 };
 
 struct hts221_config {
-	stmdev_ctx_t ctx;
-	union {
-#if DT_ANY_INST_ON_BUS_STATUS_OKAY(i2c)
-		const struct i2c_dt_spec i2c;
-#endif
-#if DT_ANY_INST_ON_BUS_STATUS_OKAY(spi)
-		const struct spi_dt_spec spi;
-#endif
-	} stmemsc_cfg;
-
-#ifdef CONFIG_HTS221_TRIGGER
-	const struct gpio_dt_spec gpio_drdy;
-	const struct gpio_dt_spec gpio_int;
-#endif /* CONFIG_HTS221_TRIGGER */
+	const char *i2c_bus;
+	uint16_t i2c_addr;
+#if HTS221_TRIGGER_ENABLED
+	gpio_pin_t drdy_pin;
+	gpio_flags_t drdy_flags;
+	const char *drdy_controller;
+#endif /* HTS221_TRIGGER_ENABLED */
 };
 
-#ifdef CONFIG_HTS221_TRIGGER
+#if HTS221_TRIGGER_ENABLED
 int hts221_trigger_set(const struct device *dev,
 			const struct sensor_trigger *trig,
 			sensor_trigger_handler_t handler);
 
 int hts221_init_interrupt(const struct device *dev);
-#endif /* CONFIG_HTS221_TRIGGER */
+#endif
 
-int hts221_spi_init(const struct device *dev);
-int hts221_i2c_init(const struct device *dev);
-
-#endif /* ZEPHYR_DRIVERS_SENSOR_HTS221_HTS221_H_ */
+#endif /* __SENSOR_HTS221__ */

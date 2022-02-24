@@ -21,7 +21,6 @@ def test_runner_imports():
                     'dediprog',
                     'dfu-util',
                     'esp32',
-                    'gd32isp',
                     'hifive1',
                     'intel_s1000',
                     'jlink',
@@ -33,7 +32,6 @@ def test_runner_imports():
                     'openocd',
                     'pyocd',
                     'qemu',
-                    'spi_burn',
                     'stm32cubeprogrammer',
                     'stm32flash',
                     'xtensa'))

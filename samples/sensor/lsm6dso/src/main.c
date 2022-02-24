@@ -79,7 +79,7 @@ static int set_sampling_freq(const struct device *dev)
 
 #ifdef CONFIG_LSM6DSO_TRIGGER
 static void trigger_handler(const struct device *dev,
-			    const struct sensor_trigger *trig)
+			    struct sensor_trigger *trig)
 {
 	fetch_and_display(dev);
 }

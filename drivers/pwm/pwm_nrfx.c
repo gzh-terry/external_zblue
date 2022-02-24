@@ -5,7 +5,6 @@
  */
 #include <nrfx_pwm.h>
 #include <drivers/pwm.h>
-#include <pm/device.h>
 #include <hal/nrf_gpio.h>
 #include <stdbool.h>
 
@@ -170,13 +169,10 @@ static int pwm_nrfx_pin_set(const struct device *dev, uint32_t pwm,
 		pulse_cycles /= 2;
 	}
 
-	/* Check if period_cycles is either matching currently used, or
+	/* Check if period_cycle is either matching currently used, or
 	 * possible to use with our prescaler options.
-	 * Don't do anything if the period length happens to be zero.
-	 * In such case, pulse cycles will be right below limited to 0
-	 * and this will result in making the channel inactive.
 	 */
-	if (period_cycles != 0 && period_cycles != data->period_cycles) {
+	if (period_cycles != data->period_cycles) {
 		int ret = pwm_period_check_and_set(config, data, channel,
 						   period_cycles);
 		if (ret) {
@@ -272,14 +268,6 @@ static const struct pwm_driver_api pwm_nrfx_drv_api_funcs = {
 static int pwm_nrfx_init(const struct device *dev)
 {
 	const struct pwm_nrfx_config *config = dev->config;
-	struct pwm_nrfx_data *data = dev->data;
-
-	for (size_t i = 0; i < ARRAY_SIZE(data->current); i++) {
-		bool inverted = config->initial_config.output_pins[i] & NRFX_PWM_PIN_INVERTED;
-		uint16_t value = (inverted)?(PWM_NRFX_CH_VALUE_INVERTED):(PWM_NRFX_CH_VALUE_NORMAL);
-
-		data->current[i] = value;
-	};
 
 	nrfx_err_t result = nrfx_pwm_init(&config->pwm,
 					  &config->initial_config,
@@ -294,36 +282,84 @@ static int pwm_nrfx_init(const struct device *dev)
 }
 
 #ifdef CONFIG_PM_DEVICE
+
 static void pwm_nrfx_uninit(const struct device *dev)
 {
 	const struct pwm_nrfx_config *config = dev->config;
 
 	nrfx_pwm_uninit(&config->pwm);
-
-	memset(dev->data, 0, sizeof(struct pwm_nrfx_data));
 }
 
-static int pwm_nrfx_pm_action(const struct device *dev,
-			      enum pm_device_action action)
+static int pwm_nrfx_set_power_state(uint32_t new_state,
+				    uint32_t current_state,
+				    const struct device *dev)
 {
 	int err = 0;
 
-	switch (action) {
-	case PM_DEVICE_ACTION_RESUME:
+	switch (new_state) {
+	case PM_DEVICE_STATE_ACTIVE:
 		err = pwm_nrfx_init(dev);
 		break;
-	case PM_DEVICE_ACTION_SUSPEND:
-		pwm_nrfx_uninit(dev);
+	case PM_DEVICE_STATE_LOW_POWER:
+	case PM_DEVICE_STATE_SUSPEND:
+	case PM_DEVICE_STATE_FORCE_SUSPEND:
+	case PM_DEVICE_STATE_OFF:
+		if (current_state == PM_DEVICE_STATE_ACTIVE) {
+			pwm_nrfx_uninit(dev);
+		}
 		break;
 	default:
-		return -ENOTSUP;
+		__ASSERT_NO_MSG(false);
+		break;
+	}
+	return err;
+}
+
+static int pwm_nrfx_pm_control(const struct device *dev,
+			       uint32_t ctrl_command,
+			       uint32_t *state,
+			       uint32_t *current_state)
+{
+	int err = 0;
+
+	if (ctrl_command == PM_DEVICE_STATE_SET) {
+		uint32_t new_state = *((const uint32_t *)state);
+
+		if (new_state != (*current_state)) {
+			err = pwm_nrfx_set_power_state(new_state,
+						       *current_state,
+						       dev);
+			if (!err) {
+				*current_state = new_state;
+			}
+		}
+	} else {
+		__ASSERT_NO_MSG(ctrl_command == PM_DEVICE_STATE_GET);
+		*state = *current_state;
 	}
 
 	return err;
 }
+
+#define PWM_NRFX_PM_CONTROL(idx)					\
+	static int pwm_##idx##_nrfx_pm_control(const struct device *dev,	\
+					       uint32_t ctrl_command,	\
+					       uint32_t *state,		\
+					       pm_device_cb cb,		\
+					       void *arg)		\
+	{								\
+		static uint32_t current_state = PM_DEVICE_STATE_ACTIVE;	\
+		int ret = 0;                                            \
+		ret = pwm_nrfx_pm_control(dev, ctrl_command, state,	\
+					   &current_state);		\
+		if (cb) {                                               \
+			cb(dev, ret, state, arg);                       \
+		}                                                       \
+		return ret;                                             \
+	}
 #else
 
-#define pwm_nrfx_pm_action NULL
+#define PWM_NRFX_PM_CONTROL(idx)
 
 #endif /* CONFIG_PM_DEVICE */
 
@@ -342,12 +378,23 @@ static int pwm_nrfx_pm_action(const struct device *dev,
 	(PWM_NRFX_CH_PIN(dev_idx, ch_idx) |				      \
 	 (PWM_NRFX_IS_INVERTED(dev_idx, ch_idx) ? NRFX_PWM_PIN_INVERTED : 0))
 
+#define PWM_NRFX_DEFAULT_VALUE(dev_idx, ch_idx)				      \
+	(PWM_NRFX_IS_INVERTED(dev_idx, ch_idx) ?			      \
+	 PWM_NRFX_CH_VALUE_INVERTED : PWM_NRFX_CH_VALUE_NORMAL)
+
 #define PWM_NRFX_COUNT_MODE(dev_idx)                                          \
 	(PWM_PROP(dev_idx, center_aligned) ?				      \
 	 NRF_PWM_MODE_UP_AND_DOWN : NRF_PWM_MODE_UP)
 
 #define PWM_NRFX_DEVICE(idx)						      \
-	static struct pwm_nrfx_data pwm_nrfx_##idx##_data;		      \
+	static struct pwm_nrfx_data pwm_nrfx_##idx##_data = {		      \
+		.current = {						      \
+			PWM_NRFX_DEFAULT_VALUE(idx, 0),			      \
+			PWM_NRFX_DEFAULT_VALUE(idx, 1),			      \
+			PWM_NRFX_DEFAULT_VALUE(idx, 2),			      \
+			PWM_NRFX_DEFAULT_VALUE(idx, 3),			      \
+		}							      \
+	};								      \
 	static const struct pwm_nrfx_config pwm_nrfx_##idx##config = {	      \
 		.pwm = NRFX_PWM_INSTANCE(idx),				      \
 		.initial_config = {					      \
@@ -366,9 +413,9 @@ static int pwm_nrfx_pm_action(const struct device *dev,
 		.seq.values.p_raw = pwm_nrfx_##idx##_data.current,	      \
 		.seq.length = NRF_PWM_CHANNEL_COUNT			      \
 	};								      \
-	PM_DEVICE_DT_DEFINE(PWM(idx), pwm_nrfx_pm_action);		      \
+	PWM_NRFX_PM_CONTROL(idx)					      \
 	DEVICE_DT_DEFINE(PWM(idx),					      \
-		      pwm_nrfx_init, PM_DEVICE_DT_GET(PWM(idx)),	      \
+		      pwm_nrfx_init, pwm_##idx##_nrfx_pm_control,	      \
 		      &pwm_nrfx_##idx##_data,				      \
 		      &pwm_nrfx_##idx##config,				      \
 		      POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,	      \

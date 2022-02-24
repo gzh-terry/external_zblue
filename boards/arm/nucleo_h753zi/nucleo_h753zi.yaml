@@ -20,5 +20,3 @@ supported:
   - netif:eth
   - spi
   - usb_device
-  - can
-  - canfd

@@ -9,3 +9,12 @@
 #include <string.h>
 
 #include "test.inc"
+
+void test_cxx(void);
+void test_cc(void);
+
+void test_main(void)
+{
+	test_cc();
+	test_cxx();
+}

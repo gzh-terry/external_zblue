@@ -408,7 +408,6 @@ int fxos8700_trigger_init(const struct device *dev)
 	const struct fxos8700_config *config = dev->config;
 	struct fxos8700_data *data = dev->data;
 	uint8_t ctrl_reg5;
-	int ret;
 
 	data->dev = dev;
 
@@ -470,25 +469,16 @@ int fxos8700_trigger_init(const struct device *dev)
 
 	data->gpio_pin = config->gpio_pin;
 
-	ret = gpio_pin_configure(data->gpio, config->gpio_pin,
-				 GPIO_INPUT | config->gpio_flags);
-	if (ret < 0) {
-		return ret;
-	}
+	gpio_pin_configure(data->gpio, config->gpio_pin,
+			   GPIO_INPUT | config->gpio_flags);
 
 	gpio_init_callback(&data->gpio_cb, fxos8700_gpio_callback,
 			   BIT(config->gpio_pin));
 
-	ret = gpio_add_callback(data->gpio, &data->gpio_cb);
-	if (ret < 0) {
-		return ret;
-	}
+	gpio_add_callback(data->gpio, &data->gpio_cb);
 
-	ret = gpio_pin_interrupt_configure(data->gpio, config->gpio_pin,
-					   GPIO_INT_EDGE_TO_ACTIVE);
-	if (ret < 0) {
-		return ret;
-	}
+	gpio_pin_interrupt_configure(data->gpio, config->gpio_pin,
+				     GPIO_INT_EDGE_TO_ACTIVE);
 
 	return 0;
 }

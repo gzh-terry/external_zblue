@@ -9,6 +9,7 @@
 LOG_MODULE_REGISTER(wpanusb);
 
 #include <usb/usb_device.h>
+#include <usb/usb_common.h>
 #include <usb_descriptor.h>
 
 #include <net/buf.h>
@@ -28,11 +29,7 @@ LOG_MODULE_REGISTER(wpanusb);
 #define WPANUSB_PROTOCOL	0
 
 /* Max packet size for endpoints */
-#if IS_ENABLED(CONFIG_USB_DC_HAS_HS_SUPPORT)
-#define WPANUSB_BULK_EP_MPS		512
-#else
 #define WPANUSB_BULK_EP_MPS		64
-#endif
 
 #define WPANUSB_IN_EP_IDX		0
 
@@ -53,7 +50,7 @@ static struct k_thread tx_thread_data;
 #define INITIALIZER_IF(num_ep, iface_class)				\
 	{								\
 		.bLength = sizeof(struct usb_if_descriptor),		\
-		.bDescriptorType = USB_DESC_INTERFACE,			\
+		.bDescriptorType = USB_INTERFACE_DESC,			\
 		.bInterfaceNumber = 0,					\
 		.bAlternateSetting = 0,					\
 		.bNumEndpoints = num_ep,				\
@@ -66,7 +63,7 @@ static struct k_thread tx_thread_data;
 #define INITIALIZER_IF_EP(addr, attr, mps, interval)			\
 	{								\
 		.bLength = sizeof(struct usb_ep_descriptor),		\
-		.bDescriptorType = USB_DESC_ENDPOINT,			\
+		.bDescriptorType = USB_ENDPOINT_DESC,			\
 		.bEndpointAddress = addr,				\
 		.bmAttributes = attr,					\
 		.wMaxPacketSize = sys_cpu_to_le16(mps),			\
@@ -77,7 +74,7 @@ USBD_CLASS_DESCR_DEFINE(primary, 0) struct {
 	struct usb_if_descriptor if0;
 	struct usb_ep_descriptor if0_in_ep;
 } __packed wpanusb_desc = {
-	.if0 = INITIALIZER_IF(1, USB_BCC_VENDOR),
+	.if0 = INITIALIZER_IF(1, CUSTOM_CLASS),
 	.if0_in_ep = INITIALIZER_IF_EP(AUTO_EP_IN, USB_DC_EP_BULK,
 				       WPANUSB_BULK_EP_MPS, 0),
 };
@@ -136,10 +133,6 @@ static int wpanusb_vendor_handler(struct usb_setup_packet *setup,
 {
 	struct net_pkt *pkt;
 
-	if (usb_reqtype_is_to_host(setup)) {
-		return -ENOTSUP;
-	}
-
 	/* Maximum 2 bytes are added to the len */
 	pkt = net_pkt_alloc_with_buffer(NULL, *len + 2, AF_UNSPEC, 0,
 					K_NO_WAIT);
@@ -163,7 +156,7 @@ static int wpanusb_vendor_handler(struct usb_setup_packet *setup,
 	return 0;
 }
 
-USBD_DEFINE_CFG_DATA(wpanusb_config) = {
+USBD_CFG_DATA_DEFINE(primary, wpanusb) struct usb_cfg_data wpanusb_config = {
 	.usb_device_description = NULL,
 	.interface_descriptor = &wpanusb_desc.if0,
 	.cb_usb_status = wpanusb_status_cb,
@@ -411,11 +404,6 @@ out:
 	net_pkt_unref(pkt);
 
 	return ret;
-}
-
-enum net_verdict ieee802154_radio_handle_ack(struct net_if *iface, struct net_pkt *pkt)
-{
-	return NET_CONTINUE;
 }
 
 void main(void)

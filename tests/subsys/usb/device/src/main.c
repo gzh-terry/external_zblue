@@ -9,13 +9,10 @@
 
 #include <sys/byteorder.h>
 #include <usb/usb_device.h>
+#include <usb/usb_common.h>
 
 /* Max packet size for endpoints */
-#if IS_ENABLED(CONFIG_USB_DC_HAS_HS_SUPPORT)
-#define BULK_EP_MPS		512
-#else
 #define BULK_EP_MPS		64
-#endif
 
 #define ENDP_BULK_IN		0x81
 
@@ -30,11 +27,11 @@ struct usb_device_desc {
 #define INITIALIZER_IF							\
 	{								\
 		.bLength = sizeof(struct usb_if_descriptor),		\
-		.bDescriptorType = USB_DESC_INTERFACE,			\
+		.bDescriptorType = USB_INTERFACE_DESC,			\
 		.bInterfaceNumber = 0,					\
 		.bAlternateSetting = 0,					\
 		.bNumEndpoints = 1,					\
-		.bInterfaceClass = USB_BCC_VENDOR,			\
+		.bInterfaceClass = CUSTOM_CLASS,			\
 		.bInterfaceSubClass = 0,				\
 		.bInterfaceProtocol = 0,				\
 		.iInterface = 0,					\
@@ -43,7 +40,7 @@ struct usb_device_desc {
 #define INITIALIZER_IF_EP(addr, attr, mps, interval)			\
 	{								\
 		.bLength = sizeof(struct usb_ep_descriptor),		\
-		.bDescriptorType = USB_DESC_ENDPOINT,			\
+		.bDescriptorType = USB_ENDPOINT_DESC,			\
 		.bEndpointAddress = addr,				\
 		.bmAttributes = attr,					\
 		.wMaxPacketSize = sys_cpu_to_le16(mps),			\
@@ -78,7 +75,7 @@ static struct usb_ep_cfg_data device_ep[] = {
 	},
 };
 
-USBD_DEFINE_CFG_DATA(device_config) = {
+USBD_CFG_DATA_DEFINE(primary, device) struct usb_cfg_data device_config = {
 	.usb_device_description = NULL,
 	.interface_descriptor = &dev_desc.if0,
 	.cb_usb_status = status_cb,

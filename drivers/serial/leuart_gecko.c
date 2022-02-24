@@ -18,9 +18,12 @@
 #define CLOCK_ID_PRFX(prefix, suffix) CLOCK_ID_PRFX2(prefix, suffix)
 #define CLOCK_LEUART(id) CLOCK_ID_PRFX(LEUART_PREFIX, id)
 
+#define DEV_CFG(dev) \
+	((const struct leuart_gecko_config * const)(dev)->config)
+#define DEV_DATA(dev) \
+	((struct leuart_gecko_data * const)(dev)->data)
 #define DEV_BASE(dev) \
-	((LEUART_TypeDef *) \
-	 ((const struct leuart_gecko_config * const)(dev)->config)->base)
+	((LEUART_TypeDef *)(DEV_CFG(dev))->base)
 
 struct leuart_gecko_config {
 	LEUART_TypeDef *base;
@@ -241,7 +244,7 @@ static void leuart_gecko_isr(const struct device *dev)
 
 static void leuart_gecko_init_pins(const struct device *dev)
 {
-	const struct leuart_gecko_config *config = dev->config;
+	const struct leuart_gecko_config *config = DEV_CFG(dev);
 	LEUART_TypeDef *base = DEV_BASE(dev);
 
 	soc_gpio_configure(&config->pin_rx);
@@ -260,7 +263,7 @@ static void leuart_gecko_init_pins(const struct device *dev)
 
 static int leuart_gecko_init(const struct device *dev)
 {
-	const struct leuart_gecko_config *config = dev->config;
+	const struct leuart_gecko_config *config = DEV_CFG(dev);
 	LEUART_TypeDef *base = DEV_BASE(dev);
 	LEUART_Init_TypeDef leuartInit = LEUART_INIT_DEFAULT;
 
@@ -351,7 +354,7 @@ static struct leuart_gecko_data leuart_gecko_0_data;
 DEVICE_DT_INST_DEFINE(0, &leuart_gecko_init,
 		    NULL, &leuart_gecko_0_data,
 		    &leuart_gecko_0_config, PRE_KERNEL_1,
-		    CONFIG_SERIAL_INIT_PRIORITY,
+		    CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    &leuart_gecko_driver_api);
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
@@ -404,7 +407,7 @@ static struct leuart_gecko_data leuart_gecko_1_data;
 DEVICE_DT_INST_DEFINE(1, &leuart_gecko_init,
 		    NULL, &leuart_gecko_1_data,
 		    &leuart_gecko_1_config, PRE_KERNEL_1,
-		    CONFIG_SERIAL_INIT_PRIORITY,
+		    CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    &leuart_gecko_driver_api);
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN

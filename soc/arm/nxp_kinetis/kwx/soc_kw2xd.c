@@ -80,6 +80,8 @@ static const sim_clock_config_t simConfig = {
  * depends on the state of GPIO5 during transceiver reset. The frequency
  * will be 4 MHz if the GPIO5 pin is low, otherwise it will be 32.78689 kHz.
  *
+ * @return N/A
+ *
  */
 static void set_modem_clock(void)
 {
@@ -115,6 +117,8 @@ static void set_modem_clock(void)
  * PLL Bypassed External (PBE) modes to get to the desired
  * PLL Engaged External (PEE) mode and generate the maximum 48 MHz system
  * clock.
+ *
+ * @return N/A
  *
  */
 static ALWAYS_INLINE void clock_init(void)

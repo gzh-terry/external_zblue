@@ -67,13 +67,7 @@ static int cmd_modem_list(const struct shell *shell, size_t argc,
 				"\tIMSI:         %s\n"
 				"\tICCID:        %s\n"
 #endif
-#if defined(CONFIG_MODEM_CELL_INFO)
-				"\tOperator:     %d\n"
-				"\tLAC:          %d\n"
-				"\tCellId:       %d\n"
-#endif
-				"\tRSSI:         %d\n",
-			       i,
+				"\tRSSI:         %d\n", i,
 			       UART_DEV_NAME(mdm_ctx),
 			       mdm_ctx->data_manufacturer,
 			       mdm_ctx->data_model,
@@ -83,12 +77,7 @@ static int cmd_modem_list(const struct shell *shell, size_t argc,
 			       mdm_ctx->data_imsi,
 			       mdm_ctx->data_iccid,
 #endif
-#if defined(CONFIG_MODEM_CELL_INFO)
-			       mdm_ctx->data_operator,
-			       mdm_ctx->data_lac,
-			       mdm_ctx->data_cellid,
-#endif
-			       mdm_ctx->data_rssi ? *mdm_ctx->data_rssi : 0);
+			       mdm_ctx->data_rssi);
 		}
 	}
 
@@ -223,7 +212,7 @@ static int cmd_modem_info(const struct shell *shell, size_t argc, char *argv[])
 		      mdm_ctx->data_model,
 		      mdm_ctx->data_revision,
 		      mdm_ctx->data_imei,
-		      mdm_ctx->data_rssi ? *mdm_ctx->data_rssi : 0);
+		      mdm_ctx->data_rssi);
 
 	shell_fprintf(shell, SHELL_NORMAL,
 		      "GSM 07.10 muxing : %s\n",

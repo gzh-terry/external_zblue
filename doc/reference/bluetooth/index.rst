@@ -20,4 +20,3 @@ Bluetooth
    rfcomm.rst
    sdp.rst
    uuid.rst
-   shell/audio.rst

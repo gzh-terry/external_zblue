@@ -137,7 +137,7 @@ parameter.
   executing. A common interrupt handler demuxer is installed for all entries of
   the real interrupt vector table, which then fetches the device's ISR and
   parameter from the separate table. This approach is commonly used in the ARC
-  and ARM architectures via the :kconfig:`CONFIG_GEN_ISR_TABLES` implementation.
+  and ARM architectures via the :option:`CONFIG_GEN_ISR_TABLES` implementation.
   You can find examples of the stubs by looking at :code:`_interrupt_enter()` in
   x86, :code:`_IntExit()` in ARM, :code:`_isr_wrapper()` in ARM, or the full
   implementation description for ARC in :zephyr_file:`arch/arc/core/isr_wrapper.S`.
@@ -266,7 +266,7 @@ to stack corruption.
 
 .. note::
 
-  If running a coop-only system, i.e. if :kconfig:`CONFIG_NUM_PREEMPT_PRIORITIES`
+  If running a coop-only system, i.e. if :option:`CONFIG_NUM_PREEMPT_PRIORITIES`
   is 0, no preemptive context switch ever happens. The interrupt code can be
   optimized to not take any scheduling decision when this is the case.
 
@@ -298,7 +298,7 @@ gracefully exits its entry point function.
 
 This means implementing an architecture-specific version of
 :c:func:`k_thread_abort`, and setting the Kconfig option
-:kconfig:`CONFIG_ARCH_HAS_THREAD_ABORT` as needed for the architecture (e.g. see
+:option:`CONFIG_ARCH_HAS_THREAD_ABORT` as needed for the architecture (e.g. see
 :zephyr_file:`arch/arm/core/aarch32/cortex_m/Kconfig`).
 
 Thread Local Storage
@@ -378,7 +378,7 @@ port, since it is so useful for debugging. It is a simple polling, output-only,
 serial port driver on which to send the console (:code:`printk`,
 :code:`printf`) output.
 
-It is not required, and a RAM console (:kconfig:`CONFIG_RAM_CONSOLE`)
+It is not required, and a RAM console (:option:`CONFIG_RAM_CONSOLE`)
 can be used to send all output to a circular buffer that can be read
 by a debugger instead.
 
@@ -392,13 +392,13 @@ expected to be implemented as part of an architecture port.
 * Atomic operators.
 
   * If instructions do exist for a given architecture, the implementation is
-    configured using the :kconfig:`CONFIG_ATOMIC_OPERATIONS_ARCH` Kconfig
+    configured using the :option:`CONFIG_ATOMIC_OPERATIONS_ARCH` Kconfig
     option.
 
   * If instructions do not exist for a given architecture,
     a generic version that wraps :c:func:`irq_lock` or :c:func:`irq_unlock`
     around non-atomic operations exists. It is configured using the
-    :kconfig:`CONFIG_ATOMIC_OPERATIONS_C` Kconfig option.
+    :option:`CONFIG_ATOMIC_OPERATIONS_C` Kconfig option.
 
 * Find-least-significant-bit-set and find-most-significant-bit-set.
 
@@ -471,7 +471,7 @@ Memory Management
 *****************
 
 If the target platform enables paging and requires drivers to memory-map
-their I/O regions, :kconfig:`CONFIG_MMU` needs to be enabled and the
+their I/O regions, :option:`CONFIG_MMU` needs to be enabled and the
 :c:func:`arch_mem_map` API implemented.
 
 Stack Objects
@@ -494,8 +494,8 @@ Two types of thread stacks exist:
 - "thread" stacks which typically use more memory, but are capable of hosting
   thread running in user mode, as well as any use-cases for kernel stacks.
 
-If :kconfig:`CONFIG_USERSPACE` is not enabled, "thread" and "kernel" stacks are
-equivalent.
+If :c:option:`CONFIG_USERSPACE` is not enabled, "thread" and "kernel" stacks
+are equivalent.
 
 Additional macros may be defined in the architecture layer to specify
 the alignment of the base of stack objects, any reserved data inside the
@@ -573,17 +573,17 @@ of the system after this happens:
   it's possible to overshoot the guard and corrupt adjacent data structures
   before the hardware detects this situation.
 
-To enable the :kconfig:`CONFIG_HW_STACK_PROTECTION` feature, the system must
+To enable the :option:`CONFIG_HW_STACK_PROTECTION` feature, the system must
 provide some kind of hardware-based stack overflow protection, and enable the
-:kconfig:`CONFIG_ARCH_HAS_STACK_PROTECTION` option.
+:option:`CONFIG_ARCH_HAS_STACK_PROTECTION` option.
 
 Two forms of HW-based stack overflow detection are supported: dedicated
 CPU features for this purpose, or special read-only guard regions immediately
 preceding stack buffers.
 
-:kconfig:`CONFIG_HW_STACK_PROTECTION` only catches stack overflows for
+:option:`CONFIG_HW_STACK_PROTECTION` only catches stack overflows for
 supervisor threads. This is not required to catch stack overflow from user
-threads; :kconfig:`CONFIG_USERSPACE` is orthogonal.
+threads; :option:`CONFIG_USERSPACE` is orthogonal.
 
 This feature only detects supervisor mode stack overflows, including stack
 overflows when handling system calls. It doesn't guarantee that the kernel has
@@ -592,7 +592,7 @@ a fatal error, with no assertions about the integrity of the overall system
 possible.
 
 Stack overflows in user mode are recoverable (from the kernel's perspective)
-and require no special configuration; :kconfig:`CONFIG_HW_STACK_PROTECTION`
+and require no special configuration; :option:`CONFIG_HW_STACK_PROTECTION`
 only applies to catching overflows when the CPU is in sueprvisor mode.
 
 CPU-based stack overflow detection
@@ -651,7 +651,7 @@ User mode enabled
 Enabling user mode activates two new requirements:
 
 * A separate fixed-sized privilege mode stack, specified by
-  :kconfig:`CONFIG_PRIVILEGED_STACK_SIZE`, must be allocated that the user
+  :option:`CONFIG_PRIVILEGED_STACK_SIZE`, must be allocated that the user
   thread cannot access. It is used as the stack by the kernel when handling
   system calls. If stack guards are implemented, a stack guard region must
   be able to be placed before it, with support for carve-outs if necessary.
@@ -666,7 +666,7 @@ Enabling user mode activates two new requirements:
 This becomes more complicated if the memory protection hardware requires that
 all memory regions be sized to a power of two, and aligned to their own size.
 This is common on older MPUs and is known with
-:kconfig:`CONFIG_MPU_REQUIRES_POWER_OF_TWO_ALIGNMENT`.
+:option:`CONFIG_MPU_REQUIRES_POWER_OF_TWO_ALIGNMENT`.
 
 ``thread.stack_info`` always tracks the user-accessible part of the stack
 object, it must always be correct to program a memory protection region with
@@ -731,7 +731,7 @@ privilege elevation stack must be allocated elsewhere.
 :c:macro:`ARCH_THREAD_STACK_OBJ_ALIGN()` should both be defined to
 :c:macro:`Z_POW2_CEIL()`. :c:macro:`K_THREAD_STACK_RESERVED` must be 0.
 
-For the privilege stacks, the :kconfig:`CONFIG_GEN_PRIV_STACKS` must be,
+For the privilege stacks, the :option:`CONFIG_GEN_PRIV_STACKS` must be,
 enabled. For every thread stack found in the system, a corresponding fixed-
 size kernel stack used for handling system calls is generated. The address
 of the privilege stacks can be looked up quickly at runtime based on the
@@ -767,7 +767,7 @@ User Mode Threads
 *****************
 
 To support user mode threads, several kernel-to-arch APIs need to be
-implemented, and the system must enable the :kconfig:`CONFIG_ARCH_HAS_USERSPACE`
+implemented, and the system must enable the :option:`CONFIG_ARCH_HAS_USERSPACE`
 option. Please see the documentation for each of these functions for more
 details:
 
@@ -795,7 +795,7 @@ details:
 
 Some architectures may need to update software memory management structures
 or modify hardware registers on another CPU when memory domain APIs are invoked.
-If so, :kconfig:`CONFIG_ARCH_MEM_DOMAIN_SYNCHRONOUS_API` must be selected by the
+If so, CONFIG_ARCH_MEM_DOMAIN_SYNCHRONOUS_API must be selected by the
 architecture and some additional APIs must be implemented. This is common
 on MMU systems and uncommon on MPU systems:
 
@@ -834,141 +834,6 @@ In addition to implementing these APIs, there are some other tasks as well:
   be looked up in _k_syscall_table. Bad system call IDs should jump to the
   :c:enum:`K_SYSCALL_BAD` handler. Upon completion of the system call, care
   must be taken not to leak any register state back to user mode.
-
-GDB Stub
-********
-
-To enable GDB stub for remote debugging on a new architecture:
-
-#. Create a new ``gdbstub.h`` header file under appropriate architecture
-   include directory (``include/arch/<arch>/gdbstub.h``).
-
-   * Create a new struct ``struct gdb_ctx`` as the GDB context.
-
-     * Must define a member named ``exception`` of type ``unsigned int`` to
-       store the GDB exception reason. This value needs to be set before
-       entering :c:func:`z_gdb_main_loop`.
-
-     * Architecture can define as many members as needed for GDB stub to
-       function.
-
-     * Pointer to this struct needs to be passed to :c:func:`z_gdb_main_loop`,
-       where this pointer will be passed to other GDB stub functions.
-
-#. Functions for entering and exiting GDB stub main loop.
-
-   * If the architecture relies on interrupts to service breakpoints,
-     interrupt service routines (ISR) need to be implemented, which
-     will serve as the entry point to GDB stub main loop.
-
-   * These functions need to save and restore context so code execution
-     can continue as if no breakpoints have been encountered.
-
-   * These functions need to call :c:func:`z_gdb_main_loop` after saving
-     execution context to go into the GDB stub main loop to receive commands
-     from GDB.
-
-   * Before calling :c:func:`z_gdb_main_loop`, :c:member:`gdb_ctx.exception`
-     must be set to specify the exception reason.
-
-#. Implementat necessary functions to support GDB stub functionality:
-
-   * :c:func:`arch_gdb_init`
-
-     * This needs to initialize necessary bits to support GDB stub functionality,
-       for example, setting up the GDB context and connecting debug interrupts.
-
-     * This must stop code execution via architecture specific method (e.g.
-       raising debug interrupts). This allows GDB to connect during boot.
-
-   * :c:func:`arch_gdb_continue`
-
-     * This function is called when GDB sends a ``c`` or ``continue`` command
-       to continue code execution.
-
-   * :c:func:`arch_gdb_step`
-
-     * This function is called when GDB sends a ``si`` or ``stepi`` command
-       to execute one machine instruction, before returning to GDB prompt.
-
-   * Hardware register read/write functions:
-
-     * Since the GDB stub is running on the target, manipulation of hardware
-       registers need to cached to avoid affecting the execution of GDB stub.
-       Think of it as context switching, where the execution context is
-       changed to the GDB stub. So that the register values of the running
-       thread before context switch need to be stored. Manipulation of
-       register values must only be done to this cached copy. The updated
-       values will then be written to hardware registers before switching
-       back to the previous running thread.
-
-     * :c:func:`arch_gdb_reg_readall`
-
-       * This collects all hardware register values that would appear in
-         a ``g``/``G`` packets which will be sent back to GDB. The format of
-         the G-packet is architecture specific. Consult GDB on what is
-         expected.
-
-       * Note that, for most architectures, a valid G-packet must be returned
-         and sent to GDB. If a packet without incorrect length is sent to
-         GDB, GDB will abort the debugging session.
-
-     * :c:func:`arch_gdb_reg_writeall`
-
-       * This takes a G-packet sent by GDB and populates the hardware
-         registers with values from the G-packet.
-
-     * :c:func:`arch_gdb_reg_readone`
-
-       * This reads the value of one hardware register and sends
-         the result to GDB.
-
-     * :c:func:`arch_gdb_reg_writeone`
-
-       * This writes the value of one hardware register received from GDB.
-
-   * Breakpoints:
-
-     * :c:func:`arch_gdb_add_breakpoint` and
-       :c:func:`arch_gdb_remove_breakpoint`
-
-     * GDB may decide to use software breakpoints which modifies
-       the memory at the breakpoint locations to replace the instruction
-       with software breakpoint or trap instructions. GDB will then
-       restore the memory content once execution reaches the breakpoints.
-       GDB supports this by default and there is usually no need to
-       handle software breakpoints in the architecture code (where
-       breakpoint type is ``0``).
-
-     * Hardware breakpoints (type ``1``) are required if the code is
-       in ROM or flash that cannot be modified at runtime. Consult
-       the architecture datasheet on how to enable hardware breakpoints.
-
-     * If hardware breakpoints are not supported by the architecture,
-       there is no need to implement these in architecture code.
-       GDB will then rely on software breakpoints.
-
-#. For architecture where certain memory regions are not accessible,
-   an array named :c:var:`gdb_mem_region_array` of type
-   :c:struct:`gdb_mem_region` needs to be defined to specify regions
-   that are accessible. For each array item:
-
-   * :c:member:`gdb_mem_region.start` specifies the start of a memory
-     region.
-
-   * :c:member:`gdb_mem_region.end` specifies the end of a memory
-     region.
-
-   * :c:member:`gdb_mem_region.attribites` specifies the permission
-     of a memory region.
-
-     * :c:macro:`GDB_MEM_REGION_RO`: region is read-only.
-
-     * :c:macro:`GDB_MEM_REGION_RW`: region is read-write.
-
-   * :c:member:`gdb_mem_region.alignment` specifies read/write alignment
-     of a memory region. Use ``0`` if there is no alignment requirement
-     and read/write can be done byte-by-byte.
 
 API Reference
 *************
@@ -1014,8 +879,3 @@ Miscellaneous Architecture APIs
 ===============================
 
 .. doxygengroup:: arch-misc
-
-GDB Stub APIs
-=============
-
-.. doxygengroup:: arch-gdbstub

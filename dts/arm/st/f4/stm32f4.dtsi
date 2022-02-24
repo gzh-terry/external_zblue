@@ -78,12 +78,10 @@
 			#size-cells = <1>;
 
 			flash0: flash@8000000 {
-				compatible = "st,stm32-nv-flash", "soc-nv-flash";
+				compatible = "soc-nv-flash";
 				label = "FLASH_STM32";
 
 				write-block-size = <1>;
-				/* maximum erase time (ms) for a 128K sector */
-				max-erase-time = <4000>;
 			};
 		};
 
@@ -149,24 +147,6 @@
 				reg = <0x40021000 0x400>;
 				clocks = <&rcc STM32_CLOCK_BUS_AHB1 0x00000010>;
 				label = "GPIOE";
-			};
-
-			gpiof: gpio@40021400 {
-				compatible = "st,stm32-gpio";
-				gpio-controller;
-				#gpio-cells = <2>;
-				reg = <0x40021400 0x400>;
-				clocks = <&rcc STM32_CLOCK_BUS_AHB1 0x00000020>;
-				label = "GPIOF";
-			};
-
-			gpiog: gpio@40021800 {
-				compatible = "st,stm32-gpio";
-				gpio-controller;
-				#gpio-cells = <2>;
-				reg = <0x40021800 0x400>;
-				clocks = <&rcc STM32_CLOCK_BUS_AHB1 0x00000040>;
-				label = "GPIOG";
 			};
 
 			gpioh: gpio@40021c00 {
@@ -292,13 +272,13 @@
 			clocks = <&rcc STM32_CLOCK_BUS_APB2 0x00000001>;
 			interrupts = <24 0>, <25 0>, <26 0>, <27 0>;
 			interrupt-names = "brk", "up", "trgcom", "cc";
-			st,prescaler = <0>;
 			status = "disabled";
 			label = "TIMERS_1";
 
 			pwm {
 				compatible = "st,stm32-pwm";
 				status = "disabled";
+				st,prescaler = <10000>;
 				label = "PWM_1";
 				#pwm-cells = <3>;
 			};
@@ -310,21 +290,15 @@
 			clocks = <&rcc STM32_CLOCK_BUS_APB1 0x00000001>;
 			interrupts = <28 0>;
 			interrupt-names = "global";
-			st,prescaler = <0>;
 			status = "disabled";
 			label = "TIMERS_2";
 
 			pwm {
 				compatible = "st,stm32-pwm";
 				status = "disabled";
+				st,prescaler = <0>;
 				label = "PWM_2";
 				#pwm-cells = <3>;
-			};
-
-			counter {
-				compatible = "st,stm32-counter";
-				status = "disabled";
-				label = "COUNTER_2";
 			};
 		};
 
@@ -334,21 +308,15 @@
 			clocks = <&rcc STM32_CLOCK_BUS_APB1 0x00000002>;
 			interrupts = <29 0>;
 			interrupt-names = "global";
-			st,prescaler = <0>;
 			status = "disabled";
 			label = "TIMERS_3";
 
 			pwm {
 				compatible = "st,stm32-pwm";
 				status = "disabled";
+				st,prescaler = <10000>;
 				label = "PWM_3";
 				#pwm-cells = <3>;
-			};
-
-			counter {
-				compatible = "st,stm32-counter";
-				status = "disabled";
-				label = "COUNTER_3";
 			};
 		};
 
@@ -358,21 +326,15 @@
 			clocks = <&rcc STM32_CLOCK_BUS_APB1 0x00000004>;
 			interrupts = <30 0>;
 			interrupt-names = "global";
-			st,prescaler = <0>;
 			status = "disabled";
 			label = "TIMERS_4";
 
 			pwm {
 				compatible = "st,stm32-pwm";
 				status = "disabled";
+				st,prescaler = <10000>;
 				label = "PWM_4";
 				#pwm-cells = <3>;
-			};
-
-			counter {
-				compatible = "st,stm32-counter";
-				status = "disabled";
-				label = "COUNTER_4";
 			};
 		};
 
@@ -382,21 +344,15 @@
 			clocks = <&rcc STM32_CLOCK_BUS_APB1 0x00000008>;
 			interrupts = <50 0>;
 			interrupt-names = "global";
-			st,prescaler = <0>;
 			status = "disabled";
 			label = "TIMERS_5";
 
 			pwm {
 				compatible = "st,stm32-pwm";
 				status = "disabled";
+				st,prescaler = <0>;
 				label = "PWM_5";
 				#pwm-cells = <3>;
-			};
-
-			counter {
-				compatible = "st,stm32-counter";
-				status = "disabled";
-				label = "COUNTER_5";
 			};
 		};
 
@@ -406,21 +362,15 @@
 			clocks = <&rcc STM32_CLOCK_BUS_APB2 0x00010000>;
 			interrupts = <24 0>;
 			interrupt-names = "global";
-			st,prescaler = <0>;
 			status = "disabled";
 			label = "TIMERS_9";
 
 			pwm {
 				compatible = "st,stm32-pwm";
 				status = "disabled";
+				st,prescaler = <10000>;
 				label = "PWM_9";
 				#pwm-cells = <3>;
-			};
-
-			counter {
-				compatible = "st,stm32-counter";
-				status = "disabled";
-				label = "COUNTER_9";
 			};
 		};
 
@@ -430,21 +380,15 @@
 			clocks = <&rcc STM32_CLOCK_BUS_APB2 0x00020000>;
 			interrupts = <25 0>;
 			interrupt-names = "global";
-			st,prescaler = <0>;
 			status = "disabled";
 			label = "TIMERS_10";
 
 			pwm {
 				compatible = "st,stm32-pwm";
 				status = "disabled";
+				st,prescaler = <10000>;
 				label = "PWM_10";
 				#pwm-cells = <3>;
-			};
-
-			counter {
-				compatible = "st,stm32-counter";
-				status = "disabled";
-				label = "COUNTER_10";
 			};
 		};
 
@@ -454,21 +398,15 @@
 			clocks = <&rcc STM32_CLOCK_BUS_APB2 0x00040000>;
 			interrupts = <26 0>;
 			interrupt-names = "global";
-			st,prescaler = <0>;
 			status = "disabled";
 			label = "TIMERS_11";
 
 			pwm {
 				compatible = "st,stm32-pwm";
 				status = "disabled";
+				st,prescaler = <10000>;
 				label = "PWM_11";
 				#pwm-cells = <3>;
-			};
-
-			counter {
-				compatible = "st,stm32-counter";
-				status = "disabled";
-				label = "COUNTER_11";
 			};
 		};
 

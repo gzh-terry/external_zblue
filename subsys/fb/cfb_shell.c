@@ -19,6 +19,9 @@
 #define HELP_INIT "call \"cfb init\" first"
 #define HELP_PRINT "<col: pos> <row: pos> \"<text>\""
 
+#define DISPLAY_DRIVER	CONFIG_CHARACTER_FRAMEBUFFER_SHELL_DRIVER_NAME
+
+
 static const struct device *dev;
 static const char * const param_name[] = {
 	"height", "width", "ppt", "rows", "cols"};
@@ -296,7 +299,7 @@ static int cmd_get_device(const struct shell *shell, size_t argc, char *argv[])
 		return -ENODEV;
 	}
 
-	shell_print(shell, "Framebuffer Device: %s", dev->name);
+	shell_print(shell, "Framebuffer Device: %s", DISPLAY_DRIVER);
 
 	return err;
 }
@@ -410,9 +413,10 @@ static int cmd_init(const struct shell *shell, size_t argc, char *argv[])
 {
 	int err;
 
-	dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
-	if (!device_is_ready(dev)) {
-		shell_error(shell, "Display device not ready");
+	dev = device_get_binding(DISPLAY_DRIVER);
+
+	if (dev == NULL) {
+		shell_error(shell, "Device not found");
 		return -ENODEV;
 	}
 
@@ -422,7 +426,8 @@ static int cmd_init(const struct shell *shell, size_t argc, char *argv[])
 		return err;
 	}
 
-	shell_print(shell, "Framebuffer initialized: %s", dev->name);
+	shell_print(shell, "Framebuffer initialized: %s", DISPLAY_DRIVER);
+
 	cmd_clear(shell, argc, argv);
 
 	return err;

@@ -1,13 +1,13 @@
-.. _gdb_debug_sample:
+.. _debug_sample:
 
-GDB Debug Sample
-################
+Debug Sample
+############
 
 Overview
 ********
 
-A simple sample that can be used with QEMU to show debug using GDB
-Remote Serial Protocol (RSP) capabilities.
+A simple sample that can be used with qemu to show debug using gdb
+remote serial protocol capabilities.
 
 Building and Running
 ********************
@@ -15,7 +15,7 @@ Building and Running
 This application can be built and executed on QEMU as follows:
 
 .. zephyr-app-commands::
-   :zephyr-app: samples/subsys/debug/gdbstub
+   :zephyr-app: samples/debug
    :host-os: unix
    :board: qemu_x86
    :goals: run
@@ -26,6 +26,6 @@ Open a new terminal and use gdb to connect to the running qemu as follows:
 .. code-block:: bash
 
     gdb build/zephyr/zephyr.elf
-    (gdb) target remote :5678
+    (gdb) target remote :1234
 
 Exit QEMU by pressing :kbd:`CTRL+A` :kbd:`x`.

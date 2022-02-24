@@ -5,6 +5,4 @@ description: Texas Instruments TMP116 temperature sensor
 
 compatible: "ti,tmp116"
 
-bus: tmp116
-
 include: i2c-device.yaml

@@ -25,7 +25,7 @@ LOG_MODULE_REGISTER(adc_npcx, CONFIG_ADC_LOG_LEVEL);
 #define ADC_REGULAR_MEAST_VAL	0x0001
 
 /* ADC channel number */
-#define NPCX_ADC_CH_COUNT DT_INST_NUM_PINCTRLS_BY_IDX(0, 0)
+#define NPCX_ADC_CH_COUNT 10
 
 /* ADC targeted operating frequency (2MHz) */
 #define NPCX_ADC_CLK 2000000
@@ -67,15 +67,17 @@ struct adc_npcx_data {
 };
 
 /* Driver convenience defines */
-#define HAL_INSTANCE(dev) ((struct adc_reg *)((const struct adc_npcx_config *)(dev)->config)->base)
+#define DRV_CONFIG(dev) ((const struct adc_npcx_config *)(dev)->config)
+
+#define DRV_DATA(dev) ((struct adc_npcx_data *)(dev)->data)
+
+#define HAL_INSTANCE(dev) (struct adc_reg *)(DRV_CONFIG(dev)->base)
 
 /* ADC local functions */
 static void adc_npcx_isr(void *arg)
 {
-	const struct device *dev = arg;
-	const struct adc_npcx_config *config = dev->config;
-	struct adc_npcx_data *const data = dev->data;
-	struct adc_reg *const inst = HAL_INSTANCE(dev);
+	struct adc_npcx_data *const data = DRV_DATA((const struct device *)arg);
+	struct adc_reg *const inst = HAL_INSTANCE((const struct device *)arg);
 	uint16_t status = inst->ADCSTS;
 	uint16_t result, channel;
 
@@ -91,7 +93,8 @@ static void adc_npcx_isr(void *arg)
 		/* Get result for each ADC selected channel */
 		while (data->channels) {
 			channel = find_lsb_set(data->channels) - 1;
-			result = GET_FIELD(CHNDAT(config->base, channel), NPCX_CHNDAT_CHDAT_FIELD);
+			result = GET_FIELD(inst->CHNDAT[channel],
+					NPCX_CHNDAT_CHDAT_FIELD);
 			/*
 			 * Save ADC result and adc_npcx_validate_buffer_size()
 			 * already ensures that the buffer has enough space for
@@ -140,7 +143,7 @@ static int adc_npcx_validate_buffer_size(const struct device *dev,
 
 static void adc_npcx_start_scan(const struct device *dev)
 {
-	struct adc_npcx_data *const data = dev->data;
+	struct adc_npcx_data *const data = DRV_DATA(dev);
 	struct adc_reg *const inst = HAL_INSTANCE(dev);
 
 	/* Turn on ADC first */
@@ -166,7 +169,7 @@ static void adc_npcx_start_scan(const struct device *dev)
 static int adc_npcx_start_read(const struct device *dev,
 					const struct adc_sequence *sequence)
 {
-	struct adc_npcx_data *const data = dev->data;
+	struct adc_npcx_data *const data = DRV_DATA(dev);
 	int error = 0;
 
 	if (!sequence->channels ||
@@ -225,7 +228,7 @@ static void adc_context_update_buffer_pointer(struct adc_context *ctx,
 static int adc_npcx_channel_setup(const struct device *dev,
 				 const struct adc_channel_cfg *channel_cfg)
 {
-	const struct adc_npcx_config *const config = dev->config;
+	const struct adc_npcx_config *const config = DRV_CONFIG(dev);
 	uint8_t channel_id = channel_cfg->channel_id;
 
 	if (channel_id >= NPCX_ADC_CH_COUNT) {
@@ -266,7 +269,7 @@ static int adc_npcx_channel_setup(const struct device *dev,
 static int adc_npcx_read(const struct device *dev,
 			const struct adc_sequence *sequence)
 {
-	struct adc_npcx_data *const data = dev->data;
+	struct adc_npcx_data *const data = DRV_DATA(dev);
 	int error;
 
 	adc_context_lock(&data->ctx, false, NULL);
@@ -281,7 +284,7 @@ static int adc_npcx_read_async(const struct device *dev,
 			      const struct adc_sequence *sequence,
 			      struct k_poll_signal *async)
 {
-	struct adc_npcx_data *const data = dev->data;
+	struct adc_npcx_data *const data = DRV_DATA(dev);
 	int error;
 
 	adc_context_lock(&data->ctx, true, async);
@@ -322,15 +325,16 @@ DEVICE_DT_INST_DEFINE(0,
 		    adc_npcx_init, NULL,
 		    &adc_npcx_data_0, &adc_npcx_cfg_0,
 		    PRE_KERNEL_1,
-		    CONFIG_ADC_INIT_PRIORITY,
+		    CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,
 		    &adc_npcx_driver_api);
 
 static int adc_npcx_init(const struct device *dev)
 {
-	const struct adc_npcx_config *const config = dev->config;
-	struct adc_npcx_data *const data = dev->data;
+	const struct adc_npcx_config *const config = DRV_CONFIG(dev);
+	struct adc_npcx_data *const data = DRV_DATA(dev);
 	struct adc_reg *const inst = HAL_INSTANCE(dev);
-	const struct device *const clk_dev = DEVICE_DT_GET(NPCX_CLK_CTRL_NODE);
+	const struct device *const clk_dev =
+					device_get_binding(NPCX_CLK_CTRL_NAME);
 	int prescaler = 0, ret;
 
 	/* Save ADC device in data */

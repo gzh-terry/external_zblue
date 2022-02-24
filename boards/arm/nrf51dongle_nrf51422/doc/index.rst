@@ -75,7 +75,7 @@ hardware features:
 | WDT       | on-chip    | watchdog             |
 +-----------+------------+----------------------+
 
-Other hardware features have not been enabled yet for this board.
+Other hardware features are not supported by the Zephyr kernel.
 See `nRF51 Dongle website`_ and `Nordic Semiconductor Infocenter`_
 for a complete list of nRF51 Dongle hardware features.
 

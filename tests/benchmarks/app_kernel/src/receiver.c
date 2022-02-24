@@ -28,6 +28,7 @@ void piperecvtask(void);
  *
  * @brief Main function of the task that receives data in the test
  *
+ * @return N/A
  */
 void recvtask(void *p1, void *p2, void *p3)
 {

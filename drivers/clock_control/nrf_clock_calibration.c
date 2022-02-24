@@ -13,9 +13,6 @@
 
 LOG_MODULE_DECLARE(clock_control, CONFIG_CLOCK_CONTROL_LOG_LEVEL);
 
-/** Temperature sensor DT node */
-#define TEMP_NODE DT_INST(0, nordic_nrf_temp)
-
 /**
  * Terms:
  * - calibration - overall process of LFRC clock calibration which is performed
@@ -226,6 +223,17 @@ static void measure_temperature(struct k_work *work)
 			started ? "started" : "skipped", diff);
 }
 
+#define TEMP_NODE DT_INST(0, nordic_nrf_temp)
+
+#if DT_NODE_HAS_STATUS(TEMP_NODE, okay)
+static inline const struct device *temp_device(void)
+{
+	return device_get_binding(DT_LABEL(TEMP_NODE));
+}
+#else
+#define temp_device() NULL
+#endif
+
 void z_nrf_clock_calibration_init(struct onoff_manager *onoff_mgrs)
 {
 	mgrs = onoff_mgrs;
@@ -236,11 +244,7 @@ void z_nrf_clock_calibration_init(struct onoff_manager *onoff_mgrs)
 #if CONFIG_CLOCK_CONTROL_NRF_CALIBRATION_MAX_SKIP
 static int temp_sensor_init(const struct device *arg)
 {
-	temp_sensor = DEVICE_DT_GET_OR_NULL(TEMP_NODE);
-	if ((temp_sensor != NULL) && !device_is_ready(temp_sensor)) {
-		LOG_ERR("Temperature sensor not ready");
-		return -ENODEV;
-	}
+	temp_sensor = temp_device();
 
 	return 0;
 }

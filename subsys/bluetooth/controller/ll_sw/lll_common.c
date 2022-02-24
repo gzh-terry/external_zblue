@@ -80,7 +80,7 @@ void lll_resume(void *param)
 }
 
 #if defined(CONFIG_BT_CTLR_JIT_SCHEDULING)
-void lll_done_score(void *param, uint8_t result)
+void lll_done_score(void *param, uint8_t too_late, uint8_t aborted)
 {
 	struct lll_hdr *hdr = param;
 
@@ -88,7 +88,7 @@ void lll_done_score(void *param, uint8_t result)
 		return;
 	}
 
-	if (result == DONE_COMPLETED) {
+	if (!too_late && !aborted) {
 		hdr->score  = 0;
 		hdr->latency = 0;
 	} else {

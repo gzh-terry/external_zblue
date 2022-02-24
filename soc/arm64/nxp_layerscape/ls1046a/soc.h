@@ -11,6 +11,7 @@
 #include <toolchain.h>
 
 #ifndef _ASMLANGUAGE
+#include <devicetree.h>
 #endif /* _ASMLANGUAGE */
 
 #define UART_REG_ADDR_INTERVAL 1

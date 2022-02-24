@@ -259,19 +259,6 @@ extern "C" {
  * use the default drive strength.
  */
 #define GPIO_DS_ALT_HIGH (0x1U << GPIO_DS_HIGH_POS)
-
-/** Combined default drive strength.
- */
-#define GPIO_DS_DFLT (GPIO_DS_DFLT_LOW | GPIO_DS_DFLT_HIGH)
-
-/** Combined alternative drive strength.
- */
-#define GPIO_DS_ALT (GPIO_DS_ALT_LOW | GPIO_DS_ALT_HIGH)
-
-/** @cond INTERNAL_HIDDEN */
-#define GPIO_DS_MASK (GPIO_DS_LOW_MASK | GPIO_DS_HIGH_MASK)
-/** @endcond */
-
 /** @} */
 
 /** @cond INTERNAL_HIDDEN */
@@ -325,23 +312,15 @@ typedef uint8_t gpio_dt_flags_t;
 typedef uint32_t gpio_flags_t;
 
 /**
- * @brief Container for GPIO pin information specified in devicetree
+ * @brief Provides a type to hold GPIO information specified in devicetree
  *
- * This type contains a pointer to a GPIO device, pin number for a pin
- * controlled by that device, and the subset of pin configuration
- * flags which may be given in devicetree.
- *
- * @see GPIO_DT_SPEC_GET_BY_IDX
- * @see GPIO_DT_SPEC_GET_BY_IDX_OR
- * @see GPIO_DT_SPEC_GET
- * @see GPIO_DT_SPEC_GET_OR
+ * This type is sufficient to hold a GPIO device pointer, pin number,
+ * and the subset of the flags used to control GPIO configuration
+ * which may be given in devicetree.
  */
 struct gpio_dt_spec {
-	/** GPIO device controlling the pin */
 	const struct device *port;
-	/** The pin's number on the device */
 	gpio_pin_t pin;
-	/** The pin's configuration flags as specified in devicetree */
 	gpio_dt_flags_t dt_flags;
 };
 
@@ -700,7 +679,7 @@ static inline int z_impl_gpio_pin_interrupt_configure(const struct device *port,
  *
  * @param spec GPIO specification from devicetree
  * @param flags interrupt configuration flags
- * @return a value from gpio_pin_interrupt_configure()
+ * @retval a value from gpio_pin_interrupt_configure()
  */
 static inline int gpio_pin_interrupt_configure_dt(const struct gpio_dt_spec *spec,
 						  gpio_flags_t flags)
@@ -791,7 +770,7 @@ static inline int z_impl_gpio_pin_configure(const struct device *port,
  *
  * @param spec GPIO specification from devicetree
  * @param extra_flags additional flags
- * @return a value from gpio_pin_configure()
+ * @retval a value from gpio_pin_configure()
  */
 static inline int gpio_pin_configure_dt(const struct gpio_dt_spec *spec,
 					gpio_flags_t extra_flags)
@@ -1137,21 +1116,6 @@ static inline int gpio_pin_get(const struct device *port, gpio_pin_t pin)
 }
 
 /**
- * @brief Get logical level of an input pin from a @p gpio_dt_spec.
- *
- * This is equivalent to:
- *
- *     gpio_pin_get(spec->port, spec->pin);
- *
- * @param spec GPIO specification from devicetree
- * @return a value from gpio_pin_get()
- */
-static inline int gpio_pin_get_dt(const struct gpio_dt_spec *spec)
-{
-	return gpio_pin_get(spec->port, spec->pin);
-}
-
-/**
  * @brief Set physical level of an output pin.
  *
  * Writing value 0 to the pin will set it to a low physical level. Writing any
@@ -1227,22 +1191,6 @@ static inline int gpio_pin_set(const struct device *port, gpio_pin_t pin,
 }
 
 /**
- * @brief Set logical level of a output pin from a @p gpio_dt_spec.
- *
- * This is equivalent to:
- *
- *     gpio_pin_set(spec->port, spec->pin, value);
- *
- * @param spec GPIO specification from devicetree
- * @param value Value assigned to the pin.
- * @return a value from gpio_pin_set()
- */
-static inline int gpio_pin_set_dt(const struct gpio_dt_spec *spec, int value)
-{
-	return gpio_pin_set(spec->port, spec->pin, value);
-}
-
-/**
  * @brief Toggle pin level.
  *
  * @param port Pointer to the device structure for the driver instance.
@@ -1262,21 +1210,6 @@ static inline int gpio_pin_toggle(const struct device *port, gpio_pin_t pin)
 		 "Unsupported pin");
 
 	return gpio_port_toggle_bits(port, (gpio_port_pins_t)BIT(pin));
-}
-
-/**
- * @brief Toggle pin level from a @p gpio_dt_spec.
- *
- * This is equivalent to:
- *
- *     gpio_pin_toggle(spec->port, spec->pin);
- *
- * @param spec GPIO specification from devicetree
- * @return a value from gpio_pin_toggle()
- */
-static inline int gpio_pin_toggle_dt(const struct gpio_dt_spec *spec)
-{
-	return gpio_pin_toggle(spec->port, spec->pin);
 }
 
 /**

@@ -21,12 +21,12 @@ if(CONFIG_BT_LL_SW_SPLIT)
     )
     if(CONFIG_BT_PERIPHERAL)
       zephyr_library_sources(
-        ll_sw/openisa/lll/lll_peripheral.c
+        ll_sw/openisa/lll/lll_slave.c
       )
     endif()
     if(CONFIG_BT_CENTRAL)
       zephyr_library_sources(
-        ll_sw/openisa/lll/lll_central.c
+        ll_sw/openisa/lll/lll_master.c
       )
     endif()
   endif()

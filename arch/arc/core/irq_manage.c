@@ -38,8 +38,10 @@ K_KERNEL_STACK_ARRAY_DEFINE(_firq_interrupt_stack, CONFIG_MP_NUM_CPUS,
 K_KERNEL_STACK_DEFINE(_firq_interrupt_stack, CONFIG_ARC_FIRQ_STACK_SIZE);
 #endif
 
-/**
+/*
  * @brief Set the stack pointer for firq handling
+ *
+ * @return N/A
  */
 void z_arc_firq_stack_set(void)
 {
@@ -81,12 +83,14 @@ void z_arc_firq_stack_set(void)
 }
 #endif
 
-/**
+/*
  * @brief Enable an interrupt line
  *
  * Clear possible pending interrupts on the line, and enable the interrupt
  * line. After this call, the CPU will receive interrupts for the specified
  * @a irq.
+ *
+ * @return N/A
  */
 
 void arch_irq_enable(unsigned int irq)
@@ -94,11 +98,13 @@ void arch_irq_enable(unsigned int irq)
 	z_arc_v2_irq_unit_int_enable(irq);
 }
 
-/**
+/*
  * @brief Disable an interrupt line
  *
  * Disable an interrupt line. After this call, the CPU will stop receiving
  * interrupts for the specified @a irq.
+ *
+ * @return N/A
  */
 
 void arch_irq_disable(unsigned int irq)
@@ -117,7 +123,7 @@ int arch_irq_is_enabled(unsigned int irq)
 	return z_arc_v2_irq_unit_int_enabled(irq);
 }
 
-/**
+/*
  * @internal
  *
  * @brief Set an interrupt's priority
@@ -127,6 +133,8 @@ int arch_irq_is_enabled(unsigned int irq)
 
  * The priority is verified if ASSERT_ON is enabled; max priority level
  * depends on CONFIG_NUM_IRQ_PRIO_LEVELS.
+ *
+ * @return N/A
  */
 
 void z_irq_priority_set(unsigned int irq, unsigned int prio, uint32_t flags)
@@ -148,11 +156,13 @@ void z_irq_priority_set(unsigned int irq, unsigned int prio, uint32_t flags)
 	z_arc_v2_irq_unit_prio_set(irq, prio);
 }
 
-/**
+/*
  * @brief Spurious interrupt handler
  *
  * Installed in all dynamic interrupt slots at boot time. Throws an error if
  * called.
+ *
+ * @return N/A
  */
 
 void z_irq_spurious(const void *unused)

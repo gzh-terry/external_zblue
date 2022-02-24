@@ -228,8 +228,8 @@ static int mcux_ftm_pin_enable_capture(const struct device *dev, uint32_t pwm)
 	}
 
 	if (FTM_GetEnabledInterrupts(config->base) & BIT(PAIR_2ND_CH(pair))) {
-		LOG_ERR("Capture already active on channel pair %d", pair);
-		return -EBUSY;
+		LOG_WRN("Capture already active on channel pair %d", pair);
+		return 0;
 	}
 
 	FTM_ClearStatusFlags(config->base, BIT(PAIR_1ST_CH(pair)) |

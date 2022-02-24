@@ -14,13 +14,8 @@ extern "C" {
 #endif
 
 /**
- * @brief Tracing format APIs
- * @defgroup subsys_tracing_format_apis Tracing format APIs
- * @ingroup subsys_tracing
- * @{
+ * @brief A structure to represent tracing data format.
  */
-
-/** @brief A structure to represent tracing data format. */
 typedef struct tracing_data {
 	uint8_t *data;
 	uint32_t length;
@@ -28,9 +23,6 @@ typedef struct tracing_data {
 
 /**
  * @brief Macro to trace a message in string format.
- *
- * @param fmt The format string.
- * @param ... The format arguments.
  */
 #define TRACING_STRING(fmt, ...)					       \
 	do {								       \
@@ -39,8 +31,6 @@ typedef struct tracing_data {
 
 /**
  * @brief Macro to format data to tracing data format.
- *
- * @param x Data field.
  */
 #define TRACING_FORMAT_DATA(x)						       \
 	((struct tracing_data){.data = (uint8_t *)&(x), .length = sizeof((x))})
@@ -82,10 +72,8 @@ void tracing_format_raw_data(uint8_t *data, uint32_t length);
  */
 void tracing_format_data(tracing_data_t *tracing_data_array, uint32_t count);
 
-/** @} */ /* end of subsys_tracing_format_apis */
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* ZEPHYR_INCLUDE_TRACING_TRACING_FORMAT_H */
+#endif

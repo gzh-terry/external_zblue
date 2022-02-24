@@ -59,9 +59,10 @@ struct wdt_sifive_dev_data {
 	bool timeout_valid;
 };
 
+#define DEV_CFG(dev) \
+	((const struct wdt_sifive_device_config *const)(dev)->config)
 #define DEV_REG(dev) \
-	((struct wdt_sifive_reg *) \
-	 ((const struct wdt_sifive_device_config *const)(dev)->config)->regs)
+	((struct wdt_sifive_reg *)(DEV_CFG(dev))->regs)
 
 /**
  * @brief Set maximum length of timeout to watchdog

@@ -14,8 +14,6 @@
 	chosen {
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
-		zephyr,console = &degu_cdc_acm_uart;
-		zephyr,shell-uart = &degu_cdc_acm_uart;
 		zephyr,code-partition = &slot0_partition;
 	};
 
@@ -140,12 +138,7 @@
 	};
 };
 
-zephyr_udc0: &usbd {
+&usbd {
 	compatible = "nordic,nrf-usbd";
 	status = "okay";
-
-	degu_cdc_acm_uart: degu_cdc_acm_uart {
-		compatible = "zephyr,cdc-acm-uart";
-		label = "CDC_ACM_0";
-	};
 };

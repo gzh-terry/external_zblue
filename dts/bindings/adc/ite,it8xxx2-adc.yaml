@@ -10,10 +10,3 @@ include: adc-controller.yaml
 properties:
     interrupts:
       required: true
-
-    pinctrl-0:
-      type: phandles
-      required: true
-
-io-channel-cells:
-    - input

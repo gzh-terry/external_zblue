@@ -12,7 +12,6 @@
 #include <device.h>
 #include <drivers/pinmux.h>
 #include <soc.h>
-#include <dt-bindings/pinctrl/it8xxx2-pinctrl.h>
 
 #define DT_DRV_COMPAT ite_it8xxx2_pinmux
 
@@ -32,10 +31,14 @@ struct pinmux_it8xxx2_config {
 	uint8_t func4_en_mask[8];
 };
 
+#define DEV_CFG(dev)					\
+	((const struct pinmux_it8xxx2_config * const)	\
+	 (dev)->config)
+
 static int pinmux_it8xxx2_set(const struct device *dev,
 			      uint32_t pin, uint32_t func)
 {
-	const struct pinmux_it8xxx2_config *pinmux_config = dev->config;
+	const struct pinmux_it8xxx2_config *pinmux_config = DEV_CFG(dev);
 
 	volatile uint8_t *reg_gpcr =
 		(uint8_t *)(pinmux_config->reg_gpcr + pin);
@@ -85,7 +88,7 @@ static int pinmux_it8xxx2_set(const struct device *dev,
 static int pinmux_it8xxx2_get(const struct device *dev,
 			      uint32_t pin, uint32_t *func)
 {
-	const struct pinmux_it8xxx2_config *pinmux_config = dev->config;
+	const struct pinmux_it8xxx2_config *pinmux_config = DEV_CFG(dev);
 
 	volatile uint8_t *reg_gpcr =
 		(uint8_t *)(pinmux_config->reg_gpcr + pin);
@@ -106,7 +109,7 @@ static int pinmux_it8xxx2_get(const struct device *dev,
 static int pinmux_it8xxx2_pullup(const struct device *dev,
 				 uint32_t pin, uint8_t func)
 {
-	const struct pinmux_it8xxx2_config *pinmux_config = dev->config;
+	const struct pinmux_it8xxx2_config *pinmux_config = DEV_CFG(dev);
 
 	volatile uint8_t *reg_gpcr =
 		(uint8_t *)(pinmux_config->reg_gpcr + pin);
@@ -127,7 +130,7 @@ static int pinmux_it8xxx2_pullup(const struct device *dev,
 static int pinmux_it8xxx2_input(const struct device *dev,
 				uint32_t pin, uint8_t func)
 {
-	const struct pinmux_it8xxx2_config *pinmux_config = dev->config;
+	const struct pinmux_it8xxx2_config *pinmux_config = DEV_CFG(dev);
 
 	volatile uint8_t *reg_gpcr =
 		(uint8_t *)(pinmux_config->reg_gpcr + pin);
@@ -158,18 +161,10 @@ static int pinmux_it8xxx2_init(const struct device *dev)
 	IT8XXX2_GPIO_GCR &= ~(BIT(1) | BIT(2));
 
 	/*
-	 * If SMBUS3 swaps from H group to F group, we have to
+	 * TODO: If SMBUS3 swaps from H group to F group, we have to
 	 * set SMB3PSEL = 1 in PMER3 register.
 	 */
-	if (DEVICE_DT_GET(DT_PHANDLE(DT_NODELABEL(i2c3), gpio_dev)) ==
-	    DEVICE_DT_GET(DT_NODELABEL(gpiof))) {
 
-		struct gctrl_it8xxx2_regs *const gctrl_base =
-			(struct gctrl_it8xxx2_regs *)
-				DT_REG_ADDR(DT_NODELABEL(gctrl));
-
-			gctrl_base->GCTRL_PMER3 |= IT8XXX2_GCTRL_SMB3PSEL;
-	}
 	/*
 	 * TODO: If UART2 swaps from bit2:1 to bit6:5 in H group, we
 	 * have to set UART1PSEL = 1 in UART1PMR register.

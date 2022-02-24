@@ -390,16 +390,14 @@ static bool install_update_cb_sha256(void)
 }
 #endif
 
-static int install_update_cb_check_blk_num(const struct coap_packet *resp)
+static int install_update_cb_check_blk_num(struct coap_packet *resp)
 {
 	int blk_num;
 	int blk2_opt;
-	uint16_t payload_len;
 
 	blk2_opt = coap_get_option_int(resp, COAP_OPTION_BLOCK2);
-	(void)coap_packet_get_payload(resp, &payload_len);
 
-	if ((payload_len == 0) || (blk2_opt < 0)) {
+	if ((resp->max_len - resp->offset) <= 0 || (blk2_opt < 0)) {
 		LOG_DBG("Invalid data received or block number is < 0");
 		return -ENOENT;
 	}
@@ -422,8 +420,6 @@ static void install_update_cb(void)
 	struct flash_img_check fic;
 #endif
 	uint8_t *data = k_malloc(MAX_DOWNLOAD_DATA);
-	const uint8_t *payload_start;
-	uint16_t payload_len;
 	int rcvd = -1;
 
 	if (data == NULL) {
@@ -452,19 +448,17 @@ static void install_update_cb(void)
 		goto cleanup;
 	}
 
-	/* payload_len is > 0, checked at install_update_cb_check_blk_num */
-	payload_start = coap_packet_get_payload(&response_packet, &payload_len);
-
 	updatehub_tmr_stop();
 	updatehub_blk_set(UPDATEHUB_BLK_ATTEMPT, 0);
 	updatehub_blk_set(UPDATEHUB_BLK_TX_AVAILABLE, 1);
 
-	ctx.downloaded_size = ctx.downloaded_size + payload_len;
+	ctx.downloaded_size = ctx.downloaded_size +
+			      (response_packet.max_len - response_packet.offset);
 
 #ifdef _DOWNLOAD_SHA256_VERIFICATION
 	if (tc_sha256_update(&ctx.sha256sum,
-			     payload_start,
-			     payload_len) < 1) {
+			     response_packet.data + response_packet.offset,
+			     response_packet.max_len - response_packet.offset) < 1) {
 		LOG_ERR("Could not update sha256sum");
 		ctx.code_status = UPDATEHUB_DOWNLOAD_ERROR;
 		goto cleanup;
@@ -472,12 +466,14 @@ static void install_update_cb(void)
 #endif
 
 	LOG_DBG("Flash: Address: 0x%08x, Size: %d, Flush: %s",
-		ctx.flash_ctx.stream.bytes_written, payload_len,
+		ctx.flash_ctx.stream.bytes_written,
+		response_packet.max_len - response_packet.offset,
 		(ctx.downloaded_size == ctx.block.total_size ?
 			"True" : "False"));
 
 	if (flash_img_buffered_write(&ctx.flash_ctx,
-				     payload_start, payload_len,
+				     response_packet.data + response_packet.offset,
+				     response_packet.max_len - response_packet.offset,
 				     ctx.downloaded_size == ctx.block.total_size) < 0) {
 		LOG_ERR("Error to write on the flash");
 		ctx.code_status = UPDATEHUB_INSTALL_ERROR;
@@ -706,8 +702,6 @@ static void probe_cb(char *metadata, size_t metadata_size)
 {
 	struct coap_packet reply;
 	char tmp[MAX_DOWNLOAD_DATA];
-	const uint8_t *payload_start;
-	uint16_t payload_len;
 	size_t tmp_len;
 	int rcvd = -1;
 
@@ -726,27 +720,22 @@ static void probe_cb(char *metadata, size_t metadata_size)
 		return;
 	}
 
-	if (coap_header_get_code(&reply) == COAP_RESPONSE_CODE_NOT_FOUND) {
+	if (COAP_RESPONSE_CODE_NOT_FOUND == coap_header_get_code(&reply)) {
 		LOG_INF("No update available");
 		ctx.code_status = UPDATEHUB_NO_UPDATE;
 		return;
 	}
 
-	payload_start = coap_packet_get_payload(&reply, &payload_len);
-	if (payload_len == 0) {
-		LOG_ERR("Invalid payload received");
-		ctx.code_status = UPDATEHUB_DOWNLOAD_ERROR;
-		return;
-	}
-
-	if (metadata_size < payload_len) {
+	/* check if we have buffer space to receive payload */
+	if (metadata_size < (reply.max_len - reply.offset)) {
 		LOG_ERR("There is no buffer available");
 		ctx.code_status = UPDATEHUB_METADATA_ERROR;
 		return;
 	}
 
 	memset(metadata, 0, metadata_size);
-	memcpy(metadata, payload_start, payload_len);
+	memcpy(metadata, reply.data + reply.offset,
+	       reply.max_len - reply.offset);
 
 	/* ensures payload have a valid string with size lower
 	 * than metadata_size

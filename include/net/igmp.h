@@ -38,14 +38,7 @@ extern "C" {
 #if defined(CONFIG_NET_IPV4_IGMP)
 int net_ipv4_igmp_join(struct net_if *iface, const struct in_addr *addr);
 #else
-static inline int net_ipv4_igmp_join(struct net_if *iface,
-				     const struct in_addr *addr)
-{
-	ARG_UNUSED(iface);
-	ARG_UNUSED(addr);
-
-	return -ENOSYS;
-}
+#define net_ipv4_igmp_join(iface, addr) -ENOSYS
 #endif
 
 /**
@@ -59,14 +52,7 @@ static inline int net_ipv4_igmp_join(struct net_if *iface,
 #if defined(CONFIG_NET_IPV4_IGMP)
 int net_ipv4_igmp_leave(struct net_if *iface, const struct in_addr *addr);
 #else
-static inline int net_ipv4_igmp_leave(struct net_if *iface,
-				      const struct in_addr *addr)
-{
-	ARG_UNUSED(iface);
-	ARG_UNUSED(addr);
-
-	return -ENOSYS;
-}
+#define net_ipv4_igmp_leave(iface, addr) -ENOSYS
 #endif
 
 #ifdef __cplusplus

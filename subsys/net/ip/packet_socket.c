@@ -23,7 +23,6 @@ LOG_MODULE_REGISTER(net_sockets_raw, CONFIG_NET_SOCKETS_LOG_LEVEL);
 enum net_verdict net_packet_socket_input(struct net_pkt *pkt, uint8_t proto)
 {
 	sa_family_t orig_family;
-	enum net_verdict net_verdict;
 
 #if IS_ENABLED(CONFIG_NET_DSA)
 	/*
@@ -53,13 +52,9 @@ enum net_verdict net_packet_socket_input(struct net_pkt *pkt, uint8_t proto)
 
 	net_pkt_set_family(pkt, AF_PACKET);
 
-	net_verdict = net_conn_input(pkt, NULL, proto, NULL);
+	(void)net_conn_input(pkt, NULL, proto, NULL);
 
 	net_pkt_set_family(pkt, orig_family);
 
-	if (net_verdict != NET_DROP) {
-		return net_verdict;
-	} else {
-		return NET_CONTINUE;
-	}
+	return NET_CONTINUE;
 }

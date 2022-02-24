@@ -26,7 +26,7 @@
 
 #include <zephyr/types.h>
 #include <stdbool.h>
-#include <arch/arm/aarch32/misc.h>
+#include <arch/arm/aarch32/cortex_m/cmsis.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -165,7 +165,6 @@ static inline uintptr_t arch_syscall_invoke0(uintptr_t call_id)
 
 static inline bool arch_is_user_context(void)
 {
-#if defined(CONFIG_CPU_CORTEX_M)
 	uint32_t value;
 
 	/* check for handler mode */
@@ -173,9 +172,10 @@ static inline bool arch_is_user_context(void)
 	if (value) {
 		return false;
 	}
-#endif
 
-	return z_arm_thread_is_in_user_mode();
+	/* if not handler mode, return mode information */
+	__asm__ volatile("mrs %0, CONTROL\n\t" : "=r"(value));
+	return (value & CONTROL_nPRIV_Msk) ? true : false;
 }
 
 #ifdef __cplusplus

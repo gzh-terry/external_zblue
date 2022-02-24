@@ -51,8 +51,6 @@
 #endif
 #elif defined(CONFIG_XTENSA)
 	/* Not needed */
-#elif defined(CONFIG_MIPS)
-	OUTPUT_ARCH("mips")
 #elif defined(CONFIG_ARCH_POSIX)
 	/* Not needed */
 #elif defined(CONFIG_SPARC)

@@ -130,8 +130,8 @@ static bool mux_is_active(struct modem_iface *iface)
 	bool active = false;
 
 #if defined(CONFIG_UART_MUX_DEVICE_NAME)
-	active = strncmp(CONFIG_UART_MUX_DEVICE_NAME, iface->dev->name,
-			 sizeof(CONFIG_UART_MUX_DEVICE_NAME) - 1) == 0;
+	const char *mux_name = CONFIG_UART_MUX_DEVICE_NAME;
+	active = (mux_name == iface->dev->name);
 #endif /* CONFIG_UART_MUX_DEVICE_NAME */
 
 	return active;
@@ -165,12 +165,13 @@ static int modem_iface_uart_write(struct modem_iface *iface,
 }
 
 int modem_iface_uart_init_dev(struct modem_iface *iface,
-			      const struct device *dev)
+			      const char *dev_name)
 {
 	/* get UART device */
+	const struct device *dev = device_get_binding(dev_name);
 	const struct device *prev = iface->dev;
 
-	if (!device_is_ready(dev)) {
+	if (!dev) {
 		return -ENODEV;
 	}
 
@@ -200,7 +201,7 @@ int modem_iface_uart_init_dev(struct modem_iface *iface,
 
 int modem_iface_uart_init(struct modem_iface *iface,
 			  struct modem_iface_uart_data *data,
-			  const struct device *dev)
+			  const char *dev_name)
 {
 	int ret;
 
@@ -216,7 +217,7 @@ int modem_iface_uart_init(struct modem_iface *iface,
 	k_sem_init(&data->rx_sem, 0, 1);
 
 	/* get UART device */
-	ret = modem_iface_uart_init_dev(iface, dev);
+	ret = modem_iface_uart_init_dev(iface, dev_name);
 	if (ret < 0) {
 		iface->iface_data = NULL;
 		iface->read = NULL;

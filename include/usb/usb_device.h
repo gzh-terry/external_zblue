@@ -39,7 +39,7 @@
 #define ZEPHYR_INCLUDE_USB_USB_DEVICE_H_
 
 #include <drivers/usb/usb_dc.h>
-#include <usb/usb_ch9.h>
+#include <usb/usbstruct.h>
 #include <logging/log.h>
 
 #ifdef __cplusplus
@@ -60,20 +60,15 @@ extern "C" {
 	static __in_section(usb, descriptor_##p, 3) __used __aligned(1)
 #define USBD_STRING_DESCR_DEFINE(p) \
 	static __in_section(usb, descriptor_##p, 4) __used __aligned(1)
-#define USBD_STRING_DESCR_USER_DEFINE(p) \
-	static __in_section(usb, descriptor_##p, 5) __used __aligned(1)
 #define USBD_TERM_DESCR_DEFINE(p) \
-	static __in_section(usb, descriptor_##p, 6) __used __aligned(1)
+	static __in_section(usb, descriptor_##p, 5) __used __aligned(1)
 
 /*
  * This macro should be used to place the struct usb_cfg_data
  * inside usb data section in the RAM.
  */
-#define USBD_DEFINE_CFG_DATA(name) \
-	static STRUCT_SECTION_ITERABLE(usb_cfg_data, name)
-
-#define USBD_CFG_DATA_DEFINE(p, name) __DEPRECATED_MACRO \
-	static __in_section(_usb_cfg_data, static, p##_name) __used __aligned(4)
+#define USBD_CFG_DATA_DEFINE(p, name) \
+	static __in_section(usb, data_##p, name) __used
 
 /*************************************************************************
  *  USB configuration
@@ -87,6 +82,15 @@ extern "C" {
 /*************************************************************************
  *  USB application interface
  **************************************************************************/
+
+/** setup packet definitions */
+struct usb_setup_packet {
+	uint8_t bmRequestType;  /**< characteristics of the specific request */
+	uint8_t bRequest;       /**< specific request */
+	uint16_t wValue;        /**< request specific parameter */
+	uint16_t wIndex;        /**< request specific parameter */
+	uint16_t wLength;       /**< length of data transferred in data phase */
+};
 
 /**
  * @brief USB Device Core Layer API
@@ -406,6 +410,8 @@ int usb_transfer_sync(uint8_t ep, uint8_t *data, size_t dlen, unsigned int flags
  *
  * @param[in]  ep           Endpoint address corresponding to the one
  *                          listed in the device configuration table
+ *
+ * @return 0 on success, negative errno code on fail.
  */
 void usb_cancel_transfer(uint8_t ep);
 
@@ -435,13 +441,6 @@ bool usb_transfer_is_busy(uint8_t ep);
  *         i.e. when the bus is already active.
  */
 int usb_wakeup_request(void);
-
-/**
- * @brief Get status of the USB remote wakeup feature
- *
- * @return true if remote wakeup has been enabled by the host, false otherwise.
- */
-bool usb_get_remote_wakeup_status(void);
 
 /**
  * @}

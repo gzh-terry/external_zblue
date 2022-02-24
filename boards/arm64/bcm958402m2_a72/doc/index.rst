@@ -29,7 +29,7 @@ hardware features:
 | UART      | on-chip    | NS16550 compatible serial port       |
 +-----------+------------+--------------------------------------+
 
-Other hardware features have not been enabled yet for this board.
+Other hardware features are not supported by the Zephyr kernel.
 
 The default configuration can be found in the defconfig file:
 

@@ -286,8 +286,8 @@ static const struct gpio_driver_api gpio_xlnx_axi_driver_api = {
 			NULL,						\
 			&gpio_xlnx_axi_##n##_2_data,			\
 			&gpio_xlnx_axi_##n##_2_config,			\
-			PRE_KERNEL_1,					\
-			CONFIG_GPIO_INIT_PRIORITY,			\
+			POST_KERNEL,					\
+			CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,		\
 			&gpio_xlnx_axi_driver_api);
 
 #define GPIO_XLNX_AXI_INIT(n)						\
@@ -314,8 +314,8 @@ static const struct gpio_driver_api gpio_xlnx_axi_driver_api = {
 			NULL,						\
 			&gpio_xlnx_axi_##n##_data,			\
 			&gpio_xlnx_axi_##n##_config,			\
-			PRE_KERNEL_1,					\
-			CONFIG_GPIO_INIT_PRIORITY,			\
+			POST_KERNEL,					\
+			CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,		\
 			&gpio_xlnx_axi_driver_api);			\
 	GPIO_XLNX_AXI_GPIO2_COND_INIT(n);
 

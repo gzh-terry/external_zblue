@@ -11,7 +11,6 @@ extern void test_k_heap_alloc_fail(void);
 extern void test_k_heap_free(void);
 extern void test_kheap_alloc_in_isr_nowait(void);
 extern void test_k_heap_alloc_pending(void);
-extern void test_k_heap_alloc_pending_null(void);
 
 /**
  * @brief k heap api tests
@@ -31,7 +30,6 @@ void test_main(void)
 			 ztest_unit_test(test_k_heap_alloc_fail),
 			 ztest_unit_test(test_k_heap_free),
 			 ztest_unit_test(test_kheap_alloc_in_isr_nowait),
-			 ztest_unit_test(test_k_heap_alloc_pending),
-			 ztest_unit_test(test_k_heap_alloc_pending_null));
+			 ztest_unit_test(test_k_heap_alloc_pending));
 	ztest_run_test_suite(k_heap_api);
 }

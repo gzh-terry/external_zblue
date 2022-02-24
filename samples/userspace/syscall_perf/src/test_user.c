@@ -17,7 +17,6 @@ void user_thread_function(void *p1, void *p2, void *p3)
 {
 	register unsigned long cycle_before, cycle_count;
 	register unsigned long inst_before, inst_count;
-	k_tid_t thread;
 
 	printf("User thread started\n");
 
@@ -26,7 +25,7 @@ void user_thread_function(void *p1, void *p2, void *p3)
 
 		inst_before = csr_read(0xC02);
 		cycle_before = csr_read(0xC00);
-		thread = k_current_get();
+		k_current_get();
 		cycle_count = csr_read(0xC00);
 		inst_count = csr_read(0xC02);
 
@@ -45,7 +44,7 @@ void user_thread_function(void *p1, void *p2, void *p3)
 		/* Remove CSR accesses to be more accurate */
 		inst_count -= 3;
 
-		printf("User thread(%p):\t\t%8lu cycles\t%8lu instructions\n",
-			thread, cycle_count, inst_count);
+		printf("User thread:\t\t%8lu cycles\t%8lu instructions\n",
+			cycle_count, inst_count);
 	}
 }

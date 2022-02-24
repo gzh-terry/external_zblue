@@ -13,23 +13,23 @@
 #include <drivers/lora.h>
 #include <device.h>
 
-int __sx12xx_configure_pin(const struct gpio_dt_spec *gpio, gpio_flags_t flags);
+int __sx12xx_configure_pin(const struct device * *dev, const char *controller,
+			   gpio_pin_t pin, gpio_flags_t flags);
 
 #define sx12xx_configure_pin(_name, _flags)				\
 	COND_CODE_1(DT_INST_NODE_HAS_PROP(0, _name##_gpios),		\
-		    (__sx12xx_configure_pin(&dev_config._name, _flags)),\
+		    (__sx12xx_configure_pin(&dev_data._name,		\
+				DT_INST_GPIO_LABEL(0, _name##_gpios),	\
+				DT_INST_GPIO_PIN(0, _name##_gpios),	\
+				DT_INST_GPIO_FLAGS(0, _name##_gpios) |	\
+						      _flags)),		\
 		    (0))
 
 int sx12xx_lora_send(const struct device *dev, uint8_t *data,
 		     uint32_t data_len);
 
-int sx12xx_lora_send_async(const struct device *dev, uint8_t *data,
-			   uint32_t data_len, struct k_poll_signal *async);
-
 int sx12xx_lora_recv(const struct device *dev, uint8_t *data, uint8_t size,
 		     k_timeout_t timeout, int16_t *rssi, int8_t *snr);
-
-int sx12xx_lora_recv_async(const struct device *dev, lora_recv_cb cb);
 
 int sx12xx_lora_config(const struct device *dev,
 		       struct lora_modem_config *config);

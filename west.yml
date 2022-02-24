@@ -25,226 +25,137 @@ manifest:
   #
   # Please add items below based on alphabetical order
   projects:
-    - name: canopennode
-      revision: 1052dae561497bef901f931ef75e117c9224aecd
-      path: modules/lib/canopennode
-    - name: civetweb
-      revision: 094aeb41bb93e9199d24d665ee43e9e05d6d7b1c
-      path: modules/lib/civetweb
     - name: cmsis
-      revision: b0612c97c1401feeb4160add6462c3627fe90fc7
+      revision: c3bd2094f92d574377f7af2aec147ae181aa5f8e
       path: modules/hal/cmsis
-      groups:
-        - hal
-    - name: edtt
-      revision: 1fc2e6f7d2a01a01074456f2ef2ccf1f3df7fac1
-      path: tools/edtt
-      groups:
-        - tools
-    - name: fatfs
-      revision: 9237454a30bcf6e14a89db174e8dbeb8f31831d2
-      path: modules/fs/fatfs
-      groups:
-        - fs
-    - name: fff
-      revision: 6ce5ba26486e93d5b7696a3e23f0585932c14b16
-      path: modules/lib/fff
-      groups:
-        - ci
+    - name: hal_atmel
+      revision: d17b7dd92d209b20bc1e15431d068edc29bf438d
+      path: modules/hal/atmel
     - name: hal_altera
       revision: 23c1c1dd7a0c1cc9a399509d1819375847c95b97
       path: modules/hal/altera
-      groups:
-        - hal
-    - name: hal_atmel
-      revision: 7c24242679372edc81cc1f9968e02b51127d3677
-      path: modules/hal/atmel
-      groups:
-        - hal
+    - name: canopennode
+      path: modules/lib/canopennode
+      revision: 468d350028a975b96563e58344de48281a0ab371
+    - name: civetweb
+      revision: e6903b80c09d17cd1a8bb32e40080005558aad29
+      path: modules/lib/civetweb
+    - name: hal_espressif
+      west-commands: west/west-commands.yml
+      revision: 22e757632677e3579e6f20bb9955fffb2e1b3e1c
+      path: modules/hal/espressif
+    - name: fatfs
+      revision: 1d1fcc725aa1cb3c32f366e0c53d7490d0fe1109
+      path: modules/fs/fatfs
     - name: hal_cypress
       revision: 81a059f21435bc7e315bccd720da5a9b615bbb50
       path: modules/hal/cypress
-      groups:
-        - hal
-    - name: hal_espressif
-      revision: bcd7565ffa390d5774dc2fbe71a002faa9a7d082
-      path: modules/hal/espressif
-      west-commands: west/west-commands.yml
-      groups:
-        - hal
-    - name: hal_gigadevice
-      revision: 242a7f4be7a3136606c7a65169775f7ef85ad444
-      path: modules/hal/gigadevice
-      groups:
-        - hal
     - name: hal_infineon
       revision: f1fa8241f8786198ba41155413243de36ed878a5
       path: modules/hal/infineon
-      groups:
-        - hal
-    - name: hal_microchip
-      revision: 870d05e6a64ea9548da6b907058b03c8c9420826
-      path: modules/hal/microchip
-      groups:
-        - hal
     - name: hal_nordic
-      revision: b1db86f188c3c5864985e1bd18a849d53f1c0a2d
+      revision: 574493fe29c79140df4827ab5d4a23df79d03681
       path: modules/hal/nordic
-      groups:
-        - hal
-    - name: hal_nuvoton
-      revision: b4d31f33238713a568e23618845702fadd67386f
-      path: modules/hal/nuvoton
-      groups:
-        - hal
-    - name: hal_nxp
-      revision: 9629f15fd80169cc9669e3fbb1260467c3aeb175
-      path: modules/hal/nxp
-      groups:
-        - hal
     - name: hal_openisa
       revision: 40d049f69c50b58ea20473bee14cf93f518bf262
       path: modules/hal/openisa
-      groups:
-        - hal
-    - name: hal_quicklogic
-      revision: b3a66fe6d04d87fd1533a5c8de51d0599fcd08d0
-      path: modules/hal/quicklogic
-      repo-path: hal_quicklogic
-      groups:
-        - hal
-    - name: hal_rpi_pico
-      path: modules/hal/rpi_pico
-      revision: 191f5ba46fda49523cdaaef27583d1c875ba2c36
-      groups:
-        - hal
+    - name: hal_nuvoton
+      revision: b4d31f33238713a568e23618845702fadd67386f
+      path: modules/hal/nuvoton
+    - name: hal_microchip
+      revision: b280eec5d3b1296b231117c1999bcd0269b6ecc4
+      path: modules/hal/microchip
     - name: hal_silabs
       revision: be39d4eebeddac6e18e9c0c3ba1b31ad1e82eaed
       path: modules/hal/silabs
-      groups:
-        - hal
     - name: hal_st
-      revision: 575de9d461aa6f430cf62c58a053675377e700f3
+      revision: b52fdbf4b62439be9fab9bb4bae9690a42d2fb14
       path: modules/hal/st
-      groups:
-        - hal
     - name: hal_stm32
-      revision: 300109f80730cb2477bfcc706a6602b9870336b3
+      revision: f8ff8d25aa0a9e65948040c7b47ec67f3fa300df
       path: modules/hal/stm32
-      groups:
-        - hal
-    - name: hal_telink
-      revision: ffcfd6282aa213f1dc0848dbca6279b098f6b143
-      path: modules/hal/telink
-      groups:
-        - hal
     - name: hal_ti
-      revision: 1992a4c536554c4f409c36896eda6abdc414d277
+      revision: 3da6fae25fc44ec830fac4a92787b585ff55435e
       path: modules/hal/ti
-      groups:
-        - hal
-    - name: hal_xtensa
-      revision: 0e577021bb66e644afd067cd9f7c71ab11b62b3d
-      path: modules/hal/xtensa
-      groups:
-        - hal
     - name: libmetal
-      revision: f237c9d420a51cc43bc37d744e41191ad613f348
+      revision: 39d049d4ae68e6f6d595fce7de1dcfc1024fb4eb
       path: modules/hal/libmetal
-      groups:
-        - hal
-    - name: littlefs
-      path: modules/fs/littlefs
-      groups:
-        - fs
-      revision: 33509ed9c3d369cdb9d909cd40c5eea8f64a902c
-    - name: loramac-node
-      revision: 12019623bbad9eb54fe51066847a7cbd4b4eac57
-      path: modules/lib/loramac-node
+    - name: hal_quicklogic
+      repo-path: hal_quicklogic
+      revision: b3a66fe6d04d87fd1533a5c8de51d0599fcd08d0
+      path: modules/hal/quicklogic
     - name: lvgl
-      revision: 783c1f78c8e39751fe89d0883c8bce7336f55e94
+      revision: 31acbaa36e9e74ab88ac81e3d21e7f1d00a71136
       path: modules/lib/gui/lvgl
-    - name: lz4
-      revision: 8e303c264fc21c2116dc612658003a22e933124d
-      path: modules/lib/lz4
     - name: mbedtls
-      revision: 3e3e58a92de76069730c63e0d524f40fea948a61
+      revision: 5765cb7f75a9973ae9232d438e361a9d7bbc49e7
       path: modules/crypto/mbedtls
-      groups:
-        - crypto
     - name: mcuboot
-      revision: 89936c338e46f43cb177a8b928cd80b90f3ace8f
+      revision: 2fce9769b191411d580bbc65b043956c2ae9307e
       path: bootloader/mcuboot
-    - name: mipi-sys-t
-      path: modules/debug/mipi-sys-t
-      groups:
-        - debug
-      revision: d9da086b11cda494d85f4d8a9829f505c2d5e380
-    - name: nanopb
-      revision: d148bd26718e4c10414f07a7eb1bd24c62e56c5d
-      path: modules/lib/nanopb
+    - name: mcumgr
+      revision: 5c5055f5a7565f8152d75fcecf07262928b4d56e
+      path: modules/lib/mcumgr
     - name: net-tools
       revision: f49bd1354616fae4093bf36e5eaee43c51a55127
       path: tools/net-tools
-      groups:
-        - tools
-    - name: nrf_hw_models
-      revision: b8cea37dbdc8fc58cc14b4e19fa850877a9da520
-      path: modules/bsim_hw_models/nrf_hw_models
+    - name: hal_nxp
+      revision: 0d11138724959e1162777d9206f841ccdf64348e
+      path: modules/hal/nxp
     - name: open-amp
-      revision: cfd050ff38a9d028dc211690b2ec35971128e45e
+      revision: 6010f0523cbc75f551d9256cf782f173177acdef
       path: modules/lib/open-amp
+    - name: loramac-node
+      revision: 2cee5f7295ff0ff804bf06fea5de006bc7cd121e
+      path: modules/lib/loramac-node
     - name: openthread
-      revision: b7aa7686d3f4e326bd25abc234b209159977c26d
+      revision: 385e19da1ae15f27872c2543b97276a42f102ead
       path: modules/lib/openthread
     - name: segger
       revision: 3a52ab222133193802d3c3b4d21730b9b1f1d2f6
       path: modules/debug/segger
-      groups:
-        - debug
     - name: sof
-      revision: 500d77e0ac84ac2c969e0d4b2142cca192e893bc
+      revision: 779f28ed465c03899c8a7d4aaf399856f4e51158
       path: modules/audio/sof
-    - name: tflite-micro
-      revision: 9156d050927012da87079064db59d07f03b8baf6
-      path: modules/lib/tflite-micro
-      repo-path: tflite-micro
     - name: tinycbor
-      revision: 40daca97b478989884bffb5226e9ab73ca54b8c4
       path: modules/lib/tinycbor
+      revision: 40daca97b478989884bffb5226e9ab73ca54b8c4
     - name: tinycrypt
-      revision: 3e9a49d2672ec01435ffbf0d788db6d95ef28de0
       path: modules/crypto/tinycrypt
-      groups:
-        - crypto
+      revision: 3e9a49d2672ec01435ffbf0d788db6d95ef28de0
+    - name: littlefs
+      path: modules/fs/littlefs
+      revision: 9e4498d1c73009acd84bb36036ee5e2869112a6c
+    - name: mipi-sys-t
+      path: modules/debug/mipi-sys-t
+      revision: 75e671550ac1acb502f315fe4952514dc73f7bfb
+    - name: nrf_hw_models
+      path: modules/bsim_hw_models/nrf_hw_models
+      revision: a47e326ca772ddd14cc3b9d4ca30a9ab44ecca16
     - name: TraceRecorderSource
-      revision: e8ca3b6a83d19b2fc4738a0d9607190436e5e452
       path: modules/debug/TraceRecorder
-      groups:
-        - debug
+      revision: 5b5f8d7adbf0e93a09087e8f5708f0eebb8b25bf
+    - name: hal_xtensa
+      revision: 2f04b615cd5ad3a1b8abef33f9bdd10cc1990ed6
+      path: modules/hal/xtensa
+    - name: edtt
+      path: tools/edtt
+      revision: 7dd56fc100d79cc45c33d43e7401d1803e26f6e7
     - name: trusted-firmware-m
-      revision: 5d32c3e64b3d589548e881eeeeb37d84944c90af
-      path: modules/tee/tf-m/trusted-firmware-m
-      groups:
-        - tee
-    - name: tf-m-tests
-      revision: 52814181f0fde6d1422fac204d42cde30c62e40e
-      path: modules/tee/tf-m/tf-m-tests
-      groups:
-        - tee
-    - name: psa-arch-tests
-      revision: 0aab24602cbef30f6422e7ef1066a8473073e586
-      path: modules/tee/tf-m/psa-arch-tests
-      groups:
-        - tee
-    - name: zscilib
-      path: modules/lib/zscilib
-      revision: 12bfe3f0a9fcbfe3edab7eabc9678b6c62875d34
-
-  group-filter:
-    - -ci
+      path: modules/tee/tfm
+      revision: e18b7a9b040b5b5324520388047c9e7d678447e6
+    - name: tfm-mcuboot # This is used by the trusted-firmware-m module.
+      repo-path: mcuboot
+      path: modules/tee/tfm-mcuboot
+      revision: v1.7.2
+    - name: nanopb
+      path: modules/lib/nanopb
+      revision: d148bd26718e4c10414f07a7eb1bd24c62e56c5d
+    - name: tensorflow
+      repo-path: tensorflow
+      path: modules/lib/tensorflow
+      revision: dc70a45a7cc12c25726a32cd91b28be59e7bc596
 
   self:
     path: zephyr
     west-commands: scripts/west-commands.yml
-    import: submanifests

@@ -32,7 +32,6 @@ LOG_MODULE_REGISTER(i2c_shell, CONFIG_LOG_DEFAULT_LEVEL);
  *
  * https://manpages.debian.org/buster/i2c-tools/i2cdetect.8.en.html
  */
-/* i2c scan <device> */
 static int cmd_i2c_scan(const struct shell *shell,
 			size_t argc, char **argv)
 {
@@ -81,7 +80,6 @@ static int cmd_i2c_scan(const struct shell *shell,
 	return 0;
 }
 
-/* i2c recover <device> */
 static int cmd_i2c_recover(const struct shell *shell,
 			   size_t argc, char **argv)
 {
@@ -103,7 +101,7 @@ static int cmd_i2c_recover(const struct shell *shell,
 	return 0;
 }
 
-/* i2c write <device> <dev_addr> <reg_addr> [<byte1>, ...] */
+/* i2c write <device> <dev_addr> [<byte1>, ...] */
 static int cmd_i2c_write(const struct shell *shell, size_t argc, char **argv)
 {
 	uint8_t buf[MAX_I2C_BYTES];
@@ -140,7 +138,6 @@ static int cmd_i2c_write(const struct shell *shell, size_t argc, char **argv)
 	return 0;
 }
 
-/* i2c write_byte <device> <dev_addr> <reg_addr> <value> */
 static int cmd_i2c_write_byte(const struct shell *shell,
 			      size_t argc, char **argv)
 {
@@ -168,7 +165,6 @@ static int cmd_i2c_write_byte(const struct shell *shell,
 	return 0;
 }
 
-/* i2c read_byte <device> <dev_addr> <reg_addr> */
 static int cmd_i2c_read_byte(const struct shell *shell,
 			     size_t argc, char **argv)
 {
@@ -197,7 +193,7 @@ static int cmd_i2c_read_byte(const struct shell *shell,
 	return 0;
 }
 
-/* i2c read <device> <dev_addr> <reg_addr> [<numbytes>] */
+/* i2c read <device> <dev_addr> [<numbytes>] */
 static int cmd_i2c_read(const struct shell *shell, size_t argc, char **argv)
 {
 	uint8_t buf[MAX_I2C_BYTES];

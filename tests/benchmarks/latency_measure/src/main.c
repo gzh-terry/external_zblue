@@ -13,7 +13,7 @@
 #include "utils.h"
 #include <tc_util.h>
 
-#define STACK_SIZE (1024 + CONFIG_TEST_EXTRA_STACK_SIZE)
+#define STACK_SIZE (1024 + CONFIG_TEST_EXTRA_STACKSIZE)
 
 uint32_t tm_off; /* time necessary to read the time */
 int error_count; /* track number of errors */
@@ -67,5 +67,4 @@ K_THREAD_DEFINE(test_thread_id, STACK_SIZE, test_thread, NULL, NULL, NULL, K_PRI
 
 void main(void)
 {
-	k_thread_join(test_thread_id, K_FOREVER);
 }

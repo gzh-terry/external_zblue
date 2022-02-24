@@ -89,20 +89,8 @@ static int cmd_demo_ping(const struct shell *shell, size_t argc, char **argv)
 	return 0;
 }
 
-static int cmd_demo_board(const struct shell *sh, size_t argc, char **argv)
-{
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
-
-	shell_print(sh, CONFIG_BOARD);
-
-	return 0;
-}
-
 #if defined CONFIG_SHELL_GETOPT
-/* Thread save usage */
-static int cmd_demo_getopt_ts(const struct shell *sh, size_t argc,
-			      char **argv)
+static int cmd_demo_getopt(const struct shell *shell, size_t argc, char **argv)
 {
 	struct getopt_state *state;
 	char *cvalue = NULL;
@@ -110,8 +98,8 @@ static int cmd_demo_getopt_ts(const struct shell *sh, size_t argc,
 	int bflag = 0;
 	int c;
 
-	while ((c = getopt(argc, argv, "abhc:")) != -1) {
-		state = getopt_state_get();
+	while ((c = shell_getopt(shell, argc, argv, "abhc:")) != -1) {
+		state = shell_getopt_state_get(shell);
 		switch (c) {
 		case 'a':
 			aflag = 1;
@@ -127,19 +115,19 @@ static int cmd_demo_getopt_ts(const struct shell *sh, size_t argc,
 			 * command handler to print help message. It must
 			 * be done explicitly.
 			 */
-			shell_help(sh);
+			shell_help(shell);
 			return SHELL_CMD_HELP_PRINTED;
 		case '?':
 			if (state->optopt == 'c') {
-				shell_print(sh,
+				shell_print(shell,
 					"Option -%c requires an argument.",
 					state->optopt);
 			} else if (isprint(state->optopt)) {
-				shell_print(sh,
+				shell_print(shell,
 					"Unknown option `-%c'.",
 					state->optopt);
 			} else {
-				shell_print(sh,
+				shell_print(shell,
 					"Unknown option character `\\x%x'.",
 					state->optopt);
 			}
@@ -149,65 +137,16 @@ static int cmd_demo_getopt_ts(const struct shell *sh, size_t argc,
 		}
 	}
 
-	shell_print(sh, "aflag = %d, bflag = %d", aflag, bflag);
-	return 0;
-}
-
-static int cmd_demo_getopt(const struct shell *sh, size_t argc,
-			      char **argv)
-{
-	char *cvalue = NULL;
-	int aflag = 0;
-	int bflag = 0;
-	int c;
-
-	while ((c = getopt(argc, argv, "abhc:")) != -1) {
-		switch (c) {
-		case 'a':
-			aflag = 1;
-			break;
-		case 'b':
-			bflag = 1;
-			break;
-		case 'c':
-			cvalue = optarg;
-			break;
-		case 'h':
-			/* When getopt is active shell is not parsing
-			 * command handler to print help message. It must
-			 * be done explicitly.
-			 */
-			shell_help(sh);
-			return SHELL_CMD_HELP_PRINTED;
-		case '?':
-			if (optopt == 'c') {
-				shell_print(sh,
-					"Option -%c requires an argument.",
-					optopt);
-			} else if (isprint(optopt)) {
-				shell_print(sh, "Unknown option `-%c'.",
-					optopt);
-			} else {
-				shell_print(sh,
-					"Unknown option character `\\x%x'.",
-					optopt);
-			}
-			return 1;
-		default:
-			break;
-		}
-	}
-
-	shell_print(sh, "aflag = %d, bflag = %d", aflag, bflag);
+	shell_print(shell, "aflag = %d, bflag = %d", aflag, bflag);
 	return 0;
 }
 #endif
 
 static int cmd_demo_params(const struct shell *shell, size_t argc, char **argv)
 {
-	shell_print(shell, "argc = %zd", argc);
+	shell_print(shell, "argc = %d", argc);
 	for (size_t cnt = 0; cnt < argc; cnt++) {
-		shell_print(shell, "  argv[%zd] = %s", cnt, argv[cnt]);
+		shell_print(shell, "  argv[%d] = %s", cnt, argv[cnt]);
 	}
 
 	return 0;
@@ -215,9 +154,9 @@ static int cmd_demo_params(const struct shell *shell, size_t argc, char **argv)
 
 static int cmd_demo_hexdump(const struct shell *shell, size_t argc, char **argv)
 {
-	shell_print(shell, "argc = %zd", argc);
+	shell_print(shell, "argc = %d", argc);
 	for (size_t cnt = 0; cnt < argc; cnt++) {
-		shell_print(shell, "argv[%zd]", cnt);
+		shell_print(shell, "argv[%d]", cnt);
 		shell_hexdump(shell, argv[cnt], strlen(argv[cnt]));
 	}
 
@@ -239,9 +178,7 @@ static int cmd_version(const struct shell *shell, size_t argc, char **argv)
 static void login_init(void)
 {
 	printk("Shell Login Demo\nHint: password = %s\n", DEFAULT_PASSWORD);
-	if (!CONFIG_SHELL_CMD_ROOT[0]) {
-		shell_set_root_cmd("login");
-	}
+	shell_set_root_cmd("login");
 }
 
 static int check_passwd(char *passwd)
@@ -283,75 +220,6 @@ static int cmd_logout(const struct shell *shell, size_t argc, char **argv)
 	return 0;
 }
 
-static int set_bypass(const struct shell *sh, shell_bypass_cb_t bypass)
-{
-	static bool in_use;
-
-	if (bypass && in_use) {
-		shell_error(sh, "Sample supports setting bypass on single instance.");
-
-		return -EBUSY;
-	}
-
-	in_use = !in_use;
-	if (in_use) {
-		shell_print(sh, "Bypass started, press ctrl-x ctrl-q to escape");
-		in_use = true;
-	}
-
-	shell_set_bypass(sh, bypass);
-
-	return 0;
-}
-
-#define CHAR_1 0x18
-#define CHAR_2 0x11
-
-static void bypass_cb(const struct shell *sh, uint8_t *data, size_t len)
-{
-	static uint8_t tail;
-	bool escape = false;
-
-	/* Check if escape criteria is met. */
-	if (tail == CHAR_1 && data[0] == CHAR_2) {
-		escape = true;
-	} else {
-		for (int i = 0; i < (len - 1); i++) {
-			if (data[i] == CHAR_1 && data[i + 1] == CHAR_2) {
-				escape = true;
-				break;
-			}
-		}
-	}
-
-	if (escape) {
-		shell_print(sh, "Exit bypass");
-		set_bypass(sh, NULL);
-		tail = 0;
-		return;
-	}
-
-	/* Store last byte for escape sequence detection */
-	tail = data[len - 1];
-
-	/* Do the data processing. */
-	for (int i = 0; i < len; i++) {
-		shell_fprintf(sh, SHELL_INFO, "%02x ", data[i]);
-	}
-	shell_fprintf(sh, SHELL_INFO, "| ");
-
-	for (int i = 0; i < len; i++) {
-		shell_fprintf(sh, SHELL_INFO, "%c", data[i]);
-	}
-	shell_fprintf(sh, SHELL_INFO, "\n");
-
-}
-
-static int cmd_bypass(const struct shell *sh, size_t argc, char **argv)
-{
-	return set_bypass(sh, bypass_cb);
-}
-
 static int cmd_dict(const struct shell *shell, size_t argc, char **argv,
 		    void *data)
 {
@@ -371,22 +239,15 @@ SHELL_STATIC_SUBCMD_SET_CREATE(sub_demo,
 	SHELL_CMD(hexdump, NULL, "Hexdump params command.", cmd_demo_hexdump),
 	SHELL_CMD(params, NULL, "Print params command.", cmd_demo_params),
 	SHELL_CMD(ping, NULL, "Ping command.", cmd_demo_ping),
-	SHELL_CMD(board, NULL, "Show board name command.", cmd_demo_board),
 #if defined CONFIG_SHELL_GETOPT
-	SHELL_CMD(getopt_thread_safe, NULL,
-		  "Cammand using getopt in thread safe way"
-		  " looking for: \"abhc:\".",
-		  cmd_demo_getopt_ts),
-	SHELL_CMD(getopt, NULL, "Cammand using getopt in non thread safe way"
-		  " looking for: \"abhc:\".\n", cmd_demo_getopt),
+	SHELL_CMD(getopt, NULL,	"Cammand using getopt, looking for: \"abhc:\".",
+		  cmd_demo_getopt),
 #endif
 	SHELL_SUBCMD_SET_END /* Array terminated. */
 );
 SHELL_CMD_REGISTER(demo, &sub_demo, "Demo commands", NULL);
 
 SHELL_CMD_ARG_REGISTER(version, NULL, "Show kernel version", cmd_version, 1, 0);
-
-SHELL_CMD_ARG_REGISTER(bypass, NULL, "Bypass shell", cmd_bypass, 1, 0);
 
 SHELL_COND_CMD_ARG_REGISTER(CONFIG_SHELL_START_OBSCURED, login, NULL,
 			    "<password>", cmd_login, 2, 0);
@@ -400,12 +261,12 @@ void main(void)
 		login_init();
 	}
 
-#if DT_NODE_HAS_COMPAT(DT_CHOSEN(zephyr_shell_uart), zephyr_cdc_acm_uart)
+#if defined(CONFIG_USB_UART_CONSOLE)
 	const struct device *dev;
 	uint32_t dtr = 0;
 
-	dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_shell_uart));
-	if (!device_is_ready(dev) || usb_enable(NULL)) {
+	dev = device_get_binding(CONFIG_UART_SHELL_ON_DEV_NAME);
+	if (dev == NULL || usb_enable(NULL)) {
 		return;
 	}
 

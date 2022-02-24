@@ -10,12 +10,6 @@ menuconfig COUNTER
 
 if COUNTER
 
-config COUNTER_INIT_PRIORITY
-	int "Counter init priority"
-	default KERNEL_INIT_PRIORITY_DEVICE
-	help
-	  Counter driver device initialization priority.
-
 module = COUNTER
 module-str = counter
 source "subsys/logging/Kconfig.template.log_config"
@@ -28,25 +22,17 @@ source "drivers/counter/Kconfig.dtmr_cmsdk_apb"
 
 source "drivers/counter/Kconfig.mcux_rtc"
 
-source "drivers/counter/Kconfig.mcux_lpc_rtc"
-
 source "drivers/counter/Kconfig.nrfx"
 
 source "drivers/counter/Kconfig.imx_epit"
 
 source "drivers/counter/Kconfig.stm32_rtc"
 
-source "drivers/counter/Kconfig.stm32_timer"
-
-source "drivers/counter/Kconfig.sam"
-
 source "drivers/counter/Kconfig.sam0"
 
 source "drivers/counter/Kconfig.cmos"
 
 source "drivers/counter/Kconfig.mcux_gpt"
-
-source "drivers/counter/Kconfig.mcux_snvs"
 
 source "drivers/counter/Kconfig.xec"
 
@@ -61,9 +47,5 @@ source "drivers/counter/Kconfig.mcux_pit"
 source "drivers/counter/Kconfig.xlnx"
 
 source "drivers/counter/Kconfig.esp32"
-
-source "drivers/counter/Kconfig.mcp7940n"
-
-source "drivers/counter/Kconfig.mcux_ctimer"
 
 endif # COUNTER

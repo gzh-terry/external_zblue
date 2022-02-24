@@ -8,13 +8,15 @@
 #ifndef _MCP2515_H_
 #define _MCP2515_H_
 
-#include <drivers/gpio.h>
 #include <drivers/can.h>
 
 #define MCP2515_RX_CNT                   2
-/* Reduce the number of Tx buffers to 1 in order to avoid priority inversion. */
-#define MCP2515_TX_CNT                   1
+#define MCP2515_TX_CNT                   3
 #define MCP2515_FRAME_LEN               13
+
+#define DEV_CFG(dev) \
+	((const struct mcp2515_config *const)(dev)->config)
+#define DEV_DATA(dev) ((struct mcp2515_data *const)(dev)->data)
 
 struct mcp2515_tx_cb {
 	struct k_sem sem;
@@ -23,7 +25,15 @@ struct mcp2515_tx_cb {
 };
 
 struct mcp2515_data {
+	/* spi device data */
+	const struct device *spi;
+	struct spi_config spi_cfg;
+#if DT_INST_SPI_DEV_HAS_CS_GPIOS(0)
+	struct spi_cs_control spi_cs_ctrl;
+#endif /* DT_INST_SPI_DEV_HAS_CS_GPIOS(0) */
+
 	/* interrupt data */
+	const struct device *int_gpio;
 	struct gpio_callback int_gpio_cb;
 	struct k_thread int_thread;
 	k_thread_stack_t *int_thread_stack;
@@ -39,8 +49,7 @@ struct mcp2515_data {
 	can_rx_callback_t rx_cb[CONFIG_CAN_MAX_FILTER];
 	void *cb_arg[CONFIG_CAN_MAX_FILTER];
 	struct zcan_filter filter[CONFIG_CAN_MAX_FILTER];
-	can_state_change_callback_t state_change_cb;
-	void *state_change_cb_data;
+	can_state_change_isr_t state_change_isr;
 
 	/* general data */
 	struct k_mutex mutex;
@@ -50,10 +59,16 @@ struct mcp2515_data {
 
 struct mcp2515_config {
 	/* spi configuration */
-	struct spi_dt_spec bus;
+	const char *spi_port;
+	uint8_t spi_cs_pin;
+	uint8_t spi_cs_flags;
+	const char *spi_cs_port;
+	uint32_t spi_freq;
+	uint8_t spi_slave;
 
 	/* interrupt configuration */
-	struct gpio_dt_spec int_gpio;
+	uint8_t int_pin;
+	const char *int_port;
 	size_t int_thread_stack_size;
 	int int_thread_priority;
 

@@ -39,14 +39,6 @@ struct pl011_regs {
 	uint32_t dmacr;
 };
 
-struct pl011_config {
-	volatile struct pl011_regs *uart;
-	uint32_t sys_clk_freq;
-#ifdef CONFIG_UART_INTERRUPT_DRIVEN
-	uart_irq_config_func_t irq_config_func;
-#endif
-};
-
 /* Device data structure */
 struct pl011_data {
 	uint32_t baud_rate;	/* Baud rate */
@@ -150,39 +142,36 @@ struct pl011_data {
 		PL011_IMSC_RXIM | PL011_IMSC_TXIM | \
 		PL011_IMSC_RTIM)
 
+#define DEV_CFG(dev) \
+	((const struct uart_device_config * const)(dev)->config)
+#define DEV_DATA(dev) \
+	((struct pl011_data *)(dev)->data)
+#define PL011_REGS(dev) \
+	((volatile struct pl011_regs  *)(DEV_CFG(dev))->base)
+
 static void pl011_enable(const struct device *dev)
 {
-	const struct pl011_config *config = dev->config;
-
-	config->uart->cr |=  PL011_CR_UARTEN;
+	PL011_REGS(dev)->cr |=  PL011_CR_UARTEN;
 }
 
 static void pl011_disable(const struct device *dev)
 {
-	const struct pl011_config *config = dev->config;
-
-	config->uart->cr &= ~PL011_CR_UARTEN;
+	PL011_REGS(dev)->cr &= ~PL011_CR_UARTEN;
 }
 
 static void pl011_enable_fifo(const struct device *dev)
 {
-	const struct pl011_config *config = dev->config;
-
-	config->uart->lcr_h |= PL011_LCRH_FEN;
+	PL011_REGS(dev)->lcr_h |= PL011_LCRH_FEN;
 }
 
 static void pl011_disable_fifo(const struct device *dev)
 {
-	const struct pl011_config *config = dev->config;
-
-	config->uart->lcr_h &= ~PL011_LCRH_FEN;
+	PL011_REGS(dev)->lcr_h &= ~PL011_LCRH_FEN;
 }
 
 static int pl011_set_baudrate(const struct device *dev,
 			      uint32_t clk, uint32_t baudrate)
 {
-	const struct pl011_config *config = dev->config;
-
 	/* Avoiding float calculations, bauddiv is left shifted by 6 */
 	uint64_t bauddiv = (((uint64_t)clk) << PL011_FBRD_WIDTH)
 				/ (baudrate * 16U);
@@ -196,8 +185,8 @@ static int pl011_set_baudrate(const struct device *dev,
 		return -EINVAL;
 	}
 
-	config->uart->ibrd = bauddiv >> PL011_FBRD_WIDTH;
-	config->uart->fbrd = bauddiv & ((1u << PL011_FBRD_WIDTH) - 1u);
+	PL011_REGS(dev)->ibrd = bauddiv >> PL011_FBRD_WIDTH;
+	PL011_REGS(dev)->fbrd = bauddiv & ((1u << PL011_FBRD_WIDTH) - 1u);
 
 	__DMB();
 
@@ -205,61 +194,54 @@ static int pl011_set_baudrate(const struct device *dev,
 	 * lcr_h write must always be performed at the end
 	 * ARM DDI 0183F, Pg 3-13
 	 */
-	config->uart->lcr_h = config->uart->lcr_h;
+	PL011_REGS(dev)->lcr_h = PL011_REGS(dev)->lcr_h;
 
 	return 0;
 }
 
 static bool pl011_is_readable(const struct device *dev)
 {
-	const struct pl011_config *config = dev->config;
-	struct pl011_data *data = dev->data;
-
-	if (!data->sbsa &&
-	    (!(config->uart->cr & PL011_CR_UARTEN) ||
-	     !(config->uart->cr & PL011_CR_RXE)))
+	if (!DEV_DATA(dev)->sbsa &&
+	    (!(PL011_REGS(dev)->cr & PL011_CR_UARTEN) ||
+	     !(PL011_REGS(dev)->cr & PL011_CR_RXE)))
 		return false;
 
-	return (config->uart->fr & PL011_FR_RXFE) == 0U;
+	return (PL011_REGS(dev)->fr & PL011_FR_RXFE) == 0U;
 }
 
 static int pl011_poll_in(const struct device *dev, unsigned char *c)
 {
-	const struct pl011_config *config = dev->config;
-
 	if (!pl011_is_readable(dev)) {
 		return -1;
 	}
 
 	/* got a character */
-	*c = (unsigned char)config->uart->dr;
+	*c = (unsigned char)PL011_REGS(dev)->dr;
 
-	return config->uart->rsr & PL011_RSR_ERROR_MASK;
+	return PL011_REGS(dev)->rsr & PL011_RSR_ERROR_MASK;
 }
 
 static void pl011_poll_out(const struct device *dev,
 					     unsigned char c)
 {
-	const struct pl011_config *config = dev->config;
-
 	/* Wait for space in FIFO */
-	while (config->uart->fr & PL011_FR_TXFF) {
+	while (PL011_REGS(dev)->fr & PL011_FR_TXFF) {
 		; /* Wait */
 	}
 
 	/* Send a character */
-	config->uart->dr = (uint32_t)c;
+	PL011_REGS(dev)->dr = (uint32_t)c;
 }
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 static int pl011_fifo_fill(const struct device *dev,
 				    const uint8_t *tx_data, int len)
 {
-	const struct pl011_config *config = dev->config;
 	uint8_t num_tx = 0U;
 
-	while (!(config->uart->fr & PL011_FR_TXFF) && (len - num_tx > 0)) {
-		config->uart->dr = tx_data[num_tx++];
+	while (!(PL011_REGS(dev)->fr & PL011_FR_TXFF) &&
+	       (len - num_tx > 0)) {
+		PL011_REGS(dev)->dr = tx_data[num_tx++];
 	}
 	return num_tx;
 }
@@ -267,11 +249,11 @@ static int pl011_fifo_fill(const struct device *dev,
 static int pl011_fifo_read(const struct device *dev,
 				    uint8_t *rx_data, const int len)
 {
-	const struct pl011_config *config = dev->config;
 	uint8_t num_rx = 0U;
 
-	while ((len - num_rx > 0) && !(config->uart->fr & PL011_FR_RXFE)) {
-		rx_data[num_rx++] = config->uart->dr;
+	while ((len - num_rx > 0) &&
+	       !(PL011_REGS(dev)->fr & PL011_FR_RXFE)) {
+		rx_data[num_rx++] = PL011_REGS(dev)->dr;
 	}
 
 	return num_rx;
@@ -279,77 +261,59 @@ static int pl011_fifo_read(const struct device *dev,
 
 static void pl011_irq_tx_enable(const struct device *dev)
 {
-	const struct pl011_config *config = dev->config;
-
-	config->uart->imsc |= PL011_IMSC_TXIM;
+	PL011_REGS(dev)->imsc |= PL011_IMSC_TXIM;
 }
 
 static void pl011_irq_tx_disable(const struct device *dev)
 {
-	const struct pl011_config *config = dev->config;
-
-	config->uart->imsc &= ~PL011_IMSC_TXIM;
+	PL011_REGS(dev)->imsc &= ~PL011_IMSC_TXIM;
 }
 
 static int pl011_irq_tx_complete(const struct device *dev)
 {
-	const struct pl011_config *config = dev->config;
-
 	/* check for TX FIFO empty */
-	return config->uart->fr & PL011_FR_TXFE;
+	return PL011_REGS(dev)->fr & PL011_FR_TXFE;
 }
 
 static int pl011_irq_tx_ready(const struct device *dev)
 {
-	const struct pl011_config *config = dev->config;
-	struct pl011_data *data = dev->data;
-
-	if (!data->sbsa && !(config->uart->cr & PL011_CR_TXE))
+	if (!DEV_DATA(dev)->sbsa && !(PL011_REGS(dev)->cr & PL011_CR_TXE))
 		return false;
 
-	return ((config->uart->imsc & PL011_IMSC_TXIM) &&
+	return ((PL011_REGS(dev)->imsc & PL011_IMSC_TXIM) &&
 		pl011_irq_tx_complete(dev));
 }
 
 static void pl011_irq_rx_enable(const struct device *dev)
 {
-	const struct pl011_config *config = dev->config;
-
-	config->uart->imsc |= PL011_IMSC_RXIM | PL011_IMSC_RTIM;
+	PL011_REGS(dev)->imsc |= PL011_IMSC_RXIM |
+				 PL011_IMSC_RTIM;
 }
 
 static void pl011_irq_rx_disable(const struct device *dev)
 {
-	const struct pl011_config *config = dev->config;
-
-	config->uart->imsc &= ~(PL011_IMSC_RXIM | PL011_IMSC_RTIM);
+	PL011_REGS(dev)->imsc &= ~(PL011_IMSC_RXIM |
+				   PL011_IMSC_RTIM);
 }
 
 static int pl011_irq_rx_ready(const struct device *dev)
 {
-	const struct pl011_config *config = dev->config;
-	struct pl011_data *data = dev->data;
-
-	if (!data->sbsa && !(config->uart->cr & PL011_CR_RXE))
+	if (!DEV_DATA(dev)->sbsa && !(PL011_REGS(dev)->cr & PL011_CR_RXE))
 		return false;
 
-	return ((config->uart->imsc & PL011_IMSC_RXIM) &&
-		(!(config->uart->fr & PL011_FR_RXFE)));
+	return ((PL011_REGS(dev)->imsc & PL011_IMSC_RXIM) &&
+		(!(PL011_REGS(dev)->fr & PL011_FR_RXFE)));
 }
 
 static void pl011_irq_err_enable(const struct device *dev)
 {
-	const struct pl011_config *config = dev->config;
-
 	/* enable framing, parity, break, and overrun */
-	config->uart->imsc |= PL011_IMSC_ERROR_MASK;
+	PL011_REGS(dev)->imsc |= PL011_IMSC_ERROR_MASK;
 }
 
 static void pl011_irq_err_disable(const struct device *dev)
 {
-	const struct pl011_config *config = dev->config;
-
-	config->uart->imsc &= ~PL011_IMSC_ERROR_MASK;
+	PL011_REGS(dev)->imsc &= ~PL011_IMSC_ERROR_MASK;
 }
 
 static int pl011_irq_is_pending(const struct device *dev)
@@ -366,10 +330,8 @@ static void pl011_irq_callback_set(const struct device *dev,
 					    uart_irq_callback_user_data_t cb,
 					    void *cb_data)
 {
-	struct pl011_data *data = dev->data;
-
-	data->irq_cb = cb;
-	data->irq_cb_data = cb_data;
+	DEV_DATA(dev)->irq_cb = cb;
+	DEV_DATA(dev)->irq_cb_data = cb_data;
 }
 #endif /* CONFIG_UART_INTERRUPT_DRIVEN */
 
@@ -396,8 +358,6 @@ static const struct uart_driver_api pl011_driver_api = {
 
 static int pl011_init(const struct device *dev)
 {
-	const struct pl011_config *config = dev->config;
-	struct pl011_data *data = dev->data;
 	int ret;
 	uint32_t lcrh;
 
@@ -406,42 +366,42 @@ static int pl011_init(const struct device *dev)
 	 * or does not require configuration at all (if UART is emulated by
 	 * virtualization software).
 	 */
-	if (!data->sbsa) {
+	if (!DEV_DATA(dev)->sbsa) {
 		/* disable the uart */
 		pl011_disable(dev);
 		pl011_disable_fifo(dev);
 
 		/* Set baud rate */
-		ret = pl011_set_baudrate(dev, config->sys_clk_freq,
-					 data->baud_rate);
+		ret = pl011_set_baudrate(dev, DEV_CFG(dev)->sys_clk_freq,
+					 DEV_DATA(dev)->baud_rate);
 		if (ret != 0) {
 			return ret;
 		}
 
 		/* Setting the default character format */
-		lcrh = config->uart->lcr_h & ~(PL011_LCRH_FORMAT_MASK);
+		lcrh = PL011_REGS(dev)->lcr_h & ~(PL011_LCRH_FORMAT_MASK);
 		lcrh &= ~(BIT(0) | BIT(7));
 		lcrh |= PL011_LCRH_WLEN_SIZE(8) << PL011_LCRH_WLEN_SHIFT;
-		config->uart->lcr_h = lcrh;
+		PL011_REGS(dev)->lcr_h = lcrh;
 
 		/* Enabling the FIFOs */
 		pl011_enable_fifo(dev);
 	}
 	/* initialize all IRQs as masked */
-	config->uart->imsc = 0U;
-	config->uart->icr = PL011_IMSC_MASK_ALL;
+	PL011_REGS(dev)->imsc = 0U;
+	PL011_REGS(dev)->icr = PL011_IMSC_MASK_ALL;
 
-	if (!data->sbsa) {
-		config->uart->dmacr = 0U;
+	if (!DEV_DATA(dev)->sbsa) {
+		PL011_REGS(dev)->dmacr = 0U;
 		__ISB();
-		config->uart->cr &= ~(BIT(14) | BIT(15) | BIT(1));
-		config->uart->cr |= PL011_CR_RXE | PL011_CR_TXE;
+		PL011_REGS(dev)->cr &= ~(BIT(14) | BIT(15) | BIT(1));
+		PL011_REGS(dev)->cr |= PL011_CR_RXE | PL011_CR_TXE;
 		__ISB();
 	}
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
-	config->irq_config_func(dev);
+	DEV_CFG(dev)->irq_config_func(dev);
 #endif
-	if (!data->sbsa)
+	if (!DEV_DATA(dev)->sbsa)
 		pl011_enable(dev);
 
 	return 0;
@@ -450,7 +410,7 @@ static int pl011_init(const struct device *dev)
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 void pl011_isr(const struct device *dev)
 {
-	struct pl011_data *data = dev->data;
+	struct pl011_data *data = DEV_DATA(dev);
 
 	/* Verify if the callback has been registered */
 	if (data->irq_cb) {
@@ -466,8 +426,8 @@ void pl011_isr(const struct device *dev)
 static void pl011_irq_config_func_0(const struct device *dev);
 #endif
 
-static struct pl011_config pl011_cfg_port_0 = {
-	.uart = (volatile struct pl011_regs *)DT_INST_REG_ADDR(0),
+static struct uart_device_config pl011_cfg_port_0 = {
+	.base = (uint8_t *)DT_INST_REG_ADDR(0),
 	.sys_clk_freq = DT_INST_PROP_BY_PHANDLE(0, clocks, clock_frequency),
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	.irq_config_func = pl011_irq_config_func_0,
@@ -483,7 +443,7 @@ DEVICE_DT_INST_DEFINE(0,
 		    NULL,
 		    &pl011_data_port_0,
 		    &pl011_cfg_port_0, PRE_KERNEL_1,
-		    CONFIG_SERIAL_INIT_PRIORITY,
+		    CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    &pl011_driver_api);
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
@@ -529,8 +489,8 @@ static void pl011_irq_config_func_0(const struct device *dev)
 static void pl011_irq_config_func_1(const struct device *dev);
 #endif
 
-static struct pl011_config pl011_cfg_port_1 = {
-	.uart = (volatile struct pl011_regs *)DT_INST_REG_ADDR(1),
+static struct uart_device_config pl011_cfg_port_1 = {
+	.base = (uint8_t *)DT_INST_REG_ADDR(1),
 	.sys_clk_freq = DT_INST_PROP_BY_PHANDLE(1, clocks, clock_frequency),
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	.irq_config_func = pl011_irq_config_func_1,
@@ -546,7 +506,7 @@ DEVICE_DT_INST_DEFINE(1,
 		    NULL,
 		    &pl011_data_port_1,
 		    &pl011_cfg_port_1, PRE_KERNEL_1,
-		    CONFIG_SERIAL_INIT_PRIORITY,
+		    CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    &pl011_driver_api);
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
@@ -595,8 +555,8 @@ static void pl011_irq_config_func_1(const struct device *dev)
 static void pl011_irq_config_func_sbsa(const struct device *dev);
 #endif
 
-static struct pl011_config pl011_cfg_sbsa = {
-	.uart = (volatile struct pl011_regs *)DT_INST_REG_ADDR(0),
+static struct uart_device_config pl011_cfg_sbsa = {
+	.base = (uint8_t *)DT_INST_REG_ADDR(0),
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	.irq_config_func = pl011_irq_config_func_sbsa,
 #endif
@@ -611,7 +571,7 @@ DEVICE_DT_INST_DEFINE(0,
 		      NULL,
 		      &pl011_data_sbsa,
 		      &pl011_cfg_sbsa, PRE_KERNEL_1,
-		      CONFIG_SERIAL_INIT_PRIORITY,
+		      CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		      &pl011_driver_api);
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN

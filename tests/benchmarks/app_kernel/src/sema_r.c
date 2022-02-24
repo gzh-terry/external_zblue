@@ -17,6 +17,7 @@
  *
  * @brief Receive task (Wait task)
  *
+ * @return N/A
  */
 void waittask(void)
 {

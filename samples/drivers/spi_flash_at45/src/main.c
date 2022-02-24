@@ -7,7 +7,6 @@
 #include <zephyr.h>
 #include <drivers/flash.h>
 #include <logging/log_ctrl.h>
-#include <pm/device.h>
 
 #define FLASH_DEVICE        DT_LABEL(DT_INST(0, atmel_at45))
 
@@ -151,8 +150,9 @@ void main(void)
 	printk("OK\n");
 
 #if IS_ENABLED(CONFIG_PM_DEVICE)
-	printk("Putting the flash device into suspended state... ");
-	err = pm_device_action_run(flash_dev, PM_DEVICE_ACTION_SUSPEND);
+	printk("Putting the flash device into low power state... ");
+	err = pm_device_state_set(flash_dev, PM_DEVICE_STATE_LOW_POWER,
+				  NULL, NULL);
 	if (err != 0) {
 		printk("FAILED\n");
 		return;

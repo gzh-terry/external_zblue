@@ -17,11 +17,11 @@ properties:
     xtal-freq:
       type: int
       required: true
-      description: Value of the external XTAL connected to ESP32.
+      description: Value of the extrernal XTAL connected to ESP32, Supported values 40M,26M
 
     xtal-div:
       type: int
-      required: false
+      required: true
       description: Divisor value for XTAL Clock, CPU_CLK = XTAL_FREQ / xtal-div
 
     "#clock-cells":

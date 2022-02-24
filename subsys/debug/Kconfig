@@ -39,10 +39,6 @@ config THREAD_ANALYZER_USE_PRINTK
 
 endchoice
 
-config THREAD_ANALYZER_ISR_STACK_USAGE
-	bool "Analyze interrupt stacks usage"
-	default y
-
 config THREAD_ANALYZER_RUN_UNLOCKED
 	bool "Run analysis with interrupts unlocked"
 	default y
@@ -80,7 +76,6 @@ config THREAD_ANALYZER_AUTO_INTERVAL
 
 config THREAD_ANALYZER_AUTO_STACK_SIZE
 	int "Stack size for the periodic thread analysis thread"
-	default 2048 if THREAD_ANALYZER_USE_LOG && LOG_MODE_IMMEDIATE && NO_OPTIMIZATIONS
 	default 1024
 
 endif # THREAD_ANALYZER_AUTO
@@ -327,6 +322,12 @@ config EXCEPTION_STACK_TRACE
 #
 # Miscellaneous debugging options
 #
+config OPENOCD_SUPPORT
+	bool "OpenOCD support (DEPRECATED)"
+	select DEBUG_THREAD_INFO
+	help
+	  This is deprecated, please use DEBUG_THREAD_INFO instead.
+
 config DEBUG_THREAD_INFO
 	bool "Thread awareness support"
 	depends on !SMP
@@ -342,7 +343,6 @@ endmenu
 config GDBSTUB
 	bool "GDB remote serial protocol support [EXPERIMENTAL]"
 	depends on ARCH_HAS_GDBSTUB
-	select EXPERIMENTAL
 	help
 	  This option enable support the target using GDB, or any other
 	  application that supports GDB protocol.
@@ -356,7 +356,7 @@ config GDBSTUB_SERIAL_BACKEND
 	bool "Use serial backend"
 	depends on SERIAL
 	help
-	  Use serial as backend for GDB
+	  Use serial as backenf for GDB
 
 endchoice
 
@@ -365,14 +365,7 @@ config GDBSTUB_SERIAL_BACKEND_NAME
 	depends on GDBSTUB_SERIAL_BACKEND
 	default "UART_0"
 	help
-	  Use serial as backend for GDB
+	  Use serial as backenf for GDB
 
-config GDBSTUB_BUF_SZ
-	int "GDB backend send/receive buffer size (in bytes)"
-	default 256
-	help
-	  This specifies the size (in bytes) of the send/receive buffer
-	  for GDB backend. This needs to be big enough to hold one
-	  full GDB packet at a time.
 
 endif

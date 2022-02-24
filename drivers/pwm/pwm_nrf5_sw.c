@@ -7,8 +7,6 @@
 #define DT_DRV_COMPAT nordic_nrf_sw_pwm
 
 #include <soc.h>
-#include <nrfx_gpiote.h>
-#include <nrfx_ppi.h>
 #include <hal/nrf_gpio.h>
 
 #include <drivers/pwm.h>
@@ -18,7 +16,20 @@
 #include <logging/log.h>
 LOG_MODULE_REGISTER(pwm_nrf5_sw);
 
-#define GENERATOR_NODE	DT_INST_PHANDLE(0, generator)
+BUILD_ASSERT(DT_INST_NODE_HAS_PROP(0, timer_instance) !=
+	     DT_INST_NODE_HAS_PROP(0, generator),
+	     "Please define either the timer-instance or generator property, but not both");
+
+#if DT_INST_NODE_HAS_PROP(0, timer_instance)
+
+#define USE_RTC		0
+#define GENERATOR_ADDR	_CONCAT(NRF_TIMER, DT_INST_PROP(0, timer_instance))
+#define GENERATOR_CC_NUM \
+	_CONCAT(_CONCAT(TIMER, DT_INST_PROP(0, timer_instance)), _CC_NUM)
+
+#else /* DT_INST_NODE_HAS_PROP(0, timer_instance) */
+
+#define GENERATOR_NODE	DT_PHANDLE(DT_DRV_INST(0), generator)
 #define GENERATOR_CC_NUM	DT_PROP(GENERATOR_NODE, cc_num)
 
 #if DT_NODE_HAS_COMPAT(GENERATOR_NODE, nordic_nrf_rtc)
@@ -31,20 +42,21 @@ BUILD_ASSERT(DT_INST_PROP(0, clock_prescaler) == 0,
 #define GENERATOR_ADDR	((NRF_TIMER_Type *) DT_REG_ADDR(GENERATOR_NODE))
 #endif
 
+#endif /* DT_INST_NODE_HAS_PROP(0, timer_instance) */
+
 /* One compare channel is needed to set the PWM period, hence +1. */
 #if ((DT_INST_PROP(0, channel_count) + 1) > GENERATOR_CC_NUM)
 #error "Invalid number of PWM channels configured."
 #endif
 #define PWM_0_MAP_SIZE DT_INST_PROP(0, channel_count)
 
-/* When RTC is used, one more PPI channel is required. */
-#define PPI_PER_CH (2 + USE_RTC)
-
 struct pwm_config {
 	union {
 		NRF_RTC_Type *rtc;
 		NRF_TIMER_Type *timer;
 	};
+	uint8_t gpiote_base;
+	uint8_t ppi_base;
 	uint8_t map_size;
 	uint8_t prescaler;
 };
@@ -56,8 +68,6 @@ struct chan_map {
 
 struct pwm_data {
 	uint32_t period_cycles;
-	uint8_t ppi_ch[PWM_0_MAP_SIZE][PPI_PER_CH];
-	uint8_t gpiote_ch[PWM_0_MAP_SIZE];
 	struct chan_map map[PWM_0_MAP_SIZE];
 };
 
@@ -133,10 +143,9 @@ static int pwm_nrf5_sw_pin_set(const struct device *dev, uint32_t pwm,
 	NRF_TIMER_Type *timer = pwm_config_timer(config);
 	NRF_RTC_Type *rtc = pwm_config_rtc(config);
 	struct pwm_data *data = dev->data;
+	uint8_t ppi_index;
 	uint32_t ppi_mask;
 	uint8_t channel;
-	uint8_t gpiote_ch;
-	const uint8_t *ppi_chs;
 	uint32_t ret;
 
 	if (flags) {
@@ -173,8 +182,6 @@ static int pwm_nrf5_sw_pin_set(const struct device *dev, uint32_t pwm,
 
 	/* map pwm pin to GPIOTE config/channel */
 	channel = pwm_channel_map(data, config->map_size, pwm);
-	gpiote_ch = data->gpiote_ch[channel];
-	ppi_chs = data->ppi_ch[channel];
 	if (channel >= config->map_size) {
 		LOG_ERR("No more channels available");
 		return -ENOMEM;
@@ -184,10 +191,17 @@ static int pwm_nrf5_sw_pin_set(const struct device *dev, uint32_t pwm,
 			period_cycles, pulse_cycles);
 
 	/* clear GPIOTE config */
-	NRF_GPIOTE->CONFIG[gpiote_ch] = 0;
+	NRF_GPIOTE->CONFIG[config->gpiote_base + channel] = 0;
 
 	/* clear PPI used */
-	ppi_mask = BIT(ppi_chs[0]) | BIT(ppi_chs[1]) | (USE_RTC ? BIT(ppi_chs[2]) : 0);
+	if (USE_RTC) {
+		ppi_index = config->ppi_base + (channel * 3);
+		ppi_mask = BIT(ppi_index) | BIT(ppi_index + 1) |
+			BIT(ppi_index + 2);
+	} else {
+		ppi_index = config->ppi_base + (channel * 2);
+		ppi_mask = BIT(ppi_index) | BIT(ppi_index + 1);
+	}
 	NRF_PPI->CHENCLR = ppi_mask;
 
 	/* configure GPIO pin as output */
@@ -230,30 +244,31 @@ static int pwm_nrf5_sw_pin_set(const struct device *dev, uint32_t pwm,
 	}
 
 	/* configure GPIOTE, toggle with initialise output high */
-	NRF_GPIOTE->CONFIG[gpiote_ch] = 0x00130003 | (pwm << 8);
+	NRF_GPIOTE->CONFIG[config->gpiote_base + channel] = 0x00130003 |
+							    (pwm << 8);
 
 	/* setup PPI */
 	if (USE_RTC) {
-		NRF_PPI->CH[ppi_chs[0]].EEP =
+		NRF_PPI->CH[ppi_index].EEP =
 			(uint32_t) &(rtc->EVENTS_COMPARE[channel]);
-		NRF_PPI->CH[ppi_chs[0]].TEP =
+		NRF_PPI->CH[ppi_index].TEP =
 			(uint32_t) &(NRF_GPIOTE->TASKS_OUT[channel]);
-		NRF_PPI->CH[ppi_chs[1]].EEP =
+		NRF_PPI->CH[ppi_index + 1].EEP =
 			(uint32_t) &(rtc->EVENTS_COMPARE[config->map_size]);
-		NRF_PPI->CH[ppi_chs[1]].TEP =
+		NRF_PPI->CH[ppi_index + 1].TEP =
 			(uint32_t) &(NRF_GPIOTE->TASKS_OUT[channel]);
-		NRF_PPI->CH[ppi_chs[2]].EEP =
+		NRF_PPI->CH[ppi_index + 2].EEP =
 			(uint32_t) &(rtc->EVENTS_COMPARE[config->map_size]);
-		NRF_PPI->CH[ppi_chs[2]].TEP =
+		NRF_PPI->CH[ppi_index + 2].TEP =
 			(uint32_t) &(rtc->TASKS_CLEAR);
 	} else {
-		NRF_PPI->CH[ppi_chs[0]].EEP =
+		NRF_PPI->CH[ppi_index].EEP =
 			(uint32_t) &(timer->EVENTS_COMPARE[channel]);
-		NRF_PPI->CH[ppi_chs[0]].TEP =
+		NRF_PPI->CH[ppi_index].TEP =
 			(uint32_t) &(NRF_GPIOTE->TASKS_OUT[channel]);
-		NRF_PPI->CH[ppi_chs[1]].EEP =
+		NRF_PPI->CH[ppi_index + 1].EEP =
 			(uint32_t) &(timer->EVENTS_COMPARE[config->map_size]);
-		NRF_PPI->CH[ppi_chs[1]].TEP =
+		NRF_PPI->CH[ppi_index + 1].TEP =
 			(uint32_t) &(NRF_GPIOTE->TASKS_OUT[channel]);
 	}
 	NRF_PPI->CHENSET = ppi_mask;
@@ -327,34 +342,8 @@ static const struct pwm_driver_api pwm_nrf5_sw_drv_api_funcs = {
 static int pwm_nrf5_sw_init(const struct device *dev)
 {
 	const struct pwm_config *config = dev->config;
-	struct pwm_data *data = dev->data;
 	NRF_TIMER_Type *timer = pwm_config_timer(config);
 	NRF_RTC_Type *rtc = pwm_config_rtc(config);
-
-	/* Allocate resources. */
-	for (uint32_t i = 0; i < config->map_size; i++) {
-		nrfx_err_t err;
-
-		for (uint32_t j = 0; j < PPI_PER_CH; j++) {
-			err = nrfx_ppi_channel_alloc(&data->ppi_ch[i][j]);
-			if (err != NRFX_SUCCESS) {
-				/* Do not free allocated resource. It is a fatal condition,
-				 * system requires reconfiguration.
-				 */
-				LOG_ERR("Failed to allocate PPI channel");
-				return -ENOMEM;
-			}
-		}
-
-		err = nrfx_gpiote_channel_alloc(&data->gpiote_ch[i]);
-		if (err != NRFX_SUCCESS) {
-			/* Do not free allocated resource. It is a fatal condition,
-			 * system requires reconfiguration.
-			 */
-			LOG_ERR("Failed to allocate GPIOTE channel");
-			return -ENOMEM;
-		}
-	}
 
 	if (USE_RTC) {
 		/* setup RTC */
@@ -387,6 +376,8 @@ static int pwm_nrf5_sw_init(const struct device *dev)
 
 static const struct pwm_config pwm_nrf5_sw_0_config = {
 	COND_CODE_1(USE_RTC, (.rtc), (.timer)) = GENERATOR_ADDR,
+	.ppi_base = DT_INST_PROP(0, ppi_base),
+	.gpiote_base = DT_INST_PROP(0, gpiote_base),
 	.map_size = PWM_0_MAP_SIZE,
 	.prescaler = DT_INST_PROP(0, clock_prescaler),
 };

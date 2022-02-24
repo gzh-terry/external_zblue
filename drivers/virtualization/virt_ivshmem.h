@@ -25,7 +25,6 @@ struct ivshmem_param {
 struct ivshmem {
 	DEVICE_MMIO_RAM;
 	pcie_bdf_t bdf;
-	uint32_t dev_ven_id;
 	uintptr_t shmem;
 	size_t size;
 #ifdef CONFIG_IVSHMEM_DOORBELL

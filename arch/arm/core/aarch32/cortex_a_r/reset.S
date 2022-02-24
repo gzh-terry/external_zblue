@@ -29,7 +29,7 @@ GDATA(z_arm_fiq_stack)
 GDATA(z_arm_abort_stack)
 GDATA(z_arm_undef_stack)
 #if defined(CONFIG_PLATFORM_SPECIFIC_INIT)
-GTEXT(z_arm_platform_init)
+GTEXT(z_platform_init)
 #endif
 
 /**
@@ -43,6 +43,7 @@ GTEXT(z_arm_platform_init)
  * When these steps are completed, jump to z_arm_prep_c(), which will finish
  * setting up the system for running C code.
  *
+ * @return N/A
  */
 SECTION_SUBSEC_FUNC(TEXT, _reset_section, z_arm_reset)
 SECTION_SUBSEC_FUNC(TEXT, _reset_section, __start)
@@ -176,7 +177,7 @@ SECTION_SUBSEC_FUNC(TEXT, _reset_section, __start)
 
 #if defined(CONFIG_PLATFORM_SPECIFIC_INIT)
     /* Execute platform-specific initialisation if applicable */
-    bl z_arm_platform_init
+    bl z_platform_init
 #endif
 
 #if defined(CONFIG_WDOG_INIT)

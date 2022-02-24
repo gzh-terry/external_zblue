@@ -14,23 +14,22 @@
 #include <logging/log.h>
 LOG_MODULE_REGISTER(app);
 
+#define LED_DEV_NAME DT_LABEL(DT_INST(0, ti_lp3943))
 #define NUM_LEDS 16
 
 #define DELAY_TIME K_MSEC(1000)
 
 void main(void)
 {
-	const struct device *led_dev = DEVICE_DT_GET_ANY(ti_lp3943);
+	const struct device *led_dev;
 	int i, ret;
 
-	if (!led_dev) {
-		LOG_ERR("No device with compatible ti,lp3943 found");
-		return;
-	} else if (!device_is_ready(led_dev)) {
-		LOG_ERR("LED device %s not ready", led_dev->name);
-		return;
+	led_dev = device_get_binding(LED_DEV_NAME);
+	if (led_dev) {
+		LOG_INF("Found LED device %s", LED_DEV_NAME);
 	} else {
-		LOG_INF("Found LED device %s", led_dev->name);
+		LOG_ERR("LED device %s not found", LED_DEV_NAME);
+		return;
 	}
 
 	/*

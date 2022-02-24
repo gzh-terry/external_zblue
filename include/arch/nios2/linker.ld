@@ -97,7 +97,7 @@ SECTIONS
         }
 
     GROUP_START(ROMABLE_REGION)
-    __rom_region_start = _ROM_ADDR;
+    _image_rom_start = _ROM_ADDR;
 
     SECTION_PROLOGUE(_RESET_SECTION_NAME,,)
     {
@@ -119,21 +119,21 @@ SECTIONS
          * we are going to waste flash space? */
         . = ALT_CPU_RESET_ADDR;
 
-        __text_region_start = .;
+        _image_text_start = .;
 
         *(.text)
         *(".text.*")
         *(.gnu.linkonce.t.*)
         } GROUP_LINK_IN(ROMABLE_REGION)
 
-    __text_region_end = .;
+    _image_text_end = .;
 
 #if defined(CONFIG_GP_ALL_DATA)
         _gp = ABSOLUTE(. + 0x8000);
         PROVIDE(gp = _gp);
 #endif
 
-    __rodata_region_start = .;
+    _image_rodata_start = .;
 
 #include <linker/common-rom.ld>
 
@@ -155,11 +155,11 @@ SECTIONS
 
 #include <linker/cplusplus-rom.ld>
 
-    __rodata_region_end = .;
-    __rodata_region_size = __rodata_region_end - __rodata_region_start;
+    _image_rodata_end = .;
+    _image_rodata_size = _image_rodata_end - _image_rodata_start;
 
-    __rom_region_end = .;
-    __data_region_load_start = ALIGN(4);    /* XIP imaged DATA ROM start addr */
+    _image_rom_end = .;
+    __data_rom_start = ALIGN(4);    /* XIP imaged DATA ROM start addr */
 
     GROUP_END(ROMABLE_REGION)
 
@@ -175,7 +175,7 @@ SECTIONS
     SECTION_DATA_PROLOGUE(_EXCEPTION_SECTION_NAME,,)
         {
             _image_ram_start = .;
-            __data_region_start = .;
+            __data_ram_start = .;
 
             KEEP(*(".exception.entry.*"))
             *(".exception.other.*")
@@ -191,7 +191,6 @@ SECTIONS
 
     SECTION_DATA_PROLOGUE(_DATA_SECTION_NAME,,)
         {
-	__data_start = .;
         *(.data)
         *(".data.*")
 
@@ -224,20 +223,12 @@ SECTIONS
  * zephyr_linker_sources() Cmake function.
  */
 #include <snippets-ram-sections.ld>
-	__data_end = .;
 
         } GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
-    __data_size = __data_end - __data_start;
-    __data_load_start = LOADADDR(_DATA_SECTION_NAME);
 
 #include <linker/cplusplus-ram.ld>
 
-/* Located in generated directory. This file is populated by the
- * zephyr_linker_sources() Cmake function.
- */
-#include <snippets-data-sections.ld>
-
-    __data_region_end = .;
+    __data_ram_end = .;
 
 	SECTION_DATA_PROLOGUE(_BSS_SECTION_NAME,(NOLOAD),)
         {

@@ -47,11 +47,11 @@ static int mcux_igpio_configure(const struct device *dev,
 	}
 
 	if (flags & GPIO_OUTPUT_INIT_HIGH) {
-		GPIO_WritePinOutput(base, pin, 1);
+		base->DR_SET = BIT(pin);
 	}
 
 	if (flags & GPIO_OUTPUT_INIT_LOW) {
-		GPIO_WritePinOutput(base, pin, 0);
+		base->DR_CLEAR = BIT(pin);
 	}
 
 	WRITE_BIT(base->GDIR, pin, flags & GPIO_OUTPUT);
@@ -87,7 +87,7 @@ static int mcux_igpio_port_set_bits_raw(const struct device *dev,
 	const struct mcux_igpio_config *config = dev->config;
 	GPIO_Type *base = config->base;
 
-	GPIO_PortSet(base, mask);
+	base->DR_SET = mask;
 
 	return 0;
 }
@@ -98,7 +98,7 @@ static int mcux_igpio_port_clear_bits_raw(const struct device *dev,
 	const struct mcux_igpio_config *config = dev->config;
 	GPIO_Type *base = config->base;
 
-	GPIO_PortClear(base, mask);
+	base->DR_CLEAR = mask;
 
 	return 0;
 }
@@ -109,7 +109,7 @@ static int mcux_igpio_port_toggle_bits(const struct device *dev,
 	const struct mcux_igpio_config *config = dev->config;
 	GPIO_Type *base = config->base;
 
-	GPIO_PortToggle(base, mask);
+	base->DR_TOGGLE = mask;
 
 	return 0;
 }
@@ -229,13 +229,12 @@ static const struct gpio_driver_api mcux_igpio_driver_api = {
 			    &mcux_igpio_##n##_data,			\
 			    &mcux_igpio_##n##_config,			\
 			    POST_KERNEL,				\
-			    CONFIG_GPIO_INIT_PRIORITY,			\
+			    CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,	\
 			    &mcux_igpio_driver_api);			\
 									\
 	static int mcux_igpio_##n##_init(const struct device *dev)	\
 	{								\
-		IF_ENABLED(DT_INST_IRQ_HAS_IDX(n, 0),			\
-		   (MCUX_IGPIO_IRQ_INIT(n, 0);))		\
+		MCUX_IGPIO_IRQ_INIT(n, 0);				\
 									\
 		IF_ENABLED(DT_INST_IRQ_HAS_IDX(n, 1),			\
 			   (MCUX_IGPIO_IRQ_INIT(n, 1);))		\

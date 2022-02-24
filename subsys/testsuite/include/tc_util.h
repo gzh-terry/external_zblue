@@ -174,11 +174,7 @@ static inline void test_time_ms(void)
 #endif
 
 #if defined(CONFIG_ARCH_POSIX)
-#include <logging/log_ctrl.h>
-#define TC_END_POST(result) do { \
-	LOG_PANIC(); \
-	posix_exit(result); \
-} while (0)
+#define TC_END_POST(result) posix_exit(result)
 #else
 #define TC_END_POST(result)
 #endif /* CONFIG_ARCH_POSIX */

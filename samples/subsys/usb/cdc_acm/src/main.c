@@ -40,10 +40,6 @@ static void interrupt_handler(const struct device *dev, void *user_data)
 					 sizeof(buffer));
 
 			recv_len = uart_fifo_read(dev, buffer, len);
-			if (recv_len < 0) {
-				LOG_ERR("Failed to read UART FIFO");
-				recv_len = 0;
-			};
 
 			rb_len = ring_buf_put(&ringbuf, buffer, recv_len);
 			if (rb_len < recv_len) {
@@ -51,9 +47,8 @@ static void interrupt_handler(const struct device *dev, void *user_data)
 			}
 
 			LOG_DBG("tty fifo -> ringbuf %d bytes", rb_len);
-			if (rb_len) {
-				uart_irq_tx_enable(dev);
-			}
+
+			uart_irq_tx_enable(dev);
 		}
 
 		if (uart_irq_tx_ready(dev)) {
@@ -83,9 +78,9 @@ void main(void)
 	uint32_t baudrate, dtr = 0U;
 	int ret;
 
-	dev = DEVICE_DT_GET_ONE(zephyr_cdc_acm_uart);
-	if (!device_is_ready(dev)) {
-		LOG_ERR("CDC ACM device not ready");
+	dev = device_get_binding("CDC_ACM_0");
+	if (!dev) {
+		LOG_ERR("CDC ACM device not found");
 		return;
 	}
 

@@ -24,7 +24,7 @@ __weak void *__dso_handle;
  * Function does nothing at the moment, assuming the global objects
  * do not need to be deleted
  *
- * @retval 0 on success.
+ * @return N/A
  */
 int __cxa_atexit(void (*destructor)(void *), void *objptr, void *dso)
 {

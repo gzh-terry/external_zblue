@@ -29,6 +29,7 @@ void mailbox_get(struct k_mbox *mailbox,
  *
  * @brief Receive task
  *
+ * @return N/A
  */
 void mailrecvtask(void)
 {

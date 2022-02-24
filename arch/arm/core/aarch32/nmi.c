@@ -36,6 +36,7 @@ static _NmiHandler_t handler = z_SysNmiOnReset;
  * The default handler outputs a error message and reboots the target. It is
  * installed by calling z_arm_nmi_init();
  *
+ * @return N/A
  */
 
 static void DefaultHandler(void)
@@ -53,6 +54,7 @@ static void DefaultHandler(void)
  * handler that reboots the target. It should be installed after the console is
  * initialized.
  *
+ * @return N/A
  */
 
 void z_arm_nmi_init(void)
@@ -68,6 +70,7 @@ void z_arm_nmi_init(void)
  * handler that reboots. It should be installed after the console is
  * initialized if it is meant to output to the console.
  *
+ * @return N/A
  */
 
 void z_NmiHandlerSet(void (*pHandler)(void))
@@ -82,6 +85,7 @@ void z_NmiHandlerSet(void (*pHandler)(void))
  *
  * Simply call what is installed in 'static void(*handler)(void)'.
  *
+ * @return N/A
  */
 
 void z_arm_nmi(void)

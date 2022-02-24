@@ -21,8 +21,10 @@
 #include <drivers/uart.h>
 #include <uart_imx.h>
 
+#define DEV_CFG(dev) \
+	((const struct imx_uart_config *const)(dev)->config)
 #define UART_STRUCT(dev) \
-	((UART_Type *)((const struct imx_uart_config *const)(dev)->config)->base)
+	((UART_Type *)(DEV_CFG(dev))->base)
 
 struct imx_uart_config {
 	UART_Type *base;
@@ -245,6 +247,8 @@ static void uart_imx_irq_callback_set(const struct device *dev,
  * received.
  *
  * @param arg Argument to ISR.
+ *
+ * @return N/A
  */
 void uart_imx_isr(const struct device *dev)
 {
@@ -315,7 +319,7 @@ static const struct uart_driver_api uart_imx_driver_api = {
 	DEVICE_DT_INST_DEFINE(n, &uart_imx_init, NULL,			\
 			&imx_uart_##n##_data, &imx_uart_##n##_config,	\
 			PRE_KERNEL_1,					\
-			CONFIG_SERIAL_INIT_PRIORITY,			\
+			CONFIG_KERNEL_INIT_PRIORITY_DEVICE,		\
 			&uart_imx_driver_api);				\
 									\
 	UART_IMX_CONFIG_FUNC(n)						\

@@ -147,8 +147,7 @@ static void zsock_flush_queue(struct net_context *ctx)
 	k_fifo_cancel_wait(&ctx->recv_q);
 }
 
-#if defined(CONFIG_NET_NATIVE)
-static int zsock_socket_internal(int family, int type, int proto)
+int zsock_socket_internal(int family, int type, int proto)
 {
 	int fd = z_reserve_fd();
 	struct net_context *ctx;
@@ -206,11 +205,10 @@ static int zsock_socket_internal(int family, int type, int proto)
 
 	return fd;
 }
-#endif /* CONFIG_NET_NATIVE */
 
 int z_impl_zsock_socket(int family, int type, int proto)
 {
-	STRUCT_SECTION_FOREACH(net_socket_register, sock_family) {
+	Z_STRUCT_SECTION_FOREACH(net_socket_register, sock_family) {
 		if (sock_family->family != family &&
 		    sock_family->family != AF_UNSPEC) {
 			continue;
@@ -223,6 +221,10 @@ int z_impl_zsock_socket(int family, int type, int proto)
 		}
 
 		return sock_family->handler(family, type, proto);
+	}
+
+	if (IS_ENABLED(CONFIG_NET_NATIVE)) {
+		return zsock_socket_internal(family, type, proto);
 	}
 
 	errno = EAFNOSUPPORT;
@@ -277,11 +279,11 @@ int z_impl_zsock_close(int sock)
 
 	NET_DBG("close: ctx=%p, fd=%d", ctx, sock);
 
+	z_free_fd(sock);
+
 	ret = vtable->fd_vtable.close(ctx);
 
 	k_mutex_unlock(lock);
-
-	z_free_fd(sock);
 
 	return ret;
 }
@@ -331,15 +333,6 @@ static void zsock_accepted_cb(struct net_context *new_ctx,
 		k_condvar_init(&new_ctx->cond.recv);
 
 		k_fifo_put(&parent->accept_q, new_ctx);
-
-		/* TCP context is effectively owned by both application
-		 * and the stack: stack may detect that peer closed/aborted
-		 * connection, but it must not dispose of the context behind
-		 * the application back. Likewise, when application "closes"
-		 * context, it's not disposed of immediately - there's yet
-		 * closing handshake for stack to perform.
-		 */
-		net_context_ref(new_ctx);
 	}
 }
 
@@ -379,6 +372,10 @@ static void zsock_received_cb(struct net_context *ctx,
 
 	/* Normal packet */
 	net_pkt_set_eof(pkt, false);
+
+	if (net_context_get_type(ctx) == SOCK_STREAM) {
+		net_context_update_recv_wnd(ctx, -net_pkt_remaining_data(pkt));
+	}
 
 	net_pkt_set_rx_stats_tick(pkt, k_cycle_get_32());
 
@@ -535,8 +532,6 @@ int zsock_accept_ctx(struct net_context *parent, struct sockaddr *addr,
 		if (net_pkt_eof(last_pkt)) {
 			sock_set_eof(ctx);
 			z_free_fd(fd);
-			zsock_flush_queue(ctx);
-			net_context_unref(ctx);
 			errno = ECONNABORTED;
 			return -1;
 		}
@@ -545,8 +540,6 @@ int zsock_accept_ctx(struct net_context *parent, struct sockaddr *addr,
 	if (net_context_is_closing(ctx)) {
 		errno = ECONNABORTED;
 		z_free_fd(fd);
-		zsock_flush_queue(ctx);
-		net_context_unref(ctx);
 		return -1;
 	}
 
@@ -567,11 +560,18 @@ int zsock_accept_ctx(struct net_context *parent, struct sockaddr *addr,
 		} else {
 			z_free_fd(fd);
 			errno = ENOTSUP;
-			zsock_flush_queue(ctx);
-			net_context_unref(ctx);
 			return -1;
 		}
 	}
+
+	/* TCP context is effectively owned by both application
+	 * and the stack: stack may detect that peer closed/aborted
+	 * connection, but it must not dispose of the context behind
+	 * the application back. Likewise, when application "closes"
+	 * context, it's not disposed of immediately - there's yet
+	 * closing handshake for stack to perform.
+	 */
+	net_context_ref(ctx);
 
 	NET_DBG("accept: ctx=%p, fd=%d", ctx, fd);
 
@@ -868,7 +868,7 @@ static int sock_get_pkt_src_addr(struct net_pkt *pkt,
 			goto error;
 		}
 
-		net_ipv4_addr_copy_raw((uint8_t *)&addr4->sin_addr, ipv4_hdr->src);
+		net_ipaddr_copy(&addr4->sin_addr, &ipv4_hdr->src);
 		port = &addr4->sin_port;
 	} else if (IS_ENABLED(CONFIG_NET_IPV6) &&
 		   net_pkt_family(pkt) == AF_INET6) {
@@ -891,7 +891,7 @@ static int sock_get_pkt_src_addr(struct net_pkt *pkt,
 			goto error;
 		}
 
-		net_ipv6_addr_copy_raw((uint8_t *)&addr6->sin6_addr, ipv6_hdr->src);
+		net_ipaddr_copy(&addr6->sin6_addr, &ipv6_hdr->src);
 		port = &addr6->sin6_port;
 	} else {
 		ret = -ENOTSUP;
@@ -962,7 +962,7 @@ void net_socket_update_tc_rx_time(struct net_pkt *pkt, uint32_t end_tick)
 	}
 }
 
-int zsock_wait_data(struct net_context *ctx, k_timeout_t *timeout)
+static int wait_data(struct net_context *ctx, k_timeout_t *timeout)
 {
 	if (ctx->cond.lock == NULL) {
 		/* For some reason the lock pointer is not set properly
@@ -1003,7 +1003,7 @@ static inline ssize_t zsock_recv_dgram(struct net_context *ctx,
 
 		net_context_get_option(ctx, NET_OPT_RCVTIMEO, &timeout, NULL);
 
-		ret = zsock_wait_data(ctx, &timeout);
+		ret = wait_data(ctx, &timeout);
 		if (ret < 0) {
 			errno = -ret;
 			return -1;
@@ -1142,7 +1142,7 @@ static inline ssize_t zsock_recv_stream(struct net_context *ctx,
 		}
 
 		if (!K_TIMEOUT_EQ(timeout, K_NO_WAIT)) {
-			res = zsock_wait_data(ctx, &timeout);
+			res = wait_data(ctx, &timeout);
 			if (res < 0) {
 				errno = -res;
 				return -1;
@@ -1366,10 +1366,6 @@ static int zsock_poll_update_ctx(struct net_context *ctx,
 		(*pev)++;
 	}
 
-	if (sock_is_eof(ctx)) {
-		pfd->revents |= ZSOCK_POLLHUP;
-	}
-
 	return 0;
 }
 
@@ -1380,7 +1376,7 @@ static inline int time_left(uint32_t start, uint32_t timeout)
 	return timeout - elapsed;
 }
 
-int zsock_poll_internal(struct zsock_pollfd *fds, int nfds, k_timeout_t timeout)
+int z_impl_zsock_poll(struct zsock_pollfd *fds, int nfds, int poll_timeout)
 {
 	bool retry;
 	int ret = 0;
@@ -1391,10 +1387,18 @@ int zsock_poll_internal(struct zsock_pollfd *fds, int nfds, k_timeout_t timeout)
 	struct k_poll_event *pev_end = poll_events + ARRAY_SIZE(poll_events);
 	const struct fd_op_vtable *vtable;
 	struct k_mutex *lock;
+	k_timeout_t timeout;
 	uint64_t end;
 	bool offload = false;
 	const struct fd_op_vtable *offl_vtable = NULL;
 	void *offl_ctx = NULL;
+
+	if (poll_timeout < 0) {
+		timeout = K_FOREVER;
+		poll_timeout = SYS_FOREVER_MS;
+	} else {
+		timeout = K_MSEC(poll_timeout);
+	}
 
 	end = sys_clock_timeout_end_calc(timeout);
 
@@ -1456,14 +1460,6 @@ int zsock_poll_internal(struct zsock_pollfd *fds, int nfds, k_timeout_t timeout)
 	}
 
 	if (offload) {
-		int poll_timeout;
-
-		if (K_TIMEOUT_EQ(timeout, K_FOREVER)) {
-			poll_timeout = SYS_FOREVER_MS;
-		} else {
-			poll_timeout = k_ticks_to_ms_floor32(timeout.ticks);
-		}
-
 		return z_fdtable_call_ioctl(offl_vtable, offl_ctx,
 					    ZFD_IOCTL_POLL_OFFLOAD,
 					    fds, nfds, poll_timeout);
@@ -1554,19 +1550,6 @@ int zsock_poll_internal(struct zsock_pollfd *fds, int nfds, k_timeout_t timeout)
 	} while (retry);
 
 	return ret;
-}
-
-int z_impl_zsock_poll(struct zsock_pollfd *fds, int nfds, int poll_timeout)
-{
-	k_timeout_t timeout;
-
-	if (poll_timeout < 0) {
-		timeout = K_FOREVER;
-	} else {
-		timeout = K_MSEC(poll_timeout);
-	}
-
-	return zsock_poll_internal(fds, nfds, timeout);
 }
 
 #ifdef CONFIG_USERSPACE
@@ -1997,7 +1980,26 @@ int zsock_getsockname_ctx(struct net_context *ctx, struct sockaddr *addr,
 int z_impl_zsock_getsockname(int sock, struct sockaddr *addr,
 			     socklen_t *addrlen)
 {
-	VTABLE_CALL(getsockname, sock, addr, addrlen);
+	const struct socket_op_vtable *vtable;
+	struct k_mutex *lock;
+	void *ctx;
+	int ret;
+
+	ctx = get_sock_vtable(sock, &vtable, &lock);
+	if (ctx == NULL) {
+		errno = EBADF;
+		return -1;
+	}
+
+	NET_DBG("getsockname: ctx=%p, fd=%d", ctx, sock);
+
+	(void)k_mutex_lock(lock, K_FOREVER);
+
+	ret = vtable->getsockname(ctx, addr, addrlen);
+
+	k_mutex_unlock(lock);
+
+	return ret;
 }
 
 #ifdef CONFIG_USERSPACE
@@ -2193,17 +2195,3 @@ const struct socket_op_vtable sock_fd_op_vtable = {
 	.setsockopt = sock_setsockopt_vmeth,
 	.getsockname = sock_getsockname_vmeth,
 };
-
-#if defined(CONFIG_NET_NATIVE)
-static bool inet_is_supported(int family, int type, int proto)
-{
-	if (family != AF_INET && family != AF_INET6) {
-		return false;
-	}
-
-	return true;
-}
-
-NET_SOCKET_REGISTER(af_inet46, NET_SOCKET_DEFAULT_PRIO, AF_UNSPEC,
-		    inet_is_supported, zsock_socket_internal);
-#endif /* CONFIG_NET_NATIVE */

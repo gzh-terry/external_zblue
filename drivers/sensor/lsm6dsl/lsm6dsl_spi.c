@@ -23,7 +23,9 @@ LOG_MODULE_DECLARE(LSM6DSL, CONFIG_SENSOR_LOG_LEVEL);
 static int lsm6dsl_raw_read(const struct device *dev, uint8_t reg_addr,
 			    uint8_t *value, uint8_t len)
 {
+	struct lsm6dsl_data *data = dev->data;
 	const struct lsm6dsl_config *cfg = dev->config;
+	const struct spi_config *spi_cfg = &cfg->bus_cfg.spi_cfg->spi_conf;
 	uint8_t buffer_tx[2] = { reg_addr | LSM6DSL_SPI_READ, 0 };
 	const struct spi_buf tx_buf = {
 			.buf = buffer_tx,
@@ -53,7 +55,7 @@ static int lsm6dsl_raw_read(const struct device *dev, uint8_t reg_addr,
 		return -EIO;
 	}
 
-	if (spi_transceive_dt(&cfg->bus_cfg.spi, &tx, &rx)) {
+	if (spi_transceive(data->bus, spi_cfg, &tx, &rx)) {
 		return -EIO;
 	}
 
@@ -63,7 +65,9 @@ static int lsm6dsl_raw_read(const struct device *dev, uint8_t reg_addr,
 static int lsm6dsl_raw_write(const struct device *dev, uint8_t reg_addr,
 			     uint8_t *value, uint8_t len)
 {
+	struct lsm6dsl_data *data = dev->data;
 	const struct lsm6dsl_config *cfg = dev->config;
+	const struct spi_config *spi_cfg = &cfg->bus_cfg.spi_cfg->spi_conf;
 	uint8_t buffer_tx[1] = { reg_addr & ~LSM6DSL_SPI_READ };
 	const struct spi_buf tx_buf[2] = {
 		{
@@ -85,7 +89,7 @@ static int lsm6dsl_raw_write(const struct device *dev, uint8_t reg_addr,
 		return -EIO;
 	}
 
-	if (spi_write_dt(&cfg->bus_cfg.spi, &tx)) {
+	if (spi_write(data->bus, spi_cfg, &tx)) {
 		return -EIO;
 	}
 
@@ -132,11 +136,22 @@ int lsm6dsl_spi_init(const struct device *dev)
 {
 	struct lsm6dsl_data *data = dev->data;
 	const struct lsm6dsl_config *cfg = dev->config;
+	const struct lsm6dsl_spi_cfg *spi_cfg = cfg->bus_cfg.spi_cfg;
 
 	data->hw_tf = &lsm6dsl_spi_transfer_fn;
 
-	if (!spi_is_ready(&cfg->bus_cfg.spi)) {
-		return -ENODEV;
+	if (spi_cfg->cs_gpios_label != NULL) {
+
+		/* handle SPI CS thru GPIO if it is the case */
+		data->cs_ctrl.gpio_dev =
+			    device_get_binding(spi_cfg->cs_gpios_label);
+		if (!data->cs_ctrl.gpio_dev) {
+			LOG_ERR("Unable to get GPIO SPI CS device");
+			return -ENODEV;
+		}
+
+		LOG_DBG("SPI GPIO CS configured on %s:%u",
+			spi_cfg->cs_gpios_label, data->cs_ctrl.gpio_pin);
 	}
 
 	return 0;

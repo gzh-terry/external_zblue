@@ -9,59 +9,51 @@
 #ifdef __cplusplus
 
 /* C++ version for detecting a pointer to a string. */
-static inline int z_cbprintf_cxx_is_pchar(char *, bool const_as_fixed)
+static inline int z_cbprintf_cxx_is_pchar(char *)
 {
-	ARG_UNUSED(const_as_fixed);
 	return 1;
 }
 
-static inline int z_cbprintf_cxx_is_pchar(const char *, bool const_as_fixed)
+static inline int z_cbprintf_cxx_is_pchar(const char *)
 {
-	return const_as_fixed ? 0 : 1;
-}
-
-static inline int z_cbprintf_cxx_is_pchar(volatile char *, bool const_as_fixed)
-{
-	ARG_UNUSED(const_as_fixed);
 	return 1;
 }
 
-static inline int z_cbprintf_cxx_is_pchar(const volatile char *, bool const_as_fixed)
+static inline int z_cbprintf_cxx_is_pchar(volatile char *)
 {
-	ARG_UNUSED(const_as_fixed);
 	return 1;
 }
 
-static inline int z_cbprintf_cxx_is_pchar(wchar_t *, bool const_as_fixed)
+static inline int z_cbprintf_cxx_is_pchar(const volatile char *)
 {
-	ARG_UNUSED(const_as_fixed);
 	return 1;
 }
 
-static inline int z_cbprintf_cxx_is_pchar(const wchar_t *, bool const_as_fixed)
+static inline int z_cbprintf_cxx_is_pchar(wchar_t *)
 {
-	return const_as_fixed ? 0 : 1;
-}
-
-static inline int z_cbprintf_cxx_is_pchar(volatile wchar_t *, bool const_as_fixed)
-{
-	ARG_UNUSED(const_as_fixed);
 	return 1;
 }
 
-static inline int z_cbprintf_cxx_is_pchar(const volatile wchar_t *, bool const_as_fixed)
+static inline int z_cbprintf_cxx_is_pchar(const wchar_t *)
 {
-	ARG_UNUSED(const_as_fixed);
+	return 1;
+}
+
+static inline int z_cbprintf_cxx_is_pchar(volatile wchar_t *)
+{
+	return 1;
+}
+
+static inline int z_cbprintf_cxx_is_pchar(const volatile wchar_t *)
+{
 	return 1;
 }
 
 template < typename T >
-static inline int z_cbprintf_cxx_is_pchar(T arg, bool const_as_fixed)
+static inline int z_cbprintf_cxx_is_pchar(T arg)
 {
-	ARG_UNUSED(arg);
 	_Pragma("GCC diagnostic push")
 	_Pragma("GCC diagnostic ignored \"-Wpointer-arith\"")
-	ARG_UNUSED(const_as_fixed);
 	return 0;
 	_Pragma("GCC diagnostic pop")
 }

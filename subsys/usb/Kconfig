@@ -5,7 +5,7 @@
 
 menuconfig USB_DEVICE_STACK
 	bool "USB Device Support"
-	select USB_DEVICE_DRIVER
+	depends on USB_DEVICE_DRIVER || ARCH_POSIX
 	select HWINFO
 	help
 	  Enable USB device stack.
@@ -52,6 +52,7 @@ config USB_DEVICE_SN
 
 config USB_COMPOSITE_DEVICE
 	bool "Enable composite device driver"
+	depends on USB
 	help
 	  Enable composite USB device driver.
 
@@ -74,20 +75,12 @@ config USB_DEVICE_BLUETOOTH_BIG_BUF
 
 config USB_REQUEST_BUFFER_SIZE
 	int "Set buffer size for Standard, Class and Vendor request handlers"
-	range 64 512 if USB_DEVICE_NETWORK_RNDIS
+	range 256 65536 if USB_DEVICE_NETWORK_RNDIS
 	range 8 65536
 	default 256 if USB_DEVICE_NETWORK_RNDIS
 	default 266 if (USB_DEVICE_BLUETOOTH && USB_DEVICE_BLUETOOTH_BIG_BUF)
 	default 1024 if USB_DEVICE_LOOPBACK
 	default 128
-
-config USB_MAX_ALT_SETTING
-	int "Size of the array where alternate settings are stored"
-	range 0 16
-	default 8
-	help
-	  Size of the array where alternate settings are stored.
-	  Should not be smaller than the number of interfaces.
 
 config USB_NUMOF_EP_WRITE_RETRIES
 	int "Number of endpoint write retries"
@@ -98,6 +91,11 @@ config USB_NUMOF_EP_WRITE_RETRIES
 config USB_DEVICE_SOF
 	bool "Enable Start of Frame processing in events"
 	default y if (USB_DEVICE_AUDIO && NRFX_USBD)
+
+config USB_DEVICE_REMOTE_WAKEUP
+	bool "Enable support for remote wakeup"
+	help
+	  This option requires USBD peripheral driver to also support remote wakeup.
 
 config USB_DEVICE_BOS
 	bool "Enable USB Binary Device Object Store (BOS)"
@@ -151,12 +149,6 @@ config USB_WORKQUEUE_PRIORITY
 	  By default, USB work queue priority is the lowest cooperative
 	  priority. This means that any work handler, once started, won't
 	  be preempted by any other thread until finished.
-
-config USB_DEVICE_INITIALIZE_AT_BOOT
-	bool "Initialize USB device support at boot"
-	depends on USB_CDC_ACM
-	help
-	  Use CDC ACM UART as backend for console, shell, or logging.
 
 source "subsys/usb/class/Kconfig"
 

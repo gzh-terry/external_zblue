@@ -27,6 +27,9 @@ struct sam0_eic_data {
 	struct sam0_eic_line_assignment lines[EIC_EXTINT_NUM];
 };
 
+#define DEV_DATA(dev) \
+	((struct sam0_eic_data *const)(dev)->data)
+
 static void wait_synchronization(void)
 {
 #ifdef REG_EIC_SYNCBUSY
@@ -49,7 +52,7 @@ static inline void set_eic_enable(bool on)
 
 static void sam0_eic_isr(const struct device *dev)
 {
-	struct sam0_eic_data *const dev_data = dev->data;
+	struct sam0_eic_data *const dev_data = DEV_DATA(dev);
 	uint16_t bits = EIC->INTFLAG.reg;
 	uint32_t line_index;
 

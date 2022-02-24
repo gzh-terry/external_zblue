@@ -5,7 +5,6 @@
 
 menuconfig MEMC
 	bool "Memory controllers [EXPERIMENTAL]"
-	select EXPERIMENTAL
 	help
 	  Add support for memory controllers
 

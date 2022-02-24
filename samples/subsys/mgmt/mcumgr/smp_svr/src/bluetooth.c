@@ -53,7 +53,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	k_work_submit(&advertise_work);
 }
 
-BT_CONN_CB_DEFINE(conn_callbacks) = {
+static struct bt_conn_cb conn_callbacks = {
 	.connected = connected,
 	.disconnected = disconnected,
 };
@@ -81,6 +81,8 @@ void start_smp_bluetooth(void)
 		LOG_ERR("Bluetooth init failed (err %d)", rc);
 		return;
 	}
+
+	bt_conn_cb_register(&conn_callbacks);
 
 	/* Initialize the Bluetooth mcumgr transport. */
 	smp_bt_register();

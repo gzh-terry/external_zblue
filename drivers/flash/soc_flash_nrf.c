@@ -94,23 +94,32 @@ static inline bool is_aligned_32(uint32_t data)
 	return (data & 0x3) ? false : true;
 }
 
-static inline bool is_within_bounds(off_t addr, size_t len, off_t boundary_start,
-				    size_t boundary_size)
-{
-	return (addr >= boundary_start &&
-			(addr < (boundary_start + boundary_size)) &&
-			(len <= (boundary_start + boundary_size - addr)));
-}
-
 static inline bool is_regular_addr_valid(off_t addr, size_t len)
 {
-	return is_within_bounds(addr, len, 0, nrfx_nvmc_flash_size_get());
+	size_t flash_size = nrfx_nvmc_flash_size_get();
+
+	if (addr >= flash_size ||
+	    addr < 0 ||
+	    len > flash_size ||
+	    (addr) + len > flash_size) {
+		return false;
+	}
+
+	return true;
 }
+
 
 static inline bool is_uicr_addr_valid(off_t addr, size_t len)
 {
 #ifdef CONFIG_SOC_FLASH_NRF_UICR
-	return is_within_bounds(addr, len, (off_t)NRF_UICR, sizeof(*NRF_UICR));
+	if (addr >= (off_t)NRF_UICR + sizeof(*NRF_UICR) ||
+	    addr < (off_t)NRF_UICR ||
+	    len > sizeof(*NRF_UICR) ||
+	    addr + len > (off_t)NRF_UICR + sizeof(*NRF_UICR)) {
+		return false;
+	}
+
+	return true;
 #else
 	return false;
 #endif /* CONFIG_SOC_FLASH_NRF_UICR */
@@ -280,7 +289,7 @@ static int nrf_flash_init(const struct device *dev)
 
 DEVICE_DT_INST_DEFINE(0, nrf_flash_init, NULL,
 		 NULL, NULL,
-		 POST_KERNEL, CONFIG_FLASH_INIT_PRIORITY,
+		 POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		 &flash_nrf_api);
 
 #ifndef CONFIG_SOC_FLASH_NRF_RADIO_SYNC_NONE

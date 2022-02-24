@@ -18,9 +18,6 @@ partition layout. Refer to :ref:`flash_map_api` for details about
 partition layout. You SoC must run MCUboot as the stage 1 bootloader.
 This sample is built as an application for the MCUboot bootloader.
 
-.. note::
-   This example explicitly turns :kconfig:`CONFIG_USB_DFU_ENABLE_UPLOAD` on.
-
 Building and Testing
 ********************
 
@@ -32,7 +29,7 @@ for more details) and flashed with regular flash tools, but will need
 to be loaded at the offset of SLOT-0.
 
 Application images (such as this sample) must be signed.
-Use the ``scripts/imgtool.py`` script from the `MCUboot GitHub repo`_
+Use the ``scripts/imagetool.py`` script from the `MCUboot GitHub repo`_
 to sign the image.  (See the `Using MCUboot with Zephyr`_ documentation for
 details.)
 
@@ -110,4 +107,4 @@ USB DFU sample, showing this output to the console:
   ***** Booting Zephyr OS v1.11.0-830-g9df01813c4 *****
 
 .. _MCUboot GitHub repo: https://github.com/runtimeco/mcuboot
-.. _Using MCUboot with Zephyr: https://mcuboot.com/documentation/readme-zephyr/
+.. _Using MCUboot with Zephyr: https://mcuboot.com/mcuboot/readme-zephyr.html

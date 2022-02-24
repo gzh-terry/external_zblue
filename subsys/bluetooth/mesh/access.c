@@ -1,3 +1,5 @@
+/*  Bluetooth Mesh */
+
 /*
  * Copyright (c) 2017 Intel Corporation
  *
@@ -32,7 +34,7 @@ enum {
 	BT_MESH_MOD_BIND_PENDING = BIT(0),
 	BT_MESH_MOD_SUB_PENDING = BIT(1),
 	BT_MESH_MOD_PUB_PENDING = BIT(2),
-	BT_MESH_MOD_EXTENDED = BIT(3),
+	BT_MESH_MOD_NEXT_IS_PARENT = BIT(3),
 };
 
 /* Model publication information for persistent storage. */
@@ -48,7 +50,6 @@ struct mod_pub_val {
 
 static const struct bt_mesh_comp *dev_comp;
 static uint16_t dev_primary_addr;
-static void (*msg_cb)(uint32_t opcode, struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *buf);
 
 void bt_mesh_model_foreach(void (*func)(struct bt_mesh_model *mod,
 					struct bt_mesh_elem *elem,
@@ -114,32 +115,16 @@ int32_t bt_mesh_model_pub_period_get(struct bt_mesh_model *mod)
 static int32_t next_period(struct bt_mesh_model *mod)
 {
 	struct bt_mesh_model_pub *pub = mod->pub;
-	uint32_t period = 0;
-	uint32_t elapsed;
+	uint32_t elapsed, period;
+
+	period = bt_mesh_model_pub_period_get(mod);
+	if (!period) {
+		return 0;
+	}
 
 	elapsed = k_uptime_get_32() - pub->period_start;
+
 	BT_DBG("Publishing took %ums", elapsed);
-
-	if (mod->pub->count) {
-		/* If a message is to be retransmitted, period should include time since the first
-		 * publication until the last publication.
-		 */
-		period = BT_MESH_PUB_TRANSMIT_INT(mod->pub->retransmit);
-		period *= BT_MESH_PUB_MSG_NUM(mod->pub);
-
-		if (period && elapsed >= period) {
-			BT_WARN("Retransmission interval is too short");
-			/* Return smallest positive number since 0 means disabled */
-			return 1;
-		}
-	}
-
-	if (!period) {
-		period = bt_mesh_model_pub_period_get(mod);
-		if (!period) {
-			return 0;
-		}
-	}
 
 	if (elapsed >= period) {
 		BT_WARN("Publication sending took longer than the period");
@@ -155,9 +140,13 @@ static void publish_sent(int err, void *user_data)
 	struct bt_mesh_model *mod = user_data;
 	int32_t delay;
 
-	BT_DBG("err %d, time %u", err, k_uptime_get_32());
+	BT_DBG("err %d", err);
 
-	delay = next_period(mod);
+	if (mod->pub->count) {
+		delay = BT_MESH_PUB_TRANSMIT_INT(mod->pub->retransmit);
+	} else {
+		delay = next_period(mod);
+	}
 
 	if (delay) {
 		BT_DBG("Publishing next time in %dms", delay);
@@ -170,10 +159,18 @@ static void publish_sent(int err, void *user_data)
 
 static void publish_start(uint16_t duration, int err, void *user_data)
 {
+	struct bt_mesh_model *mod = user_data;
+	struct bt_mesh_model_pub *pub = mod->pub;
+
 	if (err) {
 		BT_ERR("Failed to publish: err %d", err);
 		publish_sent(err, user_data);
 		return;
+	}
+
+	/* Initialize the timestamp for the beginning of a new period */
+	if (pub->count == BT_MESH_PUB_TRANSMIT_COUNT(pub->retransmit)) {
+		pub->period_start = k_uptime_get_32();
 	}
 }
 
@@ -213,13 +210,11 @@ static int pub_period_start(struct bt_mesh_model_pub *pub)
 	}
 
 	err = pub->update(pub->mod);
-
-	pub->period_start = k_uptime_get_32();
-
 	if (err) {
 		/* Skip this publish attempt. */
 		BT_DBG("Update failed, skipping publish (err: %d)", err);
 		pub->count = 0;
+		pub->period_start = k_uptime_get_32();
 		publish_sent(err, pub->mod);
 		return err;
 	}
@@ -243,19 +238,10 @@ static void mod_publish(struct k_work *work)
 		return;
 	}
 
-	BT_DBG("%u", k_uptime_get_32());
+	BT_DBG("");
 
 	if (pub->count) {
 		pub->count--;
-
-		if (pub->retr_update && pub->update &&
-		    bt_mesh_model_pub_is_retransmission(pub->mod)) {
-			err = pub->update(pub->mod);
-			if (err) {
-				publish_sent(err, pub->mod);
-				return;
-			}
-		}
 	} else {
 		/* First publication in this period */
 		err = pub_period_start(pub);
@@ -267,6 +253,10 @@ static void mod_publish(struct k_work *work)
 	err = publish_transmit(pub->mod);
 	if (err) {
 		BT_ERR("Failed to publish (err %d)", err);
+		if (pub->count == BT_MESH_PUB_TRANSMIT_COUNT(pub->retransmit)) {
+			pub->period_start = k_uptime_get_32();
+		}
+
 		publish_sent(err, pub->mod);
 	}
 }
@@ -304,30 +294,6 @@ struct bt_mesh_model *bt_mesh_model_get(bool vnd, uint8_t elem_idx, uint8_t mod_
 	}
 }
 
-#if defined(CONFIG_BT_MESH_MODEL_VND_MSG_CID_FORCE)
-static int bt_mesh_vnd_mod_msg_cid_check(struct bt_mesh_model *mod)
-{
-	uint16_t cid;
-	const struct bt_mesh_model_op *op;
-
-	for (op = mod->op; op->func; op++) {
-		cid = (uint16_t)(op->opcode & 0xffff);
-
-		if (cid == mod->vnd.company) {
-			continue;
-		}
-
-		BT_ERR("Invalid vendor model(company:0x%04x"
-		       " id:0x%04x) message opcode 0x%08x",
-		       mod->vnd.company, mod->vnd.id, op->opcode);
-
-		return -EINVAL;
-	}
-
-	return 0;
-}
-#endif
-
 static void mod_init(struct bt_mesh_model *mod, struct bt_mesh_elem *elem,
 		     bool vnd, bool primary, void *user_data)
 {
@@ -350,14 +316,6 @@ static void mod_init(struct bt_mesh_model *mod, struct bt_mesh_elem *elem,
 	mod->elem_idx = elem - dev_comp->elem;
 	if (vnd) {
 		mod->mod_idx = mod - elem->vnd_models;
-
-		if (IS_ENABLED(CONFIG_BT_MESH_MODEL_VND_MSG_CID_FORCE)) {
-			*err = bt_mesh_vnd_mod_msg_cid_check(mod);
-			if (*err) {
-				return;
-			}
-		}
-
 	} else {
 		mod->mod_idx = mod - elem->models;
 	}
@@ -372,7 +330,7 @@ int bt_mesh_comp_register(const struct bt_mesh_comp *comp)
 	int err;
 
 	/* There must be at least one element */
-	if (!comp || !comp->elem_count) {
+	if (!comp->elem_count) {
 		return -EINVAL;
 	}
 
@@ -433,7 +391,8 @@ struct find_group_visitor_ctx {
 	uint16_t addr;
 };
 
-static enum bt_mesh_walk find_group_mod_visitor(struct bt_mesh_model *mod, void *user_data)
+static enum bt_mesh_walk find_group_mod_visitor(struct bt_mesh_model *mod,
+						uint32_t depth, void *user_data)
 {
 	struct find_group_visitor_ctx *ctx = user_data;
 
@@ -458,7 +417,8 @@ uint16_t *bt_mesh_model_find_group(struct bt_mesh_model **mod, uint16_t addr)
 		.addr = addr,
 	};
 
-	bt_mesh_model_extensions_walk(*mod, find_group_mod_visitor, &ctx);
+	bt_mesh_model_tree_walk(bt_mesh_model_root(*mod),
+				find_group_mod_visitor, &ctx);
 
 	*mod = ctx.mod;
 	return ctx.entry;
@@ -496,67 +456,24 @@ struct bt_mesh_elem *bt_mesh_elem_find(uint16_t addr)
 {
 	uint16_t index;
 
-	if (!BT_MESH_ADDR_IS_UNICAST(addr)) {
-		return NULL;
-	}
-
-	index = addr - dev_comp->elem[0].addr;
-	if (index >= dev_comp->elem_count) {
-		return NULL;
-	}
-
-	return &dev_comp->elem[index];
-}
-
-bool bt_mesh_has_addr(uint16_t addr)
-{
-	uint16_t index;
-
 	if (BT_MESH_ADDR_IS_UNICAST(addr)) {
-		return bt_mesh_elem_find(addr) != NULL;
-	}
-
-	if (IS_ENABLED(CONFIG_BT_MESH_ACCESS_LAYER_MSG) && msg_cb) {
-		return true;
+		index = (addr - dev_comp->elem[0].addr);
+		if (index < dev_comp->elem_count) {
+			return &dev_comp->elem[index];
+		} else {
+			return NULL;
+		}
 	}
 
 	for (index = 0; index < dev_comp->elem_count; index++) {
 		struct bt_mesh_elem *elem = &dev_comp->elem[index];
 
 		if (bt_mesh_elem_find_group(elem, addr)) {
-			return true;
+			return elem;
 		}
 	}
 
-	return false;
-}
-
-#if defined(CONFIG_BT_MESH_ACCESS_LAYER_MSG)
-void bt_mesh_msg_cb_set(void (*cb)(uint32_t opcode, struct bt_mesh_msg_ctx *ctx,
-			struct net_buf_simple *buf))
-{
-	msg_cb = cb;
-}
-#endif
-
-int bt_mesh_msg_send(struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *buf, uint16_t src_addr,
-		const struct bt_mesh_send_cb *cb, void *cb_data)
-{
-	struct bt_mesh_net_tx tx = {
-		.ctx = ctx,
-		.src = src_addr,
-	};
-
-	BT_DBG("net_idx 0x%04x app_idx 0x%04x dst 0x%04x", tx.ctx->net_idx,
-	       tx.ctx->app_idx, tx.ctx->addr);
-	BT_DBG("len %u: %s", buf->len, bt_hex(buf->data, buf->len));
-
-	if (!bt_mesh_is_provisioned()) {
-		BT_ERR("Local node is not yet provisioned");
-		return -EAGAIN;
-	}
-
-	return bt_mesh_trans_send(&tx, buf, cb, cb_data);
+	return NULL;
 }
 
 uint8_t bt_mesh_elem_count(void)
@@ -564,7 +481,7 @@ uint8_t bt_mesh_elem_count(void)
 	return dev_comp->elem_count;
 }
 
-bool bt_mesh_model_has_key(struct bt_mesh_model *mod, uint16_t key)
+static bool model_has_key(struct bt_mesh_model *mod, uint16_t key)
 {
 	int i;
 
@@ -594,38 +511,14 @@ static bool model_has_dst(struct bt_mesh_model *mod, uint16_t dst)
 	return mod->elem_idx == 0;
 }
 
-static const struct bt_mesh_model_op *find_op(struct bt_mesh_elem *elem,
-					      uint32_t opcode, struct bt_mesh_model **model)
+static const struct bt_mesh_model_op *find_op(struct bt_mesh_model *models,
+					      uint8_t model_count, uint32_t opcode,
+					      struct bt_mesh_model **model)
 {
 	uint8_t i;
-	uint8_t count;
-	/* This value shall not be used in shipping end products. */
-	uint32_t cid = UINT32_MAX;
-	struct bt_mesh_model *models;
 
-	/* SIG models cannot contain 3-byte (vendor) OpCodes, and
-	 * vendor models cannot contain SIG (1- or 2-byte) OpCodes, so
-	 * we only need to do the lookup in one of the model lists.
-	 */
-	if (BT_MESH_MODEL_OP_LEN(opcode) < 3) {
-		models = elem->models;
-		count = elem->model_count;
-	} else {
-		models = elem->vnd_models;
-		count = elem->vnd_model_count;
-
-		cid = (uint16_t)(opcode & 0xffff);
-	}
-
-	for (i = 0U; i < count; i++) {
-
+	for (i = 0U; i < model_count; i++) {
 		const struct bt_mesh_model_op *op;
-
-		if (IS_ENABLED(CONFIG_BT_MESH_MODEL_VND_MSG_CID_FORCE) &&
-		     cid != UINT32_MAX &&
-		     cid != models[i].vnd.company) {
-			continue;
-		}
 
 		*model = &models[i];
 
@@ -680,9 +573,10 @@ static int get_opcode(struct net_buf_simple *buf, uint32_t *opcode)
 
 void bt_mesh_model_recv(struct bt_mesh_net_rx *rx, struct net_buf_simple *buf)
 {
-	struct bt_mesh_model *model;
+	struct bt_mesh_model *models, *model;
 	const struct bt_mesh_model_op *op;
 	uint32_t opcode;
+	uint8_t count;
 	int i;
 
 	BT_DBG("app_idx 0x%04x src 0x%04x dst 0x%04x", rx->ctx.app_idx,
@@ -697,15 +591,28 @@ void bt_mesh_model_recv(struct bt_mesh_net_rx *rx, struct net_buf_simple *buf)
 	BT_DBG("OpCode 0x%08x", opcode);
 
 	for (i = 0; i < dev_comp->elem_count; i++) {
+		struct bt_mesh_elem *elem = &dev_comp->elem[i];
 		struct net_buf_simple_state state;
 
-		op = find_op(&dev_comp->elem[i], opcode, &model);
+		/* SIG models cannot contain 3-byte (vendor) OpCodes, and
+		 * vendor models cannot contain SIG (1- or 2-byte) OpCodes, so
+		 * we only need to do the lookup in one of the model lists.
+		 */
+		if (BT_MESH_MODEL_OP_LEN(opcode) < 3) {
+			models = elem->models;
+			count = elem->model_count;
+		} else {
+			models = elem->vnd_models;
+			count = elem->vnd_model_count;
+		}
+
+		op = find_op(models, count, opcode, &model);
 		if (!op) {
 			BT_DBG("No OpCode 0x%08x for elem %d", opcode, i);
 			continue;
 		}
 
-		if (!bt_mesh_model_has_key(model, rx->ctx.app_idx)) {
+		if (!model_has_key(model, rx->ctx.app_idx)) {
 			continue;
 		}
 
@@ -713,12 +620,8 @@ void bt_mesh_model_recv(struct bt_mesh_net_rx *rx, struct net_buf_simple *buf)
 			continue;
 		}
 
-		if ((op->len >= 0) && (buf->len < (size_t)op->len)) {
+		if (buf->len < op->min_len) {
 			BT_ERR("Too short message for OpCode 0x%08x", opcode);
-			continue;
-		} else if ((op->len < 0) && (buf->len != (size_t)(-op->len))) {
-			BT_ERR("Invalid message size for OpCode 0x%08x",
-			       opcode);
 			continue;
 		}
 
@@ -727,12 +630,8 @@ void bt_mesh_model_recv(struct bt_mesh_net_rx *rx, struct net_buf_simple *buf)
 		 * receive the message.
 		 */
 		net_buf_simple_save(buf, &state);
-		(void)op->func(model, &rx->ctx, buf);
+		op->func(model, &rx->ctx, buf);
 		net_buf_simple_restore(buf, &state);
-	}
-
-	if (IS_ENABLED(CONFIG_BT_MESH_ACCESS_LAYER_MSG) && msg_cb) {
-		msg_cb(opcode, &rx->ctx, buf);
 	}
 }
 
@@ -740,12 +639,26 @@ int bt_mesh_model_send(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 		       struct net_buf_simple *msg,
 		       const struct bt_mesh_send_cb *cb, void *cb_data)
 {
-	if (!bt_mesh_model_has_key(model, ctx->app_idx)) {
-		BT_ERR("Model not bound to AppKey 0x%04x", ctx->app_idx);
+	struct bt_mesh_net_tx tx = {
+		.ctx = ctx,
+		.src = bt_mesh_model_elem(model)->addr,
+	};
+
+	BT_DBG("net_idx 0x%04x app_idx 0x%04x dst 0x%04x", tx.ctx->net_idx,
+	       tx.ctx->app_idx, tx.ctx->addr);
+	BT_DBG("len %u: %s", msg->len, bt_hex(msg->data, msg->len));
+
+	if (!bt_mesh_is_provisioned()) {
+		BT_ERR("Local node is not yet provisioned");
+		return -EAGAIN;
+	}
+
+	if (!model_has_key(model, tx.ctx->app_idx)) {
+		BT_ERR("Model not bound to AppKey 0x%04x", tx.ctx->app_idx);
 		return -EINVAL;
 	}
 
-	return bt_mesh_msg_send(ctx, msg, bt_mesh_model_elem(model)->addr, cb, cb_data);
+	return bt_mesh_trans_send(&tx, msg, cb, cb_data);
 }
 
 int bt_mesh_model_publish(struct bt_mesh_model *model)
@@ -777,8 +690,7 @@ int bt_mesh_model_publish(struct bt_mesh_model *model)
 	}
 
 	/* Account for initial transmission */
-	pub->count = BT_MESH_PUB_MSG_TOTAL(pub);
-	pub->period_start = k_uptime_get_32();
+	pub->count = BT_MESH_PUB_TRANSMIT_COUNT(pub->retransmit) + 1;
 
 	BT_DBG("Publish Retransmit Count %u Interval %ums", pub->count,
 	       BT_MESH_PUB_TRANSMIT_INT(pub->retransmit));
@@ -822,73 +734,79 @@ const struct bt_mesh_comp *bt_mesh_comp_get(void)
 	return dev_comp;
 }
 
-void bt_mesh_model_extensions_walk(struct bt_mesh_model *model,
-				   enum bt_mesh_walk (*cb)(struct bt_mesh_model *mod,
-							   void *user_data),
-				   void *user_data)
+struct bt_mesh_model *bt_mesh_model_root(struct bt_mesh_model *mod)
 {
-#ifndef CONFIG_BT_MESH_MODEL_EXTENSIONS
-	(void)cb(model, user_data);
-	return;
-#else
-	struct bt_mesh_model *it;
-
-	if (cb(model, user_data) == BT_MESH_WALK_STOP || !model->next) {
-		return;
-	}
-
-	/* List is circular. Step through all models until we reach the start: */
-	for (it = model->next; it != model; it = it->next) {
-		if (cb(it, user_data) == BT_MESH_WALK_STOP) {
-			return;
-		}
+#ifdef CONFIG_BT_MESH_MODEL_EXTENSIONS
+	while (mod->next) {
+		mod = mod->next;
 	}
 #endif
+	return mod;
+}
+
+void bt_mesh_model_tree_walk(struct bt_mesh_model *root,
+			     enum bt_mesh_walk (*cb)(struct bt_mesh_model *mod,
+						     uint32_t depth,
+						     void *user_data),
+			     void *user_data)
+{
+	struct bt_mesh_model *m = root;
+	int depth = 0;
+	/* 'skip' is set to true when we ascend from child to parent node.
+	 * In that case, we want to skip calling the callback on the parent
+	 * node and we don't want to descend onto a child node as those
+	 * nodes have already been visited.
+	 */
+	bool skip = false;
+
+	do {
+		if (!skip &&
+		    cb(m, (uint32_t)depth, user_data) == BT_MESH_WALK_STOP) {
+			return;
+		}
+#ifdef CONFIG_BT_MESH_MODEL_EXTENSIONS
+		if (!skip && m->extends) {
+			m = m->extends;
+			depth++;
+		} else if (m->flags & BT_MESH_MOD_NEXT_IS_PARENT) {
+			m = m->next;
+			depth--;
+			skip = true;
+		} else {
+			m = m->next;
+			skip = false;
+		}
+#endif
+	} while (m && depth > 0);
 }
 
 #ifdef CONFIG_BT_MESH_MODEL_EXTENSIONS
-int bt_mesh_model_extend(struct bt_mesh_model *extending_mod, struct bt_mesh_model *base_mod)
+int bt_mesh_model_extend(struct bt_mesh_model *mod,
+			 struct bt_mesh_model *base_mod)
 {
-	struct bt_mesh_model *a = extending_mod;
-	struct bt_mesh_model *b = base_mod;
-	struct bt_mesh_model *a_next = a->next;
-	struct bt_mesh_model *b_next = b->next;
-	struct bt_mesh_model *it;
-
-	base_mod->flags |= BT_MESH_MOD_EXTENDED;
-
-	if (a == b) {
-		return 0;
+	/* Form a cyclical LCRS tree:
+	 * The extends-pointer points to the first child, and the next-pointer
+	 * points to the next sibling. The last sibling is marked by the
+	 * BT_MESH_MOD_NEXT_IS_PARENT flag, and its next-pointer points back to
+	 * the parent. This way, the whole tree is accessible from any node.
+	 *
+	 * We add children (extend them) by inserting them as the first child.
+	 */
+	if (base_mod->next) {
+		return -EALREADY;
 	}
 
-	/* Check if a's list contains b */
-	for (it = a; (it != NULL) && (it->next != a); it = it->next) {
-		if (it == b) {
-			return 0;
-		}
-	}
-
-	/* Merge lists */
-	if (a_next) {
-		b->next = a_next;
+	if (mod->extends) {
+		base_mod->next = mod->extends;
 	} else {
-		b->next = a;
+		base_mod->next = mod;
+		base_mod->flags |= BT_MESH_MOD_NEXT_IS_PARENT;
 	}
 
-	if (b_next) {
-		a->next = b_next;
-	} else {
-		a->next = b;
-	}
-
+	mod->extends = base_mod;
 	return 0;
 }
 #endif
-
-bool bt_mesh_model_is_extended(struct bt_mesh_model *model)
-{
-	return model->flags & BT_MESH_MOD_EXTENDED;
-}
 
 static int mod_set_bind(struct bt_mesh_model *mod, size_t len_rd,
 			settings_read_cb read_cb, void *cb_arg)
@@ -1234,7 +1152,7 @@ int bt_mesh_model_data_store(struct bt_mesh_model *mod, bool vnd,
 	encode_mod_path(mod, vnd, "data", path, sizeof(path));
 	if (name) {
 		strcat(path, "/");
-		strncat(path, name, SETTINGS_MAX_DIR_DEPTH);
+		strncat(path, name, 8);
 	}
 
 	if (data_len) {

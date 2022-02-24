@@ -9,6 +9,18 @@
 #include <display/cfb.h>
 #include <stdio.h>
 
+#if defined(CONFIG_SSD16XX)
+#define DISPLAY_DRIVER		"SSD16XX"
+#endif
+
+#if defined(CONFIG_SSD1306)
+#define DISPLAY_DRIVER		"SSD1306"
+#endif
+
+#ifndef DISPLAY_DRIVER
+#define DISPLAY_DRIVER		"DISPLAY"
+#endif
+
 void main(void)
 {
 	const struct device *dev;
@@ -17,9 +29,10 @@ void main(void)
 	uint8_t font_width;
 	uint8_t font_height;
 
-	dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
-	if (!device_is_ready(dev)) {
-		printf("Device %s not ready\n", dev->name);
+	dev = device_get_binding(DISPLAY_DRIVER);
+
+	if (dev == NULL) {
+		printf("Device not found\n");
 		return;
 	}
 
@@ -28,7 +41,7 @@ void main(void)
 		return;
 	}
 
-	printf("Initialized %s\n", dev->name);
+	printf("initialized %s\n", DISPLAY_DRIVER);
 
 	if (cfb_framebuffer_init(dev)) {
 		printf("Framebuffer initialization failed!\n");

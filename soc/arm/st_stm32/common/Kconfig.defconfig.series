@@ -25,10 +25,6 @@ config CLOCK_CONTROL_STM32_CUBE
 	default y
 	depends on CLOCK_CONTROL
 
-config CLOCK_CONTROL_INIT_PRIORITY
-	default 1
-	depends on CLOCK_CONTROL
-
 config UART_STM32
 	default y
 	depends on SERIAL
@@ -58,7 +54,7 @@ config I2S_STM32
 
 config USB_DC_STM32
 	default y
-	depends on USB_DEVICE_DRIVER
+	depends on USB
 
 config COUNTER_RTC_STM32
 	default y

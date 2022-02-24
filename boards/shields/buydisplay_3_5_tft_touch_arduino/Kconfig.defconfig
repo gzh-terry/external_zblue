@@ -23,9 +23,21 @@ config KSCAN_FT5336
 config KSCAN_FT5336_INTERRUPT
 	default n
 
+config KSCAN_INIT_PRIORITY
+	default 60
+
 endif # KSCAN
 
 if LVGL
+
+config LVGL_DISPLAY_DEV_NAME
+	default "DISPLAY"
+
+config LVGL_HOR_RES_MAX
+	default 320
+
+config LVGL_VER_RES_MAX
+	default 480
 
 config LVGL_VDB_SIZE
 	default 32

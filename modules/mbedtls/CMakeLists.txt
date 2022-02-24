@@ -7,7 +7,7 @@ if(CONFIG_MBEDTLS_BUILTIN)
 	)
 
   target_include_directories(mbedTLS INTERFACE
-    ${ZEPHYR_CURRENT_MODULE_DIR}/include
+    ${ZEPHYR_CURRENT_MODULE_DIR}/mbedtls/include
     configs
 	)
 
@@ -15,15 +15,13 @@ if(CONFIG_MBEDTLS_BUILTIN)
 
   file(GLOB
     mbedtls_sources # This is an output parameter
-      ${ZEPHYR_CURRENT_MODULE_DIR}/library/*.c
+      ${ZEPHYR_CURRENT_MODULE_DIR}/mbedtls/library/*.c
     )
 
   zephyr_library_sources(
     zephyr_init.c
     ${mbedtls_sources}
   )
-
-  zephyr_library_sources_ifdef(CONFIG_MBEDTLS_SHELL shell.c)
 
   zephyr_library_app_memory(k_mbedtls_partition)
 if(CONFIG_ARCH_POSIX AND CONFIG_ASAN AND NOT CONFIG_64BIT)
@@ -35,7 +33,8 @@ if(CONFIG_ARCH_POSIX AND CONFIG_ASAN AND NOT CONFIG_64BIT)
 endif ()
 
   zephyr_library_link_libraries(mbedTLS)
-elseif (CONFIG_MBEDTLS_LIBRARY)
+else()
+  assert(CONFIG_MBEDTLS_LIBRARY "MBEDTLS was enabled, but neither BUILTIN or LIBRARY was selected.")
 
   # NB: CONFIG_MBEDTLS_LIBRARY is not regression tested and is
   # therefore susceptible to bit rot
@@ -52,11 +51,6 @@ elseif (CONFIG_MBEDTLS_LIBRARY)
   # Lib mbedtls_external depends on libgcc (I assume?) so to allow
   # mbedtls_external to link with gcc we need to ensure it is placed
   # after mbedtls_external on the linkers command line.
-else()
-  # If none of either CONFIG_MBEDTLS_BUILTIN or CONFIG_MBEDTLS_LIBRARY
-  # are defined the users need add a custom Kconfig choice to the
-  # MBEDTLS_IMPLEMENTATION and manually add the mbedtls library and
-  # included the required directories for mbedtls in their projects.
 endif()
 
 endif()

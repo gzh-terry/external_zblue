@@ -11,7 +11,6 @@
 #ifndef _ASMLANGUAGE
 
 #include <kernel_structs.h>
-#include <zsr.h>
 
 #define RSR(sr) \
 	({uint32_t v; \
@@ -27,7 +26,7 @@ static ALWAYS_INLINE _cpu_t *arch_curr_cpu(void)
 {
 	_cpu_t *cpu;
 
-	cpu = (_cpu_t *)RSR(ZSR_CPU_STR);
+	cpu = (_cpu_t *)RSR(CONFIG_XTENSA_KERNEL_CPU_PTR_SR);
 
 	return cpu;
 }

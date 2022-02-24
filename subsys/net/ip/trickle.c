@@ -122,8 +122,7 @@ static void inteval_timeout(struct net_trickle *trickle)
 
 static void trickle_timeout(struct k_work *work)
 {
-	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
-	struct net_trickle *trickle = CONTAINER_OF(dwork,
+	struct net_trickle *trickle = CONTAINER_OF(work,
 						   struct net_trickle,
 						   timer);
 

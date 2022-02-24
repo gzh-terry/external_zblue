@@ -64,6 +64,9 @@
 #include <logging/log.h>
 LOG_MODULE_REGISTER(eeprom_emulator);
 
+#define DEV_CONFIG(dev) ((dev)->config)
+#define DEV_DATA(dev) ((dev)->data)
+
 struct eeprom_emu_config {
 	/* EEPROM size */
 	size_t size;
@@ -109,7 +112,7 @@ struct eeprom_emu_ctx {
 static inline int eeprom_emu_flash_read(const struct device *dev, off_t offset,
 					uint8_t *blk, size_t len)
 {
-	const struct eeprom_emu_config *dev_config = dev->config;
+	const struct eeprom_emu_config *dev_config = DEV_CONFIG(dev);
 
 	return flash_read(dev_config->flash_dev, dev_config->flash_offset +
 			  offset, blk, len);
@@ -121,7 +124,7 @@ static inline int eeprom_emu_flash_read(const struct device *dev, off_t offset,
 static inline int eeprom_emu_flash_write(const struct device *dev, off_t offset,
 				   const uint8_t *blk, size_t len)
 {
-	const struct eeprom_emu_config *dev_config = dev->config;
+	const struct eeprom_emu_config *dev_config = DEV_CONFIG(dev);
 	int rc;
 
 	rc = flash_write(dev_config->flash_dev, dev_config->flash_offset +
@@ -136,7 +139,7 @@ static inline int eeprom_emu_flash_write(const struct device *dev, off_t offset,
 static inline int eeprom_emu_flash_erase(const struct device *dev, off_t offset,
 				   size_t len)
 {
-	const struct eeprom_emu_config *dev_config = dev->config;
+	const struct eeprom_emu_config *dev_config = DEV_CONFIG(dev);
 	int rc;
 
 	rc = flash_erase(dev_config->flash_dev, dev_config->flash_offset +
@@ -149,7 +152,7 @@ static inline int eeprom_emu_flash_erase(const struct device *dev, off_t offset,
  */
 static int eeprom_emu_page_invalidate(const struct device *dev, off_t offset)
 {
-	const struct eeprom_emu_config *dev_config = dev->config;
+	const struct eeprom_emu_config *dev_config = DEV_CONFIG(dev);
 	uint8_t buf[dev_config->flash_cbs];
 
 	LOG_DBG("Invalidating page at [0x%tx]", (ptrdiff_t)offset);
@@ -166,7 +169,7 @@ static int eeprom_emu_page_invalidate(const struct device *dev, off_t offset)
 static uint32_t eeprom_emu_get_address(const struct device *dev,
 				       const uint8_t *blk)
 {
-	const struct eeprom_emu_config *dev_config = dev->config;
+	const struct eeprom_emu_config *dev_config = DEV_CONFIG(dev);
 	uint32_t address = 0U;
 
 	blk += dev_config->flash_cbs / 2;
@@ -189,7 +192,7 @@ static void eeprom_emu_set_change(const struct device *dev,
 				  const uint32_t address, const uint8_t *data,
 				  uint8_t *blk)
 {
-	const struct eeprom_emu_config *dev_config = dev->config;
+	const struct eeprom_emu_config *dev_config = DEV_CONFIG(dev);
 
 	for (int i = 0; i < (dev_config->flash_cbs / 2); i++) {
 		(*blk++) = (*data++);
@@ -211,7 +214,7 @@ static void eeprom_emu_set_change(const struct device *dev,
  */
 static int eeprom_emu_is_word_used(const struct device *dev, const uint8_t *blk)
 {
-	const struct eeprom_emu_config *dev_config = dev->config;
+	const struct eeprom_emu_config *dev_config = DEV_CONFIG(dev);
 
 	for (int i = 0; i < dev_config->flash_cbs; i++) {
 		if ((*blk++) != 0xff) {
@@ -230,8 +233,8 @@ static int eeprom_emu_is_word_used(const struct device *dev, const uint8_t *blk)
 static int eeprom_emu_word_read(const struct device *dev, off_t address,
 				uint8_t *data)
 {
-	const struct eeprom_emu_config *dev_config = dev->config;
-	const struct eeprom_emu_data *dev_data = dev->data;
+	const struct eeprom_emu_config *dev_config = DEV_CONFIG(dev);
+	const struct eeprom_emu_data *dev_data = DEV_DATA(dev);
 	uint8_t buf[dev_config->flash_cbs];
 	off_t direct_address;
 	int rc;
@@ -279,7 +282,7 @@ static int eeprom_emu_word_read(const struct device *dev, off_t address,
 static int eeprom_emu_flash_get(const struct device *dev,
 				struct eeprom_emu_ctx *ctx)
 {
-	const struct eeprom_emu_config *dev_config = dev->config;
+	const struct eeprom_emu_config *dev_config = DEV_CONFIG(dev);
 	off_t address = ctx->address + ctx->len - ctx->rlen;
 	uint8_t *data8 = (uint8_t *)(ctx->data);
 	uint8_t buf[dev_config->flash_cbs];
@@ -308,8 +311,8 @@ static int eeprom_emu_flash_get(const struct device *dev,
 static int eeprom_emu_compactor(const struct device *dev,
 				struct eeprom_emu_ctx *ctx)
 {
-	const struct eeprom_emu_config *dev_config = dev->config;
-	struct eeprom_emu_data *dev_data = dev->data;
+	const struct eeprom_emu_config *dev_config = DEV_CONFIG(dev);
+	struct eeprom_emu_data *dev_data = DEV_DATA(dev);
 	off_t next_page_offset;
 	int rc = 0;
 
@@ -416,8 +419,8 @@ static int eeprom_emu_word_write(const struct device *dev, off_t address,
 				 const uint8_t *data,
 				 struct eeprom_emu_ctx *ctx)
 {
-	const struct eeprom_emu_config *dev_config = dev->config;
-	struct eeprom_emu_data *dev_data = dev->data;
+	const struct eeprom_emu_config *dev_config = DEV_CONFIG(dev);
+	struct eeprom_emu_data *dev_data = DEV_DATA(dev);
 	uint8_t buf[dev_config->flash_cbs], tmp[dev_config->flash_cbs];
 	off_t direct_address, wraddr;
 	int rc;
@@ -481,7 +484,7 @@ static int eeprom_emu_word_write(const struct device *dev, off_t address,
 static int eeprom_emu_flash_set(const struct device *dev,
 				struct eeprom_emu_ctx *ctx)
 {
-	const struct eeprom_emu_config *dev_config = dev->config;
+	const struct eeprom_emu_config *dev_config = DEV_CONFIG(dev);
 	off_t address = ctx->address + ctx->len - ctx->rlen;
 	uint8_t *data8 = (uint8_t *)(ctx->data);
 	uint8_t buf[dev_config->flash_cbs];
@@ -512,7 +515,7 @@ static int eeprom_emu_flash_set(const struct device *dev,
 static int eeprom_emu_range_is_valid(const struct device *dev, off_t address,
 				     size_t len)
 {
-	const struct eeprom_emu_config *dev_config = dev->config;
+	const struct eeprom_emu_config *dev_config = DEV_CONFIG(dev);
 
 	if ((address + len) <= dev_config->size) {
 		return 1;
@@ -524,8 +527,8 @@ static int eeprom_emu_range_is_valid(const struct device *dev, off_t address,
 static int eeprom_emu_read(const struct device *dev, off_t address, void *data,
 			   size_t len)
 {
-	const struct eeprom_emu_config *dev_config = dev->config;
-	struct eeprom_emu_data *dev_data = dev->data;
+	const struct eeprom_emu_config *dev_config = DEV_CONFIG(dev);
+	struct eeprom_emu_data *dev_data = DEV_DATA(dev);
 	struct eeprom_emu_ctx ctx = {
 		.data = data,
 		.len = len,
@@ -556,15 +559,16 @@ static int eeprom_emu_read(const struct device *dev, off_t address, void *data,
 	/* read from rambuffer if possible */
 	if (dev_config->rambuf) {
 		memcpy(data, dev_config->rambuf + address, len);
-	} else {
-		/* read from flash if no rambuffer */
-		while (ctx.rlen) {
-			rc = eeprom_emu_flash_get(dev, &ctx);
-			if (rc) {
-				break;
-			}
+		return 0;
+	}
 
+	/* read from flash if no rambuffer */
+	while (ctx.rlen) {
+		rc = eeprom_emu_flash_get(dev, &ctx);
+		if (rc) {
+			break;
 		}
+
 	}
 
 	k_mutex_unlock(&dev_data->lock);
@@ -575,8 +579,8 @@ static int eeprom_emu_read(const struct device *dev, off_t address, void *data,
 static int eeprom_emu_write(const struct device *dev, off_t address,
 			    const void *data, size_t len)
 {
-	const struct eeprom_emu_config *dev_config = dev->config;
-	struct eeprom_emu_data *dev_data = dev->data;
+	const struct eeprom_emu_config *dev_config = DEV_CONFIG(dev);
+	struct eeprom_emu_data *dev_data = DEV_DATA(dev);
 	struct eeprom_emu_ctx ctx = {
 		.data = data,
 		.len = len,
@@ -631,15 +635,15 @@ static int eeprom_emu_write(const struct device *dev, off_t address,
 
 static size_t eeprom_emu_size(const struct device *dev)
 {
-	const struct eeprom_emu_config *dev_config = dev->config;
+	const struct eeprom_emu_config *dev_config = DEV_CONFIG(dev);
 
 	return dev_config->size;
 }
 
 static int eeprom_emu_init(const struct device *dev)
 {
-	const struct eeprom_emu_config *dev_config = dev->config;
-	struct eeprom_emu_data *dev_data = dev->data;
+	const struct eeprom_emu_config *dev_config = DEV_CONFIG(dev);
+	struct eeprom_emu_data *dev_data = DEV_DATA(dev);
 	off_t offset;
 	uint8_t buf[dev_config->flash_cbs];
 	int rc;
@@ -726,7 +730,7 @@ static const struct eeprom_driver_api eeprom_emu_api = {
 	.size = eeprom_emu_size,
 };
 
-#define EEPROM_PARTITION(n) DT_INST_PHANDLE_BY_IDX(n, partition, 0)
+#define EEPROM_PARTITION(n) DT_PHANDLE_BY_IDX(DT_DRV_INST(n), partition, 0)
 
 #define PART_WBS(part) \
 	DT_PROP(COND_CODE_1(DT_NODE_HAS_COMPAT(DT_GPARENT(part), soc_nv_flash),\
@@ -806,6 +810,6 @@ static const struct eeprom_driver_api eeprom_emu_api = {
 	DEVICE_DT_INST_DEFINE(n, &eeprom_emu_init, \
 		NULL, &eeprom_emu_##n##_data, \
 		&eeprom_emu_##n##_config, POST_KERNEL, \
-		CONFIG_EEPROM_INIT_PRIORITY, &eeprom_emu_api); \
+		CONFIG_EEPROM_EMULATOR_INIT_PRIORITY, &eeprom_emu_api); \
 
 DT_INST_FOREACH_STATUS_OKAY(EEPROM_EMU_INIT)

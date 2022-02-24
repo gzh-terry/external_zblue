@@ -27,7 +27,6 @@
 #include <arch/xtensa/irq.h>
 #include <xtensa/config/core.h>
 #include <arch/common/addr_types.h>
-#include <arch/xtensa/gdbstub.h>
 
 #ifdef CONFIG_KERNEL_COHERENCE
 #define ARCH_STACK_PTR_ALIGN XCHAL_DCACHE_LINESIZE
@@ -48,7 +47,9 @@ extern "C" {
 extern void z_irq_priority_set(uint32_t irq, uint32_t prio, uint32_t flags);
 
 #define ARCH_IRQ_CONNECT(irq_p, priority_p, isr_p, isr_param_p, flags_p) \
-	Z_ISR_DECLARE(irq_p, flags_p, isr_p, isr_param_p)
+{ \
+	Z_ISR_DECLARE(irq_p, flags_p, isr_p, isr_param_p); \
+}
 
 /* Spurious interrupt handler. Throws an error if called */
 extern void z_irq_spurious(const void *unused);
@@ -60,13 +61,6 @@ extern uint32_t sys_clock_cycle_get_32(void);
 static inline uint32_t arch_k_cycle_get_32(void)
 {
 	return sys_clock_cycle_get_32();
-}
-
-extern uint64_t sys_clock_cycle_get_64(void);
-
-static inline uint64_t arch_k_cycle_get_64(void)
-{
-	return sys_clock_cycle_get_64();
 }
 
 static ALWAYS_INLINE void arch_nop(void)

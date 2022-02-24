@@ -13,7 +13,6 @@
 #include <kernel.h>
 #include <drivers/sensor.h>
 #include <drivers/gpio.h>
-#include <pm/device.h>
 #include <logging/log.h>
 
 #include "bmp388.h"
@@ -23,7 +22,7 @@ LOG_MODULE_DECLARE(BMP388, CONFIG_SENSOR_LOG_LEVEL);
 static void bmp388_handle_interrupts(const void *arg)
 {
 	const struct device *dev = (const struct device *)arg;
-	struct bmp388_data *data = dev->data;
+	struct bmp388_data *data = DEV_DATA(dev);
 
 	struct sensor_trigger drdy_trigger = {
 		.type = SENSOR_TRIG_DATA_READY,
@@ -45,7 +44,7 @@ static void bmp388_thread_main(void *arg1, void *unused1, void *unused2)
 	ARG_UNUSED(unused1);
 	ARG_UNUSED(unused2);
 	const struct device *dev = (const struct device *)arg1;
-	struct bmp388_data *data = dev->data;
+	struct bmp388_data *data = DEV_DATA(dev);
 
 	while (1) {
 		k_sem_take(&data->sem, K_FOREVER);
@@ -90,13 +89,10 @@ int bmp388_trigger_set(
 	const struct sensor_trigger *trig,
 	sensor_trigger_handler_t handler)
 {
-	struct bmp388_data *data = dev->data;
+	struct bmp388_data *data = DEV_DATA(dev);
 
 #ifdef CONFIG_PM_DEVICE
-	enum pm_device_state state;
-
-	(void)pm_device_state_get(dev, &state);
-	if (state != PM_DEVICE_STATE_ACTIVE) {
+	if (data->device_power_state != PM_DEVICE_STATE_ACTIVE) {
 		return -EBUSY;
 	}
 #endif
@@ -121,9 +117,8 @@ int bmp388_trigger_set(
 
 int bmp388_trigger_mode_init(const struct device *dev)
 {
-	struct bmp388_data *data = dev->data;
-	const struct bmp388_config *cfg = dev->config;
-	int ret;
+	struct bmp388_data *data = DEV_DATA(dev);
+	const struct bmp388_config *cfg = DEV_CFG(dev);
 
 	if (!device_is_ready(cfg->gpio_int.port)) {
 		LOG_ERR("INT device is not ready");
@@ -152,28 +147,17 @@ int bmp388_trigger_mode_init(const struct device *dev)
 	data->dev = dev;
 #endif
 
-	ret = gpio_pin_configure(cfg->gpio_int.port,
-				 cfg->gpio_int.pin,
-				 GPIO_INPUT | cfg->gpio_int.dt_flags);
-	if (ret < 0) {
-		return ret;
-	}
+	gpio_pin_configure(cfg->gpio_int.port,
+			   cfg->gpio_int.pin,
+			   GPIO_INPUT | cfg->gpio_int.dt_flags);
 
 	gpio_init_callback(&data->gpio_cb,
 			   bmp388_gpio_callback,
 			   BIT(cfg->gpio_int.pin));
-
-	ret = gpio_add_callback(cfg->gpio_int.port, &data->gpio_cb);
-	if (ret < 0) {
-		return ret;
-	}
-
-	ret = gpio_pin_interrupt_configure(cfg->gpio_int.port,
-					   cfg->gpio_int.pin,
-					   GPIO_INT_EDGE_TO_ACTIVE);
-	if (ret < 0) {
-		return ret;
-	}
+	gpio_add_callback(cfg->gpio_int.port, &data->gpio_cb);
+	gpio_pin_interrupt_configure(cfg->gpio_int.port,
+				     cfg->gpio_int.pin,
+				     GPIO_INT_EDGE_TO_ACTIVE);
 
 	return 0;
 }

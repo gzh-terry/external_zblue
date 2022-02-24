@@ -14,6 +14,12 @@
 
 #include "clock_control_lpc11u6x.h"
 
+#define DEV_CFG(dev)  ((const struct lpc11u6x_syscon_config *) \
+		      ((dev)->config))
+
+#define DEV_DATA(dev) ((struct lpc11u6x_syscon_data *) \
+		      ((dev)->data))
+
 static void syscon_power_up(struct lpc11u6x_syscon_regs *syscon,
 			    uint32_t bit, bool enable)
 {
@@ -145,8 +151,8 @@ static void syscon_frg_deinit(struct lpc11u6x_syscon_regs *syscon)
 static int lpc11u6x_clock_control_on(const struct device *dev,
 				     clock_control_subsys_t sub_system)
 {
-	const struct lpc11u6x_syscon_config *cfg = dev->config;
-	struct lpc11u6x_syscon_data *data = dev->data;
+	const struct lpc11u6x_syscon_config *cfg = DEV_CFG(dev);
+	struct lpc11u6x_syscon_data *data = DEV_DATA(dev);
 	uint32_t clk_mask = 0, reset_mask = 0;
 	int ret = 0, init_frg = 0;
 
@@ -217,8 +223,8 @@ static int lpc11u6x_clock_control_on(const struct device *dev,
 static int lpc11u6x_clock_control_off(const struct device *dev,
 				      clock_control_subsys_t sub_system)
 {
-	const struct lpc11u6x_syscon_config *cfg = dev->config;
-	struct lpc11u6x_syscon_data *data = dev->data;
+	const struct lpc11u6x_syscon_config *cfg = DEV_CFG(dev);
+	struct lpc11u6x_syscon_data *data = DEV_DATA(dev);
 	uint32_t clk_mask = 0, reset_mask = 0;
 	int ret = 0, deinit_frg = 0;
 
@@ -313,8 +319,8 @@ static int lpc11u6x_clock_control_get_rate(const struct device *dev,
 
 static int lpc11u6x_syscon_init(const struct device *dev)
 {
-	const struct lpc11u6x_syscon_config *cfg = dev->config;
-	struct lpc11u6x_syscon_data *data = dev->data;
+	const struct lpc11u6x_syscon_config *cfg = DEV_CFG(dev);
+	struct lpc11u6x_syscon_data *data = DEV_DATA(dev);
 	uint32_t val;
 
 	k_mutex_init(&data->mutex);
@@ -391,5 +397,5 @@ DEVICE_DT_INST_DEFINE(0,
 		    &lpc11u6x_syscon_init,
 		    NULL,
 		    &syscon_data, &syscon_config,
-		    PRE_KERNEL_1, CONFIG_CLOCK_CONTROL_INIT_PRIORITY,
+		    PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_OBJECTS,
 		    &lpc11u6x_clock_control_api);

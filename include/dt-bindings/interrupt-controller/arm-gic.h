@@ -6,8 +6,6 @@
 #ifndef __DT_BINDING_ARM_GIC_H
 #define __DT_BINDING_ARM_GIC_H
 
-#include <sys/util_macro.h>
-
 /* CPU Interrupt numbers */
 #define	GIC_INT_VIRT_MAINT		25
 #define	GIC_INT_HYP_TIMER		26
@@ -17,9 +15,8 @@
 #define	GIC_INT_NS_PHYS_TIMER	30
 #define	GIC_INT_LEGACY_IRQ		31
 
-/* BIT(0) reserved for IRQ_ZERO_LATENCY */
-#define	IRQ_TYPE_LEVEL		BIT(1)
-#define	IRQ_TYPE_EDGE		BIT(2)
+#define	IRQ_TYPE_LEVEL		0x0
+#define	IRQ_TYPE_EDGE		0x1
 
 #define	GIC_SPI			0x0
 #define	GIC_PPI			0x1

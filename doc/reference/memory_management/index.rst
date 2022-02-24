@@ -9,5 +9,3 @@ The following contains various topics regarding memory management.
    :maxdepth: 1
 
    demand_paging.rst
-   shared_multi_heap.rst
-   sys_mem_blocks.rst

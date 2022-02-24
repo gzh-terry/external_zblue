@@ -188,7 +188,6 @@ typedef uint32_t (*counter_api_get_guard_period)(const struct device *dev,
 typedef int (*counter_api_set_guard_period)(const struct device *dev,
 						uint32_t ticks,
 						uint32_t flags);
-typedef uint32_t (*counter_api_get_freq)(const struct device *dev);
 
 __subsystem struct counter_driver_api {
 	counter_api_start start;
@@ -201,7 +200,6 @@ __subsystem struct counter_driver_api {
 	counter_api_get_top_value get_top_value;
 	counter_api_get_guard_period get_guard_period;
 	counter_api_set_guard_period set_guard_period;
-	counter_api_get_freq get_freq;
 };
 
 /**
@@ -253,10 +251,8 @@ static inline uint32_t z_impl_counter_get_frequency(const struct device *dev)
 {
 	const struct counter_config_info *config =
 			(const struct counter_config_info *)dev->config;
-	const struct counter_driver_api *api =
-				(struct counter_driver_api *)dev->api;
 
-	return api->get_freq ? api->get_freq(dev) : config->freq;
+	return config->freq;
 }
 
 /**
@@ -272,7 +268,9 @@ __syscall uint32_t counter_us_to_ticks(const struct device *dev, uint64_t us);
 static inline uint32_t z_impl_counter_us_to_ticks(const struct device *dev,
 					       uint64_t us)
 {
-	uint64_t ticks = (us * z_impl_counter_get_frequency(dev)) / USEC_PER_SEC;
+	const struct counter_config_info *config =
+			(const struct counter_config_info *)dev->config;
+	uint64_t ticks = (us * config->freq) / USEC_PER_SEC;
 
 	return (ticks > (uint64_t)UINT32_MAX) ? UINT32_MAX : ticks;
 }
@@ -290,7 +288,10 @@ __syscall uint64_t counter_ticks_to_us(const struct device *dev, uint32_t ticks)
 static inline uint64_t z_impl_counter_ticks_to_us(const struct device *dev,
 					       uint32_t ticks)
 {
-	return ((uint64_t)ticks * USEC_PER_SEC) / z_impl_counter_get_frequency(dev);
+	const struct counter_config_info *config =
+			(const struct counter_config_info *)dev->config;
+
+	return ((uint64_t)ticks * USEC_PER_SEC) / config->freq;
 }
 
 /**

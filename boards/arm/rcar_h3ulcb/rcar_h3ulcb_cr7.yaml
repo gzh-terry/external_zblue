@@ -5,12 +5,4 @@ arch: arm
 toolchain:
   - zephyr
   - gnuarmemb
-supported:
-  - i2c
-  - can
-  - gpio
-  - clock_control
-  - uart
-testing:
-  ignore_tags:
-    - isotp
+ram: 768

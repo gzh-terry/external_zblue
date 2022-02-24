@@ -25,7 +25,6 @@
 		pwm-0 = &pwm0;
 		peci-0 = &peci0;
 		i2c0 = &i2c_smb_0;
-		i2c-0 = &i2c_smb_0;
 		i2c1 = &i2c_smb_1;
 		i2c7 = &i2c_smb_2;
 		kscan0 = &kscan0;
@@ -122,11 +121,11 @@
 &espi0 {
 	status = "okay";
 	io_girq = <19>;
-	vw_girqs = <24 25>;
+	vw_girq = <24>;
 	pc_girq = <15>;
 };
 
-&timer5 {
+&timer3 {
 	status = "okay";
 };
 

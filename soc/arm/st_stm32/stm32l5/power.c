@@ -15,7 +15,6 @@
 #include <stm32l5xx_ll_rcc.h>
 #include <stm32l5xx_ll_system.h>
 #include <clock_control/clock_stm32_ll_common.h>
-#include <drivers/clock_control/stm32_clock_control.h>
 
 #include <logging/log.h>
 LOG_MODULE_DECLARE(soc, CONFIG_SOC_LOG_LEVEL);
@@ -28,14 +27,14 @@ LOG_MODULE_DECLARE(soc, CONFIG_SOC_LOG_LEVEL);
 #endif
 
 /* Invoke Low Power/System Off specific Tasks */
-__weak void pm_state_set(enum pm_state state, uint8_t substate_id)
+void pm_power_state_set(struct pm_state_info info)
 {
-	if (state != PM_STATE_SUSPEND_TO_IDLE) {
-		LOG_DBG("Unsupported power state %u", state);
+	if (info.state != PM_STATE_SUSPEND_TO_IDLE) {
+		LOG_DBG("Unsupported power state %u", info.state);
 		return;
 	}
 
-	switch (substate_id) {
+	switch (info.substate_id) {
 	case 1: /* this corresponds to the STOP0 mode: */
 		/* ensure the proper wake-up system clock */
 		LL_RCC_SetClkAfterWakeFromStop(RCC_STOP_WAKEUPCLOCK_SELECTED);
@@ -68,18 +67,18 @@ __weak void pm_state_set(enum pm_state state, uint8_t substate_id)
 		break;
 	default:
 		LOG_DBG("Unsupported power state substate-id %u",
-			substate_id);
+			info.substate_id);
 		break;
 	}
 }
 
 /* Handle SOC specific activity after Low Power Mode Exit */
-__weak void pm_state_exit_post_ops(enum pm_state state, uint8_t substate_id)
+void pm_power_state_exit_post_ops(struct pm_state_info info)
 {
-	if (state != PM_STATE_SUSPEND_TO_IDLE) {
-		LOG_DBG("Unsupported power substate-id %u", state);
+	if (info.state != PM_STATE_SUSPEND_TO_IDLE) {
+		LOG_DBG("Unsupported power substate-id %u", info.state);
 	} else {
-		switch (substate_id) {
+		switch (info.substate_id) {
 		case 1:	/* STOP0 */
 			__fallthrough;
 		case 2:	/* STOP1 */
@@ -90,7 +89,7 @@ __weak void pm_state_exit_post_ops(enum pm_state state, uint8_t substate_id)
 			break;
 		default:
 			LOG_DBG("Unsupported power substate-id %u",
-				substate_id);
+				info.substate_id);
 			break;
 		}
 		/* need to restore the clock */
@@ -121,4 +120,4 @@ static int stm32_power_init(const struct device *dev)
 	return 0;
 }
 
-SYS_INIT(stm32_power_init, PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
+SYS_INIT(stm32_power_init, POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);

@@ -13,9 +13,10 @@
 #include <device.h>
 #include <sys/byteorder.h>
 #include <fsl_flexcan.h>
-#include <logging/log.h>
 
-LOG_MODULE_REGISTER(can_mcux_flexcan, CONFIG_CAN_LOG_LEVEL);
+#define LOG_LEVEL CONFIG_CAN_LOG_LEVEL
+#include <logging/log.h>
+LOG_MODULE_REGISTER(can_mcux_flexcan);
 
 #define SP_IS_SET(inst) DT_INST_NODE_HAS_PROP(inst, sample_point) ||
 
@@ -50,6 +51,8 @@ LOG_MODULE_REGISTER(can_mcux_flexcan, CONFIG_CAN_LOG_LEVEL);
 #define MCUX_FLEXCAN_MAX_TX \
 	(FSL_FEATURE_FLEXCAN_HAS_MESSAGE_BUFFER_MAX_NUMBERn(0) \
 	- MCUX_FLEXCAN_MAX_RX)
+
+#define MCUX_N_TX_ALLOC_ELEM (1 + (MCUX_FLEXCAN_MAX_TX - 1) / ATOMIC_BITS)
 
 /*
  * Convert from RX message buffer index to allocated filter ID and
@@ -113,8 +116,7 @@ struct mcux_flexcan_data {
 	struct k_sem tx_allocs_sem;
 	struct mcux_flexcan_tx_callback tx_cbs[MCUX_FLEXCAN_MAX_TX];
 	enum can_state state;
-	can_state_change_callback_t state_change_cb;
-	void *state_change_cb_data;
+	can_state_change_isr_t state_change_isr;
 	struct can_timing timing;
 };
 
@@ -123,13 +125,6 @@ static int mcux_flexcan_get_core_clock(const struct device *dev, uint32_t *rate)
 	const struct mcux_flexcan_config *config = dev->config;
 
 	return clock_control_get_rate(config->clock_dev, config->clock_subsys, rate);
-}
-
-int mcux_flexcan_get_max_filters(const struct device *dev, enum can_ide id_type)
-{
-	ARG_UNUSED(id_type);
-
-	return CONFIG_CAN_MAX_FILTER;
 }
 
 static int mcux_flexcan_set_timing(const struct device *dev,
@@ -274,102 +269,110 @@ static void mcux_flexcan_copy_zfilter_to_mbconfig(const struct zcan_filter *src,
 	}
 }
 
-static int mcux_flexcan_get_state(const struct device *dev, enum can_state *state,
-				  struct can_bus_err_cnt *err_cnt)
+/* mcux_get_tx_alloc is a linear on array, and binary on atomic_val_t search
+ * for the highest bit set in data->tx_allocs. 0 is returned in case of an empty
+ * tx_alloc, the next free bit otherwise.
+ * The reason to always use a higher buffer number than the current in use is
+ * that a FIFO manner is kept. The Controller would otherwise send the frame
+ * that is in the lowest buffer number first.
+ */
+static int mcux_get_tx_alloc(struct mcux_flexcan_data *data)
 {
-	const struct mcux_flexcan_config *config = dev->config;
-	uint64_t status_flags;
+	atomic_val_t *allocs = data->tx_allocs;
+	atomic_val_t pivot = ATOMIC_BITS / 2;
+	atomic_val_t alloc, mask;
+	int i;
 
-	if (state != NULL) {
-		status_flags = FLEXCAN_GetStatusFlags(config->base);
+	for (i = MCUX_N_TX_ALLOC_ELEM - 1; i >= 0; i--) {
+		alloc = allocs[i];
+		if (alloc) {
+			for (atomic_val_t bits = ATOMIC_BITS / 2U;
+			    bits; bits >>= 1) {
+				mask = GENMASK(pivot + bits - 1, pivot);
+				if (alloc & mask) {
+					pivot += bits / 2U;
+				} else {
+					pivot -= bits / 2U;
+				}
+			}
 
-		if ((status_flags & CAN_ESR1_FLTCONF(2)) != 0U) {
-			*state = CAN_BUS_OFF;
-		} else if ((status_flags & CAN_ESR1_FLTCONF(1)) != 0U) {
-			*state = CAN_ERROR_PASSIVE;
-		} else if ((status_flags &
-			(kFLEXCAN_TxErrorWarningFlag | kFLEXCAN_RxErrorWarningFlag)) != 0) {
-			*state = CAN_ERROR_WARNING;
-		} else {
-			*state = CAN_ERROR_ACTIVE;
-		}
-	}
+			if (!(alloc & mask)) {
+				pivot--;
+			}
 
-	if (err_cnt != NULL) {
-		FLEXCAN_GetBusErrCount(config->base, &err_cnt->tx_err_cnt,
-				       &err_cnt->rx_err_cnt);
-	}
-
-	return 0;
-}
-
-static int mcux_flexcan_send(const struct device *dev,
-			     const struct zcan_frame *frame,
-			     k_timeout_t timeout,
-			     can_tx_callback_t callback, void *user_data)
-{
-	const struct mcux_flexcan_config *config = dev->config;
-	struct mcux_flexcan_data *data = dev->data;
-	flexcan_mb_transfer_t xfer;
-	enum can_state state;
-	status_t status;
-	int alloc;
-
-	if (frame->dlc > CAN_MAX_DLC) {
-		LOG_ERR("DLC of %d exceeds maximum (%d)", frame->dlc, CAN_MAX_DLC);
-		return -EINVAL;
-	}
-
-	(void)mcux_flexcan_get_state(dev, &state, NULL);
-	if (state == CAN_BUS_OFF) {
-		LOG_DBG("Transmit failed, bus-off");
-		return -ENETDOWN;
-	}
-
-	if (k_sem_take(&data->tx_allocs_sem, timeout) != 0) {
-		return -EAGAIN;
-	}
-
-	for (alloc = 0; alloc < MCUX_FLEXCAN_MAX_TX; alloc++) {
-		if (!atomic_test_and_set_bit(data->tx_allocs, alloc)) {
 			break;
 		}
 	}
 
-	mcux_flexcan_copy_zframe_to_frame(frame, &data->tx_cbs[alloc].frame);
-	data->tx_cbs[alloc].function = callback;
-	data->tx_cbs[alloc].arg = user_data;
+	alloc = alloc ? (pivot + 1 + i * ATOMIC_BITS) : 0;
+	return alloc >= MCUX_FLEXCAN_MAX_TX ? -1 : alloc;
+}
+
+static int mcux_flexcan_send(const struct device *dev,
+			     const struct zcan_frame *msg,
+			     k_timeout_t timeout,
+			     can_tx_callback_t callback_isr, void *callback_arg)
+{
+	const struct mcux_flexcan_config *config = dev->config;
+	struct mcux_flexcan_data *data = dev->data;
+	flexcan_mb_transfer_t xfer;
+	status_t status;
+	int alloc;
+
+	if (msg->dlc > CAN_MAX_DLC) {
+		LOG_ERR("DLC of %d exceeds maximum (%d)", msg->dlc, CAN_MAX_DLC);
+		return CAN_TX_EINVAL;
+	}
+
+	while (true) {
+		alloc = mcux_get_tx_alloc(data);
+		if (alloc >= 0) {
+			if (atomic_test_and_set_bit(data->tx_allocs, alloc)) {
+				continue;
+			}
+
+			break;
+		}
+
+		if (k_sem_take(&data->tx_allocs_sem, timeout) != 0) {
+			return CAN_TIMEOUT;
+		}
+	}
+
+	mcux_flexcan_copy_zframe_to_frame(msg, &data->tx_cbs[alloc].frame);
+	data->tx_cbs[alloc].function = callback_isr;
+	data->tx_cbs[alloc].arg = callback_arg;
 	xfer.frame = &data->tx_cbs[alloc].frame;
 	xfer.mbIdx = ALLOC_IDX_TO_TXMB_IDX(alloc);
 	FLEXCAN_SetTxMbConfig(config->base, xfer.mbIdx, true);
 	status = FLEXCAN_TransferSendNonBlocking(config->base, &data->handle,
 						 &xfer);
 	if (status != kStatus_Success) {
-		return -EIO;
+		return CAN_TX_ERR;
 	}
 
-	if (callback == NULL) {
+	if (callback_isr == NULL) {
 		k_sem_take(&data->tx_cbs[alloc].done, K_FOREVER);
 		return data->tx_cbs[alloc].status;
 	}
 
-	return 0;
+	return CAN_TX_OK;
 }
 
-static int mcux_flexcan_add_rx_filter(const struct device *dev,
-				      can_rx_callback_t callback,
-				      void *user_data,
-				      const struct zcan_filter *filter)
+static int mcux_flexcan_attach_isr(const struct device *dev,
+				   can_rx_callback_t isr,
+				   void *callback_arg,
+				   const struct zcan_filter *filter)
 {
 	const struct mcux_flexcan_config *config = dev->config;
 	struct mcux_flexcan_data *data = dev->data;
 	flexcan_mb_transfer_t xfer;
 	status_t status;
 	uint32_t mask;
-	int alloc = -ENOSPC;
+	int alloc = CAN_NO_FREE_FILTER;
 	int i;
 
-	__ASSERT_NO_MSG(callback);
+	__ASSERT_NO_MSG(isr);
 
 	k_mutex_lock(&data->rx_mutex, K_FOREVER);
 
@@ -381,7 +384,7 @@ static int mcux_flexcan_add_rx_filter(const struct device *dev,
 		}
 	}
 
-	if (alloc == -ENOSPC) {
+	if (alloc == CAN_NO_FREE_FILTER) {
 		return alloc;
 	}
 
@@ -389,8 +392,8 @@ static int mcux_flexcan_add_rx_filter(const struct device *dev,
 					      &data->rx_cbs[alloc].mb_config,
 					      &mask);
 
-	data->rx_cbs[alloc].arg = user_data;
-	data->rx_cbs[alloc].function = callback;
+	data->rx_cbs[alloc].arg = callback_arg;
+	data->rx_cbs[alloc].function = isr;
 
 	FLEXCAN_SetRxIndividualMask(config->base, ALLOC_IDX_TO_RXMB_IDX(alloc),
 				    mask);
@@ -404,7 +407,7 @@ static int mcux_flexcan_add_rx_filter(const struct device *dev,
 	if (status != kStatus_Success) {
 		LOG_ERR("Failed to start rx for filter id %d (err = %d)",
 			alloc, status);
-		alloc = -ENOSPC;
+		alloc = CAN_NO_FREE_FILTER;
 	}
 
 	k_mutex_unlock(&data->rx_mutex);
@@ -412,42 +415,59 @@ static int mcux_flexcan_add_rx_filter(const struct device *dev,
 	return alloc;
 }
 
-static void mcux_flexcan_set_state_change_callback(const struct device *dev,
-						   can_state_change_callback_t callback,
-						   void *user_data)
+static void mcux_flexcan_register_state_change_isr(const struct device *dev,
+						   can_state_change_isr_t isr)
 {
 	struct mcux_flexcan_data *data = dev->data;
 
-	data->state_change_cb = callback;
-	data->state_change_cb_data = user_data;
+	data->state_change_isr = isr;
+}
+
+static enum can_state mcux_flexcan_get_state(const struct device *dev,
+					     struct can_bus_err_cnt *err_cnt)
+{
+	const struct mcux_flexcan_config *config = dev->config;
+	uint32_t status_flags;
+
+	if (err_cnt) {
+		FLEXCAN_GetBusErrCount(config->base, &err_cnt->tx_err_cnt,
+				       &err_cnt->rx_err_cnt);
+	}
+
+	status_flags = (FLEXCAN_GetStatusFlags(config->base) &
+			CAN_ESR1_FLTCONF_MASK) << CAN_ESR1_FLTCONF_SHIFT;
+
+	if (status_flags & 0x02) {
+		return CAN_BUS_OFF;
+	}
+
+	if (status_flags & 0x01) {
+		return CAN_ERROR_PASSIVE;
+	}
+
+	return CAN_ERROR_ACTIVE;
 }
 
 #ifndef CONFIG_CAN_AUTO_BUS_OFF_RECOVERY
 int mcux_flexcan_recover(const struct device *dev, k_timeout_t timeout)
 {
 	const struct mcux_flexcan_config *config = dev->config;
-	enum can_state state;
-	uint64_t start_time;
 	int ret = 0;
+	uint64_t start_time;
 
-	(void)mcux_flexcan_get_state(dev, &state, NULL);
-	if (state != CAN_BUS_OFF) {
+	if (mcux_flexcan_get_state(dev, NULL) != CAN_BUS_OFF) {
 		return 0;
 	}
 
 	start_time = k_uptime_ticks();
 	config->base->CTRL1 &= ~CAN_CTRL1_BOFFREC_MASK;
 
-	if (!K_TIMEOUT_EQ(timeout, K_NO_WAIT)) {
-		(void)mcux_flexcan_get_state(dev, &state, NULL);
-
-		while (state == CAN_BUS_OFF) {
-			if (!K_TIMEOUT_EQ(timeout, K_FOREVER) &&
+	if (timeout != K_NO_WAIT) {
+		while (mcux_flexcan_get_state(dev, NULL) == CAN_BUS_OFF) {
+			if (timeout != K_FOREVER &&
 			    k_uptime_ticks() - start_time >= timeout.ticks) {
-				ret = -EAGAIN;
+				ret = CAN_TIMEOUT;
 			}
-
-			(void)mcux_flexcan_get_state(dev, &state, NULL);
 		}
 	}
 
@@ -457,7 +477,7 @@ int mcux_flexcan_recover(const struct device *dev, k_timeout_t timeout)
 }
 #endif /* CONFIG_CAN_AUTO_BUS_OFF_RECOVERY */
 
-static void mcux_flexcan_remove_rx_filter(const struct device *dev, int filter_id)
+static void mcux_flexcan_detach(const struct device *dev, int filter_id)
 {
 	const struct mcux_flexcan_config *config = dev->config;
 	struct mcux_flexcan_data *data = dev->data;
@@ -486,70 +506,78 @@ static void mcux_flexcan_remove_rx_filter(const struct device *dev, int filter_i
 }
 
 static inline void mcux_flexcan_transfer_error_status(const struct device *dev,
-						      uint64_t error)
+						      uint32_t error)
 {
 	const struct mcux_flexcan_config *config = dev->config;
 	struct mcux_flexcan_data *data = dev->data;
-	const can_state_change_callback_t cb = data->state_change_cb;
-	void *cb_data = data->state_change_cb_data;
 	can_tx_callback_t function;
+	int status = CAN_TX_OK;
 	void *arg;
 	int alloc;
 	enum can_state state;
 	struct can_bus_err_cnt err_cnt;
 
-	if ((error & kFLEXCAN_Bit0Error) != 0U) {
-		CAN_STATS_BIT0_ERROR_INC(dev);
+	if (error & CAN_ESR1_FLTCONF(2)) {
+		LOG_DBG("Tx bus off (error 0x%08x)", error);
+		status = CAN_TX_BUS_OFF;
+	} else if ((error & kFLEXCAN_Bit0Error) ||
+		   (error & kFLEXCAN_Bit1Error)) {
+		LOG_DBG("TX arbitration lost (error 0x%08x)", error);
+		status = CAN_TX_ARB_LOST;
+	} else if (error & kFLEXCAN_AckError) {
+		LOG_DBG("TX no ACK received (error 0x%08x)", error);
+		status = CAN_TX_ERR;
+	} else if (error & kFLEXCAN_StuffingError) {
+		LOG_DBG("RX stuffing error (error 0x%08x)", error);
+	} else if (error & kFLEXCAN_FormError) {
+		LOG_DBG("RX form error (error 0x%08x)", error);
+	} else if (error & kFLEXCAN_CrcError) {
+		LOG_DBG("RX CRC error (error 0x%08x)", error);
+	} else {
+		LOG_DBG("Unhandled error (error 0x%08x)", error);
 	}
 
-	if ((error & kFLEXCAN_Bit1Error) != 0U) {
-		CAN_STATS_BIT1_ERROR_INC(dev);
-	}
-
-	if ((error & kFLEXCAN_AckError) != 0U) {
-		CAN_STATS_ACK_ERROR_INC(dev);
-	}
-
-	if ((error & kFLEXCAN_StuffingError) != 0U) {
-		CAN_STATS_STUFF_ERROR_INC(dev);
-	}
-
-	if ((error & kFLEXCAN_FormError) != 0U) {
-		CAN_STATS_FORM_ERROR_INC(dev);
-	}
-
-	if ((error & kFLEXCAN_CrcError) != 0U) {
-		CAN_STATS_CRC_ERROR_INC(dev);
-	}
-
-	(void)mcux_flexcan_get_state(dev, &state, &err_cnt);
+	state = mcux_flexcan_get_state(dev, &err_cnt);
 	if (data->state != state) {
 		data->state = state;
-
-		if (cb != NULL) {
-			cb(state, err_cnt, cb_data);
+		if (data->state_change_isr) {
+			data->state_change_isr(state, err_cnt);
 		}
 	}
 
-	if (state == CAN_BUS_OFF) {
-		/* Abort any pending TX frames in case of bus-off */
-		for (alloc = 0; alloc < MCUX_FLEXCAN_MAX_TX; alloc++) {
-			/* Copy callback function and argument before clearing bit */
-			function = data->tx_cbs[alloc].function;
-			arg = data->tx_cbs[alloc].arg;
+	if (status == CAN_TX_OK) {
+		/*
+		 * Error/status is not TX related. No further action
+		 * required.
+		 */
+		return;
+	}
 
-			if (atomic_test_and_clear_bit(data->tx_allocs, alloc)) {
-				FLEXCAN_TransferAbortSend(config->base, &data->handle,
-							  ALLOC_IDX_TO_TXMB_IDX(alloc));
-				if (function != NULL) {
-					function(-ENETDOWN, arg);
-				} else {
-					data->tx_cbs[alloc].status = -ENETDOWN;
-					k_sem_give(&data->tx_cbs[alloc].done);
-				}
+	/*
+	 * Since the FlexCAN module ESR1 register accumulates errors
+	 * and warnings across multiple transmitted frames (until the
+	 * CPU reads the register) it is not possible to find out
+	 * which transfer caused the error/warning.
+	 *
+	 * We therefore propagate the error/warning to all currently
+	 * active transmitters.
+	 */
+	for (alloc = 0; alloc < MCUX_FLEXCAN_MAX_TX; alloc++) {
+		/* Copy callback function and argument before clearing bit */
+		function = data->tx_cbs[alloc].function;
+		arg = data->tx_cbs[alloc].arg;
 
-				k_sem_give(&data->tx_allocs_sem);
+		if (atomic_test_and_clear_bit(data->tx_allocs, alloc)) {
+			FLEXCAN_TransferAbortSend(config->base, &data->handle,
+						  ALLOC_IDX_TO_TXMB_IDX(alloc));
+			if (function != NULL) {
+				function(status, arg);
+			} else {
+				data->tx_cbs[alloc].status = status;
+				k_sem_give(&data->tx_cbs[alloc].done);
 			}
+
+			k_sem_give(&data->tx_allocs_sem);
 		}
 	}
 }
@@ -570,9 +598,9 @@ static inline void mcux_flexcan_transfer_tx_idle(const struct device *dev,
 
 	if (atomic_test_and_clear_bit(data->tx_allocs, alloc)) {
 		if (function != NULL) {
-			function(0, arg);
+			function(CAN_TX_OK, arg);
 		} else {
-			data->tx_cbs[alloc].status = 0;
+			data->tx_cbs[alloc].status = CAN_TX_OK;
 			k_sem_give(&data->tx_cbs[alloc].done);
 		}
 		k_sem_give(&data->tx_allocs_sem);
@@ -615,40 +643,32 @@ static inline void mcux_flexcan_transfer_rx_idle(const struct device *dev,
 	}
 }
 
-static FLEXCAN_CALLBACK(mcux_flexcan_transfer_callback)
+static void mcux_flexcan_transfer_callback(CAN_Type *base,
+					   flexcan_handle_t *handle,
+					   status_t status, uint32_t result,
+					   void *userData)
 {
 	struct mcux_flexcan_data *data = (struct mcux_flexcan_data *)userData;
-	/*
-	 * The result field can either be a MB index (which is limited to 32 bit
-	 * value) or a status flags value, which is 32 bit on some platforms but
-	 * 64 on others. To decouple the remaining functions from this, the
-	 * result field is always promoted to uint64_t.
-	 */
-	uint32_t mb = (uint32_t)result;
-	uint64_t status_flags = result;
-
-	ARG_UNUSED(base);
 
 	switch (status) {
 	case kStatus_FLEXCAN_UnHandled:
-		/* Not all fault confinement state changes are handled by the HAL */
 		__fallthrough;
 	case kStatus_FLEXCAN_ErrorStatus:
-		mcux_flexcan_transfer_error_status(data->dev, status_flags);
+		mcux_flexcan_transfer_error_status(data->dev, result);
 		break;
 	case kStatus_FLEXCAN_TxSwitchToRx:
 		__fallthrough;
 	case kStatus_FLEXCAN_TxIdle:
-		mcux_flexcan_transfer_tx_idle(data->dev, mb);
+		mcux_flexcan_transfer_tx_idle(data->dev, result);
 		break;
 	case kStatus_FLEXCAN_RxOverflow:
 		__fallthrough;
 	case kStatus_FLEXCAN_RxIdle:
-		mcux_flexcan_transfer_rx_idle(data->dev, mb);
+		mcux_flexcan_transfer_rx_idle(data->dev, result);
 		break;
 	default:
-		LOG_WRN("Unhandled status 0x%08x (result = 0x%016llx)",
-			status, status_flags);
+		LOG_WRN("Unhandled error/status (status 0x%08x, "
+			 "result = 0x%08x", status, result);
 	}
 }
 
@@ -668,8 +688,7 @@ static int mcux_flexcan_init(const struct device *dev)
 	int i;
 
 	k_mutex_init(&data->rx_mutex);
-	k_sem_init(&data->tx_allocs_sem, MCUX_FLEXCAN_MAX_TX,
-		   MCUX_FLEXCAN_MAX_TX);
+	k_sem_init(&data->tx_allocs_sem, 0, 1);
 
 	for (i = 0; i < ARRAY_SIZE(data->tx_cbs); i++) {
 		k_sem_init(&data->tx_cbs[i].done, 0, 1);
@@ -712,8 +731,7 @@ static int mcux_flexcan_init(const struct device *dev)
 #ifndef CONFIG_CAN_AUTO_BUS_OFF_RECOVERY
 	config->base->CTRL1 |= CAN_CTRL1_BOFFREC_MASK;
 #endif /* CONFIG_CAN_AUTO_BUS_OFF_RECOVERY */
-
-	(void)mcux_flexcan_get_state(dev, &data->state, NULL);
+	data->state = mcux_flexcan_get_state(dev, NULL);
 
 	return 0;
 }
@@ -722,37 +740,27 @@ static const struct can_driver_api mcux_flexcan_driver_api = {
 	.set_mode = mcux_flexcan_set_mode,
 	.set_timing = mcux_flexcan_set_timing,
 	.send = mcux_flexcan_send,
-	.add_rx_filter = mcux_flexcan_add_rx_filter,
-	.remove_rx_filter = mcux_flexcan_remove_rx_filter,
+	.attach_isr = mcux_flexcan_attach_isr,
+	.detach = mcux_flexcan_detach,
 	.get_state = mcux_flexcan_get_state,
 #ifndef CONFIG_CAN_AUTO_BUS_OFF_RECOVERY
 	.recover = mcux_flexcan_recover,
 #endif
-	.set_state_change_callback = mcux_flexcan_set_state_change_callback,
+	.register_state_change_isr = mcux_flexcan_register_state_change_isr,
 	.get_core_clock = mcux_flexcan_get_core_clock,
-	.get_max_filters = mcux_flexcan_get_max_filters,
-	/*
-	 * FlexCAN timing limits are specified in the "FLEXCANx_CTRL1 field
-	 * descriptions" table in the SoC reference manual.
-	 *
-	 * Note that the values here are the "physical" timing limits, whereas
-	 * the register field limits are physical values minus 1 (which is
-	 * handled by the flexcan_config_t field assignments elsewhere in this
-	 * driver).
-	 */
 	.timing_min = {
-		.sjw = 0x01,
+		.sjw = 0x1,
 		.prop_seg = 0x01,
 		.phase_seg1 = 0x01,
-		.phase_seg2 = 0x02,
+		.phase_seg2 = 0x01,
 		.prescaler = 0x01
 	},
 	.timing_max = {
-		.sjw = 0x04,
-		.prop_seg = 0x08,
-		.phase_seg1 = 0x08,
-		.phase_seg2 = 0x08,
-		.prescaler = 0x100
+		.sjw = 0x03,
+		.prop_seg = 0x07,
+		.phase_seg1 = 0x07,
+		.phase_seg2 = 0x07,
+		.prescaler = 0xFF
 	}
 };
 
@@ -761,7 +769,7 @@ static const struct can_driver_api mcux_flexcan_driver_api = {
 		IRQ_CONNECT(DT_INST_IRQ_BY_NAME(id, name, irq),		\
 		DT_INST_IRQ_BY_NAME(id, name, priority),		\
 		mcux_flexcan_isr,					\
-		DEVICE_DT_INST_GET(id), 0);				\
+		DEVICE_DT_INST_GET(id), id);				\
 		irq_enable(DT_INST_IRQ_BY_NAME(id, name, irq));		\
 	} while (0)
 
@@ -789,11 +797,11 @@ static const struct can_driver_api mcux_flexcan_driver_api = {
 									\
 	static struct mcux_flexcan_data mcux_flexcan_data_##id;		\
 									\
-	CAN_DEVICE_DT_INST_DEFINE(id, mcux_flexcan_init,		\
-				  NULL, &mcux_flexcan_data_##id,	\
-				  &mcux_flexcan_config_##id,		\
-				  POST_KERNEL, CONFIG_CAN_INIT_PRIORITY,\
-				  &mcux_flexcan_driver_api);		\
+	DEVICE_DT_INST_DEFINE(id, &mcux_flexcan_init,			\
+			NULL, &mcux_flexcan_data_##id,	\
+			&mcux_flexcan_config_##id, POST_KERNEL,		\
+			CONFIG_KERNEL_INIT_PRIORITY_DEVICE,		\
+			&mcux_flexcan_driver_api);			\
 									\
 	static void mcux_flexcan_irq_config_##id(const struct device *dev) \
 	{								\
@@ -833,7 +841,7 @@ DT_INST_FOREACH_STATUS_OKAY(FLEXCAN_DEVICE_INIT_MCUX)
 	NET_DEVICE_INIT(socket_can_flexcan_##id, SOCKET_CAN_NAME_##id,	\
 		socket_can_init_##id, NULL,				\
 		&socket_can_context_##id, NULL,				\
-		CONFIG_CAN_INIT_PRIORITY, &socket_can_api,		\
+		CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &socket_can_api,	\
 		CANBUS_RAW_L2, NET_L2_GET_CTX_TYPE(CANBUS_RAW_L2),	\
 		CAN_MTU);						\
 

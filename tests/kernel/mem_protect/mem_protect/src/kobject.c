@@ -80,23 +80,14 @@ void test_kobject_access_grant_error(void)
  */
 void test_kobject_access_grant_error_user(void)
 {
-	struct k_queue *q;
+	struct k_msgq *m;
 
-	/*
-	 * avoid using K_OBJ_PIPE, K_OBJ_MSGQ, or K_OBJ_STACK because the
-	 * k_object_alloc() returns an uninitialized kernel object and these
-	 * objects are types that can have additional memory allocations that
-	 * need to be freed. This becomes a problem on the fault handler clean
-	 * up because when it is freeing this uninitialized object the random
-	 * data in the object can cause the clean up to try to free random
-	 * data resulting in a secondary fault that fails the test.
-	 */
-	q = k_object_alloc(K_OBJ_QUEUE);
-	k_object_access_grant(q, k_current_get());
+	m = k_object_alloc(K_OBJ_MSGQ);
+	k_object_access_grant(m, k_current_get());
 
 	set_fault_valid(true);
 	/* a K_ERR_KERNEL_OOPS expected */
-	k_object_access_grant(q, NULL);
+	k_object_access_grant(m, NULL);
 }
 
 /**
@@ -361,20 +352,18 @@ void test_kobject_release_from_user(void)
 	k_thread_join(&child_thread, K_FOREVER);
 }
 
-/**
- * @brief Test release and access grant an invaild kobject
+/* @brief Test release kernel a invaild kobject
  *
- * @details Validate release and access grant an invalid kernel object.
+ * @details Validate release kernel objects with NULL parameter.
  *
- * @see k_object_release(), k_object_access_all_grant()
+ * @see k_object_release()
  *
  * @ingroup kernel_memprotect_tests
  */
-void test_kobject_invalid(void)
+void test_kobject_release_null(void)
 {
-	int dummy = 0;
+	int dummy;
 
-	k_object_access_all_grant(&dummy);
 	k_object_release(&dummy);
 }
 
@@ -1267,7 +1256,6 @@ void test_alloc_kobjects(void)
 	struct k_poll_signal *polls;
 	struct k_timer *timer;
 	struct k_mutex *mutex;
-	struct k_condvar *condvar;
 	void *ko;
 
 	/* allocate kernel object */
@@ -1276,13 +1264,10 @@ void test_alloc_kobjects(void)
 	zassert_not_null(t, "alloc obj (0x%lx)\n", (uintptr_t)t);
 	p = k_object_alloc(K_OBJ_PIPE);
 	zassert_not_null(p, "alloc obj (0x%lx)\n", (uintptr_t)p);
-	k_pipe_init(p, NULL, 0);
 	s = k_object_alloc(K_OBJ_STACK);
 	zassert_not_null(s, "alloc obj (0x%lx)\n", (uintptr_t)s);
-	k_stack_init(s, NULL, 0);
 	m = k_object_alloc(K_OBJ_MSGQ);
 	zassert_not_null(m, "alloc obj (0x%lx)\n", (uintptr_t)m);
-	k_msgq_init(m, NULL, 0, 0);
 	q = k_object_alloc(K_OBJ_QUEUE);
 	zassert_not_null(q, "alloc obj (0x%lx)\n", (uintptr_t)q);
 
@@ -1301,8 +1286,6 @@ void test_alloc_kobjects(void)
 	zassert_not_null(timer, "alloc obj (0x%lx)\n", (uintptr_t)timer);
 	mutex = k_object_alloc(K_OBJ_MUTEX);
 	zassert_not_null(mutex, "alloc obj (0x%lx)\n", (uintptr_t)mutex);
-	condvar = k_object_alloc(K_OBJ_CONDVAR);
-	zassert_not_null(condvar, "alloc obj (0x%lx)\n", (uintptr_t)condvar);
 
 	k_object_release((void *)mslab);
 	k_object_release((void *)polls);
@@ -1382,33 +1365,4 @@ void test_kobject_perm_error(void)
 
 		k_thread_join(tid, K_FOREVER);
 	}
-}
-
-extern const char *otype_to_str(enum k_objects otype);
-
-/**
- * @brief Test get all kernel object list
- *
- * @details Get all of the kernel object in kobject list.
- *
- * @ingroup kernel_memprotect_tests
- */
-void test_all_kobjects_str(void)
-{
-	enum k_objects otype = K_OBJ_ANY;
-	const char *c;
-	int  cmp;
-
-	do {
-		c = otype_to_str(otype);
-		cmp = strcmp(c, "?");
-		if (otype != K_OBJ_LAST) {
-			zassert_true(cmp != 0,
-				"otype %d unexpectedly maps to last entry \"?\"", otype);
-		} else {
-			zassert_true(cmp == 0,
-				"otype %d does not map to last entry \"?\"", otype);
-		}
-		otype++;
-	} while (otype <= K_OBJ_LAST);
 }

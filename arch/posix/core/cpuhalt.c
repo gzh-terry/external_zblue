@@ -48,9 +48,12 @@ void arch_cpu_atomic_idle(unsigned int key)
 
 #if defined(CONFIG_REBOOT)
 /**
+ *
  * @brief Stub for sys_arch_reboot
  *
  * Does nothing
+ *
+ * @return N/A
  */
 void __weak sys_arch_reboot(int type)
 {

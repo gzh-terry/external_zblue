@@ -5,7 +5,4 @@ description: STM32 lptim
 
 compatible: "st,stm32-lptim"
 
-include:
-  - name: st,stm32-timers.yaml
-    property-blocklist:
-        - st,prescaler
+include: st,stm32-timers.yaml

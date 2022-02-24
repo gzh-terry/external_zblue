@@ -11,10 +11,10 @@
 #include <ztest.h>
 
 #define MAX_NUM_THREAD 10
-#define STACK_SIZE (640 + CONFIG_TEST_EXTRA_STACK_SIZE)
+#define STACK_SIZE (640 + CONFIG_TEST_EXTRA_STACKSIZE)
 
 K_THREAD_STACK_EXTERN(tstack);
-K_THREAD_STACK_ARRAY_EXTERN(tstacks, MAX_NUM_THREAD, STACK_SIZE);
+extern K_THREAD_STACK_ARRAY_DEFINE(tstacks, MAX_NUM_THREAD, STACK_SIZE);
 extern struct k_thread user_thread;
 extern struct k_sem user_sem;
 

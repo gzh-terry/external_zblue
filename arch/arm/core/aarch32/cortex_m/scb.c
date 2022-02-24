@@ -30,6 +30,7 @@
  *
  * This routine resets the processor.
  *
+ * @return N/A
  */
 
 void __weak sys_arch_reboot(int type)
@@ -46,6 +47,7 @@ void __weak sys_arch_reboot(int type)
  *
  * This routine clears all ARM MPU region configuration.
  *
+ * @return N/A
  */
 void z_arm_clear_arm_mpu_config(void)
 {
@@ -82,6 +84,7 @@ void z_arm_clear_arm_mpu_config(void)
  * This routine resets Cortex-M system control block
  * components and core registers.
  *
+ * @return N/A
  */
 void z_arm_init_arch_hw_at_boot(void)
 {

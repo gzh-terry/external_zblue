@@ -45,7 +45,7 @@
 #define PRIORITY                7
 
 /* delay between greetings (in ms) */
-#define SLEEPTIME               K_MSEC(500)
+#define SLEEPTIME               500
 
 extern struct k_sem thread_sem;
 

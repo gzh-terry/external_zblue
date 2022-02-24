@@ -17,6 +17,9 @@ struct trng_sam_dev_cfg {
 	Trng *regs;
 };
 
+#define DEV_CFG(dev) \
+	((const struct trng_sam_dev_cfg *const)(dev)->config)
+
 static inline bool _ready(Trng * const trng)
 {
 #ifdef TRNG_ISR_DATRDY
@@ -73,8 +76,7 @@ static int entropy_sam_get_entropy_internal(const struct device *dev,
 					    uint8_t *buffer,
 					    uint16_t length, uint32_t flags)
 {
-	const struct trng_sam_dev_cfg *config = dev->config;
-	Trng *const trng = config->regs;
+	Trng *const trng = DEV_CFG(dev)->regs;
 
 	while (length > 0) {
 		size_t to_copy;
@@ -111,10 +113,10 @@ static int entropy_sam_get_entropy_isr(const struct device *dev,
 
 
 	if ((flags & ENTROPY_BUSYWAIT) == 0U) {
-		const struct trng_sam_dev_cfg *config = dev->config;
+
 		/* No busy wait; return whatever data is available. */
 
-		Trng * const trng = config->regs;
+		Trng * const trng = DEV_CFG(dev)->regs;
 
 		do {
 			size_t to_copy;
@@ -154,8 +156,7 @@ static int entropy_sam_get_entropy_isr(const struct device *dev,
 
 static int entropy_sam_init(const struct device *dev)
 {
-	const struct trng_sam_dev_cfg *config = dev->config;
-	Trng *const trng = config->regs;
+	Trng *const trng = DEV_CFG(dev)->regs;
 
 #ifdef MCLK
 	/* Enable the MCLK */
@@ -185,5 +186,5 @@ static const struct trng_sam_dev_cfg trng_sam_cfg = {
 DEVICE_DT_INST_DEFINE(0,
 		    entropy_sam_init, NULL,
 		    NULL, &trng_sam_cfg,
-		    PRE_KERNEL_1, CONFIG_ENTROPY_INIT_PRIORITY,
+		    PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    &entropy_sam_api);

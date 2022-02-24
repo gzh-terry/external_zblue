@@ -25,6 +25,8 @@ extern "C" {
 #include <em_bus.h>
 #include <em_common.h>
 
+/* Add include for DTS generated information */
+#include <devicetree.h>
 
 #include "soc_pinmap.h"
 #include "../common/soc_gpio.h"

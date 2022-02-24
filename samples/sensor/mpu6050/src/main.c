@@ -72,7 +72,7 @@ static int process_mpu6050(const struct device *dev)
 static struct sensor_trigger trigger;
 
 static void handle_mpu6050_drdy(const struct device *dev,
-				const struct sensor_trigger *trig)
+				struct sensor_trigger *trig)
 {
 	int rc = process_mpu6050(dev);
 

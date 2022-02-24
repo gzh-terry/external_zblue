@@ -13,4 +13,3 @@ supported:
   - i2c
   - spi
   - usart
-  - usb_device

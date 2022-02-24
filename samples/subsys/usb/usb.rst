@@ -1,7 +1,7 @@
 .. _usb-samples:
 
-USB device support samples
-##########################
+USB Samples
+###############
 
 .. toctree::
    :maxdepth: 1

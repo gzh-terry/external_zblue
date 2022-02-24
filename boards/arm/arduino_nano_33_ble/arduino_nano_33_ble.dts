@@ -27,21 +27,11 @@
 			gpios = <&gpio0 24 0>;
 			label = "Red LED";
 		};
-		led1: led_1 {
-			gpios = <&gpio0 16 0>;
-			label = "Green LED";
-		};
-		led2: led_2 {
-			gpios = <&gpio0 6 0>;
-			label = "Blue LED";
-		};
 	};
 
 	/* These aliases are provided for compatibility with samples */
 	aliases {
 		led0 = &led0;
-		led1 = &led1;
-		led2 = &led2;
 		spi = &spi2;
 	};
 };
@@ -54,26 +44,14 @@
 
 		boot_partition: partition@0 {
 			label = "sam-ba";
-			reg = <0x00000000 0x00010000>;
+			reg = <0x0 0x10000>;
 			read-only;
 		};
 
 		code_partition: partition@10000 {
 			label = "code";
-			reg = <0x00010000 0x000e8000>;
+			reg = <0x10000 0xf0000>;
 			read-only;
-		};
-
-		/*
-		 * The flash starting at 0x000f8000 and ending at
-		 * 0x000fffff is reserved for use by the application.
-		 *
-		 * Storage partition will be used by FCB/LittleFS/NVS
-		 * if enabled.
-		 */
-		storage_partition: partition@f8000 {
-			label = "storage";
-			reg = <0x000f8000 0x00008000>;
 		};
 	};
 };
@@ -120,7 +98,7 @@
 &gpio1 {
 	status = "okay";
 };
-zephyr_udc0: &usbd {
+&usbd {
 	compatible = "nordic,nrf-usbd";
 	status = "okay";
 };

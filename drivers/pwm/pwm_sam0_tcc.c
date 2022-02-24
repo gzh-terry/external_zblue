@@ -34,6 +34,8 @@ struct pwm_sam0_config {
 #endif
 };
 
+#define DEV_CFG(dev) ((const struct pwm_sam0_config *const)(dev)->config)
+
 /* Wait for the peripheral to finish all commands */
 static void wait_synchronization(Tcc *regs)
 {
@@ -44,7 +46,7 @@ static void wait_synchronization(Tcc *regs)
 static int pwm_sam0_get_cycles_per_sec(const struct device *dev, uint32_t ch,
 				       uint64_t *cycles)
 {
-	const struct pwm_sam0_config *const cfg = dev->config;
+	const struct pwm_sam0_config *const cfg = DEV_CFG(dev);
 
 	if (ch >= cfg->channels) {
 		return -EINVAL;
@@ -58,7 +60,7 @@ static int pwm_sam0_pin_set(const struct device *dev, uint32_t ch,
 			    uint32_t period_cycles, uint32_t pulse_cycles,
 			    pwm_flags_t flags)
 {
-	const struct pwm_sam0_config *const cfg = dev->config;
+	const struct pwm_sam0_config *const cfg = DEV_CFG(dev);
 	Tcc *regs = cfg->regs;
 	uint32_t top = 1 << cfg->counter_size;
 	uint32_t invert_mask = 1 << ch;
@@ -100,7 +102,7 @@ static int pwm_sam0_pin_set(const struct device *dev, uint32_t ch,
 
 static int pwm_sam0_init(const struct device *dev)
 {
-	const struct pwm_sam0_config *const cfg = dev->config;
+	const struct pwm_sam0_config *const cfg = DEV_CFG(dev);
 	Tcc *regs = cfg->regs;
 
 	/* Enable the clocks */

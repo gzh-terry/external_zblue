@@ -37,11 +37,16 @@ struct gpio_psoc6_runtime {
 	sys_slist_t cb;
 };
 
+#define DEV_CFG(dev) \
+	((const struct gpio_psoc6_config * const)(dev)->config)
+#define DEV_DATA(dev) \
+	((struct gpio_psoc6_runtime * const)(dev)->data)
+
 static int gpio_psoc6_config(const struct device *dev,
 			     gpio_pin_t pin,
 			     gpio_flags_t flags)
 {
-	const struct gpio_psoc6_config * const cfg = dev->config;
+	const struct gpio_psoc6_config * const cfg = DEV_CFG(dev);
 	GPIO_PRT_Type * const port = cfg->regs;
 	uint32_t drv_mode;
 	uint32_t pin_val;
@@ -91,7 +96,7 @@ static int gpio_psoc6_config(const struct device *dev,
 static int gpio_psoc6_port_get_raw(const struct device *dev,
 				   uint32_t *value)
 {
-	const struct gpio_psoc6_config * const cfg = dev->config;
+	const struct gpio_psoc6_config * const cfg = DEV_CFG(dev);
 	GPIO_PRT_Type * const port = cfg->regs;
 
 	*value = GPIO_PRT_IN(port);
@@ -105,7 +110,7 @@ static int gpio_psoc6_port_set_masked_raw(const struct device *dev,
 					  uint32_t mask,
 					  uint32_t value)
 {
-	const struct gpio_psoc6_config * const cfg = dev->config;
+	const struct gpio_psoc6_config * const cfg = DEV_CFG(dev);
 	GPIO_PRT_Type * const port = cfg->regs;
 
 	GPIO_PRT_OUT(port) = (GPIO_PRT_IN(port) & ~mask) | (mask & value);
@@ -116,7 +121,7 @@ static int gpio_psoc6_port_set_masked_raw(const struct device *dev,
 static int gpio_psoc6_port_set_bits_raw(const struct device *dev,
 					uint32_t mask)
 {
-	const struct gpio_psoc6_config * const cfg = dev->config;
+	const struct gpio_psoc6_config * const cfg = DEV_CFG(dev);
 	GPIO_PRT_Type * const port = cfg->regs;
 
 	GPIO_PRT_OUT_SET(port) = mask;
@@ -127,7 +132,7 @@ static int gpio_psoc6_port_set_bits_raw(const struct device *dev,
 static int gpio_psoc6_port_clear_bits_raw(const struct device *dev,
 					  uint32_t mask)
 {
-	const struct gpio_psoc6_config * const cfg = dev->config;
+	const struct gpio_psoc6_config * const cfg = DEV_CFG(dev);
 	GPIO_PRT_Type * const port = cfg->regs;
 
 	GPIO_PRT_OUT_CLR(port) = mask;
@@ -138,7 +143,7 @@ static int gpio_psoc6_port_clear_bits_raw(const struct device *dev,
 static int gpio_psoc6_port_toggle_bits(const struct device *dev,
 				       uint32_t mask)
 {
-	const struct gpio_psoc6_config * const cfg = dev->config;
+	const struct gpio_psoc6_config * const cfg = DEV_CFG(dev);
 	GPIO_PRT_Type * const port = cfg->regs;
 
 	GPIO_PRT_OUT_INV(port) = mask;
@@ -151,7 +156,7 @@ static int gpio_psoc6_pin_interrupt_configure(const struct device *dev,
 					    enum gpio_int_mode mode,
 					    enum gpio_int_trig trig)
 {
-	const struct gpio_psoc6_config * const cfg = dev->config;
+	const struct gpio_psoc6_config * const cfg = DEV_CFG(dev);
 	GPIO_PRT_Type * const port = cfg->regs;
 	uint32_t is_enabled = ((mode == GPIO_INT_MODE_DISABLED) ? 0 : 1);
 	uint32_t lv_trg = CY_GPIO_INTR_DISABLE;
@@ -189,7 +194,7 @@ static int gpio_psoc6_pin_interrupt_configure(const struct device *dev,
 
 static void gpio_psoc6_isr(const struct device *dev)
 {
-	const struct gpio_psoc6_config * const cfg = dev->config;
+	const struct gpio_psoc6_config * const cfg = DEV_CFG(dev);
 	GPIO_PRT_Type * const port = cfg->regs;
 	struct gpio_psoc6_runtime *context = dev->data;
 	uint32_t int_stat;
@@ -219,7 +224,7 @@ static int gpio_psoc6_manage_callback(const struct device *port,
 
 static uint32_t gpio_psoc6_get_pending_int(const struct device *dev)
 {
-	const struct gpio_psoc6_config * const cfg = dev->config;
+	const struct gpio_psoc6_config * const cfg = DEV_CFG(dev);
 	GPIO_PRT_Type * const port = cfg->regs;
 
 	LOG_DBG("Pending: 0x%08x", GPIO_PRT_INTR_MASKED(port));
@@ -241,7 +246,7 @@ static const struct gpio_driver_api gpio_psoc6_api = {
 
 int gpio_psoc6_init(const struct device *dev)
 {
-	const struct gpio_psoc6_config * const cfg = dev->config;
+	const struct gpio_psoc6_config * const cfg = DEV_CFG(dev);
 
 	cfg->config_func(dev);
 
@@ -263,8 +268,8 @@ int gpio_psoc6_init(const struct device *dev)
 									\
 	DEVICE_DT_INST_DEFINE(n, gpio_psoc6_init, NULL,			\
 			    &port_##n##_psoc6_runtime,			\
-			    &port_##n##_psoc6_config, PRE_KERNEL_1,	\
-			    CONFIG_GPIO_INIT_PRIORITY,			\
+			    &port_##n##_psoc6_config, POST_KERNEL,	\
+			    CONFIG_KERNEL_INIT_PRIORITY_DEVICE,		\
 			    &gpio_psoc6_api);				\
 									\
 	static void port_##n##_psoc6_config_func(const struct device *dev) \

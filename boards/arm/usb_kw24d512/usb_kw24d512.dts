@@ -60,10 +60,9 @@
 	status = "okay";
 	current-speed = <115200>;
 	pinctrl-0 = <&UART0_RX_PTA1 &UART0_TX_PTA2>;
-	pinctrl-names = "default";
 };
 
-zephyr_udc0: &usbd {
+&usbd {
 	compatible = "nxp,kinetis-usbd";
 	status = "okay";
 	num-bidir-endpoints = <8>;

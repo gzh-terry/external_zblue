@@ -13,6 +13,8 @@
 
 #include <zephyr/types.h>
 
+/* Add include for DTS generated information */
+#include <devicetree.h>
 
 #if defined(CONFIG_SOC_PART_NUMBER_SAMD21E15A)
 #include <samd21e15a.h>
@@ -48,8 +50,6 @@
 
 #endif /* _ASMLANGUAGE */
 
-#include "adc_fixup_sam0.h"
-#include "../common/soc_port.h"
 #include "../common/atmel_sam0_dt.h"
 
 /** Processor Clock (HCLK) Frequency */

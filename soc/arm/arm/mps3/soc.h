@@ -17,5 +17,6 @@
 #define __MVE_FP                  1U        /* MVE floating point present */
 #endif
 
+#include <devicetree.h>
 
 #endif /* _SOC_H_ */

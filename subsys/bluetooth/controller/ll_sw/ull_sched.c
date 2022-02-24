@@ -12,10 +12,8 @@
 #include "hal/radio.h"
 #include "hal/ticker.h"
 
-#include "util/util.h"
 #include "util/memq.h"
 #include "util/mayfly.h"
-#include "util/dbuf.h"
 
 #include "ticker/ticker.h"
 
@@ -24,12 +22,7 @@
 #include "lll.h"
 #include "lll/lll_vendor.h"
 #include "lll_scan.h"
-#include "lll/lll_df_types.h"
 #include "lll_conn.h"
-
-#if !defined(CONFIG_BT_LL_SW_LLCP_LEGACY)
-#include "ull_tx_queue.h"
-#endif
 
 #include "ull_scan_types.h"
 #include "ull_conn_types.h"
@@ -43,31 +36,15 @@
 #include "hal/debug.h"
 
 #if defined(CONFIG_BT_CTLR_CONN_PARAM_REQ)
-#if defined(CONFIG_BT_LL_SW_LLCP_LEGACY)
 static void win_offset_calc(struct ll_conn *conn_curr, uint8_t is_select,
 			    uint32_t *ticks_to_offset_next,
 			    uint16_t conn_interval, uint8_t *offset_max,
 			    uint8_t *win_offset);
-#endif
 #endif /* CONFIG_BT_CTLR_CONN_PARAM_REQ */
 static void after_mstr_offset_get(uint16_t conn_interval, uint32_t ticks_slot,
 				  uint32_t ticks_anchor,
 				  uint32_t *win_offset_us);
 static void ticker_op_cb(uint32_t status, void *param);
-
-#if defined(CONFIG_BT_TICKER_NEXT_SLOT_GET_MATCH)
-bool ticker_match_op_cb(uint8_t ticker_id, uint32_t ticks_slot,
-			uint32_t ticks_to_expire, void *op_context)
-{
-	ARG_UNUSED(ticks_slot);
-	ARG_UNUSED(ticks_to_expire);
-	ARG_UNUSED(op_context);
-
-	bool match = ticker_id >= TICKER_ID_CONN_BASE &&
-		     ticker_id <= TICKER_ID_CONN_LAST;
-	return match;
-}
-#endif /* CONFIG_BT_TICKER_NEXT_SLOT_GET_MATCH */
 
 void ull_sched_after_mstr_slot_get(uint8_t user_id, uint32_t ticks_slot_abs,
 				   uint32_t *ticks_anchor, uint32_t *us_offset)
@@ -90,20 +67,10 @@ void ull_sched_after_mstr_slot_get(uint8_t user_id, uint32_t ticks_slot_abs,
 		bool success;
 
 		ret_cb = TICKER_STATUS_BUSY;
-#if defined(CONFIG_BT_TICKER_NEXT_SLOT_GET_MATCH)
-		ret = ticker_next_slot_get_ext(TICKER_INSTANCE_ID_CTLR, user_id,
-					       &ticker_id, ticks_anchor,
-					       &ticks_to_expire,
-					       NULL, /* lazy */
-					       ticker_match_op_cb,
-					       NULL, /* match_op_context */
-					       ticker_op_cb, (void *)&ret_cb);
-#else
 		ret = ticker_next_slot_get(TICKER_INSTANCE_ID_CTLR, user_id,
 					   &ticker_id, ticks_anchor,
-					   &ticks_to_expire,
-					   ticker_op_cb, (void *)&ret_cb);
-#endif /* CONFIG_BT_TICKER_NEXT_SLOT_GET_MATCH */
+					   &ticks_to_expire, ticker_op_cb,
+					   (void *)&ret_cb);
 		if (ret == TICKER_STATUS_BUSY) {
 			while (ret_cb == TICKER_STATUS_BUSY) {
 				ticker_job_sched(TICKER_INSTANCE_ID_CTLR,
@@ -118,12 +85,10 @@ void ull_sched_after_mstr_slot_get(uint8_t user_id, uint32_t ticks_slot_abs,
 			break;
 		}
 
-#if !defined(CONFIG_BT_TICKER_NEXT_SLOT_GET_MATCH)
 		if ((ticker_id < TICKER_ID_CONN_BASE) ||
 		    (ticker_id > TICKER_ID_CONN_LAST)) {
 			continue;
 		}
-#endif /* CONFIG_BT_TICKER_NEXT_SLOT_GET_MATCH */
 
 		conn = ll_conn_get(ticker_id - TICKER_ID_CONN_BASE);
 		if (conn && !conn->lll.role) {
@@ -201,13 +166,7 @@ void ull_sched_mfy_win_offset_use(void *param)
 {
 	struct ll_conn *conn = param;
 	uint32_t ticks_slot_overhead;
-
-	/*
-	 * TODO: update when updating the connection update procedure
-	 */
-#if defined(CONFIG_BT_LL_SW_LLCP_LEGACY)
 	uint16_t win_offset;
-#endif
 
 	if (IS_ENABLED(CONFIG_BT_CTLR_LOW_LAT)) {
 		ticks_slot_overhead = MAX(conn->ull.ticks_active_to_start,
@@ -216,10 +175,6 @@ void ull_sched_mfy_win_offset_use(void *param)
 		ticks_slot_overhead = 0U;
 	}
 
-	/*
-	 * TODO: update when updating the connection update procedure
-	 */
-#if defined(CONFIG_BT_LL_SW_LLCP_LEGACY)
 	after_mstr_offset_get(conn->lll.interval,
 			      (ticks_slot_overhead + conn->ull.ticks_slot),
 			      conn->llcp.conn_upd.ticks_anchor,
@@ -231,7 +186,6 @@ void ull_sched_mfy_win_offset_use(void *param)
 
 	/* move to offset calculated state */
 	conn->llcp_cu.state = LLCP_CUI_STATE_OFFS_RDY;
-#endif
 }
 
 #if defined(CONFIG_BT_CTLR_CONN_PARAM_REQ)
@@ -239,26 +193,15 @@ void ull_sched_mfy_free_win_offset_calc(void *param)
 {
 	uint32_t ticks_to_offset_default = 0U;
 	uint32_t *ticks_to_offset_next;
-
-	/*
-	 * TODO: update when updating the connection update procedure
-	 */
-#if defined(CONFIG_BT_LL_SW_LLCP_LEGACY)
-	uint8_t offset_max = 6U;
 	struct ll_conn *conn = param;
-#endif
+	uint8_t offset_max = 6U;
 
 	ticks_to_offset_next = &ticks_to_offset_default;
-
-	/*
-	 * TODO: update when updating the connection update procedure
-	 */
-#if defined(CONFIG_BT_LL_SW_LLCP_LEGACY)
 
 #if defined(CONFIG_BT_PERIPHERAL)
 	if (conn->lll.role) {
 		conn->llcp_conn_param.ticks_to_offset_next =
-			conn->periph.ticks_to_offset;
+			conn->slave.ticks_to_offset;
 
 		ticks_to_offset_next =
 			&conn->llcp_conn_param.ticks_to_offset_next;
@@ -271,28 +214,19 @@ void ull_sched_mfy_free_win_offset_calc(void *param)
 
 	/* move to offset calculated state */
 	conn->llcp_conn_param.state = LLCP_CPR_STATE_OFFS_RDY;
-#endif /* CONFIG_BT_LL_SW_LLCP_LEGACY */
 }
 
 void ull_sched_mfy_win_offset_select(void *param)
 {
 #define OFFSET_S_MAX 6
 #define OFFSET_M_MAX 6
-
-#if defined(CONFIG_BT_LL_SW_LLCP_LEGACY)
 	uint16_t win_offset_m[OFFSET_M_MAX] = {0, };
 	uint8_t offset_m_max = OFFSET_M_MAX;
 	struct ll_conn *conn = param;
 	uint8_t offset_index_s = 0U;
 	uint8_t has_offset_s = 0U;
-	uint16_t win_offset_s;
 	uint32_t ticks_to_offset;
-#endif
-
-	/*
-	 * TODO: update when updating the connection update procedure
-	 */
-#if defined(CONFIG_BT_LL_SW_LLCP_LEGACY)
+	uint16_t win_offset_s;
 
 	ticks_to_offset = HAL_TICKER_US_TO_TICKS(conn->llcp_conn_param.offset0 *
 						 CONN_INT_UNIT_US);
@@ -361,15 +295,10 @@ void ull_sched_mfy_win_offset_select(void *param)
 		/* move to conn param reject */
 		conn->llcp_cu.state = LLCP_CUI_STATE_REJECT;
 	}
-#endif /* CONFIG_BT_LL_SW_LLCP_LEGACY */
-
-
 #undef OFFSET_S_MAX
 #undef OFFSET_M_MAX
 }
 
-
-#if defined(CONFIG_BT_LL_SW_LLCP_LEGACY)
 static void win_offset_calc(struct ll_conn *conn_curr, uint8_t is_select,
 			    uint32_t *ticks_to_offset_next,
 			    uint16_t conn_interval, uint8_t *offset_max,
@@ -595,8 +524,6 @@ static void win_offset_calc(struct ll_conn *conn_curr, uint8_t is_select,
 
 	*offset_max = offset_index;
 }
-#endif /* CONFIG_BT_LL_SW_LLCP_LEGACY */
-
 #endif /* CONFIG_BT_CTLR_CONN_PARAM_REQ */
 
 static void after_mstr_offset_get(uint16_t conn_interval, uint32_t ticks_slot,

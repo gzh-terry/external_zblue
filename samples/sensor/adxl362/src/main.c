@@ -12,7 +12,7 @@
 K_SEM_DEFINE(sem, 0, 1);
 
 static void trigger_handler(const struct device *dev,
-			    const struct sensor_trigger *trig)
+			    struct sensor_trigger *trig)
 {
 	switch (trig->type) {
 	case SENSOR_TRIG_DATA_READY:

@@ -11,6 +11,7 @@
 
 #ifndef _ASMLANGUAGE
 
+#include <devicetree.h>
 
 /* Interrupt Number Definition */
 typedef enum IRQn {

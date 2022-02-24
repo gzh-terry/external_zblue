@@ -8,4 +8,3 @@ Testing
 
    ztest
    twister
-   coverage

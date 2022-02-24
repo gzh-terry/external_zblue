@@ -75,8 +75,11 @@ struct tach_npcx_data {
 };
 
 /* Driver convenience defines */
-#define HAL_INSTANCE(dev)                                                                          \
-	((struct tach_reg *)((const struct tach_npcx_config *)(dev)->config)->base)
+#define DRV_CONFIG(dev) ((const struct tach_npcx_config *)(dev)->config)
+
+#define DRV_DATA(dev) ((struct tach_npcx_data *)(dev)->data)
+
+#define HAL_INSTANCE(dev) (struct tach_reg *)(DRV_CONFIG(dev)->base)
 
 /* Maximum count of prescaler */
 #define NPCX_TACHO_PRSC_MAX 0xff
@@ -91,7 +94,7 @@ struct tach_npcx_data {
 /* TACH inline local functions */
 static inline void tach_npcx_start_port_a(const struct device *dev)
 {
-	struct tach_npcx_data *const data = dev->data;
+	struct tach_npcx_data *const data = DRV_DATA(dev);
 	struct tach_reg *const inst = HAL_INSTANCE(dev);
 
 	/* Set the default value of counter and capture register of timer 1. */
@@ -116,7 +119,7 @@ static inline void tach_npcx_start_port_a(const struct device *dev)
 static inline void tach_npcx_start_port_b(const struct device *dev)
 {
 	struct tach_reg *const inst = HAL_INSTANCE(dev);
-	struct tach_npcx_data *const data = dev->data;
+	struct tach_npcx_data *const data = DRV_DATA(dev);
 
 	/* Set the default value of counter and capture register of timer 2. */
 	inst->TCNT2 = NPCX_TACHO_CNT_MAX;
@@ -139,7 +142,7 @@ static inline void tach_npcx_start_port_b(const struct device *dev)
 
 static inline bool tach_npcx_is_underflow(const struct device *dev)
 {
-	const struct tach_npcx_config *const config = dev->config;
+	const struct tach_npcx_config *const config = DRV_CONFIG(dev);
 	struct tach_reg *const inst = HAL_INSTANCE(dev);
 
 	LOG_DBG("port A is underflow %d, port b is underflow %d",
@@ -159,7 +162,7 @@ static inline bool tach_npcx_is_underflow(const struct device *dev)
 
 static inline void tach_npcx_clear_underflow_flag(const struct device *dev)
 {
-	const struct tach_npcx_config *const config = dev->config;
+	const struct tach_npcx_config *const config = DRV_CONFIG(dev);
 	struct tach_reg *const inst = HAL_INSTANCE(dev);
 
 	if (config->port == NPCX_TACH_PORT_A) {
@@ -171,7 +174,7 @@ static inline void tach_npcx_clear_underflow_flag(const struct device *dev)
 
 static inline bool tach_npcx_is_captured(const struct device *dev)
 {
-	const struct tach_npcx_config *const config = dev->config;
+	const struct tach_npcx_config *const config = DRV_CONFIG(dev);
 	struct tach_reg *const inst = HAL_INSTANCE(dev);
 
 	LOG_DBG("port A is captured %d, port b is captured %d",
@@ -191,7 +194,7 @@ static inline bool tach_npcx_is_captured(const struct device *dev)
 
 static inline void tach_npcx_clear_captured_flag(const struct device *dev)
 {
-	const struct tach_npcx_config *const config = dev->config;
+	const struct tach_npcx_config *const config = DRV_CONFIG(dev);
 	struct tach_reg *const inst = HAL_INSTANCE(dev);
 
 	if (config->port == NPCX_TACH_PORT_A) {
@@ -203,7 +206,7 @@ static inline void tach_npcx_clear_captured_flag(const struct device *dev)
 
 static inline uint16_t tach_npcx_get_captured_count(const struct device *dev)
 {
-	const struct tach_npcx_config *const config = dev->config;
+	const struct tach_npcx_config *const config = DRV_CONFIG(dev);
 	struct tach_reg *const inst = HAL_INSTANCE(dev);
 
 	if (config->port == NPCX_TACH_PORT_A) {
@@ -216,8 +219,8 @@ static inline uint16_t tach_npcx_get_captured_count(const struct device *dev)
 /* TACH local functions */
 static int tach_npcx_configure(const struct device *dev)
 {
-	const struct tach_npcx_config *const config = dev->config;
-	struct tach_npcx_data *const data = dev->data;
+	const struct tach_npcx_config *const config = DRV_CONFIG(dev);
+	struct tach_npcx_data *const data = DRV_DATA(dev);
 	struct tach_reg *const inst = HAL_INSTANCE(dev);
 
 	/* Set mode 5 to tachometer module */
@@ -253,7 +256,7 @@ static int tach_npcx_configure(const struct device *dev)
 int tach_npcx_sample_fetch(const struct device *dev, enum sensor_channel chan)
 {
 	ARG_UNUSED(chan);
-	struct tach_npcx_data *const data = dev->data;
+	struct tach_npcx_data *const data = DRV_DATA(dev);
 
 	/* Check whether underflow flag of tachometer is occurred */
 	if (tach_npcx_is_underflow(dev)) {
@@ -282,8 +285,8 @@ static int tach_npcx_channel_get(const struct device *dev,
 				enum sensor_channel chan,
 				struct sensor_value *val)
 {
-	const struct tach_npcx_config *const config = dev->config;
-	struct tach_npcx_data *const data = dev->data;
+	const struct tach_npcx_config *const config = DRV_CONFIG(dev);
+	struct tach_npcx_data *const data = DRV_DATA(dev);
 
 	if (chan != SENSOR_CHAN_RPM) {
 		return -ENOTSUP;
@@ -311,9 +314,10 @@ static int tach_npcx_channel_get(const struct device *dev,
 /* TACH driver registration */
 static int tach_npcx_init(const struct device *dev)
 {
-	const struct tach_npcx_config *const config = dev->config;
-	struct tach_npcx_data *const data = dev->data;
-	const struct device *const clk_dev = DEVICE_DT_GET(NPCX_CLK_CTRL_NODE);
+	const struct tach_npcx_config *const config = DRV_CONFIG(dev);
+	struct tach_npcx_data *const data = DRV_DATA(dev);
+	const struct device *const clk_dev =
+					device_get_binding(NPCX_CLK_CTRL_NAME);
 	int ret;
 
 	/* Turn on device clock first and get source clock freq. */

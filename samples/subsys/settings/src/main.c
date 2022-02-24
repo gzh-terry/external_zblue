@@ -439,7 +439,7 @@ static void example_initialization(void)
 		if ((rc != 0) && (rc != -ENOENT)) {
 			printk("can't delete config file%d\n", rc);
 		} else {
-			printk("FS initialized: OK\n");
+			printk("FS initiqalized: OK\n");
 		}
 	}
 #endif

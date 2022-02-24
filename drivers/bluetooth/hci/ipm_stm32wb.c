@@ -96,7 +96,7 @@ static void stm32wb_start_ble(void)
 	    CFG_BLE_MAX_CONN_EVENT_LENGTH,
 	    CFG_BLE_HSE_STARTUP_TIME,
 	    CFG_BLE_VITERBI_MODE,
-	    CFG_BLE_OPTIONS,
+	    CFG_BLE_LL_ONLY,
 	    0 }
 	};
 
@@ -160,8 +160,6 @@ static void bt_ipm_rx_thread(void)
 		struct bt_hci_acl_hdr acl_hdr;
 		TL_AclDataSerial_t *acl;
 		struct bt_hci_evt_le_meta_event *mev;
-		size_t buf_tailroom;
-		size_t buf_add_len;
 
 		hcievt = k_fifo_get(&ipm_rx_events_fifo, K_FOREVER);
 
@@ -181,7 +179,8 @@ static void bt_ipm_rx_thread(void)
 			default:
 				mev = (void *)&hcievt->evtserial.evt.payload;
 				if (hcievt->evtserial.evt.evtcode == BT_HCI_EVT_LE_META_EVENT &&
-				    (mev->subevent == BT_HCI_EVT_LE_ADVERTISING_REPORT)) {
+				    (mev->subevent == BT_HCI_EVT_LE_ADVERTISING_REPORT ||
+				     mev->subevent == BT_HCI_EVT_LE_EXT_ADVERTISING_REPORT)) {
 					discardable = true;
 					timeout = K_NO_WAIT;
 				}
@@ -196,18 +195,8 @@ static void bt_ipm_rx_thread(void)
 			}
 
 			tryfix_event(&hcievt->evtserial.evt);
-
-			buf_tailroom = net_buf_tailroom(buf);
-			buf_add_len = hcievt->evtserial.evt.plen + 2;
-			if (buf_tailroom < buf_add_len) {
-				BT_ERR("Not enough space in buffer %zu/%zu",
-				       buf_add_len, buf_tailroom);
-				net_buf_unref(buf);
-				goto end_loop;
-			}
-
 			net_buf_add_mem(buf, &hcievt->evtserial.evt,
-					buf_add_len);
+					hcievt->evtserial.evt.plen + 2);
 			break;
 		case HCI_ACL:
 			acl = &(((TL_AclDataPacket_t *)hcievt)->AclDataSerial);
@@ -217,18 +206,8 @@ static void bt_ipm_rx_thread(void)
 			BT_DBG("ACL: handle %x, len %x",
 			       acl_hdr.handle, acl_hdr.len);
 			net_buf_add_mem(buf, &acl_hdr, sizeof(acl_hdr));
-
-			buf_tailroom = net_buf_tailroom(buf);
-			buf_add_len = acl_hdr.len;
-			if (buf_tailroom < buf_add_len) {
-				BT_ERR("Not enough space in buffer %zu/%zu",
-				       buf_add_len, buf_tailroom);
-				net_buf_unref(buf);
-				goto end_loop;
-			}
-
 			net_buf_add_mem(buf, (uint8_t *)&acl->acl_data,
-					buf_add_len);
+					acl_hdr.len);
 			break;
 		default:
 			BT_ERR("Unknown BT buf type %d",

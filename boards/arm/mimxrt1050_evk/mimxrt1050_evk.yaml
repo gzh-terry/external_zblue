@@ -27,4 +27,3 @@ supported:
   - usb_device
   - kscan:touch
   - watchdog
-  - adc

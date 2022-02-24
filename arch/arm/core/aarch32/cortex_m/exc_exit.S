@@ -47,6 +47,7 @@ GDATA(_kernel)
  * 	z_arm_int_exit();
  * }
  *
+ * @return N/A
  */
 
 SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_int_exit)
@@ -62,6 +63,7 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_int_exit)
  *
  * See z_arm_int_exit().
  *
+ * @return N/A
  */
 
 SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_exc_exit)
