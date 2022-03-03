@@ -67,8 +67,3 @@ uint32_t __get_PRIMASK(void)
 {
 	return hw_irq_ctrl_get_current_lock();
 }
-
-void __set_PRIMASK(uint32_t primask)
-{
-	hw_irq_ctrl_change_lock(primask != 0);
-}

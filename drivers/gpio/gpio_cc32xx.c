@@ -59,6 +59,11 @@ struct gpio_cc32xx_data {
 	sys_slist_t callbacks;
 };
 
+#define DEV_CFG(dev) \
+	((const struct gpio_cc32xx_config *)(dev)->config)
+#define DEV_DATA(dev) \
+	((struct gpio_cc32xx_data *)(dev)->data)
+
 static int gpio_cc32xx_port_set_bits_raw(const struct device *port,
 					 uint32_t mask);
 static int gpio_cc32xx_port_clear_bits_raw(const struct device *port,
@@ -68,7 +73,7 @@ static inline int gpio_cc32xx_config(const struct device *port,
 				     gpio_pin_t pin,
 				     gpio_flags_t flags)
 {
-	const struct gpio_cc32xx_config *gpio_config = port->config;
+	const struct gpio_cc32xx_config *gpio_config = DEV_CFG(port);
 	unsigned long port_base = gpio_config->port_base;
 
 	if (((flags & GPIO_INPUT) != 0) && ((flags & GPIO_OUTPUT) != 0)) {
@@ -102,7 +107,7 @@ static inline int gpio_cc32xx_config(const struct device *port,
 static int gpio_cc32xx_port_get_raw(const struct device *port,
 				    uint32_t *value)
 {
-	const struct gpio_cc32xx_config *gpio_config = port->config;
+	const struct gpio_cc32xx_config *gpio_config = DEV_CFG(port);
 	unsigned long port_base = gpio_config->port_base;
 	unsigned char pin_packed = 0xFF;
 
@@ -115,7 +120,7 @@ static int gpio_cc32xx_port_set_masked_raw(const struct device *port,
 					   uint32_t mask,
 					   uint32_t value)
 {
-	const struct gpio_cc32xx_config *gpio_config = port->config;
+	const struct gpio_cc32xx_config *gpio_config = DEV_CFG(port);
 	unsigned long port_base = gpio_config->port_base;
 
 	MAP_GPIOPinWrite(port_base, (unsigned char)mask, (unsigned char)value);
@@ -126,7 +131,7 @@ static int gpio_cc32xx_port_set_masked_raw(const struct device *port,
 static int gpio_cc32xx_port_set_bits_raw(const struct device *port,
 					 uint32_t mask)
 {
-	const struct gpio_cc32xx_config *gpio_config = port->config;
+	const struct gpio_cc32xx_config *gpio_config = DEV_CFG(port);
 	unsigned long port_base = gpio_config->port_base;
 
 	MAP_GPIOPinWrite(port_base, (unsigned char)mask, (unsigned char)mask);
@@ -137,7 +142,7 @@ static int gpio_cc32xx_port_set_bits_raw(const struct device *port,
 static int gpio_cc32xx_port_clear_bits_raw(const struct device *port,
 					   uint32_t mask)
 {
-	const struct gpio_cc32xx_config *gpio_config = port->config;
+	const struct gpio_cc32xx_config *gpio_config = DEV_CFG(port);
 	unsigned long port_base = gpio_config->port_base;
 
 	MAP_GPIOPinWrite(port_base, (unsigned char)mask, (unsigned char)~mask);
@@ -148,7 +153,7 @@ static int gpio_cc32xx_port_clear_bits_raw(const struct device *port,
 static int gpio_cc32xx_port_toggle_bits(const struct device *port,
 					uint32_t mask)
 {
-	const struct gpio_cc32xx_config *gpio_config = port->config;
+	const struct gpio_cc32xx_config *gpio_config = DEV_CFG(port);
 	unsigned long port_base = gpio_config->port_base;
 	long value;
 
@@ -165,7 +170,7 @@ static int gpio_cc32xx_pin_interrupt_configure(const struct device *port,
 					       enum gpio_int_mode mode,
 					       enum gpio_int_trig trig)
 {
-	const struct gpio_cc32xx_config *gpio_config = port->config;
+	const struct gpio_cc32xx_config *gpio_config = DEV_CFG(port);
 	unsigned long port_base = gpio_config->port_base;
 	unsigned long int_type;
 
@@ -207,15 +212,15 @@ static int gpio_cc32xx_manage_callback(const struct device *dev,
 				       struct gpio_callback *callback,
 				       bool set)
 {
-	struct gpio_cc32xx_data *data = dev->data;
+	struct gpio_cc32xx_data *data = DEV_DATA(dev);
 
 	return gpio_manage_callback(&data->callbacks, callback, set);
 }
 
 static void gpio_cc32xx_port_isr(const struct device *dev)
 {
-	const struct gpio_cc32xx_config *config = dev->config;
-	struct gpio_cc32xx_data *data = dev->data;
+	const struct gpio_cc32xx_config *config = DEV_CFG(dev);
+	struct gpio_cc32xx_data *data = DEV_DATA(dev);
 	uint32_t int_status;
 
 	/* See which interrupts triggered: */
@@ -258,7 +263,7 @@ static const struct gpio_driver_api api_funcs = {
 	DEVICE_DT_INST_DEFINE(n, &gpio_cc32xx_a##n##_init,		     \
 			NULL, &gpio_cc32xx_a##n##_data,			     \
 			&gpio_cc32xx_a##n##_config,			     \
-			POST_KERNEL, CONFIG_GPIO_INIT_PRIORITY,		     \
+			POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,     \
 			&api_funcs)
 
 #define GPIO_CC32XX_INIT(n)						     \

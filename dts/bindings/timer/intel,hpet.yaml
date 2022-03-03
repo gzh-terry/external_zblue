@@ -13,8 +13,3 @@ properties:
 
     interrupts:
       required: true
-
-    no-legacy-irq:
-      type: boolean
-      required: false
-      description: Do not set legacy IRQ bit

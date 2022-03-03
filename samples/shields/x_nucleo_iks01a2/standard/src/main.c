@@ -14,7 +14,7 @@
 static int lsm6dsl_trig_cnt;
 
 static void lsm6dsl_trigger_handler(const struct device *dev,
-				    const struct sensor_trigger *trig)
+				     struct sensor_trigger *trig)
 {
 	sensor_sample_fetch_chan(dev, SENSOR_CHAN_ALL);
 	lsm6dsl_trig_cnt++;

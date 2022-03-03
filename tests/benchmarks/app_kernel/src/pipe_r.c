@@ -28,6 +28,7 @@ int pipeget(struct k_pipe *pipe, enum pipe_options option,
  *
  * @brief Receive task
  *
+ * @return N/A
  */
 void piperecvtask(void)
 {

@@ -12,9 +12,8 @@ are given to this python script in the form of a string.
 
 Example of such a string would be::
 
-   SRAM2:COPY:/home/xyz/zephyr/samples/hello_world/src/main.c,\
-   SRAM1:COPY:/home/xyz/zephyr/samples/hello_world/src/main2.c, \
-   FLASH2:NOCOPY:/home/xyz/zephyr/samples/hello_world/src/main3.c
+   SRAM2:/home/xyz/zephyr/samples/hello_world/src/main.c,\
+   SRAM1:/home/xyz/zephyr/samples/hello_world/src/main2.c
 
 To invoke this script::
 
@@ -27,8 +26,6 @@ Configuration that needs to be sent to the python script.
 - If the memory type is appended with _DATA / _TEXT/ _RODATA/ _BSS only the
   selected memory is placed in the required memory region. Others are
   ignored.
-- COPY/NOCOPY defines whether the script should generate the relocation code in
-  code_relocation.c or not
 
 Multiple regions can be appended together like SRAM2_DATA_BSS
 this will place data and bss inside SRAM2.
@@ -59,11 +56,6 @@ GROUP_DATA_LINK_IN({0}, FLASH)
 GROUP_DATA_LINK_IN({0}, {0})
 #endif
 """
-
-LOAD_ADDRESS_LOCATION_FLASH_NOCOPY = """
-GROUP_LINK_IN({0})
-"""
-
 LOAD_ADDRESS_LOCATION_BSS = "GROUP_LINK_IN({0})"
 
 MPU_RO_REGION_START = """
@@ -117,7 +109,7 @@ SOURCE_CODE_INCLUDES = """
 #include <zephyr.h>
 #include <linker/linker-defs.h>
 #include <kernel_structs.h>
-#include <kernel_internal.h>
+#include <string.h>
 """
 
 EXTERN_LINKER_VAR_DECLARATION = """
@@ -142,14 +134,14 @@ void bss_zeroing_relocation(void)
 """
 
 MEMCPY_TEMPLATE = """
-	z_early_memcpy(&__{0}_{1}_start, &__{0}_{1}_rom_start,
-		           (size_t) &__{0}_{1}_size);
+	(void)memcpy(&__{0}_{1}_start, &__{0}_{1}_rom_start,
+		     (uint32_t) &__{0}_{1}_size);
 
 """
 
 MEMSET_TEMPLATE = """
- 	z_early_memset(&__{0}_bss_start, 0,
-		           (size_t) &__{0}_bss_size);
+ 	(void)memset(&__{0}_bss_start, 0,
+		     (uint32_t) &__{0}_bss_size);
 """
 
 
@@ -244,13 +236,10 @@ def print_linker_sections(list_sections):
 
 
 def string_create_helper(region, memory_type,
-                         full_list_of_sections, load_address_in_flash, is_copy):
+                         full_list_of_sections, load_address_in_flash):
     linker_string = ''
     if load_address_in_flash:
-        if is_copy:
-            load_address_string = LOAD_ADDRESS_LOCATION_FLASH.format(memory_type)
-        else:
-            load_address_string = LOAD_ADDRESS_LOCATION_FLASH_NOCOPY.format(memory_type)
+        load_address_string = LOAD_ADDRESS_LOCATION_FLASH.format(memory_type)
     else:
         load_address_string = LOAD_ADDRESS_LOCATION_BSS.format(memory_type)
     if full_list_of_sections[region]:
@@ -262,7 +251,7 @@ def string_create_helper(region, memory_type,
         else:
             if memory_type != 'SRAM' and region == 'rodata':
                 align_size = 0
-                if memory_type in mpu_align:
+                if memory_type in mpu_align.keys():
                     align_size = mpu_align[memory_type]
 
                 linker_string += LINKER_SECTION_SEQ_MPU.format(memory_type.lower(), region, memory_type.upper(),
@@ -289,33 +278,28 @@ def generate_linker_script(linker_file, sram_data_linker_file, sram_bss_linker_f
     for memory_type, full_list_of_sections in \
             sorted(complete_list_of_sections.items()):
 
-        is_copy = bool("|COPY" in memory_type)
-        memory_type = memory_type.split("|", 1)[0]
-
-        if memory_type != "SRAM" and is_copy:
+        if memory_type != "SRAM":
             gen_string += MPU_RO_REGION_START.format(memory_type.lower(), memory_type.upper())
-
-        gen_string += string_create_helper("text", memory_type, full_list_of_sections, 1, is_copy)
-        gen_string += string_create_helper("rodata", memory_type, full_list_of_sections, 1, is_copy)
-
-        if memory_type != "SRAM" and is_copy:
+        gen_string += string_create_helper("text", memory_type, full_list_of_sections, 1)
+        gen_string += string_create_helper("rodata", memory_type, full_list_of_sections, 1)
+        if memory_type != "SRAM":
             gen_string += MPU_RO_REGION_END.format(memory_type.lower())
 
         if memory_type == 'SRAM':
-            gen_string_sram_data += string_create_helper("data", memory_type, full_list_of_sections, 1, 1)
-            gen_string_sram_bss += string_create_helper("bss", memory_type, full_list_of_sections, 0, 1)
+            gen_string_sram_data += string_create_helper("data", memory_type, full_list_of_sections, 1)
+            gen_string_sram_bss += string_create_helper("bss", memory_type, full_list_of_sections, 0)
         else:
-            gen_string += string_create_helper("data", memory_type, full_list_of_sections, 1, 1)
-            gen_string += string_create_helper("bss", memory_type, full_list_of_sections, 0, 1)
+            gen_string += string_create_helper("data", memory_type, full_list_of_sections, 1)
+            gen_string += string_create_helper("bss", memory_type, full_list_of_sections, 0)
 
     # finally writing to the linker file
-    with open(linker_file, "w") as file_desc:
+    with open(linker_file, "a+") as file_desc:
         file_desc.write(gen_string)
 
-    with open(sram_data_linker_file, "w") as file_desc:
+    with open(sram_data_linker_file, "a+") as file_desc:
         file_desc.write(gen_string_sram_data)
 
-    with open(sram_bss_linker_file, "w") as file_desc:
+    with open(sram_bss_linker_file, "a+") as file_desc:
         file_desc.write(gen_string_sram_bss)
 
 
@@ -415,10 +399,7 @@ def create_dict_wrt_mem():
     if args.input_rel_dict == '':
         sys.exit("Disable CONFIG_CODE_DATA_RELOCATION if no file needs relocation")
     for line in args.input_rel_dict.split(';'):
-        if ':' not in line:
-            continue
-
-        mem_region, file_name, copy_flag = line.split(':', 2)
+        mem_region, file_name = line.split(':', 1)
 
         file_name_list = glob.glob(file_name)
         if not file_name_list:
@@ -428,9 +409,6 @@ def create_dict_wrt_mem():
             continue
         if args.verbose:
             print("Memory region ", mem_region, " Selected for file:", file_name_list)
-
-        mem_region = "|".join((mem_region, copy_flag))
-
         if mem_region in rel_dict:
             rel_dict[mem_region].extend(file_name_list)
         else:
@@ -475,10 +453,7 @@ def main():
 
     code_generation = {"copy_code": '', "zero_code": '', "extern": ''}
     for mem_type, list_of_sections in sorted(complete_list_of_sections.items()):
-
-        if "|COPY" in mem_type:
-            mem_type = mem_type.split("|", 1)[0]
-            code_generation = generate_memcpy_code(mem_type,
+        code_generation = generate_memcpy_code(mem_type,
                                                list_of_sections, code_generation)
 
     dump_header_file(args.output_code, code_generation)

@@ -20,7 +20,3 @@ if(CONFIG_ISA_ARCV2)
 endif()
 
 add_subdirectory(core)
-
-if(COMPILER STREQUAL arcmwdt)
-  add_subdirectory(arcmwdt)
-endif()

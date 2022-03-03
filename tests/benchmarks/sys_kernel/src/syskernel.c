@@ -38,6 +38,7 @@ uint32_t number_of_loops;
  *
  * Routine does necessary preparations for the test to start
  *
+ * @return N/A
  */
 void begin_test(void)
 {
@@ -93,6 +94,7 @@ int check_result(int i, uint32_t t)
  *
  * @param continuously   Run test till the user presses the key.
  *
+ * @return N/A
  */
 
 void init_output(int *continuously)
@@ -110,6 +112,7 @@ void init_output(int *continuously)
  *
  * @brief Close output for the test
  *
+ * @return N/A
  */
 void output_close(void)
 {
@@ -119,6 +122,7 @@ void output_close(void)
  *
  * @brief Perform all selected benchmarks
  *
+ * @return N/A
  */
 void main(void)
 {

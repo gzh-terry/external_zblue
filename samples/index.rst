@@ -24,7 +24,6 @@ Samples and Demos
    kernel/*
    tfm_integration/tfm_integration.rst
    modules/*
-   compression/*
 
 .. comment
    To add a new sample document, please use the template available under

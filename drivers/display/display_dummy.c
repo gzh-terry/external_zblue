@@ -1,28 +1,23 @@
 /*
  * Copyright (c) 2018 Jan Van Winkel <jan.van_winkel@dxplore.eu>
- * Copyright (c) 2021 Nordic Semiconductor
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#define DT_DRV_COMPAT zephyr_dummy_dc
-
 #include <string.h>
-#include <drivers/display.h>
-#include <device.h>
 
-struct dummy_display_config {
-	uint16_t height;
-	uint16_t width;
-};
+#include <drivers/display.h>
 
 struct dummy_display_data {
 	enum display_pixel_format current_pixel_format;
 };
 
+static struct dummy_display_data dummy_display_data;
+
 static int dummy_display_init(const struct device *dev)
 {
-	struct dummy_display_data *disp_data = dev->data;
+	struct dummy_display_data *disp_data =
+	    (struct dummy_display_data *)dev->data;
 
 	disp_data->current_pixel_format = PIXEL_FORMAT_ARGB_8888;
 
@@ -34,21 +29,19 @@ static int dummy_display_write(const struct device *dev, const uint16_t x,
 			       const struct display_buffer_descriptor *desc,
 			       const void *buf)
 {
-	const struct dummy_display_config *config = dev->config;
-
 	__ASSERT(desc->width <= desc->pitch, "Pitch is smaller then width");
-	__ASSERT(desc->pitch <= config->width,
+	__ASSERT(desc->pitch <= CONFIG_DUMMY_DISPLAY_X_RES,
 		"Pitch in descriptor is larger than screen size");
-	__ASSERT(desc->height <= config->height,
+	__ASSERT(desc->height <= CONFIG_DUMMY_DISPLAY_Y_RES,
 		"Height in descriptor is larger than screen size");
-	__ASSERT(x + desc->pitch <= config->width,
+	__ASSERT(x + desc->pitch <= CONFIG_DUMMY_DISPLAY_X_RES,
 		 "Writing outside screen boundaries in horizontal direction");
-	__ASSERT(y + desc->height <= config->height,
+	__ASSERT(y + desc->height <= CONFIG_DUMMY_DISPLAY_Y_RES,
 		 "Writing outside screen boundaries in vertical direction");
 
 	if (desc->width > desc->pitch ||
-	    x + desc->pitch > config->width ||
-	    y + desc->height > config->height) {
+	    x + desc->pitch > CONFIG_DUMMY_DISPLAY_X_RES ||
+	    y + desc->height > CONFIG_DUMMY_DISPLAY_Y_RES) {
 		return -EINVAL;
 	}
 
@@ -93,12 +86,12 @@ static int dummy_display_set_contrast(const struct device *dev,
 static void dummy_display_get_capabilities(const struct device *dev,
 		struct display_capabilities *capabilities)
 {
-	const struct dummy_display_config *config = dev->config;
-	struct dummy_display_data *disp_data = dev->data;
+	struct dummy_display_data *disp_data =
+		(struct dummy_display_data *)dev->data;
 
 	memset(capabilities, 0, sizeof(struct display_capabilities));
-	capabilities->x_resolution = config->width;
-	capabilities->y_resolution = config->height;
+	capabilities->x_resolution = CONFIG_DUMMY_DISPLAY_X_RES;
+	capabilities->y_resolution = CONFIG_DUMMY_DISPLAY_Y_RES;
 	capabilities->supported_pixel_formats = PIXEL_FORMAT_ARGB_8888 |
 		PIXEL_FORMAT_RGB_888 |
 		PIXEL_FORMAT_MONO01 |
@@ -111,7 +104,8 @@ static void dummy_display_get_capabilities(const struct device *dev,
 static int dummy_display_set_pixel_format(const struct device *dev,
 		const enum display_pixel_format pixel_format)
 {
-	struct dummy_display_data *disp_data = dev->data;
+	struct dummy_display_data *disp_data =
+		(struct dummy_display_data *)dev->data;
 
 	disp_data->current_pixel_format = pixel_format;
 	return 0;
@@ -129,19 +123,8 @@ static const struct display_driver_api dummy_display_api = {
 	.set_pixel_format = dummy_display_set_pixel_format,
 };
 
-#define DISPLAY_DUMMY_DEFINE(n)						\
-	static const struct dummy_display_config dd_config_##n = {	\
-		.height = DT_INST_PROP(n, height),			\
-		.width = DT_INST_PROP(n, width),			\
-	};								\
-									\
-	static struct dummy_display_data dd_data_##n;			\
-									\
-	DEVICE_DT_INST_DEFINE(n, &dummy_display_init, NULL,		\
-			      &dd_data_##n,				\
-			      &dd_config_##n,				\
-			      APPLICATION,				\
-			      CONFIG_DISPLAY_INIT_PRIORITY,		\
-			      &dummy_display_api);			\
-
-DT_INST_FOREACH_STATUS_OKAY(DISPLAY_DUMMY_DEFINE)
+DEVICE_DEFINE(dummy_display, CONFIG_DUMMY_DISPLAY_DEV_NAME,
+		    &dummy_display_init, NULL,
+		    &dummy_display_data, NULL,
+		    APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY,
+		    &dummy_display_api);

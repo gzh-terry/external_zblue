@@ -16,7 +16,6 @@
 
 #define LOG_COLOR_CODE_DEFAULT "\x1B[0m"
 #define LOG_COLOR_CODE_RED     "\x1B[1;31m"
-#define LOG_COLOR_CODE_GREEN   "\x1B[1;32m"
 #define LOG_COLOR_CODE_YELLOW  "\x1B[1;33m"
 
 #define HEXDUMP_BYTES_IN_LINE 16
@@ -39,7 +38,7 @@ static const char *const colors[] = {
 	NULL,
 	LOG_COLOR_CODE_RED,     /* err */
 	LOG_COLOR_CODE_YELLOW,  /* warn */
-	IS_ENABLED(CONFIG_LOG_INFO_COLOR_GREEN) ? LOG_COLOR_CODE_GREEN : NULL,   /* info */
+	NULL,                   /* info */
 	NULL                    /* dbg */
 };
 
@@ -48,14 +47,11 @@ static uint32_t timestamp_div;
 
 extern void log_output_msg_syst_process(const struct log_output *output,
 				struct log_msg *msg, uint32_t flag);
-extern void log_output_msg2_syst_process(const struct log_output *output,
-				struct log_msg2 *msg, uint32_t flag);
 extern void log_output_string_syst_process(const struct log_output *output,
 				struct log_msg_ids src_level,
 				const char *fmt, va_list ap, uint32_t flag);
 extern void log_output_hexdump_syst_process(const struct log_output *output,
 				struct log_msg_ids src_level,
-				const char *metadata,
 				const uint8_t *data, uint32_t length, uint32_t flag);
 
 /* The RFC 5424 allows very flexible mapping and suggest the value 0 being the
@@ -103,12 +99,9 @@ static int out_func(int c, void *ctx)
 	const struct log_output *out_ctx = (const struct log_output *)ctx;
 	int idx;
 
-	if (IS_ENABLED(CONFIG_LOG_MODE_IMMEDIATE)) {
+	if (IS_ENABLED(CONFIG_LOG_IMMEDIATE)) {
 		/* Backend must be thread safe in synchronous operation. */
-		/* Need that step for big endian */
-		char x = (char)c;
-
-		out_ctx->func((uint8_t *)&x, 1, out_ctx->control_block->ctx);
+		out_ctx->func((uint8_t *)&c, 1, out_ctx->control_block->ctx);
 		return 0;
 	}
 
@@ -213,16 +206,16 @@ static int timestamp_print(const struct log_output *output,
 
 			strftime(time_str, sizeof(time_str), "%FT%T", tm);
 
-			length = print_formatted(output, "%s.%06uZ ",
+			length = print_formatted(output, "%s.%06dZ ",
 						 time_str, ms * 1000U + us);
 #else
 			length = print_formatted(output,
-					"1970-01-01T%02u:%02u:%02u.%06uZ ",
+					"1970-01-01T%02d:%02d:%02d.%06dZ ",
 					hours, mins, seconds, ms * 1000U + us);
 #endif
 		} else {
 			length = print_formatted(output,
-						 "[%02u:%02u:%02u.%03u,%03u] ",
+						 "[%02d:%02d:%02d.%03d,%03d] ",
 						 hours, mins, seconds, ms, us);
 		}
 	} else {
@@ -501,7 +494,6 @@ static uint32_t prefix_print(const struct log_output *output,
 	bool stamp = flags & LOG_OUTPUT_FLAG_TIMESTAMP;
 	bool colors_on = flags & LOG_OUTPUT_FLAG_COLORS;
 	bool level_on = flags & LOG_OUTPUT_FLAG_LEVEL;
-	const char *tag = z_log_get_tag();
 
 	if (IS_ENABLED(CONFIG_LOG_BACKEND_NET) &&
 	    flags & LOG_OUTPUT_FLAG_FORMAT_SYSLOG) {
@@ -517,10 +509,6 @@ static uint32_t prefix_print(const struct log_output *output,
 			"<%d>1 ",
 			facility * 8 +
 			level_to_rfc5424_severity(level));
-	}
-
-	if (tag) {
-		length += print_formatted(output, "%s ", tag);
 	}
 
 	if (stamp) {
@@ -597,6 +585,15 @@ void log_output_msg2_process(const struct log_output *output,
 	uint8_t level = log_msg2_get_level(msg);
 	bool raw_string = (level == LOG_LEVEL_INTERNAL_RAW_STRING);
 	uint32_t prefix_offset;
+
+	if (IS_ENABLED(CONFIG_LOG_MIPI_SYST_ENABLE) &&
+	    flags & LOG_OUTPUT_FLAG_FORMAT_SYST) {
+		__ASSERT_NO_MSG(0);
+		/* todo not supported
+		 * log_output_msg_syst_process(output, msg, flags);
+		 */
+		return;
+	}
 
 	if (!raw_string) {
 		void *source = (void *)log_msg2_get_source(msg);
@@ -699,8 +696,7 @@ void log_output_hexdump(const struct log_output *output,
 	if (IS_ENABLED(CONFIG_LOG_MIPI_SYST_ENABLE) &&
 	    flags & LOG_OUTPUT_FLAG_FORMAT_SYST) {
 		log_output_hexdump_syst_process(output,
-				src_level, metadata,
-				data, length, flags);
+				src_level, data, length, flags);
 		return;
 	}
 

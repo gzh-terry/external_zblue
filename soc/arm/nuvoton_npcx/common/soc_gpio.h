@@ -7,8 +7,6 @@
 #ifndef _NUVOTON_NPCX_SOC_GPIO_H_
 #define _NUVOTON_NPCX_SOC_GPIO_H_
 
-#include <device.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif

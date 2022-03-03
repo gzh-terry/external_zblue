@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @brief ARM Cortex-A and Cortex-R System Control Block interface
+ * @brief ARM Cortex-R System Control Block interface
  */
 
 #include <kernel.h>
@@ -19,6 +19,7 @@
  *
  * This routine resets the processor.
  *
+ * @return N/A
  */
 
 void __weak sys_arch_reboot(int type)

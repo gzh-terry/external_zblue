@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <device.h>
 #include <soc.h>
 #include <drivers/timer/system_timer.h>
 #include <drivers/clock_control.h>
@@ -67,30 +66,19 @@ static void cmt_isr(void *arg)
 	sys_clock_announce(1);
 }
 
-uint32_t sys_clock_elapsed(void)
-{
-	/* Always return 0 for tickful operation */
-	return 0;
-}
-
-uint32_t sys_clock_cycle_get_32(void)
-{
-	return sys_read32(TIMER_BASE_ADDR + CMCNT1_OFFSET);
-}
-
 /*
  * Initialize both channels at same frequency,
  * Set the first one to generates interrupt at CYCLES_PER_TICK.
  * The second one is used for cycles count, the match value is set
  * at max uint32_t.
  */
-static int sys_clock_driver_init(const struct device *dev)
+int sys_clock_driver_init(const struct device *device)
 {
 	const struct device *clk;
 	uint32_t reg_val;
 	int i, ret;
 
-	ARG_UNUSED(dev);
+	ARG_UNUSED(device);
 	clk = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(0));
 	if (clk == NULL) {
 		return -ENODEV;
@@ -152,5 +140,13 @@ static int sys_clock_driver_init(const struct device *dev)
 	return 0;
 }
 
-SYS_INIT(sys_clock_driver_init, PRE_KERNEL_2,
-	 CONFIG_SYSTEM_CLOCK_INIT_PRIORITY);
+uint32_t sys_clock_elapsed(void)
+{
+	/* Always return 0 for tickful operation */
+	return 0;
+}
+
+uint32_t sys_clock_cycle_get_32(void)
+{
+	return sys_read32(TIMER_BASE_ADDR + CMCNT1_OFFSET);
+}

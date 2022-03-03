@@ -342,7 +342,7 @@ static const struct counter_driver_api xlnx_axi_timer_driver_api = {
 			&xlnx_axi_timer_data_##n,			\
 			&xlnx_axi_timer_config_##n,			\
 			POST_KERNEL,					\
-			CONFIG_COUNTER_INIT_PRIORITY,			\
+			CONFIG_KERNEL_INIT_PRIORITY_DEVICE,		\
 			&xlnx_axi_timer_driver_api);			\
 									\
 	static void xlnx_axi_timer_config_func_##n(const struct device *dev) \

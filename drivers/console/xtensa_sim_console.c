@@ -51,6 +51,7 @@ extern void __printk_hook_install(int (*fn)(int));
 
 /**
  * @brief Install printk/stdout hook for Xtensa Simulator console output
+ * @return N/A
  */
 static void xt_sim_console_hook_install(void)
 {
@@ -76,4 +77,4 @@ SYS_INIT(xt_sim_console_init,
 #else
 	 POST_KERNEL,
 #endif
-	 CONFIG_CONSOLE_INIT_PRIORITY);
+	 CONFIG_XTENSA_CONSOLE_INIT_PRIORITY);

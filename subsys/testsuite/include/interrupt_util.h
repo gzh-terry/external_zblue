@@ -101,31 +101,8 @@ static inline void trigger_irq(int irq)
 }
 
 #elif defined(CONFIG_X86)
-#include <drivers/interrupt_controller/loapic.h>
-#include <sys/arch_interface.h>
 
-#define TRIGGER_IRQ_INT(vector) __asm__ volatile("int %0" : : "i" (vector) : "memory")
-
-/*
- * Write Local APIC's ICR to trigger IPI for testing
- * Delivery Mode: Fixed
- * Destination Mode: Physical
- * Level: Assert
- * Trigger Mode: Edge
- * Destination Shorthand: No Shorthand
- * Destination: depends on cpu_id
- */
-#define LOAPIC_ICR_IPI_TEST  0x00004000U
-
-static inline void trigger_irq(int vector)
-{
-#ifdef CONFIG_SMP
-	int cpu_id = arch_curr_cpu()->id;
-#else
-	int cpu_id = 0;
-#endif
-	z_loapic_ipi(cpu_id, LOAPIC_ICR_IPI_TEST, vector);
-}
+#define trigger_irq(irq) __asm__ volatile("int %0" : : "i" (irq) : "memory")
 
 #elif defined(CONFIG_ARCH_POSIX)
 #include "irq_ctrl.h"
@@ -157,14 +134,6 @@ extern void z_sparc_enter_irq(int);
 static inline void trigger_irq(int irq)
 {
 	z_sparc_enter_irq(irq);
-}
-
-#elif defined(CONFIG_MIPS)
-extern void z_mips_enter_irq(int);
-
-static inline void trigger_irq(int irq)
-{
-	z_mips_enter_irq(irq);
 }
 
 #else

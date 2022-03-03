@@ -22,6 +22,8 @@
 #include "soc_pinmap.h"
 #include "../common/soc_gpio.h"
 
+/* Add include for DTS generated information */
+#include <devicetree.h>
 
 #endif /* !_ASMLANGUAGE */
 

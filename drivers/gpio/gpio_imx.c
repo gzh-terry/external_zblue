@@ -225,8 +225,8 @@ static const struct gpio_driver_api imx_gpio_driver_api = {
 			    NULL,					\
 			    &imx_gpio_##n##_data,			\
 			    &imx_gpio_##n##_config,			\
-			    PRE_KERNEL_1,				\
-			    CONFIG_GPIO_INIT_PRIORITY,			\
+			    POST_KERNEL,				\
+			    CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,	\
 			    &imx_gpio_driver_api);			\
 									\
 	static int imx_gpio_##n##_init(const struct device *port)	\

@@ -20,40 +20,23 @@ LOG_MODULE_REGISTER(modem_context, CONFIG_MODEM_LOG_LEVEL);
 
 static struct modem_context *contexts[CONFIG_MODEM_CONTEXT_MAX_NUM];
 
-int modem_context_sprint_ip_addr(const struct sockaddr *addr, char *buf, size_t buf_size)
+char *modem_context_sprint_ip_addr(const struct sockaddr *addr)
 {
-	static const char unknown_str[] = "unk";
+	static char buf[NET_IPV6_ADDR_LEN];
 
 	if (addr->sa_family == AF_INET6) {
-		if (buf_size < NET_IPV6_ADDR_LEN) {
-			return -ENOMEM;
-		}
-
-		if (net_addr_ntop(AF_INET6, &net_sin6(addr)->sin6_addr,
-					buf, buf_size) == NULL) {
-			return -ENOMEM;
-		}
-		return 0;
+		return net_addr_ntop(AF_INET6, &net_sin6(addr)->sin6_addr,
+				     buf, sizeof(buf));
 	}
 
 	if (addr->sa_family == AF_INET) {
-		if (buf_size < NET_IPV4_ADDR_LEN) {
-			return -ENOMEM;
-		}
-		if (net_addr_ntop(AF_INET, &net_sin(addr)->sin_addr,
-					buf, buf_size) == NULL) {
-			return -ENOMEM;
-		}
-		return 0;
+		return net_addr_ntop(AF_INET, &net_sin(addr)->sin_addr,
+				     buf, sizeof(buf));
 	}
 
 	LOG_ERR("Unknown IP address family:%d", addr->sa_family);
-
-	if (buf_size < sizeof(unknown_str)) {
-		return -ENOMEM;
-	}
-	strcpy(buf, unknown_str);
-	return 0;
+	strcpy(buf, "unk");
+	return buf;
 }
 
 int modem_context_get_addr_port(const struct sockaddr *addr, uint16_t *port)

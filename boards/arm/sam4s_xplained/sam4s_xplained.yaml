@@ -14,4 +14,3 @@ supported:
   - xplained_i2c
   - xplained_serial
   - xplained_spi
-  - hwinfo

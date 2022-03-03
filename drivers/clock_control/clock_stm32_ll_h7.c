@@ -2,7 +2,6 @@
  *
  * Copyright (c) 2019 Linaro Limited.
  * Copyright (c) 2020 Jeremy LOCHE
- * Copyright (c) 2021 Electrolance Solutions
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -107,18 +106,11 @@
 #define SYSCLK_FREQ_MAX		480000000UL
 #define AHB_FREQ_MAX		240000000UL
 #define APBx_FREQ_MAX		120000000UL
-#elif defined(CONFIG_SOC_STM32H723XX) ||\
-	  defined(CONFIG_SOC_STM32H725XX) ||\
-	  defined(CONFIG_SOC_STM32H735XX)
+#elif defined(CONFIG_SOC_STM32H723XX)
 /* All h7 SoC with maximum 550MHz SYSCLK */
 #define SYSCLK_FREQ_MAX		550000000UL
 #define AHB_FREQ_MAX		275000000UL
 #define APBx_FREQ_MAX		137500000UL
-#elif defined(CONFIG_SOC_STM32H7A3XX) || defined(CONFIG_SOC_STM32H7A3XXQ) ||\
-	  defined(CONFIG_SOC_STM32H7B3XX) || defined(CONFIG_SOC_STM32H7B3XXQ)
-#define SYSCLK_FREQ_MAX		280000000UL
-#define AHB_FREQ_MAX		280000000UL
-#define APBx_FREQ_MAX		140000000UL
 #else
 /* Default: All h7 SoC with maximum 280MHz SYSCLK */
 #define SYSCLK_FREQ_MAX		280000000UL
@@ -266,28 +258,8 @@ static uint32_t get_hclk_frequency(void)
 
 static int32_t prepare_regulator_voltage_scale(void)
 {
-	/* Apply system power supply configuration */
-#if defined(SMPS) && defined(CONFIG_POWER_SUPPLY_DIRECT_SMPS)
-	LL_PWR_ConfigSupply(LL_PWR_DIRECT_SMPS_SUPPLY);
-#elif defined(SMPS) && defined(CONFIG_POWER_SUPPLY_SMPS_1V8_SUPPLIES_LDO)
-	LL_PWR_ConfigSupply(LL_PWR_SMPS_1V8_SUPPLIES_LDO);
-#elif defined(SMPS) && defined(CONFIG_POWER_SUPPLY_SMPS_2V5_SUPPLIES_LDO)
-	LL_PWR_ConfigSupply(LL_PWR_SMPS_2V5_SUPPLIES_LDO);
-#elif defined(SMPS) && defined(CONFIG_POWER_SUPPLY_SMPS_1V8_SUPPLIES_EXT_AND_LDO)
-	LL_PWR_ConfigSupply(LL_PWR_SMPS_1V8_SUPPLIES_EXT_AND_LDO);
-#elif defined(SMPS) && defined(CONFIG_POWER_SUPPLY_SMPS_2V5_SUPPLIES_EXT_AND_LDO)
-	LL_PWR_ConfigSupply(LL_PWR_SMPS_2V5_SUPPLIES_EXT_AND_LDO);
-#elif defined(SMPS) && defined(CONFIG_POWER_SUPPLY_SMPS_1V8_SUPPLIES_EXT)
-	LL_PWR_ConfigSupply(LL_PWR_SMPS_1V8_SUPPLIES_EXT);
-#elif defined(SMPS) && defined(CONFIG_POWER_SUPPLY_SMPS_2V5_SUPPLIES_EXT)
-	LL_PWR_ConfigSupply(LL_PWR_SMPS_2V5_SUPPLIES_EXT);
-#elif defined(CONFIG_POWER_SUPPLY_EXTERNAL_SOURCE)
-	LL_PWR_ConfigSupply(LL_PWR_EXTERNAL_SOURCE_SUPPLY);
-#else
-	LL_PWR_ConfigSupply(LL_PWR_LDO_SUPPLY);
-#endif
-
 	/* Make sure to put the CPU in highest Voltage scale during clock configuration */
+	LL_PWR_ConfigSupply(LL_PWR_LDO_SUPPLY);
 	/* Highest voltage is SCALE0 */
 	LL_PWR_SetRegulVoltageScaling(LL_PWR_REGU_VOLTAGE_SCALE0);
 	return 0;
@@ -303,25 +275,7 @@ static int32_t optimize_regulator_voltage_scale(uint32_t sysclk_freq)
 	/* LL_PWR_REGULATOR_SCALE3 is lowest power consumption */
 	/* Must be done in accordance to the Maximum allowed frequency vs VOS*/
 	/* See RM0433 page 352 for more details */
-#if defined(SMPS) && defined(CONFIG_POWER_SUPPLY_DIRECT_SMPS)
-	LL_PWR_ConfigSupply(LL_PWR_DIRECT_SMPS_SUPPLY);
-#elif defined(SMPS) && defined(CONFIG_POWER_SUPPLY_SMPS_1V8_SUPPLIES_LDO)
-	LL_PWR_ConfigSupply(LL_PWR_SMPS_1V8_SUPPLIES_LDO);
-#elif defined(SMPS) && defined(CONFIG_POWER_SUPPLY_SMPS_2V5_SUPPLIES_LDO)
-	LL_PWR_ConfigSupply(LL_PWR_SMPS_2V5_SUPPLIES_LDO);
-#elif defined(SMPS) && defined(CONFIG_POWER_SUPPLY_SMPS_1V8_SUPPLIES_EXT_AND_LDO)
-	LL_PWR_ConfigSupply(LL_PWR_SMPS_1V8_SUPPLIES_EXT_AND_LDO);
-#elif defined(SMPS) && defined(CONFIG_POWER_SUPPLY_SMPS_2V5_SUPPLIES_EXT_AND_LDO)
-	LL_PWR_ConfigSupply(LL_PWR_SMPS_2V5_SUPPLIES_EXT_AND_LDO);
-#elif defined(SMPS) && defined(CONFIG_POWER_SUPPLY_SMPS_1V8_SUPPLIES_EXT)
-	LL_PWR_ConfigSupply(LL_PWR_SMPS_1V8_SUPPLIES_EXT);
-#elif defined(SMPS) && defined(CONFIG_POWER_SUPPLY_SMPS_2V5_SUPPLIES_EXT)
-	LL_PWR_ConfigSupply(LL_PWR_SMPS_2V5_SUPPLIES_EXT);
-#elif defined(CONFIG_POWER_SUPPLY_EXTERNAL_SOURCE)
-	LL_PWR_ConfigSupply(LL_PWR_EXTERNAL_SOURCE_SUPPLY);
-#else
 	LL_PWR_ConfigSupply(LL_PWR_LDO_SUPPLY);
-#endif
 	LL_PWR_SetRegulVoltageScaling(LL_PWR_REGU_VOLTAGE_SCALE0);
 	return 0;
 }
@@ -372,7 +326,7 @@ static inline int stm32_clock_control_on(const struct device *dev,
 
 	ARG_UNUSED(dev);
 
-	/* Both cores can access banks by following LL API */
+	/* Both cores can access bansk by following LL API */
 	/* Using "_Cn_" LL API would restrict access to one or the other */
 	z_stm32_hsem_lock(CFG_HW_RCC_SEMID, HSEM_LOCK_DEFAULT_RETRY);
 	switch (pclken->bus) {
@@ -421,7 +375,7 @@ static inline int stm32_clock_control_off(const struct device *dev,
 
 	ARG_UNUSED(dev);
 
-	/* Both cores can access banks by following LL API */
+	/* Both cores can access bansk by following LL API */
 	/* Using "_Cn_" LL API would restrict access to one or the other */
 	z_stm32_hsem_lock(CFG_HW_RCC_SEMID, HSEM_LOCK_DEFAULT_RETRY);
 	switch (pclken->bus) {
@@ -541,13 +495,8 @@ static int stm32_clock_control_init(const struct device *dev)
 #if !defined(CONFIG_CPU_CORTEX_M4)
 
 	/* HW semaphore Clock enable */
-#if defined(CONFIG_SOC_STM32H7A3XX) || defined(CONFIG_SOC_STM32H7A3XXQ) ||\
-	  defined(CONFIG_SOC_STM32H7B3XX) || defined(CONFIG_SOC_STM32H7B3XXQ)
-	LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_HSEM);
-#else
 	LL_AHB4_GRP1_EnableClock(LL_AHB4_GRP1_PERIPH_HSEM);
 
-#endif
 	z_stm32_hsem_lock(CFG_HW_RCC_SEMID, HSEM_LOCK_DEFAULT_RETRY);
 
 	/* Configure Voltage scale to comply with the desired system frequency */
@@ -767,6 +716,8 @@ static int stm32_clock_control_init(const struct device *dev)
 	}
 #endif /* STM32_PLL3_ENABLE */
 
+	/* Set systick to 1ms */
+	SysTick_Config(CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC / 1000);
 	/* Update CMSIS variable */
 	SystemCoreClock = CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC;
 
@@ -782,5 +733,5 @@ DEVICE_DT_DEFINE(DT_NODELABEL(rcc),
 		    NULL,
 		    NULL, NULL,
 		    PRE_KERNEL_1,
-		    CONFIG_CLOCK_CONTROL_INIT_PRIORITY,
+		    CONFIG_CLOCK_CONTROL_STM32_DEVICE_INIT_PRIORITY,
 		    &stm32_clock_control_api);

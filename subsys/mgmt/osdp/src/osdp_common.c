@@ -11,7 +11,7 @@
 #include <logging/log.h>
 
 #ifdef CONFIG_OSDP_SC_ENABLED
-#include <crypto/crypto.h>
+#include <crypto/cipher.h>
 #include <random/rand32.h>
 #endif
 

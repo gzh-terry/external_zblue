@@ -32,6 +32,7 @@ extern "C" {
  *
  * This function shall only be called in Privileged mode.
  *
+ * @return N/A
  */
 void z_arm_tcm_disable_ecc(void);
 

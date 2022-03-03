@@ -1,28 +1,12 @@
 # FSL SEGGER K66F platform configuration options
 
-# Copyright (c) 2020 DENX Software Engineering GmbH, 2021 Electromaticus LLC, 2021 NXP
+# Copyright (c) 2020 DENX Software Engineering GmbH
 # SPDX-License-Identifier: Apache-2.0
 
 if SOC_MK66F18
 
 config SOC
 	default "mk66f18"
-
-config NUM_IRQS
-	# must be >= the highest interrupt number used
-	default 100
-
-config ADC_MCUX_ADC16
-	default y
-	depends on ADC
-
-config DAC_MCUX_DAC
-	default y
-	depends on DAC
-
-config CAN_MCUX_FLEXCAN
-	default y
-	depends on CAN
 
 if CLOCK_CONTROL
 
@@ -34,60 +18,56 @@ config CLOCK_CONTROL_MCUX_MCG
 
 endif # CLOCK_CONTROL
 
+if PINMUX
+
 config PINMUX_MCUX
 	default y
-	depends on PINMUX
+
+endif # PINMUX
 
 config GPIO
 	default y
 
+if GPIO
+
 config GPIO_MCUX
 	default y
-	depends on GPIO
 
-config I2C_MCUX
-	default y
-	depends on I2C
+endif # GPIO
 
-config PWM_MCUX_FTM
-	default y
-	depends on PWM
+if SPI
 
 config SPI_MCUX_DSPI
 	default y
-	depends on SPI
 
-config ETH_MCUX
-	default y
-	depends on NET_L2_ETHERNET
+endif # SPI
+
+if ENTROPY_GENERATOR
 
 config ENTROPY_MCUX_RNGA
 	default y
-	depends on ENTROPY_GENERATOR
+
+endif # ENTROPY_GENERATOR
+
+if FLASH
 
 config SOC_FLASH_MCUX
 	default y
-	depends on FLASH
 
-config UART_MCUX
-	default y
-	depends on SERIAL
+endif # FLASH
 
-config USB_KINETIS
-	default y
-	depends on USB_DEVICE_DRIVER
+if WATCHDOG
 
 config WDT_MCUX_WDOG
 	default y
-	depends on WATCHDOG
+
+endif # WATCHDOG
+
+if COUNTER
 
 config COUNTER_MCUX_RTC
 	default y
-	depends on COUNTER
 
-config UART_MCUX_LPUART
-	default y
-	depends on SERIAL
-
+endif # COUNTER
 
 endif # SOC_MK66F18

@@ -1,7 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2019 Intel Corporation
 
+zephyr_library_named(settings_fcb_test)
+
 add_subdirectory(../../src settings_test_bindir)
+target_link_libraries(settings_fcb_test PRIVATE settings_test)
 
 zephyr_include_directories(
 	${ZEPHYR_BASE}/subsys/settings/include
@@ -10,4 +13,4 @@ zephyr_include_directories(
 	)
 
 FILE(GLOB mysources *.c)
-target_sources(app PRIVATE ${mysources})
+zephyr_library_sources(${mysources})

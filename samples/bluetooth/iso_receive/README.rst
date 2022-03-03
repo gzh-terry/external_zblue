@@ -12,10 +12,7 @@ Receiver functionality.
 Requirements
 ************
 
-* BlueZ running on the host, or
-* A board with Bluetooth Low Energy 5.2 support
-* A Bluetooth Controller and board that supports setting
-  CONFIG_BT_CTLR_SYNC_ISO=y
+* A board with Bluetooth Low Energy support
 
 Building and Running
 ********************

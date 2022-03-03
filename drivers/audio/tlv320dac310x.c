@@ -25,8 +25,13 @@ LOG_MODULE_REGISTER(tlv320dac310x);
 #define CODEC_OUTPUT_VOLUME_MIN		(-78 * 2)
 
 struct codec_driver_config {
-	struct i2c_dt_spec bus;
-	struct gpio_dt_spec reset_gpio;
+	const struct device *i2c_device;
+	const char	*i2c_dev_name;
+	uint8_t		i2c_address;
+	const struct device *gpio_device;
+	const char	*gpio_dev_name;
+	uint32_t		gpio_pin;
+	int		gpio_flags;
 };
 
 struct codec_driver_data {
@@ -34,11 +39,21 @@ struct codec_driver_data {
 };
 
 static struct codec_driver_config codec_device_config = {
-	.bus		= I2C_DT_SPEC_INST_GET(0),
-	.reset_gpio	= GPIO_DT_SPEC_INST_GET(0, reset_gpios),
+	.i2c_device	= NULL,
+	.i2c_dev_name	= DT_INST_BUS_LABEL(0),
+	.i2c_address	= DT_INST_REG_ADDR(0),
+	.gpio_device	= NULL,
+	.gpio_dev_name	= DT_INST_GPIO_LABEL(0, reset_gpios),
+	.gpio_pin	= DT_INST_GPIO_PIN(0, reset_gpios),
+	.gpio_flags	= DT_INST_GPIO_FLAGS(0, reset_gpios),
 };
 
 static struct codec_driver_data codec_device_data;
+
+#define DEV_CFG(dev) \
+	((struct codec_driver_config *const)(dev)->config)
+#define DEV_DATA(dev) \
+	((struct codec_driver_data *const)(dev)->data)
 
 static void codec_write_reg(const struct device *dev, struct reg_addr reg,
 			    uint8_t val);
@@ -63,16 +78,22 @@ static void codec_read_all_regs(const struct device *dev);
 
 static int codec_initialize(const struct device *dev)
 {
-	const struct codec_driver_config *const dev_cfg = dev->config;
+	struct codec_driver_config *const dev_cfg = DEV_CFG(dev);
 
-	if (!device_is_ready(dev_cfg->bus.bus)) {
-		LOG_ERR("I2C device not ready");
-		return -ENODEV;
+	/* bind I2C */
+	dev_cfg->i2c_device = device_get_binding(dev_cfg->i2c_dev_name);
+
+	if (dev_cfg->i2c_device == NULL) {
+		LOG_ERR("I2C device binding error");
+		return -ENXIO;
 	}
 
-	if (!device_is_ready(dev_cfg->reset_gpio.port)) {
-		LOG_ERR("GPIO device not ready");
-		return -ENODEV;
+	/* bind GPIO */
+	dev_cfg->gpio_device = device_get_binding(dev_cfg->gpio_dev_name);
+
+	if (dev_cfg->gpio_device == NULL) {
+		LOG_ERR("GPIO device binding error");
+		return -ENXIO;
 	}
 
 	return 0;
@@ -81,7 +102,7 @@ static int codec_initialize(const struct device *dev)
 static int codec_configure(const struct device *dev,
 			   struct audio_codec_cfg *cfg)
 {
-	const struct codec_driver_config *const dev_cfg = dev->config;
+	struct codec_driver_config *const dev_cfg = DEV_CFG(dev);
 	int ret;
 
 	if (cfg->dai_type != AUDIO_DAI_TYPE_I2S) {
@@ -92,7 +113,8 @@ static int codec_configure(const struct device *dev,
 	/* Configure reset GPIO, and set the line to inactive, which will also
 	 * de-assert the reset line and thus enable the codec.
 	 */
-	gpio_pin_configure_dt(&dev_cfg->reset_gpio, GPIO_OUTPUT_INACTIVE);
+	gpio_pin_configure(dev_cfg->gpio_device, dev_cfg->gpio_pin,
+			   dev_cfg->gpio_flags | GPIO_OUTPUT_INACTIVE);
 
 	codec_soft_reset(dev);
 
@@ -180,16 +202,18 @@ static int codec_apply_properties(const struct device *dev)
 static void codec_write_reg(const struct device *dev, struct reg_addr reg,
 			    uint8_t val)
 {
-	struct codec_driver_data *const dev_data = dev->data;
-	const struct codec_driver_config *const dev_cfg = dev->config;
+	struct codec_driver_data *const dev_data = DEV_DATA(dev);
+	struct codec_driver_config *const dev_cfg = DEV_CFG(dev);
 
 	/* set page if different */
 	if (dev_data->reg_addr_cache.page != reg.page) {
-		i2c_reg_write_byte_dt(&dev_cfg->bus, 0, reg.page);
+		i2c_reg_write_byte(dev_cfg->i2c_device,
+				dev_cfg->i2c_address, 0, reg.page);
 		dev_data->reg_addr_cache.page = reg.page;
 	}
 
-	i2c_reg_write_byte_dt(&dev_cfg->bus, reg.reg_addr, val);
+	i2c_reg_write_byte(dev_cfg->i2c_device,
+			dev_cfg->i2c_address, reg.reg_addr, val);
 	LOG_DBG("WR PG:%u REG:%02u VAL:0x%02x",
 			reg.page, reg.reg_addr, val);
 }
@@ -197,16 +221,18 @@ static void codec_write_reg(const struct device *dev, struct reg_addr reg,
 static void codec_read_reg(const struct device *dev, struct reg_addr reg,
 			   uint8_t *val)
 {
-	struct codec_driver_data *const dev_data = dev->data;
-	const struct codec_driver_config *const dev_cfg = dev->config;
+	struct codec_driver_data *const dev_data = DEV_DATA(dev);
+	struct codec_driver_config *const dev_cfg = DEV_CFG(dev);
 
 	/* set page if different */
 	if (dev_data->reg_addr_cache.page != reg.page) {
-		i2c_reg_write_byte_dt(&dev_cfg->bus, 0, reg.page);
+		i2c_reg_write_byte(dev_cfg->i2c_device,
+				dev_cfg->i2c_address, 0, reg.page);
 		dev_data->reg_addr_cache.page = reg.page;
 	}
 
-	i2c_reg_read_byte_dt(&dev_cfg->bus, reg.reg_addr, val);
+	i2c_reg_read_byte(dev_cfg->i2c_device,
+			dev_cfg->i2c_address, reg.reg_addr, val);
 	LOG_DBG("RD PG:%u REG:%02u VAL:0x%02x",
 			reg.page, reg.reg_addr, *val);
 }

@@ -87,6 +87,9 @@ enum uart_mux_status_code {
 struct uart_mux_config {
 };
 
+#define DEV_DATA(dev) \
+	((struct uart_mux_dev_data *)(dev)->data)
+
 struct uart_mux_dev_data {
 	sys_snode_t node;
 
@@ -227,7 +230,7 @@ static void uart_mux_tx_work(struct k_work *work)
 
 static int uart_mux_init(const struct device *dev)
 {
-	struct uart_mux_dev_data *dev_data = dev->data;
+	struct uart_mux_dev_data *dev_data = DEV_DATA(dev);
 
 	gsm_mux_init();
 
@@ -287,7 +290,7 @@ static void uart_mux_flush_isr(const struct device *dev)
 
 void uart_mux_disable(const struct device *dev)
 {
-	struct uart_mux_dev_data *dev_data = dev->data;
+	struct uart_mux_dev_data *dev_data = DEV_DATA(dev);
 	const struct device *uart = dev_data->real_uart->uart;
 
 	uart_irq_rx_disable(uart);
@@ -299,7 +302,7 @@ void uart_mux_disable(const struct device *dev)
 
 void uart_mux_enable(const struct device *dev)
 {
-	struct uart_mux_dev_data *dev_data = dev->data;
+	struct uart_mux_dev_data *dev_data = DEV_DATA(dev);
 	struct uart_mux *real_uart = dev_data->real_uart;
 
 	LOG_DBG("Claiming uart for uart_mux");
@@ -464,7 +467,7 @@ static int uart_mux_poll_in(const struct device *dev, unsigned char *p_char)
 static void uart_mux_poll_out(const struct device *dev,
 			      unsigned char out_char)
 {
-	struct uart_mux_dev_data *dev_data = dev->data;
+	struct uart_mux_dev_data *dev_data = DEV_DATA(dev);
 
 	if (dev_data->dev == NULL) {
 		return;
@@ -508,7 +511,7 @@ static int uart_mux_fifo_fill(const struct device *dev,
 		return -EINVAL;
 	}
 
-	dev_data = dev->data;
+	dev_data = DEV_DATA(dev);
 	if (dev_data->dev == NULL) {
 		return -ENOENT;
 	}
@@ -552,7 +555,7 @@ static int uart_mux_fifo_read(const struct device *dev, uint8_t *rx_data,
 		return -EINVAL;
 	}
 
-	dev_data = dev->data;
+	dev_data = DEV_DATA(dev);
 	if (dev_data->dev == NULL) {
 		return -ENOENT;
 	}
@@ -572,7 +575,7 @@ static int uart_mux_fifo_read(const struct device *dev, uint8_t *rx_data,
 
 static void uart_mux_irq_tx_enable(const struct device *dev)
 {
-	struct uart_mux_dev_data *dev_data = dev->data;
+	struct uart_mux_dev_data *dev_data = DEV_DATA(dev);
 
 	if (dev_data == NULL || dev_data->dev == NULL) {
 		return;
@@ -587,7 +590,7 @@ static void uart_mux_irq_tx_enable(const struct device *dev)
 
 static void uart_mux_irq_tx_disable(const struct device *dev)
 {
-	struct uart_mux_dev_data *dev_data = dev->data;
+	struct uart_mux_dev_data *dev_data = DEV_DATA(dev);
 
 	if (dev_data == NULL || dev_data->dev == NULL) {
 		return;
@@ -598,7 +601,7 @@ static void uart_mux_irq_tx_disable(const struct device *dev)
 
 static int uart_mux_irq_tx_ready(const struct device *dev)
 {
-	struct uart_mux_dev_data *dev_data = dev->data;
+	struct uart_mux_dev_data *dev_data = DEV_DATA(dev);
 
 	if (dev_data == NULL) {
 		return -EINVAL;
@@ -613,7 +616,7 @@ static int uart_mux_irq_tx_ready(const struct device *dev)
 
 static void uart_mux_irq_rx_enable(const struct device *dev)
 {
-	struct uart_mux_dev_data *dev_data = dev->data;
+	struct uart_mux_dev_data *dev_data = DEV_DATA(dev);
 
 	if (dev_data == NULL || dev_data->dev == NULL) {
 		return;
@@ -628,7 +631,7 @@ static void uart_mux_irq_rx_enable(const struct device *dev)
 
 static void uart_mux_irq_rx_disable(const struct device *dev)
 {
-	struct uart_mux_dev_data *dev_data = dev->data;
+	struct uart_mux_dev_data *dev_data = DEV_DATA(dev);
 
 	if (dev_data == NULL || dev_data->dev == NULL) {
 		return;
@@ -646,7 +649,7 @@ static int uart_mux_irq_tx_complete(const struct device *dev)
 
 static int uart_mux_irq_rx_ready(const struct device *dev)
 {
-	struct uart_mux_dev_data *dev_data = dev->data;
+	struct uart_mux_dev_data *dev_data = DEV_DATA(dev);
 
 	if (dev_data == NULL) {
 		return -EINVAL;
@@ -671,7 +674,7 @@ static void uart_mux_irq_err_disable(const struct device *dev)
 
 static int uart_mux_irq_is_pending(const struct device *dev)
 {
-	struct uart_mux_dev_data *dev_data = dev->data;
+	struct uart_mux_dev_data *dev_data = DEV_DATA(dev);
 
 	if (dev_data == NULL || dev_data->dev == NULL) {
 		return 0;
@@ -699,7 +702,7 @@ static void uart_mux_irq_callback_set(const struct device *dev,
 				      uart_irq_callback_user_data_t cb,
 				      void *user_data)
 {
-	struct uart_mux_dev_data *dev_data = dev->data;
+	struct uart_mux_dev_data *dev_data = DEV_DATA(dev);
 
 	if (dev_data == NULL) {
 		return;
@@ -787,7 +790,7 @@ const struct device *z_impl_uart_mux_find(int dlci_address)
 
 int uart_mux_send(const struct device *uart, const uint8_t *buf, size_t size)
 {
-	struct uart_mux_dev_data *dev_data = uart->data;
+	struct uart_mux_dev_data *dev_data = DEV_DATA(uart);
 
 	if (size == 0) {
 		return 0;
@@ -820,7 +823,7 @@ int uart_mux_recv(const struct device *mux, struct gsm_dlci *dlci,
 		  uint8_t *data,
 		  size_t len)
 {
-	struct uart_mux_dev_data *dev_data = mux->data;
+	struct uart_mux_dev_data *dev_data = DEV_DATA(mux);
 	size_t wrote = 0;
 
 	LOG_DBG("%s: dlci %p data %p len %zd", mux->name, (void *)dlci,
@@ -887,7 +890,7 @@ void uart_mux_foreach(uart_mux_cb_t cb, void *user_data)
 			    &uart_mux_dev_data_##x,			  \
 			    &uart_mux_config_##x,			  \
 			    POST_KERNEL,				  \
-			    CONFIG_CONSOLE_INIT_PRIORITY,		  \
+			    CONFIG_KERNEL_INIT_PRIORITY_DEVICE,		  \
 			    &uart_mux_driver_api);
 
 UTIL_LISTIFY(CONFIG_UART_MUX_DEVICE_COUNT, DEFINE_UART_MUX_CFG_DATA, _)
@@ -906,4 +909,4 @@ static int init_uart_mux(const struct device *dev)
 	return 0;
 }
 
-SYS_INIT(init_uart_mux, POST_KERNEL, CONFIG_CONSOLE_INIT_PRIORITY);
+SYS_INIT(init_uart_mux, POST_KERNEL, CONFIG_UART_MUX_INIT_PRIORITY);

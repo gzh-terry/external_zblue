@@ -16,6 +16,7 @@ following features are *not* supported:
 
 * Dynamic object management with the **new** and **delete** operators
 * :abbr:`RTTI (runtime type information)`
+* Exceptions
 * Static global object destruction
 
 While not an exhaustive list, support for the following functionality is
@@ -25,7 +26,6 @@ included:
 * Virtual functions
 * Virtual tables
 * Static global object constructors
-* Exceptions
 
 Static global object constructors are initialized after the drivers are
 initialized but before the application :c:func:`main()` function. Therefore,

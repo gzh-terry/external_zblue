@@ -216,7 +216,7 @@ Run a serial host program to connect with your NUCLEO-H745ZI-Q board.
 
    $ minicom -b 115200 -D /dev/ttyACM0
 
-or use screen:
+or use scrreen:
 
 .. code-block:: console
 
@@ -235,19 +235,14 @@ You should see the following message on the console:
 
    $ Hello World! nucleo_h745zi_q_m7
 
-.. note::
-  Sometimes, flashing is not working. It is necessary to erase the flash
-  (with STM32CubeProgrammer for example) to make it work again.
-
-Similarly, you can build and flash samples on the M4 target. For this, please
-take care of the resource sharing (UART port used for console for instance).
-
-Here is an example for the :ref:`blinky-sample` application on M4 core.
+Blinky example can also be used:
 
 .. zephyr-app-commands::
    :zephyr-app: samples/basic/blinky
-   :board: nucleo_h745zi_q_m4
+   :board: nucleo_h745zi_q_m7
    :goals: build flash
+
+Same way M4 core can be flashed.
 
 .. note::
 
@@ -265,10 +260,6 @@ You can debug an application in the usual way.  Here is an example for the
    :board: nucleo_h745zi_q_m7
    :maybe-skip-config:
    :goals: debug
-
-Debugging with west is currently not available on Cortex M4 side.
-In order to debug a Zephyr application on Cortex M4 side, you can use
-`STM32CubeIDE`_.
 
 .. _Nucleo H745ZI-Q website:
    https://www.st.com/en/evaluation-tools/nucleo-h745zi-q.html

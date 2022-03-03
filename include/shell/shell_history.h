@@ -36,7 +36,7 @@ struct shell_history {
 	static struct ring_buf _name##_ring_buf =		  \
 		{						  \
 			.size = _size,				  \
-			.buffer = _name##_ring_buf_data		  \
+			.buf =  { .buf8 = _name##_ring_buf_data } \
 		};						  \
 	static struct shell_history _name = {			  \
 		.ring_buf = &_name##_ring_buf			  \

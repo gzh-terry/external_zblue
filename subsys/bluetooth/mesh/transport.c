@@ -1,3 +1,5 @@
+/*  Bluetooth Mesh */
+
 /*
  * Copyright (c) 2017 Intel Corporation
  *
@@ -92,7 +94,7 @@ struct va_val {
 
 static struct seg_tx {
 	struct bt_mesh_subnet *sub;
-	void                  *seg[BT_MESH_TX_SEG_MAX];
+	void                  *seg[CONFIG_BT_MESH_TX_SEG_MAX];
 	uint64_t              seq_auth;
 	uint16_t              src;
 	uint16_t              dst;
@@ -118,7 +120,7 @@ static struct seg_tx {
 
 static struct seg_rx {
 	struct bt_mesh_subnet   *sub;
-	void                    *seg[BT_MESH_RX_SEG_MAX];
+	void                    *seg[CONFIG_BT_MESH_RX_SEG_MAX];
 	uint64_t                    seq_auth;
 	uint16_t                    src;
 	uint16_t                    dst;
@@ -144,8 +146,7 @@ static int send_unseg(struct bt_mesh_net_tx *tx, struct net_buf_simple *sdu,
 {
 	struct net_buf *buf;
 
-	buf = bt_mesh_adv_create(BT_MESH_ADV_DATA, BT_MESH_LOCAL_ADV,
-				 tx->xmit, BUF_TIMEOUT);
+	buf = bt_mesh_adv_create(BT_MESH_ADV_DATA, tx->xmit, BUF_TIMEOUT);
 	if (!buf) {
 		BT_ERR("Out of network buffers");
 		return -ENOBUFS;
@@ -413,8 +414,8 @@ static void seg_tx_send_unacked(struct seg_tx *tx)
 			continue;
 		}
 
-		seg = bt_mesh_adv_create(BT_MESH_ADV_DATA, BT_MESH_LOCAL_ADV,
-					 tx->xmit, BUF_TIMEOUT);
+		seg = bt_mesh_adv_create(BT_MESH_ADV_DATA, tx->xmit,
+					 BUF_TIMEOUT);
 		if (!seg) {
 			BT_DBG("Allocating segment failed");
 			goto end;
@@ -449,8 +450,7 @@ end:
 
 static void seg_retransmit(struct k_work *work)
 {
-	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
-	struct seg_tx *tx = CONTAINER_OF(dwork, struct seg_tx, retransmit);
+	struct seg_tx *tx = CONTAINER_OF(work, struct seg_tx, retransmit);
 
 	seg_tx_send_unacked(tx);
 }
@@ -1130,8 +1130,7 @@ static void seg_rx_reset(struct seg_rx *rx, bool full_reset)
 
 static void seg_ack(struct k_work *work)
 {
-	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
-	struct seg_rx *rx = CONTAINER_OF(dwork, struct seg_rx, ack);
+	struct seg_rx *rx = CONTAINER_OF(work, struct seg_rx, ack);
 	int32_t timeout;
 
 	if (!rx->in_use || rx->block == BLOCK_COMPLETE(rx->seg_n)) {
@@ -1166,7 +1165,7 @@ static void seg_ack(struct k_work *work)
 
 static inline bool sdu_len_is_ok(bool ctl, uint8_t seg_n)
 {
-	return (seg_n < BT_MESH_RX_SEG_MAX);
+	return (seg_n < CONFIG_BT_MESH_RX_SEG_MAX);
 }
 
 static struct seg_rx *seg_rx_find(struct bt_mesh_net_rx *net_rx,

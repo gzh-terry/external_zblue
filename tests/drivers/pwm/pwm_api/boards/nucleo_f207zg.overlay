@@ -5,5 +5,7 @@
  */
 
 &timers1 {
-	st,prescaler = <10000>;
+	pwm {
+		st,prescaler = <10000>;
+	};
 };

@@ -33,6 +33,7 @@ K_SEM_DEFINE(WORKSEMA, 0, 1);
  *
  * The interrupt handler gets the second timestamp.
  *
+ * @return N/A
  */
 static void latency_test_isr(const void *unused)
 {

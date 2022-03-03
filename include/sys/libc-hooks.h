@@ -16,22 +16,24 @@
  * that need to call into the kernel as system calls
  */
 
-#if defined(CONFIG_NEWLIB_LIBC) || defined(CONFIG_ARCMWDT_LIBC)
+#ifdef CONFIG_NEWLIB_LIBC
 
 /* syscall generation ignores preprocessor, ensure this is defined to ensure
  * we don't have compile errors
  */
-__syscall int zephyr_read_stdin(char *buf, int nbytes);
+#define _MLIBC_RESTRICT
 
-__syscall int zephyr_write_stdout(const void *buf, int nbytes);
+__syscall int z_zephyr_read_stdin(char *buf, int nbytes);
+
+__syscall int z_zephyr_write_stdout(const void *buf, int nbytes);
 
 #else
 /* Minimal libc */
 
 __syscall int zephyr_fputc(int c, FILE * stream);
 
-__syscall size_t zephyr_fwrite(const void *ZRESTRICT ptr, size_t size,
-				size_t nitems, FILE *ZRESTRICT stream);
+__syscall size_t zephyr_fwrite(const void *_MLIBC_RESTRICT ptr, size_t size,
+				size_t nitems, FILE *_MLIBC_RESTRICT stream);
 #endif /* CONFIG_NEWLIB_LIBC */
 
 #ifdef CONFIG_USERSPACE
@@ -67,14 +69,11 @@ extern struct k_mem_partition z_malloc_partition;
 
 #if defined(CONFIG_NEWLIB_LIBC) || defined(CONFIG_STACK_CANARIES) || \
     defined(CONFIG_NEED_LIBC_MEM_PARTITION)
-/* - All newlib globals will be placed into z_libc_partition.
- * - Minimal C library globals, if any, will be placed into
- *   z_libc_partition.
- * - Stack canary globals will be placed into z_libc_partition since
- *   it is not worth placing in its own partition.
- * - Some architectures may place the global pointer to the thread local
- *   storage in z_libc_partition since it is not worth placing in its
- *   own partition.
+/* Minimal libc has no globals. We do put the stack canary global in the
+ * libc partition since it is not worth placing in a partition of its own.
+ *
+ * Some architectures require a global pointer for thread local storage,
+ * which is placed inside the libc partition.
  */
 #define Z_LIBC_PARTITION_EXISTS 1
 

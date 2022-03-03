@@ -70,6 +70,7 @@ static bool match_region(sys_bitarray_t *bitarray, size_t offset,
 	int idx;
 	uint32_t bundle;
 	uint32_t mismatch_bundle;
+	uint32_t mismatch_mask;
 	size_t mismatch_bundle_idx;
 	size_t mismatch_bit_off;
 
@@ -85,6 +86,7 @@ static bool match_region(sys_bitarray_t *bitarray, size_t offset,
 			/* Not matching to mask. */
 			mismatch_bundle = ~bundle & bd->smask;
 			mismatch_bundle_idx = bd->sidx;
+			mismatch_mask = bd->smask;
 			goto mismatch;
 		} else {
 			/* Matching to mask. */
@@ -104,6 +106,7 @@ static bool match_region(sys_bitarray_t *bitarray, size_t offset,
 		/* Start bundle not matching to mask. */
 		mismatch_bundle = ~bundle & bd->smask;
 		mismatch_bundle_idx = bd->sidx;
+		mismatch_mask = bd->smask;
 		goto mismatch;
 	}
 
@@ -117,6 +120,7 @@ static bool match_region(sys_bitarray_t *bitarray, size_t offset,
 		/* End bundle not matching to mask. */
 		mismatch_bundle = ~bundle & bd->emask;
 		mismatch_bundle_idx = bd->eidx;
+		mismatch_mask = bd->emask;
 		goto mismatch;
 	}
 
@@ -134,6 +138,7 @@ static bool match_region(sys_bitarray_t *bitarray, size_t offset,
 			/* Bits in "between bundles" do not match */
 			mismatch_bundle = ~bundle;
 			mismatch_bundle_idx = idx;
+			mismatch_mask = ~0U;
 			goto mismatch;
 		}
 	}

@@ -50,8 +50,7 @@ int modem_pin_config(struct modem_context *ctx, uint32_t pin, bool enable)
 
 int modem_pin_init(struct modem_context *ctx)
 {
-	int ret;
-	size_t i;
+	int i, ret;
 
 	/* setup port devices and pin directions */
 	for (i = 0; i < ctx->pins_len; i++) {

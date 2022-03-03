@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2015 Intel Corporation.
- * Copyright (c) 2021 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,186 +8,143 @@
 #define ZEPHYR_INCLUDE_PM_DEVICE_RUNTIME_H_
 
 #include <device.h>
+#include <kernel.h>
+#include <sys/atomic.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * @brief Device Runtime Power Management API
- * @defgroup subsys_pm_device_runtime Device Runtime
- * @ingroup subsys_pm
+ * @brief Runtime Power Management API
+ *
+ * @defgroup runtime_power_management_api Runtime Power Management API
+ * @ingroup power_management_api
  * @{
  */
 
-#if defined(CONFIG_PM_DEVICE_RUNTIME) || defined(__DOXYGEN__)
+#ifdef CONFIG_PM_DEVICE_RUNTIME
+
 /**
  * @brief Enable device runtime PM
  *
- * This function will enable runtime PM on the given device. If the device is
- * in #PM_DEVICE_STATE_ACTIVE state, the device will be suspended.
+ * Called by a device driver to enable device runtime power management.
+ * The device might be asynchronously suspended if runtime PM is enabled
+ * when the device is not use.
  *
  * @funcprops \pre_kernel_ok
  *
- * @param dev Device instance.
- *
- * @retval 0 If the device runtime PM is enabled successfully.
- * @retval -EPERM If device has power state locked.
- * @retval -ENOSYS If the functionality is not available.
- * @retval -errno Other negative errno, result of suspending the device.
- *
- * @see pm_device_runtime_init_suspended()
+ * @param dev Pointer to device structure of the specific device driver
+ * the caller is interested in.
  */
-int pm_device_runtime_enable(const struct device *dev);
+void pm_device_enable(const struct device *dev);
 
 /**
  * @brief Disable device runtime PM
  *
- * If the device is currently suspended it will be resumed.
+ * Called by a device driver to disable device runtime power management.
+ * The device might be asynchronously resumed if runtime PM is disabled
  *
  * @funcprops \pre_kernel_ok
  *
- * @param dev Device instance.
- *
- * @retval 0 If the device runtime PM is disabled successfully.
- * @retval -ENOSYS If the functionality is not available.
- * @retval -errno Other negative errno, result of resuming the device.
+ * @param dev Pointer to device structure of the specific device driver
+ * the caller is interested in.
  */
-int pm_device_runtime_disable(const struct device *dev);
+void pm_device_disable(const struct device *dev);
 
 /**
- * @brief Resume a device based on usage count.
+ * @brief Call device resume asynchronously based on usage count
  *
- * This function will resume the device if the device is suspended (usage count
- * equal to 0). In case of a resume failure, usage count and device state will
- * be left unchanged. In all other cases, usage count will be incremented.
+ * Called by a device driver to mark the device as being used.
+ * This API will asynchronously bring the device to resume state
+ * if it not already in active state.
  *
- * If the device is still being suspended as a result of calling
- * pm_device_runtime_put_async(), this function will wait for the operation to
- * finish to then resume the device.
+ * @funcprops \isr_ok, \pre_kernel_ok
  *
- * @funcprops \pre_kernel_ok
- *
- * @param dev Device instance.
- *
- * @retval 0 If it succeeds. In case device runtime PM is not enabled or not
- * available this function will be a no-op and will also return 0.
- * @retval -errno Other negative errno, result of the PM action callback.
+ * @param dev Pointer to device structure of the specific device driver
+ * the caller is interested in.
+ * @retval 0 If successfully queued the Async request. If queued,
+ * the caller need to wait on the poll event linked to device
+ * pm signal mechanism to know the completion of resume operation.
+ * @retval Errno Negative errno code if failure.
  */
-int pm_device_runtime_get(const struct device *dev);
+int pm_device_get_async(const struct device *dev);
 
 /**
- * @brief Suspend a device based on usage count.
+ * @brief Call device resume synchronously based on usage count
  *
- * This function will suspend the device if the device is no longer required
- * (usage count equal to 0). In case of suspend failure, usage count and device
- * state will be left unchanged. In all other cases, usage count will be
- * decremented (down to 0).
+ * Called by a device driver to mark the device as being used. It
+ * will bring up or resume the device if it is in suspended state
+ * based on the device usage count. This call is blocked until the
+ * device PM state is changed to resume.
  *
- * @funcprops \pre_kernel_ok
- *
- * @param dev Device instance.
- *
- * @retval 0 If it succeeds. In case device runtime PM is not enabled or not
- * available this function will be a no-op and will also return 0.
- * @retval -EALREADY If device is already suspended (can only happen if get/put
- * calls are unbalanced).
- * @retval -errno Other negative errno, result of the action callback.
- *
- * @see pm_device_runtime_put_async()
+ * @param dev Pointer to device structure of the specific device driver
+ * the caller is interested in.
+ * @retval 0 If successful.
+ * @retval Errno Negative errno code if failure.
  */
-int pm_device_runtime_put(const struct device *dev);
+int pm_device_get(const struct device *dev);
 
 /**
- * @brief Suspend a device based on usage count (asynchronously).
+ * @brief Call device suspend asynchronously based on usage count
  *
- * This function will schedule the device suspension if the device is no longer
- * required (usage count equal to 0). In all other cases, usage count will be
- * decremented (down to 0).
+ * Called by a device driver to mark the device as being released.
+ * This API asynchronously put the device to suspend state if
+ * it not already in suspended state.
  *
- * @note Asynchronous operations are not supported when in pre-kernel mode. In
- * this case, the function will be blocking (equivalent to
- * pm_device_runtime_put()).
+ * @funcprops \isr_ok, \pre_kernel_ok
  *
- * @funcprops \pre_kernel_ok, \async
- *
- * @param dev Device instance.
- *
- * @retval 0 If it succeeds. In case device runtime PM is not enabled or not
- * available this function will be a no-op and will also return 0.
- * @retval -EALREADY If device is already suspended (can only happen if get/put
- * calls are unbalanced).
- *
- * @see pm_device_runtime_put()
+ * @param dev Pointer to device structure of the specific device driver
+ * the caller is interested in.
+ * @retval 0 If successfully queued the Async request. If queued,
+ * the caller need to wait on the poll event linked to device pm
+ * signal mechanism to know the completion of suspend operation.
+ * @retval Errno Negative errno code if failure.
  */
-int pm_device_runtime_put_async(const struct device *dev);
+int pm_device_put_async(const struct device *dev);
 
 /**
- * @brief Check if device runtime is enabled for a given device.
+ * @brief Call device suspend synchronously based on usage count
  *
- * @funcprops \pre_kernel_ok
+ * Called by a device driver to mark the device as being released. It
+ * will put the device to suspended state if is is in active state
+ * based on the device usage count. This call is blocked until the
+ * device PM state is changed to resume.
  *
- * @param dev Device instance.
- *
- * @retval true If device has device runtime PM enabled.
- * @retval false If the device has device runtime PM disabled.
- *
- * @see pm_device_runtime_enable()
+ * @param dev Pointer to device structure of the specific device driver
+ * the caller is interested in.
+ * @retval 0 If successful.
+ * @retval Errno Negative errno code if failure.
  */
-bool pm_device_runtime_is_enabled(const struct device *dev);
+int pm_device_put(const struct device *dev);
 
 /**
- * @brief Initialize a device state to #PM_DEVICE_STATE_SUSPENDED.
+ * @brief Wait on a device to finish an operation.
  *
- * By default device state is initialized to #PM_DEVICE_STATE_ACTIVE. In
- * general, this makes sense because the device initialization function will
- * resume and configure a device, leaving it operational. However, when device
- * runtime PM is enabled, the device may not be resumed and the init function
- * will just enable device runtime PM. If that is the case, this function can be
- * used to set the initial device state to #PM_DEVICE_STATE_SUSPENDED.
+ * The calling thread blocks until the device finishes a
+ * @ref pm_device_put_async or @ref pm_device_get_async operation. If there is
+ * no operation in progress this function will return immediately.
  *
- * @param dev Device instance.
+ * @param dev Pointer to device structure of the specific device driver
+ * the caller is interested in.
+ * @param timeout The timeout passed to k_condvar_wait. If a timeout happens
+ * this function will return immediately.
+ * @retval 0 If successful.
+ * @retval Errno Negative errno code if failure.
  */
-static inline void pm_device_runtime_init_suspended(const struct device *dev)
-{
-	struct pm_device *pm = dev->pm;
-
-	pm->state = PM_DEVICE_STATE_SUSPENDED;
-}
-
-/**
- * @brief Initialize a device state to #PM_DEVICE_STATE_OFF.
- *
- * By default device state is initialized to #PM_DEVICE_STATE_ACTIVE. In
- * general, this makes sense because the device initialization function will
- * resume and configure a device, leaving it operational. However, when device
- * runtime PM is enabled, the device may be connected to a power domain, at
- * which case it won't be powered at boot.
- *
- * @param dev Device instance.
- */
-static inline void pm_device_runtime_init_off(const struct device *dev)
-{
-	struct pm_device *pm = dev->pm;
-
-	pm->state = PM_DEVICE_STATE_OFF;
-}
+int pm_device_wait(const struct device *dev, k_timeout_t timeout);
 
 #else
-static inline int pm_device_runtime_enable(const struct device *dev) { return -ENOSYS; }
-static inline int pm_device_runtime_disable(const struct device *dev) { return -ENOSYS; }
-static inline int pm_device_runtime_get(const struct device *dev) { return 0; }
-static inline int pm_device_runtime_put(const struct device *dev) { return 0; }
-static inline int pm_device_runtime_put_async(const struct device *dev) { return 0; }
-static inline bool pm_device_runtime_is_enabled(const struct device *dev) { return false; }
-static inline void pm_device_runtime_init_suspended(const struct device *dev) { }
-static inline void pm_device_runtime_init_off(const struct device *dev) { }
+static inline void pm_device_enable(const struct device *dev) { }
+static inline void pm_device_disable(const struct device *dev) { }
+static inline int pm_device_get(const struct device *dev) { return -ENOSYS; }
+static inline int pm_device_get_async(const struct device *dev) { return -ENOSYS; }
+static inline int pm_device_put(const struct device *dev) { return -ENOSYS; }
+static inline int pm_device_put_async(const struct device *dev) { return -ENOSYS; }
+static inline int pm_device_wait(const struct device *dev,
+		k_timeout_t timeout) { return -ENOSYS; }
 #endif
 
 /** @} */
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* ZEPHYR_INCLUDE_PM_DEVICE_RUNTIME_H_ */

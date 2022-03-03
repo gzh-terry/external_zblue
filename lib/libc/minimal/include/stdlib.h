@@ -10,8 +10,6 @@
 #define ZEPHYR_LIB_LIBC_MINIMAL_INCLUDE_STDLIB_H_
 
 #include <stddef.h>
-#include <limits.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -30,9 +28,6 @@ void *bsearch(const void *key, const void *array,
 	      size_t count, size_t size,
 	      int (*cmp)(const void *key, const void *element));
 
-void qsort_r(void *base, size_t nmemb, size_t size,
-	     int (*compar)(const void *, const void *, void *), void *arg);
-
 #define EXIT_SUCCESS 0
 #define EXIT_FAILURE 1
 void _exit(int status);
@@ -42,11 +37,7 @@ static inline void exit(int status)
 }
 void abort(void);
 
-#ifdef CONFIG_MINIMAL_LIBC_RAND
-#define RAND_MAX INT_MAX
 int rand(void);
-void srand(unsigned int seed);
-#endif /* CONFIG_MINIMAL_LIBC_RAND */
 
 static inline int abs(int __n)
 {
@@ -61,14 +52,6 @@ static inline long labs(long __n)
 static inline long long llabs(long long __n)
 {
 	return (__n < 0LL) ? -__n : __n;
-}
-
-static inline void qsort(void *base, size_t nmemb, size_t size,
-	int (*compar)(const void *, const void *))
-{
-	typedef int (*compar3)(const void *, const void *, void *);
-
-	qsort_r(base, nmemb, size, (compar3)compar, NULL);
 }
 
 #ifdef __cplusplus

@@ -12,25 +12,12 @@
 LOG_MODULE_REGISTER(net_sock_tls, CONFIG_NET_SOCKETS_LOG_LEVEL);
 
 #include <init.h>
+#include <drivers/entropy.h>
 #include <sys/util.h>
 #include <net/socket.h>
 #include <random/rand32.h>
 #include <syscall_handler.h>
 #include <sys/fdtable.h>
-
-/* TODO: Remove all direct access to private fields.
- * According with Mbed TLS migration guide:
- *
- * Direct access to fields of structures
- * (`struct` types) declared in public headers is no longer
- * supported. In Mbed TLS 3, the layout of structures is not
- * considered part of the stable API, and minor versions (3.1, 3.2,
- * etc.) may add, remove, rename, reorder or change the type of
- * structure fields.
- */
-#if !defined(MBEDTLS_ALLOW_PRIVATE_ACCESS)
-#define MBEDTLS_ALLOW_PRIVATE_ACCESS
-#endif
 
 #if defined(CONFIG_MBEDTLS)
 #if !defined(CONFIG_MBEDTLS_CFG_FILE)
@@ -39,6 +26,7 @@ LOG_MODULE_REGISTER(net_sock_tls, CONFIG_NET_SOCKETS_LOG_LEVEL);
 #include CONFIG_MBEDTLS_CFG_FILE
 #endif /* CONFIG_MBEDTLS_CFG_FILE */
 
+#include <mbedtls/ctr_drbg.h>
 #include <mbedtls/net_sockets.h>
 #include <mbedtls/x509.h>
 #include <mbedtls/x509_crt.h>
@@ -58,10 +46,6 @@ LOG_MODULE_REGISTER(net_sock_tls, CONFIG_NET_SOCKETS_LOG_LEVEL);
 #endif /* CONFIG_NET_SOCKETS_TLS_MAX_APP_PROTOCOLS */
 
 static const struct socket_op_vtable tls_sock_fd_op_vtable;
-
-#ifndef MBEDTLS_ERR_SSL_PEER_VERIFY_FAILED
-#define MBEDTLS_ERR_SSL_PEER_VERIFY_FAILED MBEDTLS_ERR_SSL_UNEXPECTED_MESSAGE
-#endif
 
 /** A list of secure tags that TLS context should use. */
 struct sec_tag_list {
@@ -111,9 +95,6 @@ __net_socket struct tls_context {
 	/** Information whether underlying socket is listening. */
 	bool is_listening;
 
-	/** Information whether TLS handshake is currently in progress. */
-	bool handshake_in_progress;
-
 	/** Information whether TLS handshake is complete or not. */
 	struct k_sem tls_established;
 
@@ -131,11 +112,6 @@ __net_socket struct tls_context {
 
 		/** Peer verification level. */
 		int8_t verify_level;
-
-		/** Indicating on whether DER certificates should not be copied
-		 * to the heap.
-		 */
-		int8_t cert_nocopy;
 
 		/** DTLS role, client by default. */
 		int8_t role;
@@ -187,6 +163,12 @@ __net_socket struct tls_context {
 #endif /* CONFIG_MBEDTLS */
 };
 
+#if defined(CONFIG_ENTROPY_HAS_DRIVER)
+static const struct device *entropy_dev;
+#endif
+
+static mbedtls_ctr_drbg_context tls_ctr_drbg;
+
 /* A global pool of TLS contexts. */
 static struct tls_context tls_contexts[CONFIG_NET_SOCKETS_TLS_MAX_CONTEXTS];
 
@@ -222,18 +204,37 @@ static void tls_debug(void *ctx, int level, const char *file,
 }
 #endif /* defined(MBEDTLS_DEBUG_C) && (CONFIG_NET_SOCKETS_LOG_LEVEL >= LOG_LEVEL_DBG) */
 
-static int tls_ctr_drbg_random(void *ctx, unsigned char *buf, size_t len)
+#if defined(CONFIG_ENTROPY_HAS_DRIVER)
+static int tls_entropy_func(void *ctx, unsigned char *buf, size_t len)
 {
 	ARG_UNUSED(ctx);
 
-#if defined(CONFIG_ENTROPY_HAS_DRIVER)
-	return sys_csrand_get(buf, len);
+	return entropy_get_entropy(entropy_dev, buf, len);
+}
 #else
-	sys_rand_get(buf, len);
+static int tls_entropy_func(void *ctx, unsigned char *buf, size_t len)
+{
+	ARG_UNUSED(ctx);
+
+	size_t i = len / 4;
+	uint32_t val;
+
+	while (i--) {
+		val = sys_rand32_get();
+		UNALIGNED_PUT(val, (uint32_t *)buf);
+		buf += 4;
+	}
+
+	i = len & 0x3;
+	val = sys_rand32_get();
+	while (i--) {
+		*buf++ = val;
+		val >>= 8;
+	}
 
 	return 0;
-#endif
 }
+#endif /* defined(CONFIG_ENTROPY_HAS_DRIVER) */
 
 #if defined(CONFIG_NET_SOCKETS_ENABLE_DTLS)
 /* mbedTLS-defined function for setting timer. */
@@ -286,14 +287,33 @@ static int tls_init(const struct device *unused)
 {
 	ARG_UNUSED(unused);
 
-#if !defined(CONFIG_ENTROPY_HAS_DRIVER)
+	int ret;
+	static const unsigned char drbg_seed[] = "zephyr";
+
+#if defined(CONFIG_ENTROPY_HAS_DRIVER)
+	entropy_dev = device_get_binding(DT_CHOSEN_ZEPHYR_ENTROPY_LABEL);
+	if (!entropy_dev) {
+		NET_ERR("Failed to obtain entropy device");
+		return -ENODEV;
+	}
+#else
 	NET_WARN("No entropy device on the system, "
-		 "TLS communication is insecure!");
-#endif
+		 "TLS communication may be insecure!");
+#endif /* defined(CONFIG_ENTROPY_HAS_DRIVER) */
 
 	(void)memset(tls_contexts, 0, sizeof(tls_contexts));
 
 	k_mutex_init(&context_lock);
+
+	mbedtls_ctr_drbg_init(&tls_ctr_drbg);
+
+	ret = mbedtls_ctr_drbg_seed(&tls_ctr_drbg, tls_entropy_func, NULL,
+				    drbg_seed, sizeof(drbg_seed));
+	if (ret != 0) {
+		mbedtls_ctr_drbg_free(&tls_ctr_drbg);
+		NET_ERR("TLS entropy source initialization failed");
+		return -EFAULT;
+	}
 
 #if defined(MBEDTLS_DEBUG_C) && (CONFIG_NET_SOCKETS_LOG_LEVEL >= LOG_LEVEL_DBG)
 	mbedtls_debug_set_threshold(CONFIG_MBEDTLS_DEBUG_LEVEL);
@@ -659,30 +679,12 @@ static int tls_rx(void *ctx, unsigned char *buf, size_t len)
 	return received;
 }
 
-#if defined(MBEDTLS_X509_CRT_PARSE_C)
-static bool crt_is_pem(const unsigned char *buf, size_t buflen)
-{
-	return (buflen != 0 && buf[buflen - 1] == '\0' &&
-		strstr((const char *)buf, "-----BEGIN CERTIFICATE-----") != NULL);
-}
-#endif
-
 static int tls_add_ca_certificate(struct tls_context *tls,
 				  struct tls_credential *ca_cert)
 {
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
-	int err;
-
-	if (tls->options.cert_nocopy == TLS_CERT_NOCOPY_NONE ||
-	    crt_is_pem(ca_cert->buf, ca_cert->len)) {
-		err = mbedtls_x509_crt_parse(&tls->ca_chain, ca_cert->buf,
-					     ca_cert->len);
-	} else {
-		err = mbedtls_x509_crt_parse_der_nocopy(&tls->ca_chain,
-							ca_cert->buf,
-							ca_cert->len);
-	}
-
+	int err = mbedtls_x509_crt_parse(&tls->ca_chain,
+					 ca_cert->buf, ca_cert->len);
 	if (err != 0) {
 		return -EINVAL;
 	}
@@ -702,58 +704,27 @@ static void tls_set_ca_chain(struct tls_context *tls)
 #endif /* MBEDTLS_X509_CRT_PARSE_C */
 }
 
-static int tls_add_own_cert(struct tls_context *tls,
-			    struct tls_credential *own_cert)
+static int tls_set_own_cert(struct tls_context *tls,
+			    struct tls_credential *own_cert,
+			    struct tls_credential *priv_key)
 {
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
-	int err;
-
-	if (tls->options.cert_nocopy == TLS_CERT_NOCOPY_NONE ||
-	    crt_is_pem(own_cert->buf, own_cert->len)) {
-		err = mbedtls_x509_crt_parse(&tls->own_cert,
-					     own_cert->buf, own_cert->len);
-	} else {
-		err = mbedtls_x509_crt_parse_der_nocopy(&tls->own_cert,
-							own_cert->buf,
-							own_cert->len);
-	}
-
+	int err = mbedtls_x509_crt_parse(&tls->own_cert,
+					 own_cert->buf, own_cert->len);
 	if (err != 0) {
 		return -EINVAL;
 	}
-
-	return 0;
-#endif /* MBEDTLS_X509_CRT_PARSE_C */
-
-	return -ENOTSUP;
-}
-
-static int tls_set_own_cert(struct tls_context *tls)
-{
-#if defined(MBEDTLS_X509_CRT_PARSE_C)
-	int err = mbedtls_ssl_conf_own_cert(&tls->config, &tls->own_cert,
-					    &tls->priv_key);
-	if (err != 0) {
-		err = -ENOMEM;
-	}
-
-	return err;
-#endif /* MBEDTLS_X509_CRT_PARSE_C */
-
-	return -ENOTSUP;
-}
-
-static int tls_set_private_key(struct tls_context *tls,
-			       struct tls_credential *priv_key)
-{
-#if defined(MBEDTLS_X509_CRT_PARSE_C)
-	int err;
 
 	err = mbedtls_pk_parse_key(&tls->priv_key, priv_key->buf,
-				   priv_key->len, NULL, 0,
-				   tls_ctr_drbg_random, NULL);
+				   priv_key->len, NULL, 0);
 	if (err != 0) {
 		return -EINVAL;
+	}
+
+	err = mbedtls_ssl_conf_own_cert(&tls->config, &tls->own_cert,
+					&tls->priv_key);
+	if (err != 0) {
+		err = -ENOMEM;
 	}
 
 	return 0;
@@ -789,11 +760,21 @@ static int tls_set_credential(struct tls_context *tls,
 		return tls_add_ca_certificate(tls, cred);
 
 	case TLS_CREDENTIAL_SERVER_CERTIFICATE:
-		return tls_add_own_cert(tls, cred);
+	{
+		struct tls_credential *priv_key =
+			credential_get(cred->tag, TLS_CREDENTIAL_PRIVATE_KEY);
+		if (!priv_key) {
+			return -ENOENT;
+		}
+
+		return tls_set_own_cert(tls, cred, priv_key);
+	}
 
 	case TLS_CREDENTIAL_PRIVATE_KEY:
-		return tls_set_private_key(tls, cred);
-	break;
+		/* Ignore private key - it will be used together
+		 * with public certificate
+		 */
+		break;
 
 	case TLS_CREDENTIAL_PSK:
 	{
@@ -824,7 +805,7 @@ static int tls_mbedtls_set_credentials(struct tls_context *tls)
 	struct tls_credential *cred;
 	sec_tag_t tag;
 	int i, err = 0;
-	bool tag_found, ca_cert_present = false, own_cert_present = false;
+	bool tag_found, ca_cert_present = false;
 
 	credentials_lock();
 
@@ -843,8 +824,6 @@ static int tls_mbedtls_set_credentials(struct tls_context *tls)
 
 			if (cred->type == TLS_CREDENTIAL_CA_CERTIFICATE) {
 				ca_cert_present = true;
-			} else if (cred->type == TLS_CREDENTIAL_SERVER_CERTIFICATE) {
-				own_cert_present = true;
 			}
 		}
 
@@ -857,13 +836,8 @@ static int tls_mbedtls_set_credentials(struct tls_context *tls)
 exit:
 	credentials_unlock();
 
-	if (err == 0) {
-		if (ca_cert_present) {
-			tls_set_ca_chain(tls);
-		}
-		if (own_cert_present) {
-			err = tls_set_own_cert(tls);
-		}
+	if (err == 0 && ca_cert_present) {
+		tls_set_ca_chain(tls);
 	}
 
 	return err;
@@ -878,19 +852,12 @@ static int tls_mbedtls_reset(struct tls_context *context)
 		return ret;
 	}
 
-	k_sem_reset(&context->tls_established);
+	k_sem_init(&context->tls_established, 0, 1);
 
 #if defined(CONFIG_NET_SOCKETS_ENABLE_DTLS)
-	/* Server role: reset the address so that a new
-	 *              client can connect w/o a need to reopen a socket
-	 * Client role: keep peer addr so socket can continue to be used
-	 *              even on handshake timeout
-	 */
-	if (context->options.role == MBEDTLS_SSL_IS_SERVER) {
-		(void)memset(&context->dtls_peer_addr, 0,
-			     sizeof(context->dtls_peer_addr));
-		context->dtls_peer_addrlen = 0;
-	}
+	(void)memset(&context->dtls_peer_addr, 0,
+		     sizeof(context->dtls_peer_addr));
+	context->dtls_peer_addrlen = 0;
 #endif
 
 	return 0;
@@ -899,28 +866,10 @@ static int tls_mbedtls_reset(struct tls_context *context)
 static int tls_mbedtls_handshake(struct tls_context *context, bool block)
 {
 	int ret;
-	int sock_flags;
-
-	sock_flags = zsock_fcntl(context->sock, F_GETFL, 0);
-	if (sock_flags < 0) {
-		return -EIO;
-	}
-
-	if (block && sock_flags & O_NONBLOCK) {
-		/* Clear the O_NONBLOCK flag for the handshake to prevent busy
-		 * looping in the handshake thread.
-		 */
-		(void)zsock_fcntl(context->sock, F_SETFL,
-				  sock_flags & ~O_NONBLOCK);
-	}
-
-	context->handshake_in_progress = true;
 
 	while ((ret = mbedtls_ssl_handshake(&context->ssl)) != 0) {
 		if (ret == MBEDTLS_ERR_SSL_WANT_READ ||
-		    ret == MBEDTLS_ERR_SSL_WANT_WRITE ||
-		    ret == MBEDTLS_ERR_SSL_ASYNC_IN_PROGRESS ||
-		    ret == MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS) {
+		    ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
 			if (block) {
 				continue;
 			}
@@ -937,43 +886,16 @@ static int tls_mbedtls_handshake(struct tls_context *context, bool block)
 				ret = -EAGAIN;
 				break;
 			}
-		} else if (ret == MBEDTLS_ERR_SSL_TIMEOUT) {
-			/* MbedTLS API documentation requires session to
-			 * be reset in this case
-			 */
-			ret = tls_mbedtls_reset(context);
-			if (ret == 0) {
-				NET_ERR("TLS handshake timeout");
-				ret = -ETIMEDOUT;
-				break;
-			}
-		} else {
-			/* MbedTLS API documentation requires session to
-			 * be reset in other error cases
-			 */
-			NET_ERR("TLS handshake error: -%x", -ret);
-			ret = tls_mbedtls_reset(context);
-			if (ret == 0) {
-				ret = -ECONNABORTED;
-				break;
-			}
 		}
 
-		/* Avoid constant loop if tls_mbedtls_reset fails */
-		NET_ERR("TLS reset error: -%x", -ret);
+		NET_ERR("TLS handshake error: -%x", -ret);
 		ret = -ECONNABORTED;
 		break;
-	}
-
-	if (block && sock_flags & O_NONBLOCK) {
-		(void)zsock_fcntl(context->sock, F_SETFL, sock_flags);
 	}
 
 	if (ret == 0) {
 		k_sem_give(&context->tls_established);
 	}
-
-	context->handshake_in_progress = false;
 
 	return ret;
 }
@@ -1031,8 +953,8 @@ static int tls_mbedtls_init(struct tls_context *context, bool is_server)
 		/* Configure cookie for DTLS server */
 		if (role == MBEDTLS_SSL_IS_SERVER) {
 			ret = mbedtls_ssl_cookie_setup(&context->cookie,
-						       tls_ctr_drbg_random,
-						       NULL);
+						       mbedtls_ctr_drbg_random,
+						       &tls_ctr_drbg);
 			if (ret != 0) {
 				return -ENOMEM;
 			}
@@ -1068,8 +990,8 @@ static int tls_mbedtls_init(struct tls_context *context, bool is_server)
 	}
 
 	mbedtls_ssl_conf_rng(&context->config,
-			     tls_ctr_drbg_random,
-			     NULL);
+			     mbedtls_ctr_drbg_random,
+			     &tls_ctr_drbg);
 
 	ret = tls_mbedtls_set_credentials(context);
 	if (ret != 0) {
@@ -1390,31 +1312,6 @@ static int tls_opt_peer_verify_set(struct tls_context *context,
 	return 0;
 }
 
-static int tls_opt_cert_nocopy_set(struct tls_context *context,
-				   const void *optval, socklen_t optlen)
-{
-	int *cert_nocopy;
-
-	if (!optval) {
-		return -EINVAL;
-	}
-
-	if (optlen != sizeof(int)) {
-		return -EINVAL;
-	}
-
-	cert_nocopy = (int *)optval;
-
-	if (*cert_nocopy != TLS_CERT_NOCOPY_NONE &&
-	    *cert_nocopy != TLS_CERT_NOCOPY_OPTIONAL) {
-		return -EINVAL;
-	}
-
-	context->options.cert_nocopy = *cert_nocopy;
-
-	return 0;
-}
-
 static int tls_opt_dtls_role_set(struct tls_context *context,
 				 const void *optval, socklen_t optlen)
 {
@@ -1657,12 +1554,9 @@ static ssize_t send_tls(struct tls_context *ctx, const void *buf,
 	}
 
 	if (ret == MBEDTLS_ERR_SSL_WANT_READ ||
-	    ret == MBEDTLS_ERR_SSL_WANT_WRITE ||
-	    ret == MBEDTLS_ERR_SSL_ASYNC_IN_PROGRESS ||
-	    ret ==  MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS) {
+	    ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
 		errno = EAGAIN;
 	} else {
-		(void)tls_mbedtls_reset(ctx);
 		errno = EIO;
 	}
 
@@ -1777,25 +1671,13 @@ ssize_t ztls_sendmsg_ctx(struct tls_context *ctx, const struct msghdr *msg,
 	len = 0;
 	if (msg) {
 		for (i = 0; i < msg->msg_iovlen; i++) {
-			struct iovec *vec = msg->msg_iov + i;
-			size_t sent = 0;
-
-			if (vec->iov_len == 0) {
-				continue;
+			ret = ztls_sendto_ctx(ctx, msg->msg_iov[i].iov_base,
+					      msg->msg_iov[i].iov_len, flags,
+					      msg->msg_name, msg->msg_namelen);
+			if (ret < 0) {
+				return ret;
 			}
-
-			while (sent < vec->iov_len) {
-				uint8_t *ptr = (uint8_t *)vec->iov_base + sent;
-
-				ret = ztls_sendto_ctx(ctx, ptr,
-					    vec->iov_len - sent, flags,
-					    msg->msg_name, msg->msg_namelen);
-				if (ret < 0) {
-					return ret;
-				}
-				sent += ret;
-			}
-			len += sent;
+			len += ret;
 		}
 	}
 
@@ -1923,13 +1805,7 @@ static ssize_t recvfrom_dtls_client(struct tls_context *ctx, void *buf,
 	switch (ret) {
 	case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
 		/* Peer notified that it's closing the connection. */
-		ret = tls_mbedtls_reset(ctx);
-		if (ret == 0) {
-			ret = -ENOTCONN;
-		} else {
-			ret = -ENOMEM;
-		}
-		break;
+		return 0;
 
 	case MBEDTLS_ERR_SSL_TIMEOUT:
 		(void)mbedtls_ssl_close_notify(&ctx->ssl);
@@ -1993,7 +1869,7 @@ static ssize_t recvfrom_dtls_server(struct tls_context *ctx, void *buf,
 				if (ret == 0) {
 					repeat = true;
 				} else {
-					ret = -ENOMEM;
+					ret = -ECONNABORTED;
 				}
 
 				continue;
@@ -2018,7 +1894,7 @@ static ssize_t recvfrom_dtls_server(struct tls_context *ctx, void *buf,
 			if (ret == 0) {
 				repeat = true;
 			} else {
-				ret = -ENOMEM;
+				ret = -ECONNABORTED;
 			}
 			break;
 
@@ -2145,42 +2021,6 @@ exit:
 	return ret;
 }
 
-static int ztls_socket_data_check(struct tls_context *ctx)
-{
-	int ret;
-
-	ctx->flags = ZSOCK_MSG_DONTWAIT;
-
-	ret = mbedtls_ssl_read(&ctx->ssl, NULL, 0);
-	if (ret < 0) {
-		if (ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
-			/* Don't reset the context for STREAM socket - the
-			 * application needs to reopen the socket anyway, and
-			 * resetting the context would result in an error instead
-			 * of 0 in a consecutive recv() call.
-			 */
-			if (ctx->type == SOCK_DGRAM) {
-				ret = tls_mbedtls_reset(ctx);
-				if (ret != 0) {
-					return -ENOMEM;
-				}
-			}
-
-			return -ENOTCONN;
-		}
-
-		if (ret == MBEDTLS_ERR_SSL_WANT_READ ||
-		    ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
-			return 0;
-		}
-
-		/* Treat any other error as fatal. */
-		return -EIO;
-	}
-
-	return mbedtls_ssl_get_bytes_avail(&ctx->ssl);
-}
-
 static int ztls_poll_update_pollin(int fd, struct tls_context *ctx,
 				   struct zsock_pollfd *pfd)
 {
@@ -2203,20 +2043,17 @@ static int ztls_poll_update_pollin(int fd, struct tls_context *ctx,
 		goto next;
 	}
 
-	ret = ztls_socket_data_check(ctx);
-	if (ret == -ENOTCONN || (pfd->revents & ZSOCK_POLLHUP)) {
-		/* Datagram does not return 0 on consecutive recv, but an error
-		 * code, hence clear POLLIN.
-		 */
-		if (ctx->type == SOCK_DGRAM) {
-			pfd->revents &= ~ZSOCK_POLLIN;
-		}
+	ret = zsock_recv(fd, NULL, 0, ZSOCK_MSG_DONTWAIT);
+	if (ret == 0 && ctx->type == SOCK_STREAM) {
 		pfd->revents |= ZSOCK_POLLHUP;
 		goto next;
-	} else if (ret < 0) {
+	/* EAGAIN might happen during or just after DTLS  handshake. */
+	} else if (ret < 0 && errno != EAGAIN) {
 		pfd->revents |= ZSOCK_POLLERR;
 		goto next;
-	} else if (ret == 0) {
+	}
+
+	if (mbedtls_ssl_get_bytes_avail(&ctx->ssl) == 0) {
 		goto again;
 	}
 
@@ -2303,48 +2140,7 @@ out:
 	return ret;
 }
 
-/* Return true if needed to retry rightoff or false otherwise. */
-static bool poll_offload_dtls_client_retry(struct tls_context *ctx,
-					   struct zsock_pollfd *pfd)
-{
-	/* DTLS client should wait for the handshake to complete before it
-	 * reports that data is ready.
-	 */
-	if ((ctx->type != SOCK_DGRAM) ||
-	    (ctx->options.role != MBEDTLS_SSL_IS_CLIENT)) {
-		return false;
-	}
-
-	if (ctx->handshake_in_progress) {
-		/* Add some sleep to allow lower priority threads to proceed
-		 * with handshake.
-		 */
-		k_msleep(10);
-
-		pfd->revents &= ~ZSOCK_POLLIN;
-		return true;
-	} else if (!is_handshake_complete(ctx)) {
-		uint8_t byte;
-		int ret;
-
-		/* Handshake didn't start yet - just drop the incoming data -
-		 * it's the client who should initiate the handshake.
-		 */
-		ret = zsock_recv(ctx->sock, &byte, sizeof(byte),
-				 ZSOCK_MSG_DONTWAIT);
-		if (ret < 0) {
-			pfd->revents |= ZSOCK_POLLERR;
-		}
-
-		pfd->revents &= ~ZSOCK_POLLIN;
-		return true;
-	}
-
-	/* Handshake complete, just proceed. */
-	return false;
-}
-
-static int ztls_poll_offload(struct zsock_pollfd *fds, int nfds, int timeout)
+static inline int ztls_poll_offload(struct zsock_pollfd *fds, int nfds, int timeout)
 {
 	int fd_backup[CONFIG_NET_SOCKETS_POLL_MAX];
 	const struct fd_op_vtable *vtable;
@@ -2413,12 +2209,6 @@ static int ztls_poll_offload(struct zsock_pollfd *fds, int nfds, int timeout)
 					   0);
 			if (ctx != NULL) {
 				if (fds[i].events & ZSOCK_POLLIN) {
-					if (poll_offload_dtls_client_retry(
-							ctx, &fds[i])) {
-						retry = true;
-						continue;
-					}
-
 					result = ztls_poll_update_pollin(
 						    fd_backup[i], ctx, &fds[i]);
 					if (result == -EAGAIN) {
@@ -2550,10 +2340,6 @@ int ztls_setsockopt_ctx(struct tls_context *ctx, int level, int optname,
 		err = tls_opt_peer_verify_set(ctx, optval, optlen);
 		break;
 
-	case TLS_CERT_NOCOPY:
-		err = tls_opt_cert_nocopy_set(ctx, optval, optlen);
-		break;
-
 	case TLS_DTLS_ROLE:
 		err = tls_opt_dtls_role_set(ctx, optval, optlen);
 		break;
@@ -2669,13 +2455,6 @@ static int tls_sock_ioctl_vmeth(void *obj, unsigned int request, va_list args)
 	}
 }
 
-static int tls_sock_shutdown_vmeth(void *obj, int how)
-{
-	struct tls_context *ctx = obj;
-
-	return zsock_shutdown(ctx->sock, how);
-}
-
 static int tls_sock_bind_vmeth(void *obj, const struct sockaddr *addr,
 			       socklen_t addrlen)
 {
@@ -2759,7 +2538,6 @@ static const struct socket_op_vtable tls_sock_fd_op_vtable = {
 		.close = tls_sock_close_vmeth,
 		.ioctl = tls_sock_ioctl_vmeth,
 	},
-	.shutdown = tls_sock_shutdown_vmeth,
 	.bind = tls_sock_bind_vmeth,
 	.connect = tls_sock_connect_vmeth,
 	.listen = tls_sock_listen_vmeth,
@@ -2781,13 +2559,4 @@ static bool tls_is_supported(int family, int type, int proto)
 	return false;
 }
 
-/* Since both, TLS sockets and regular ones fall under the same address family,
- * it's required to process TLS first in order to capture socket calls which
- * create sockets for secure protocols. Every other call for AF_INET/AF_INET6
- * will be forwarded to regular socket implementation.
- */
-BUILD_ASSERT(CONFIG_NET_SOCKETS_TLS_PRIORITY < CONFIG_NET_SOCKETS_PRIORITY_DEFAULT,
-	     "CONFIG_NET_SOCKETS_TLS_PRIORITY have to be smaller than CONFIG_NET_SOCKETS_PRIORITY_DEFAULT");
-
-NET_SOCKET_REGISTER(tls, CONFIG_NET_SOCKETS_TLS_PRIORITY, AF_UNSPEC,
-		    tls_is_supported, ztls_socket);
+NET_SOCKET_REGISTER(tls, AF_UNSPEC, tls_is_supported, ztls_socket);

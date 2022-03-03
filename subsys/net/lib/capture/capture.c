@@ -33,16 +33,19 @@ LOG_MODULE_REGISTER(net_capture, CONFIG_NET_CAPTURE_LOG_LEVEL);
 #define DEBUG_TX 0
 #endif
 
+#define DEV_DATA(dev) \
+	((struct net_capture *)(dev)->data)
+
 static K_MUTEX_DEFINE(lock);
 
 NET_PKT_SLAB_DEFINE(capture_pkts, CONFIG_NET_CAPTURE_PKT_COUNT);
 
 #if defined(CONFIG_NET_BUF_FIXED_DATA_SIZE)
 NET_BUF_POOL_FIXED_DEFINE(capture_bufs, CONFIG_NET_CAPTURE_BUF_COUNT,
-			  CONFIG_NET_BUF_DATA_SIZE, 4, NULL);
+			  CONFIG_NET_BUF_DATA_SIZE, NULL);
 #else
 NET_BUF_POOL_VAR_DEFINE(capture_bufs, CONFIG_NET_CAPTURE_BUF_COUNT,
-			CONFIG_NET_BUF_DATA_POOL_SIZE, 4, NULL);
+			CONFIG_NET_BUF_DATA_POOL_SIZE, NULL);
 #endif
 
 static sys_slist_t net_capture_devlist;
@@ -447,7 +450,7 @@ fail:
 
 static int capture_cleanup(const struct device *dev)
 {
-	struct net_capture *ctx = dev->data;
+	struct net_capture *ctx = DEV_DATA(dev);
 
 	(void)net_capture_disable(dev);
 	(void)net_virtual_interface_attach(ctx->tunnel_iface, NULL);
@@ -466,14 +469,14 @@ static int capture_cleanup(const struct device *dev)
 
 static bool capture_is_enabled(const struct device *dev)
 {
-	struct net_capture *ctx = dev->data;
+	struct net_capture *ctx = DEV_DATA(dev);
 
 	return ctx->is_enabled ? true : false;
 }
 
 static int capture_enable(const struct device *dev, struct net_if *iface)
 {
-	struct net_capture *ctx = dev->data;
+	struct net_capture *ctx = DEV_DATA(dev);
 
 	if (ctx->is_enabled) {
 		return -EALREADY;
@@ -496,7 +499,7 @@ static int capture_enable(const struct device *dev, struct net_if *iface)
 
 static int capture_disable(const struct device *dev)
 {
-	struct net_capture *ctx = dev->data;
+	struct net_capture *ctx = DEV_DATA(dev);
 
 	ctx->capture_iface = NULL;
 	ctx->is_enabled = false;
@@ -562,7 +565,7 @@ out:
 
 static int capture_dev_init(const struct device *dev)
 {
-	struct net_capture *ctx = dev->data;
+	struct net_capture *ctx = DEV_DATA(dev);
 
 	k_mutex_lock(&lock, K_FOREVER);
 
@@ -580,7 +583,7 @@ static int capture_dev_init(const struct device *dev)
 static int capture_send(const struct device *dev, struct net_if *iface,
 			struct net_pkt *pkt)
 {
-	struct net_capture *ctx = dev->data;
+	struct net_capture *ctx = DEV_DATA(dev);
 	enum net_verdict verdict;
 	struct net_pkt *ip;
 	int ret;

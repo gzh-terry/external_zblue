@@ -82,7 +82,9 @@ struct wdt_npcx_data {
 struct miwu_dev_callback miwu_cb;
 
 /* Driver convenience defines */
-#define HAL_INSTANCE(dev) ((struct twd_reg *)((const struct wdt_npcx_config *)(dev)->config)->base)
+#define DRV_CONFIG(dev) ((const struct wdt_npcx_config *)(dev)->config)
+#define DRV_DATA(dev) ((struct wdt_npcx_data *)(dev)->data)
+#define HAL_INSTANCE(dev) (struct twd_reg *)(DRV_CONFIG(dev)->base)
 
 /* WDT local inline functions */
 static inline int wdt_t0out_reload(const struct device *dev)
@@ -131,7 +133,7 @@ static inline int wdt_wait_stopped(const struct device *dev)
 /* WDT local functions */
 static void wdt_t0out_isr(const struct device *dev, struct npcx_wui *wui)
 {
-	struct wdt_npcx_data *const data = dev->data;
+	struct wdt_npcx_data *const data = DRV_DATA(dev);
 	ARG_UNUSED(wui);
 
 	LOG_DBG("WDT reset will issue after %d delay cycle! WUI(%d %d %d)",
@@ -145,7 +147,7 @@ static void wdt_t0out_isr(const struct device *dev, struct npcx_wui *wui)
 
 static void wdt_config_t0out_interrupt(const struct device *dev)
 {
-	const struct wdt_npcx_config *const config = dev->config;
+	const struct wdt_npcx_config *const config = DRV_CONFIG(dev);
 
 	/* Initialize a miwu device input and its callback function */
 	npcx_miwu_init_dev_callback(&miwu_cb, &config->t0out, wdt_t0out_isr,
@@ -164,7 +166,7 @@ static void wdt_config_t0out_interrupt(const struct device *dev)
 static int wdt_npcx_install_timeout(const struct device *dev,
 				   const struct wdt_timeout_cfg *cfg)
 {
-	struct wdt_npcx_data *const data = dev->data;
+	struct wdt_npcx_data *const data = DRV_DATA(dev);
 	struct twd_reg *const inst = HAL_INSTANCE(dev);
 
 	/* If watchdog is already running */
@@ -202,8 +204,8 @@ static int wdt_npcx_install_timeout(const struct device *dev,
 static int wdt_npcx_setup(const struct device *dev, uint8_t options)
 {
 	struct twd_reg *const inst = HAL_INSTANCE(dev);
-	const struct wdt_npcx_config *const config = dev->config;
-	struct wdt_npcx_data *const data = dev->data;
+	const struct wdt_npcx_config *const config = DRV_CONFIG(dev);
+	struct wdt_npcx_data *const data = DRV_DATA(dev);
 	int rv;
 
 	/* Disable irq of t0-out expired event first */
@@ -256,8 +258,8 @@ static int wdt_npcx_setup(const struct device *dev, uint8_t options)
 
 static int wdt_npcx_disable(const struct device *dev)
 {
-	const struct wdt_npcx_config *const config = dev->config;
-	struct wdt_npcx_data *const data = dev->data;
+	const struct wdt_npcx_config *const config = DRV_CONFIG(dev);
+	struct wdt_npcx_data *const data = DRV_DATA(dev);
 	struct twd_reg *const inst = HAL_INSTANCE(dev);
 
 	/*
@@ -287,7 +289,7 @@ static int wdt_npcx_disable(const struct device *dev)
 static int wdt_npcx_feed(const struct device *dev, int channel_id)
 {
 	ARG_UNUSED(channel_id);
-	struct wdt_npcx_data *const data = dev->data;
+	struct wdt_npcx_data *const data = DRV_DATA(dev);
 	struct twd_reg *const inst = HAL_INSTANCE(dev);
 
 	/* Feed watchdog by writing 5Ch to WDSDM */

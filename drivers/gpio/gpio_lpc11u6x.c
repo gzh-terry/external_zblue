@@ -23,6 +23,11 @@
 
 #include "gpio_utils.h"
 
+#define DEV_CFG(dev)  ((const struct gpio_lpc11u6x_config *) \
+		       ((dev)->config))
+#define DEV_DATA(dev) ((struct gpio_lpc11u6x_data *) \
+		       ((dev)->data))
+
 /* Offset from syscon base address. */
 #define LPC11U6X_PINTSEL_REGS	0x178
 
@@ -105,8 +110,8 @@ struct gpio_lpc11u6x_data {
 static int gpio_lpc11u6x_pin_configure(const struct device *port,
 				       gpio_pin_t pin, gpio_flags_t flags)
 {
-	const struct gpio_lpc11u6x_config *config = port->config;
-	struct gpio_lpc11u6x_data *data = port->data;
+	const struct gpio_lpc11u6x_config *config = DEV_CFG(port);
+	struct gpio_lpc11u6x_data *data = DEV_DATA(port);
 	struct lpc11u6x_gpio_regs *gpio_regs = (struct lpc11u6x_gpio_regs *)
 		(config->shared->gpio_base + LPC11U6X_GPIO_REGS);
 	uint8_t port_num = config->port_num;
@@ -182,7 +187,7 @@ static int gpio_lpc11u6x_pin_configure(const struct device *port,
 static int gpio_lpc11u6x_port_get_raw(const struct device *port,
 				      gpio_port_value_t *value)
 {
-	const struct gpio_lpc11u6x_config *config = port->config;
+	const struct gpio_lpc11u6x_config *config = DEV_CFG(port);
 	struct lpc11u6x_gpio_regs *gpio_regs = (struct lpc11u6x_gpio_regs *)
 		(config->shared->gpio_base + LPC11U6X_GPIO_REGS);
 
@@ -195,7 +200,7 @@ static int gpio_lpc11u6x_port_set_masked_raw(const struct device *port,
 					     gpio_port_pins_t mask,
 					     gpio_port_value_t value)
 {
-	const struct gpio_lpc11u6x_config *config = port->config;
+	const struct gpio_lpc11u6x_config *config = DEV_CFG(port);
 	struct lpc11u6x_gpio_regs *gpio_regs = (struct lpc11u6x_gpio_regs *)
 		(config->shared->gpio_base + LPC11U6X_GPIO_REGS);
 	uint8_t port_num = config->port_num;
@@ -218,7 +223,7 @@ static int gpio_lpc11u6x_port_set_masked_raw(const struct device *port,
 static int gpio_lpc11u6x_port_set_bits_raw(const struct device *port,
 					   gpio_port_pins_t pins)
 {
-	const struct gpio_lpc11u6x_config *config = port->config;
+	const struct gpio_lpc11u6x_config *config = DEV_CFG(port);
 	struct lpc11u6x_gpio_regs *gpio_regs = (struct lpc11u6x_gpio_regs *)
 		(config->shared->gpio_base + LPC11U6X_GPIO_REGS);
 
@@ -230,7 +235,7 @@ static int gpio_lpc11u6x_port_set_bits_raw(const struct device *port,
 static int gpio_lpc11u6x_port_clear_bits_raw(const struct device *port,
 					     gpio_port_pins_t pins)
 {
-	const struct gpio_lpc11u6x_config *config = port->config;
+	const struct gpio_lpc11u6x_config *config = DEV_CFG(port);
 	struct lpc11u6x_gpio_regs *gpio_regs = (struct lpc11u6x_gpio_regs *)
 		(config->shared->gpio_base + LPC11U6X_GPIO_REGS);
 
@@ -242,7 +247,7 @@ static int gpio_lpc11u6x_port_clear_bits_raw(const struct device *port,
 static int gpio_lpc11u6x_port_toggle_bits(const struct device *port,
 					  gpio_port_pins_t pins)
 {
-	const struct gpio_lpc11u6x_config *config = port->config;
+	const struct gpio_lpc11u6x_config *config = DEV_CFG(port);
 	struct lpc11u6x_gpio_regs *gpio_regs = (struct lpc11u6x_gpio_regs *)
 		(config->shared->gpio_base + LPC11U6X_GPIO_REGS);
 
@@ -318,7 +323,7 @@ static int gpio_lpc11u6x_pin_interrupt_configure(const struct device *port,
 						 enum gpio_int_mode mode,
 						 enum gpio_int_trig trig)
 {
-	const struct gpio_lpc11u6x_config *config = port->config;
+	const struct gpio_lpc11u6x_config *config = DEV_CFG(port);
 	struct lpc11u6x_pint_regs *pint_regs = (struct lpc11u6x_pint_regs *)
 		(config->shared->gpio_base + LPC11U6X_PINT_REGS);
 	uint8_t intpin;
@@ -401,7 +406,7 @@ static int gpio_lpc11u6x_pin_interrupt_configure(const struct device *port,
 static int gpio_lpc11u6x_manage_callback(const struct device *port,
 					 struct gpio_callback *cb, bool set)
 {
-	struct gpio_lpc11u6x_data *data = port->data;
+	struct gpio_lpc11u6x_data *data = DEV_DATA(port);
 
 	return gpio_manage_callback(&data->cb_list, cb, set);
 }
@@ -510,8 +515,8 @@ do {							                \
 
 static int gpio_lpc11u6x_init(const struct device *dev)
 {
-	const struct gpio_lpc11u6x_config *config = dev->config;
-	struct gpio_lpc11u6x_data *data = dev->data;
+	const struct gpio_lpc11u6x_config *config = DEV_CFG(dev);
+	struct gpio_lpc11u6x_data *data = DEV_DATA(dev);
 	const struct device *clock_dev;
 	int ret;
 	static bool gpio_ready;
@@ -588,7 +593,7 @@ DEVICE_DT_DEFINE(DT_NODELABEL(gpio##id),				\
 		    NULL,						\
 		    &gpio_lpc11u6x_data_##id,				\
 		    &gpio_lpc11u6x_config_##id,				\
-		    PRE_KERNEL_2, CONFIG_GPIO_INIT_PRIORITY,		\
+		    POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,	\
 		    &gpio_lpc11u6x_driver_api)
 
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(gpio0), okay)

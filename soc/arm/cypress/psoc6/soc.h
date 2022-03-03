@@ -19,6 +19,8 @@
 
 #ifndef _ASMLANGUAGE
 
+/* Add include for DTS generated information */
+#include <devicetree.h>
 
 #include <cy_device_headers.h>
 

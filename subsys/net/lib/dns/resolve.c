@@ -546,11 +546,8 @@ int dns_validate_msg(struct dns_resolve_context *ctx,
 	answer_ptr = DNS_QUERY_POS;
 	items = 0;
 	server_idx = 0;
-	enum dns_rr_type answer_type = DNS_RR_TYPE_INVALID;
-
 	while (server_idx < dns_header_ancount(dns_msg->msg)) {
-		ret = dns_unpack_answer(dns_msg, answer_ptr, &ttl,
-					&answer_type);
+		ret = dns_unpack_answer(dns_msg, answer_ptr, &ttl);
 		if (ret < 0) {
 			ret = DNS_EAI_FAIL;
 			goto quit;
@@ -574,10 +571,10 @@ int dns_validate_msg(struct dns_resolve_context *ctx,
 				goto quit;
 			}
 
-query_known:
 			if (ctx->queries[*query_idx].query_type ==
 							DNS_QUERY_TYPE_A) {
-				if (answer_type != DNS_RR_TYPE_A) {
+				if (net_sin(&info.ai_addr)->sin_family ==
+							AF_INET6) {
 					ret = DNS_EAI_ADDRFAMILY;
 					goto quit;
 				}
@@ -591,7 +588,8 @@ query_known:
 
 			} else if (ctx->queries[*query_idx].query_type ==
 							DNS_QUERY_TYPE_AAAA) {
-				if (answer_type != DNS_RR_TYPE_AAAA) {
+				if (net_sin6(&info.ai_addr)->sin6_family ==
+							AF_INET) {
 					ret = DNS_EAI_ADDRFAMILY;
 					goto quit;
 				}
@@ -633,6 +631,7 @@ query_known:
 			src = dns_msg->msg + dns_msg->response_position;
 			memcpy(addr, src, address_size);
 
+		query_known:
 			invoke_query_callback(DNS_EAI_INPROGRESS, &info,
 					      &ctx->queries[*query_idx]);
 			items++;
@@ -1058,9 +1057,8 @@ int dns_resolve_cancel(struct dns_resolve_context *ctx, uint16_t dns_id)
 
 static void query_timeout(struct k_work *work)
 {
-	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
 	struct dns_pending_query *pending_query =
-		CONTAINER_OF(dwork, struct dns_pending_query, timer);
+		CONTAINER_OF(work, struct dns_pending_query, timer);
 	int ret;
 
 	/* We have to take the lock as we're inspecting protected content

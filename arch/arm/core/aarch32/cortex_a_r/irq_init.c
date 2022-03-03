@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @brief ARM Cortex-A and Cortex-R interrupt initialization
+ * @brief ARM Cortex-R interrupt initialization
  */
 
 #include <arch/cpu.h>
@@ -16,6 +16,7 @@
  *
  * @brief Initialize interrupts
  *
+ * @return N/A
  */
 void z_arm_interrupt_init(void)
 {

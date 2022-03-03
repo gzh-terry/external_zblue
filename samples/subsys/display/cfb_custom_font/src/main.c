@@ -11,18 +11,23 @@
 
 #include "cfb_font_dice.h"
 
+#if defined(CONFIG_SSD1306)
+#define DISPLAY_NAME DT_LABEL(DT_INST(0, solomon_ssd1306fb))
+#elif defined(CONFIG_SSD16XX)
+#define DISPLAY_NAME DT_LABEL(DT_INST(0, solomon_ssd16xxfb))
+#else
+#error Unsupported board
+#endif
+
+const struct device *display;
+
 void main(void)
 {
-	const struct device *display = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
 	int err;
 
-	if (!device_is_ready(display)) {
-		printk("Display device not ready\n");
-	}
-
-	if (display_set_pixel_format(display, PIXEL_FORMAT_MONO10) != 0) {
-		printk("Failed to set required pixel format\n");
-		return;
+	display = device_get_binding(DISPLAY_NAME);
+	if (!display) {
+		printk("Could not get device binding for display device\n");
 	}
 
 	err = cfb_framebuffer_init(display);

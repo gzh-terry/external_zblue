@@ -11,9 +11,6 @@
 #include <arch/cpu.h>
 #include <arch/arm/aarch32/cortex_m/cmsis.h>
 
-/* MEC devices IDs with special PLL handling */
-#define MCHP_GCFG_DID_DEV_ID_MEC150x    0x0020U
-#define MCHP_TRIM_ENABLE_INT_OSCILLATOR 0x06U
 
 /*
  * Make sure PCR sleep enables are clear except for crypto
@@ -82,9 +79,9 @@ static int soc_clk32_init(void)
 	/* Use internal 32KHz +/-2% silicon oscillator
 	 * if required performed OTP value override
 	 */
-	if (MCHP_DEVICE_ID() == MCHP_GCFG_DID_DEV_ID_MEC150x) {
+	if (MCHP_DEVICE_ID() == 0x0020U) { /* MEC150x ? */
 		if (MCHP_REVISION_ID() == MCHP_GCFG_REV_B0) {
-			VBATR_REGS->CKK32_TRIM = MCHP_TRIM_ENABLE_INT_OSCILLATOR;
+			VBATR_REGS->CKK32_TRIM = 0x06U;
 		}
 	}
 

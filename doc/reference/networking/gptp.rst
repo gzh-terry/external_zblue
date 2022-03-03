@@ -36,9 +36,6 @@ support must be enabled in ethernet drivers.
 Boards supported:
 
 - :ref:`frdm_k64f`
-- :ref:`nucleo_h743zi_board`
-- :ref:`nucleo_h745zi_q_board`
-- :ref:`nucleo_f767zi_board`
 - :ref:`sam_e70_xplained`
 - :ref:`native_posix` (only usable for simple testing, limited capabilities
   due to lack of hardware clock)
@@ -49,7 +46,7 @@ Enabling the stack
 
 The following configuration option must me enabled in :file:`prj.conf` file.
 
-- :kconfig:option:`CONFIG_NET_GPTP`
+- :option:`CONFIG_NET_GPTP`
 
 Application interfaces
 **********************

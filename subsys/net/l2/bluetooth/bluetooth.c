@@ -603,7 +603,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	default_conn = NULL;
 }
 
-BT_CONN_CB_DEFINE(conn_callbacks) = {
+static struct bt_conn_cb conn_callbacks = {
 	.connected = connected,
 	.disconnected = disconnected,
 };
@@ -615,6 +615,9 @@ static int net_bt_init(const struct device *dev)
 
 	NET_DBG("dev %p driver_data %p", dev, dev->data);
 
+#if defined(CONFIG_NET_L2_BT_MGMT)
+	bt_conn_cb_register(&conn_callbacks);
+#endif
 	err = bt_l2cap_server_register(&server);
 	if (err) {
 		return err;

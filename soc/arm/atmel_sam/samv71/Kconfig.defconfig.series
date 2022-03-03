@@ -38,6 +38,9 @@ config NUM_IRQS
 	default 74 if SOC_ATMEL_SAMV71_REVB
 	default 71
 
+config SYS_CLOCK_HW_CYCLES_PER_SEC
+	default 300000000
+
 # Configure default device drivers. If a feature is supported by more than one
 # device driver the default configuration will be placed in the board defconfig
 # file.
@@ -45,6 +48,10 @@ config NUM_IRQS
 config DMA_SAM_XDMAC
 	default y
 	depends on DMA
+
+config GPIO_SAM
+	default y
+	depends on GPIO
 
 config ADC_SAM_AFEC
 	default y
@@ -58,9 +65,13 @@ config I2S_SAM_SSC
 	default y
 	depends on I2S
 
-config USB_DC_SAM_USBHS
+config SPI_SAM
 	default y
-	depends on USB_DEVICE_DRIVER
+	depends on SPI
+
+config USB_DC_SAM
+	default y
+	depends on USB
 
 config ENTROPY_SAM_RNG
 	default y

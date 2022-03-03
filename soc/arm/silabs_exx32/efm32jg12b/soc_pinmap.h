@@ -13,7 +13,6 @@
 #ifndef _SILABS_EFM32JG12B_SOC_PINMAP_H_
 #define _SILABS_EFM32JG12B_SOC_PINMAP_H_
 
-#include <devicetree.h>
 #include <soc.h>
 #include <em_gpio.h>
 

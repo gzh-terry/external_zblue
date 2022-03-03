@@ -43,8 +43,6 @@ extern void test_socketpair_poll_immediate_data(void);
 extern void test_socketpair_poll_delayed_data(void);
 extern void test_socketpair_poll_close_remote_end_POLLIN(void);
 extern void test_socketpair_poll_close_remote_end_POLLOUT(void);
-extern void test_socketpair_poll_signalling_POLLIN(void);
-extern void test_socketpair_poll_signalling_POLLOUT(void);
 
 void test_main(void)
 {
@@ -79,10 +77,7 @@ void test_main(void)
 		ztest_unit_test(test_socketpair_poll_delayed_data),
 
 		ztest_unit_test(test_socketpair_poll_close_remote_end_POLLIN),
-		ztest_unit_test(test_socketpair_poll_close_remote_end_POLLOUT),
-
-		ztest_unit_test(test_socketpair_poll_signalling_POLLIN),
-		ztest_unit_test(test_socketpair_poll_signalling_POLLOUT)
+		ztest_unit_test(test_socketpair_poll_close_remote_end_POLLOUT)
 	);
 
 	ztest_run_test_suite(socketpair);

@@ -12,7 +12,7 @@ Configuration Options
 
 Related configuration options:
 
-* :kconfig:option:`CONFIG_GPIO`
+* :option:`CONFIG_GPIO`
 
 API Reference
 *************

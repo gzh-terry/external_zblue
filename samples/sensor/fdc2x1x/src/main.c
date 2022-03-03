@@ -17,7 +17,7 @@ K_SEM_DEFINE(sem, 0, 1);
 
 #ifdef CONFIG_FDC2X1X_TRIGGER
 static void trigger_handler(const struct device *dev,
-			    const struct sensor_trigger *trigger)
+			    struct sensor_trigger *trigger)
 {
 	switch (trigger->type) {
 	case SENSOR_TRIG_DATA_READY:
@@ -34,20 +34,24 @@ static void trigger_handler(const struct device *dev,
 #endif
 
 #ifdef CONFIG_PM_DEVICE
-static void pm_info(enum pm_device_action action, int status)
+static void pm_cb(const struct device *dev,
+		  int status,
+		  uint32_t *state,
+		  void *arg)
 {
-	switch (action) {
-	case PM_DEVICE_ACTION_RESUME:
+	ARG_UNUSED(dev);
+	ARG_UNUSED(arg);
+
+	switch (*state) {
+	case PM_DEVICE_STATE_ACTIVE:
 		printk("Enter ACTIVE_STATE ");
 		break;
-	case PM_DEVICE_ACTION_SUSPEND:
-		printk("Enter SUSPEND_STATE ");
+	case PM_DEVICE_STATE_LOW_POWER:
+		printk("Enter LOW_POWER_STATE ");
 		break;
-	case PM_DEVICE_ACTION_TURN_OFF:
+	case PM_DEVICE_STATE_OFF:
 		printk("Enter OFF_STATE ");
 		break;
-	default:
-		printk("Unknown power state");
 	}
 
 	if (status) {
@@ -91,20 +95,16 @@ void main(void)
 
 #ifdef CONFIG_PM_DEVICE
 	/* Testing the power modes */
-	enum pm_device_action p_action;
-	int ret;
+	uint32_t p_state;
 
-	p_action = PM_DEVICE_ACTION_SUSPEND;
-	ret = pm_device_action_run(dev, p_action);
-	pm_info(p_action, ret);
+	p_state = PM_DEVICE_STATE_LOW_POWER;
+	pm_device_state_set(dev, p_state, pm_cb, NULL);
 
-	p_action = PM_DEVICE_ACTION_TURN_OFF;
-	ret = pm_device_action_run(dev, p_action);
-	pm_info(p_action, ret);
+	p_state = PM_DEVICE_STATE_OFF;
+	pm_device_state_set(dev, p_state, pm_cb, NULL);
 
-	p_action = PM_DEVICE_ACTION_RESUME;
-	ret = pm_device_action_run(dev, p_action);
-	pm_info(p_action, ret);
+	p_state = PM_DEVICE_STATE_ACTIVE;
+	pm_device_state_set(dev, p_state, pm_cb, NULL);
 #endif
 
 	while (1) {
@@ -132,13 +132,11 @@ void main(void)
 
 
 #ifdef CONFIG_PM_DEVICE
-		p_action = PM_DEVICE_ACTION_TURN_OFF;
-		ret = pm_device_action_run(dev, p_action);
-		pm_info(p_action, ret);
+		p_state = PM_DEVICE_STATE_OFF;
+		pm_device_state_set(dev, p_state, pm_cb, NULL);
 		k_sleep(K_MSEC(2000));
-		p_action = PM_DEVICE_ACTION_RESUME;
-		ret = pm_device_action_run(dev, p_action);
-		pm_info(p_action, ret);
+		p_state = PM_DEVICE_STATE_ACTIVE;
+		pm_device_state_set(dev, p_state, pm_cb, NULL);
 #elif CONFIG_FDC2X1X_TRIGGER_NONE
 		k_sleep(K_MSEC(100));
 #endif

@@ -1,8 +1,6 @@
 common:
   filter: CONFIG_QEMU_TARGET or CONFIG_BOARD_NATIVE_POSIX
   tags: cbprintf
-  # FIXME: qemu_arc_hs6x excluded, see #38041
-  platform_exclude: qemu_arc_hs6x
   integration_platforms:
     - native_posix
 tests:
@@ -32,7 +30,7 @@ tests:
 
   libraries.cbprintf_package_long_double:
     filter: CONFIG_CPU_HAS_FPU
-    platform_exclude: qemu_riscv32 qemu_riscv32_smp
+    platform_exclude: qemu_riscv32
     extra_configs:
       - CONFIG_CBPRINTF_FP_SUPPORT=y
       - CONFIG_CBPRINTF_COMPLETE=y
@@ -41,7 +39,7 @@ tests:
 
   libraries.cbprintf_package_long_double_align_offset:
     filter: CONFIG_CPU_HAS_FPU
-    platform_exclude: qemu_riscv32 qemu_riscv32_smp
+    platform_exclude: qemu_riscv32
     extra_configs:
       - CONFIG_CBPRINTF_FP_SUPPORT=y
       - CONFIG_CBPRINTF_COMPLETE=y

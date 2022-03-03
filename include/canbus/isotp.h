@@ -391,7 +391,6 @@ struct isotp_send_ctx {
 	struct isotp_fc_opts opts;
 	uint8_t state;
 	uint8_t tx_backlog;
-	struct k_sem tx_sem;
 	struct isotp_msg_id rx_addr;
 	struct isotp_msg_id tx_addr;
 	uint8_t wft;
@@ -407,8 +406,6 @@ struct isotp_recv_ctx {
 	const struct device *can_dev;
 	struct net_buf *buf;
 	struct net_buf *act_frag;
-	/* buffer currently processed in isotp_recv */
-	struct net_buf *recv_buf;
 	sys_snode_t alloc_node;
 	uint32_t length;
 	int error_nr;

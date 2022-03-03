@@ -11,8 +11,6 @@
 #include <sys/mem_manage.h>
 #endif
 
-#include <kernel/stats.h>
-
 /**
  * @typedef k_thread_entry_t
  * @brief Thread entry point function type.
@@ -28,6 +26,8 @@
  * @param p1 First argument.
  * @param p2 Second argument.
  * @param p3 Third argument.
+ *
+ * @return N/A
  */
 
 #ifdef CONFIG_THREAD_MONITOR
@@ -116,10 +116,6 @@ struct _thread_base {
 	/* this thread's entry in a timeout queue */
 	struct _timeout timeout;
 #endif
-
-#ifdef CONFIG_SCHED_THREAD_USAGE
-	struct k_cycle_stats  usage;   /* Track thread usage statistics */
-#endif
 };
 
 typedef struct _thread_base _thread_base_t;
@@ -169,40 +165,29 @@ struct _thread_userspace_local_data {
 };
 #endif
 
-typedef struct k_thread_runtime_stats {
-#ifdef CONFIG_SCHED_THREAD_USAGE
+#ifdef CONFIG_THREAD_RUNTIME_STATS
+struct k_thread_runtime_stats {
+	/* Thread execution cycles */
+#ifdef CONFIG_THREAD_RUNTIME_STATS_USE_TIMING_FUNCTIONS
+	timing_t execution_cycles;
+#else
 	uint64_t execution_cycles;
-	uint64_t total_cycles;        /* total # of non-idle cycles */
-	/*
-	 * In the context of thread statistics, [execution_cycles] is the same
-	 * as the total # of non-idle cycles. In the context of CPU statistics,
-	 * it refers to the sum of non-idle + idle cycles.
-	 */
+#endif
+};
+
+typedef struct k_thread_runtime_stats k_thread_runtime_stats_t;
+
+struct _thread_runtime_stats {
+	/* Timestamp when last switched in */
+#ifdef CONFIG_THREAD_RUNTIME_STATS_USE_TIMING_FUNCTIONS
+	timing_t last_switched_in;
+#else
+	uint32_t last_switched_in;
 #endif
 
-#ifdef CONFIG_SCHED_THREAD_USAGE_ANALYSIS
-	/*
-	 * For threads, the following fields refer to the time spent executing
-	 * as bounded by when the thread was scheduled in and scheduled out.
-	 * For CPUs, the same fields refer to the time spent executing
-	 * non-idle threads as bounded by the idle thread(s).
-	 */
-
-	uint64_t current_cycles;      /* current # of non-idle cycles */
-	uint64_t peak_cycles;         /* peak # of non-idle cycles */
-	uint64_t average_cycles;      /* average # of non-idle cycles */
+	k_thread_runtime_stats_t stats;
+};
 #endif
-
-#ifdef CONFIG_SCHED_THREAD_USAGE_ALL
-	/*
-	 * This field is always zero for individual threads. It only comes
-	 * into play when gathering statistics for the CPU. In that case it
-	 * represents the total number of cycles spent idling.
-	 */
-
-	uint64_t idle_cycles;
-#endif
-}  k_thread_runtime_stats_t;
 
 struct z_poller {
 	bool is_polling;
@@ -214,106 +199,12 @@ struct z_poller {
  * Thread Structure
  */
 struct k_thread {
-
-	struct _thread_base base;
-
-	/** defined by the architecture, but all archs need these */
-	struct _callee_saved callee_saved;
-
 	/** static thread init data */
 	void *init_data;
-
-	/** threads waiting in k_thread_join() */
-	_wait_q_t join_queue;
-
-#if defined(CONFIG_POLL)
-	struct z_poller poller;
-#endif
-
-#if defined(CONFIG_EVENTS)
-	struct k_thread *next_event_link;
-
-	uint32_t   events;
-	uint32_t   event_options;
-#endif
-
-#if defined(CONFIG_THREAD_MONITOR)
-	/** thread entry and parameters description */
-	struct __thread_entry entry;
-
-	/** next item in list of all threads */
-	struct k_thread *next_thread;
-#endif
-
-#if defined(CONFIG_THREAD_NAME)
-	/** Thread name */
-	char name[CONFIG_THREAD_MAX_NAME_LEN];
-#endif
-
-#ifdef CONFIG_THREAD_CUSTOM_DATA
-	/** crude thread-local storage */
-	void *custom_data;
-#endif
-
-#ifdef CONFIG_THREAD_USERSPACE_LOCAL_DATA
-	struct _thread_userspace_local_data *userspace_local_data;
-#endif
-
-#if defined(CONFIG_ERRNO) && !defined(CONFIG_ERRNO_IN_TLS)
-#ifndef CONFIG_USERSPACE
-	/** per-thread errno variable */
-	int errno_var;
-#endif
-#endif
-
-#if defined(CONFIG_THREAD_STACK_INFO)
-	/** Stack Info */
-	struct _thread_stack_info stack_info;
-#endif /* CONFIG_THREAD_STACK_INFO */
-
-#if defined(CONFIG_USERSPACE)
-	/** memory domain info of the thread */
-	struct _mem_domain_info mem_domain_info;
-	/** Base address of thread stack */
-	k_thread_stack_t *stack_obj;
-	/** current syscall frame pointer */
-	void *syscall_frame;
-#endif /* CONFIG_USERSPACE */
-
-
-#if defined(CONFIG_USE_SWITCH)
-	/* When using __switch() a few previously arch-specific items
-	 * become part of the core OS
-	 */
-
-	/** z_swap() return value */
-	int swap_retval;
-
-	/** Context handle returned via arch_switch() */
-	void *switch_handle;
-#endif
-	/** resource pool */
-	struct k_heap *resource_pool;
-
-#if defined(CONFIG_THREAD_LOCAL_STORAGE)
-	/* Pointer to arch-specific TLS area */
-	uintptr_t tls;
-#endif /* CONFIG_THREAD_LOCAL_STORAGE */
-
-#ifdef CONFIG_DEMAND_PAGING_THREAD_STATS
-	/** Paging statistics */
-	struct k_mem_paging_stats_t paging_stats;
-#endif
-
-	/** arch-specifics: must always be at the end */
-	struct _thread_arch arch;
+	sys_snode_t node;
 };
 
 typedef struct k_thread _thread_t;
 typedef struct k_thread *k_tid_t;
-
-void z_init_cpu(int id);
-void z_sched_ipi(void);
-void z_smp_start_cpu(int id);
 
 #endif

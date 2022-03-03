@@ -10,7 +10,6 @@
 #include <device.h>
 #include <kernel.h>
 #include <drivers/gpio.h>
-#include <drivers/i2c.h>
 
 #define SHT3XD_CMD_FETCH                0xE000
 #define SHT3XD_CMD_ART                  0x2B32
@@ -45,12 +44,12 @@
 #define SHT3XD_CLEAR_STATUS_WAIT_USEC   1000
 
 struct sht3xd_config {
-	struct i2c_dt_spec bus;
-
+	char *bus_name;
 #ifdef CONFIG_SHT3XD_TRIGGER
 	char *alert_gpio_name;
 #endif /* CONFIG_SHT3XD_TRIGGER */
 
+	uint8_t base_address;
 #ifdef CONFIG_SHT3XD_TRIGGER
 	uint8_t alert_pin;
 	uint8_t alert_flags;
@@ -58,11 +57,13 @@ struct sht3xd_config {
 };
 
 struct sht3xd_data {
+	const struct device *dev;
+	const struct device *bus;
+
 	uint16_t t_sample;
 	uint16_t rh_sample;
 
 #ifdef CONFIG_SHT3XD_TRIGGER
-	const struct device *dev;
 	const struct device *alert_gpio;
 	struct gpio_callback alert_cb;
 
@@ -84,6 +85,20 @@ struct sht3xd_data {
 
 #endif /* CONFIG_SHT3XD_TRIGGER */
 };
+
+static inline uint8_t sht3xd_i2c_address(const struct device *dev)
+{
+	const struct sht3xd_config *dcp = dev->config;
+
+	return dcp->base_address;
+}
+
+static inline const struct device *sht3xd_i2c_device(const struct device *dev)
+{
+	const struct sht3xd_data *ddp = dev->data;
+
+	return ddp->bus;
+}
 
 #ifdef CONFIG_SHT3XD_TRIGGER
 int sht3xd_write_command(const struct device *dev, uint16_t cmd);

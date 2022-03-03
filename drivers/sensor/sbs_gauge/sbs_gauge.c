@@ -23,7 +23,7 @@ static int sbs_cmd_reg_read(const struct device *dev,
 	uint8_t i2c_data[2];
 	int status;
 
-	cfg = dev->config;
+	cfg = (struct sbs_gauge_config *)dev->config;
 	status = i2c_burst_read(cfg->i2c_dev, cfg->i2c_addr, reg_addr,
 				i2c_data, ARRAY_SIZE(i2c_data));
 	if (status < 0) {
@@ -48,7 +48,7 @@ static int sbs_gauge_channel_get(const struct device *dev,
 	struct sbs_gauge_data *data;
 	int32_t int_temp;
 
-	data = dev->data;
+	data = (struct sbs_gauge_data *)dev->data;
 	val->val2 = 0;
 
 	switch (chan) {
@@ -128,7 +128,7 @@ static int sbs_gauge_sample_fetch(const struct device *dev,
 	struct sbs_gauge_data *data;
 	int status = 0;
 
-	data = dev->data;
+	data = (struct sbs_gauge_data *)dev->data;
 
 	switch (chan) {
 	case SENSOR_CHAN_GAUGE_VOLTAGE:
@@ -260,9 +260,9 @@ static int sbs_gauge_sample_fetch(const struct device *dev,
  */
 static int sbs_gauge_init(const struct device *dev)
 {
-	const struct sbs_gauge_config *cfg;
+	struct sbs_gauge_config *cfg;
 
-	cfg = dev->config;
+	cfg = (struct sbs_gauge_config *)dev->config;
 
 	if (!device_is_ready(cfg->i2c_dev)) {
 		LOG_ERR("%s device is not ready", cfg->i2c_dev->name);

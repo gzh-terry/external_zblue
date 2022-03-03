@@ -13,13 +13,12 @@
 #include <stddef.h>
 
 #include <zephyr/types.h>
-#include <sys/util_macro.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef long atomic_t;
+typedef int atomic_t;
 typedef atomic_t atomic_val_t;
 typedef void *atomic_ptr_t;
 typedef atomic_ptr_t atomic_ptr_val_t;
@@ -40,7 +39,6 @@ typedef atomic_ptr_t atomic_ptr_val_t;
 # endif /* CONFIG_XTENSA */
 #else
 /* Default.  See this file for the Doxygen reference: */
-#include <sys/atomic_builtin.h>
 #endif
 
 /* Portable higher-level utilities: */
@@ -77,7 +75,7 @@ typedef atomic_ptr_t atomic_ptr_val_t;
  */
 
 #define ATOMIC_BITS (sizeof(atomic_val_t) * 8)
-#define ATOMIC_MASK(bit) BIT((unsigned long)(bit) & (ATOMIC_BITS - 1U))
+#define ATOMIC_MASK(bit) (1U << ((uint32_t)(bit) & (ATOMIC_BITS - 1U)))
 #define ATOMIC_ELEM(addr, bit) ((addr) + ((bit) / ATOMIC_BITS))
 
 /**
@@ -182,6 +180,8 @@ static inline bool atomic_test_and_set_bit(atomic_t *target, int bit)
  *
  * @param target Address of atomic variable or array.
  * @param bit Bit number (starting from 0).
+ *
+ * @return N/A
  */
 static inline void atomic_clear_bit(atomic_t *target, int bit)
 {
@@ -198,6 +198,8 @@ static inline void atomic_clear_bit(atomic_t *target, int bit)
  *
  * @param target Address of atomic variable or array.
  * @param bit Bit number (starting from 0).
+ *
+ * @return N/A
  */
 static inline void atomic_set_bit(atomic_t *target, int bit)
 {
@@ -215,6 +217,8 @@ static inline void atomic_set_bit(atomic_t *target, int bit)
  * @param target Address of atomic variable or array.
  * @param bit Bit number (starting from 0).
  * @param val true for 1, false for 0.
+ *
+ * @return N/A
  */
 static inline void atomic_set_bit_to(atomic_t *target, int bit, bool val)
 {

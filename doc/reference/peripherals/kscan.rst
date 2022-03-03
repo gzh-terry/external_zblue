@@ -23,7 +23,7 @@ Configuration Options
 
 Related configuration options:
 
-* :kconfig:option:`CONFIG_KSCAN`
+* :option:`CONFIG_KSCAN`
 
 API Reference
 *************

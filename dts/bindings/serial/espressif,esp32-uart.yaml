@@ -30,9 +30,3 @@ properties:
       type: int
       description: CTS pin
       required: false
-
-    peripheral:
-      type: int
-      required: true
-      description: |
-        The UART peripheral number

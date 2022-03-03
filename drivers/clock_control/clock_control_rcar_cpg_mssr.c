@@ -15,6 +15,8 @@ struct rcar_mssr_config {
 	uint32_t base_address;
 };
 
+#define DEV_CFG(dev)  ((struct rcar_mssr_config *)(dev->config))
+
 static const uint16_t rmstpsr[] = {
 	0x110, 0x114, 0x118, 0x11c,
 	0x120, 0x124, 0x128, 0x12c,
@@ -66,7 +68,7 @@ static void cpg_reset(const struct rcar_mssr_config *config,
 static int cpg_core_clock_endisable(const struct device *dev,
 				    uint32_t module, uint32_t rate, bool enable)
 {
-	const struct rcar_mssr_config *config = dev->config;
+	const struct rcar_mssr_config *config = DEV_CFG(dev);
 	uint32_t divider;
 	unsigned int key;
 	int ret;
@@ -105,7 +107,7 @@ unlock:
 static int cpg_rmstp_clock_endisable(const struct device *dev,
 				     uint32_t module, bool enable)
 {
-	const struct rcar_mssr_config *config = dev->config;
+	const struct rcar_mssr_config *config = DEV_CFG(dev);
 	uint32_t reg = module / 100;
 	uint32_t bit = module % 100;
 	uint32_t bitmask = BIT(bit);
@@ -168,7 +170,7 @@ static int cpg_get_rate(const struct device *dev,
 			clock_control_subsys_t sys,
 			uint32_t *rate)
 {
-	const struct rcar_mssr_config *config = dev->config;
+	const struct rcar_mssr_config *config = DEV_CFG(dev);
 	struct rcar_cpg_clk *clk = (struct rcar_cpg_clk *)sys;
 	uint32_t val;
 	int ret = 0;
@@ -219,7 +221,7 @@ static const struct clock_control_driver_api rcar_cpg_mssr_api = {
 			      NULL,				    \
 			      NULL, &rcar_mssr##inst##_config,	    \
 			      PRE_KERNEL_1,			    \
-			      CONFIG_CLOCK_CONTROL_INIT_PRIORITY,   \
+			      CONFIG_KERNEL_INIT_PRIORITY_OBJECTS,  \
 			      &rcar_cpg_mssr_api);
 
 DT_INST_FOREACH_STATUS_OKAY(RCAR_MSSR_INIT)

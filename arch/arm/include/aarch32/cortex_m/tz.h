@@ -63,6 +63,7 @@ typedef struct tz_nonsecure_setup_conf {
  * This function shall be called before the Secure Firmware may transition
  * to Non-Secure state.
  *
+ * @return N/A
  */
 void tz_nonsecure_state_setup(const tz_nonsecure_setup_conf_t *p_ns_conf);
 
@@ -81,6 +82,7 @@ void tz_nonsecure_state_setup(const tz_nonsecure_setup_conf_t *p_ns_conf);
  * This function shall only be called from Secure state.
  * Only ARMv8-M Mainline implementations have Non-Secure MSPLIM instance.
  *
+ * @return N/A
  */
 void tz_nonsecure_msplim_set(uint32_t val);
 
@@ -97,6 +99,7 @@ void tz_nonsecure_msplim_set(uint32_t val);
  * This function shall only be called from Secure state.
  * Only ARMv8-M Mainline implementations have Non-Secure PSPLIM instance.
  *
+ * @return N/A
  */
 void tz_nonsecure_psplim_set(uint32_t val);
 
@@ -114,6 +117,8 @@ void tz_nonsecure_psplim_set(uint32_t val);
  * Note:
  *
  * This function shall only be called from Secure state.
+ *
+ * @return N/A
  */
 void tz_nonsecure_system_reset_req_block(int block);
 
@@ -129,6 +134,8 @@ void tz_nonsecure_system_reset_req_block(int block);
  * Note:
  *
  * This function shall only be called from Secure state.
+ *
+ * @return N/A
  */
 void tz_nonsecure_exception_prio_config(int secure_boost);
 
@@ -155,6 +162,8 @@ void tz_nonsecure_exception_prio_config(int secure_boost);
  * - If secure_state is set to 1 (Secure), all Non-Secure HardFaults are
  * escalated to Secure HardFaults.
  * - BusFault is present only if the Main Extension is implemented.
+ *
+ * @return N/A
  */
 void tz_nbanked_exception_target_state_set(int secure_state);
 
@@ -169,6 +178,8 @@ void tz_nbanked_exception_target_state_set(int secure_state);
  * Note:
  *
  * This function shall only be called from Secure state.
+ *
+ * @return N/A
  */
 void tz_nonsecure_fpu_access_enable(void);
 #endif /* CONFIG_ARMV7_M_ARMV8_M_FP */
@@ -198,6 +209,7 @@ void tz_nonsecure_fpu_access_enable(void);
  * This function shall be called before the Secure Firmware may transition
  * to Non-Secure state.
  *
+ * @return N/A
  */
 void tz_sau_configure(int enable, int allns);
 

@@ -31,7 +31,7 @@ import argparse
 import os
 import struct
 import pickle
-from packaging import version
+from distutils.version import LooseVersion
 
 import elftools
 from elftools.elf.elffile import ELFFile
@@ -43,7 +43,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__),
                              'dts', 'python-devicetree', 'src'))
 from devicetree import edtlib  # pylint: disable=unused-import
 
-if version.parse(elftools.__version__) < version.parse('0.24'):
+if LooseVersion(elftools.__version__) < LooseVersion('0.24'):
     sys.exit("pyelftools is out of date, need version 0.24 or later")
 
 scr = os.path.basename(sys.argv[0])
@@ -72,11 +72,6 @@ def parse_args():
                         help="Path to current Zephyr base. If this argument \
                         is not provided the environment will be checked for \
                         the ZEPHYR_BASE environment variable.")
-
-    parser.add_argument("-s", "--start-symbol", required=True,
-                        help="Symbol name of the section which contains the \
-                        devices. The symbol name must point to the first \
-                        device in that section.")
 
     args = parser.parse_args()
     if "VERBOSE" in os.environ:
@@ -150,7 +145,7 @@ class Device:
             else:
                 format += "Q"
                 size = 8
-            offset = self.ld_constants["_DEVICE_STRUCT_HANDLES_OFFSET"]
+            offset = self.ld_constants["DEVICE_STRUCT_HANDLES_OFFSET"]
             self.__handles = struct.unpack(format, data[offset:offset + size])[0]
         return self.__handles
 
@@ -177,8 +172,7 @@ def main():
     devices = []
     handles = []
     # Leading _ are stripped from the stored constant key
-
-    want_constants = set([args.start_symbol,
+    want_constants = set(["__device_start",
                           "_DEVICE_STRUCT_SIZEOF",
                           "_DEVICE_STRUCT_HANDLES_OFFSET"])
     ld_constants = dict()
@@ -187,7 +181,7 @@ def main():
         if isinstance(section, SymbolTableSection):
             for sym in section.iter_symbols():
                 if sym.name in want_constants:
-                    ld_constants[sym.name] = sym.entry.st_value
+                    ld_constants[sym.name.lstrip("_")] = sym.entry.st_value
                     continue
                 if sym.entry.st_info.type != 'STT_OBJECT':
                     continue
@@ -210,7 +204,7 @@ def main():
 
     devices = sorted(devices, key = lambda k: k.sym.entry.st_value)
 
-    device_start_addr = ld_constants[args.start_symbol]
+    device_start_addr = ld_constants["device_start"]
     device_size = 0
 
     assert len(devices) == len(handles), 'mismatch devices and handles'
@@ -246,19 +240,15 @@ def main():
         hvi = 1
         handle.dev_deps = []
         handle.ext_deps = []
-        handle.dev_sups = []
-        hdls = handle.dev_deps
-        while hvi < len(hv):
+        deps = handle.dev_deps
+        while True:
             h = hv[hvi]
             if h == DEVICE_HANDLE_ENDS:
                 break
             if h == DEVICE_HANDLE_SEP:
-                if hdls == handle.dev_deps:
-                    hdls = handle.ext_deps
-                else:
-                    hdls = handle.dev_sups
+                deps = handle.ext_deps
             else:
-                hdls.append(h)
+                deps.append(h)
                 n = edt
             hvi += 1
 
@@ -268,36 +258,22 @@ def main():
     root = edt.dep_ord2node[0]
     assert root not in used_nodes
 
-    for n in used_nodes:
+    for sn in used_nodes:
         # Where we're storing the final set of nodes: these are all used
-        n.__depends = set()
-        n.__supports = set()
+        sn.__depends = set()
 
-        deps = set(n.depends_on)
-        debug("\nNode: %s\nOrig deps:\n\t%s" % (n.path, "\n\t".join([dn.path for dn in deps])))
+        deps = set(sn.depends_on)
+        debug("\nNode: %s\nOrig deps:\n\t%s" % (sn.path, "\n\t".join([dn.path for dn in deps])))
         while len(deps) > 0:
             dn = deps.pop()
             if dn in used_nodes:
                 # this is used
-                n.__depends.add(dn)
+                sn.__depends.add(dn)
             elif dn != root:
                 # forward the dependency up one level
                 for ddn in dn.depends_on:
                     deps.add(ddn)
-        debug("Final deps:\n\t%s\n" % ("\n\t".join([ _dn.path for _dn in n.__depends])))
-
-        sups = set(n.required_by)
-        debug("\nOrig sups:\n\t%s" % ("\n\t".join([dn.path for dn in sups])))
-        while len(sups) > 0:
-            sn = sups.pop()
-            if sn in used_nodes:
-                # this is used
-                n.__supports.add(sn)
-            else:
-                # forward the support down one level
-                for ssn in sn.required_by:
-                    sups.add(ssn)
-        debug("\nFinal sups:\n\t%s" % ("\n\t".join([_sn.path for _sn in n.__supports])))
+        debug("final deps:\n\t%s\n" % ("\n\t".join([ _dn.path for _dn in sn.__depends])))
 
     with open(args.output_source, "w") as fp:
         fp.write('#include <device.h>\n')
@@ -308,7 +284,6 @@ def main():
             assert hs, "no hs for %s" % (dev.sym.name,)
             dep_paths = []
             ext_paths = []
-            sup_paths = []
             hdls = []
 
             sn = hs.node
@@ -319,26 +294,19 @@ def main():
                         dep_paths.append(dn.path)
                     else:
                         dep_paths.append('(%s)' % dn.path)
-            # Force separator to signal start of injected dependencies
-            hdls.append(DEVICE_HANDLE_SEP)
             if len(hs.ext_deps) > 0:
                 # TODO: map these to something smaller?
                 ext_paths.extend(map(str, hs.ext_deps))
                 hdls.append(DEVICE_HANDLE_SEP)
                 hdls.extend(hs.ext_deps)
 
-            # Force separator to signal start of supported devices
-            hdls.append(DEVICE_HANDLE_SEP)
-            if len(hs.dev_sups) > 0:
-                for dn in sn.required_by:
-                    if dn in sn.__supports:
-                        sup_paths.append(dn.path)
-                    else:
-                        sup_paths.append('(%s)' % dn.path)
-                hdls.extend(dn.__device.dev_handle for dn in sn.__supports)
-
-            # Terminate the array with the end symbol
-            hdls.append(DEVICE_HANDLE_ENDS)
+            # When CONFIG_USERSPACE is enabled the pre-built elf is
+            # also used to get hashes that identify kernel objects by
+            # address.  We can't allow the size of any object in the
+            # final elf to change.
+            while len(hdls) < len(hs.handles):
+                hdls.append(DEVICE_HANDLE_ENDS)
+            assert len(hdls) == len(hs.handles), "%s handle overflow" % (dev.sym.name,)
 
             lines = [
                 '',
@@ -346,14 +314,9 @@ def main():
             ]
 
             if len(dep_paths) > 0:
-                lines.append(' * Direct Dependencies:')
-                lines.append(' *   - %s' % ('\n *   - '.join(dep_paths)))
+                lines.append(' * - %s' % ('\n * - '.join(dep_paths)))
             if len(ext_paths) > 0:
-                lines.append(' * Injected Dependencies:')
-                lines.append(' *   - %s' % ('\n *   - '.join(ext_paths)))
-            if len(sup_paths) > 0:
-                lines.append(' * Supported:')
-                lines.append(' *   - %s' % ('\n *   - '.join(sup_paths)))
+                lines.append(' * + %s' % ('\n * + '.join(ext_paths)))
 
             lines.extend([
                 ' */',

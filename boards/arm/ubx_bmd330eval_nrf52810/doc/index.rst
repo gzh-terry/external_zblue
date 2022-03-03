@@ -93,7 +93,7 @@ hardware features:
 | WDT       | on-chip    | watchdog             |
 +-----------+------------+----------------------+
 
-Other hardware features have not been enabled yet for this board.
+Other hardware features are not supported by the Zephyr kernel.
 See the `u-blox website`_ for a complete list of
 BMD-330-EVAL hardware features.
 

@@ -23,27 +23,29 @@ void main(void)
 	lv_obj_t *hello_world_label;
 	lv_obj_t *count_label;
 
-	display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
-	if (!device_is_ready(display_dev)) {
-		LOG_ERR("Device not ready, aborting test");
+	display_dev = device_get_binding(CONFIG_LVGL_DISPLAY_DEV_NAME);
+
+	if (display_dev == NULL) {
+		LOG_ERR("device not found.  Aborting test.");
 		return;
 	}
 
-	if (IS_ENABLED(CONFIG_LV_Z_POINTER_KSCAN)) {
+	if (IS_ENABLED(CONFIG_LVGL_POINTER_KSCAN)) {
 		lv_obj_t *hello_world_button;
 
-		hello_world_button = lv_btn_create(lv_scr_act());
-		lv_obj_align(hello_world_button, LV_ALIGN_CENTER, 0, 0);
-		hello_world_label = lv_label_create(hello_world_button);
+		hello_world_button = lv_btn_create(lv_scr_act(), NULL);
+		lv_obj_align(hello_world_button, NULL, LV_ALIGN_CENTER, 0, 0);
+		lv_btn_set_fit(hello_world_button, LV_FIT_TIGHT);
+		hello_world_label = lv_label_create(hello_world_button, NULL);
 	} else {
-		hello_world_label = lv_label_create(lv_scr_act());
+		hello_world_label = lv_label_create(lv_scr_act(), NULL);
 	}
 
 	lv_label_set_text(hello_world_label, "Hello world!");
-	lv_obj_align(hello_world_label, LV_ALIGN_CENTER, 0, 0);
+	lv_obj_align(hello_world_label, NULL, LV_ALIGN_CENTER, 0, 0);
 
-	count_label = lv_label_create(lv_scr_act());
-	lv_obj_align(count_label, LV_ALIGN_BOTTOM_MID, 0, 0);
+	count_label = lv_label_create(lv_scr_act(), NULL);
+	lv_obj_align(count_label, NULL, LV_ALIGN_IN_BOTTOM_MID, 0, 0);
 
 	lv_task_handler();
 	display_blanking_off(display_dev);

@@ -7,6 +7,7 @@
 #ifndef _SOC_H_
 #define _SOC_H_
 
+#include <devicetree.h>
 
 #define __MPU_PRESENT CONFIG_CPU_HAS_ARM_MPU
 

@@ -14,5 +14,4 @@ common:
         - "Hello World from UserSpace! (.*)"
 tests:
   sample.helloworld:
-    filter: CONFIG_ARCH_HAS_USERSPACE
     tags: introduction

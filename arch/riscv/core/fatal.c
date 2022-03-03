@@ -40,7 +40,7 @@ FUNC_NORETURN void z_riscv_fatal_error(unsigned int reason,
 		LOG_ERR("     a6: " PR_REG "    t6: " PR_REG, esf->a6, esf->t6);
 		LOG_ERR("     a7: " PR_REG, esf->a7);
 		LOG_ERR("         " NO_REG "    tp: " PR_REG, esf->tp);
-		LOG_ERR("     ra: " PR_REG, esf->ra);
+		LOG_ERR("     ra: " PR_REG "    gp: " PR_REG, esf->ra, esf->gp);
 		LOG_ERR("   mepc: " PR_REG, esf->mepc);
 		LOG_ERR("mstatus: " PR_REG, esf->mstatus);
 		LOG_ERR("");
@@ -94,11 +94,11 @@ void _Fault(z_arch_esf_t *esf)
 	 * treated as recoverable.
 	 */
 	for (int i = 0; i < ARRAY_SIZE(exceptions); i++) {
-		ulong_t start = (ulong_t)exceptions[i].start;
-		ulong_t end = (ulong_t)exceptions[i].end;
+		uint32_t start = (uint32_t)exceptions[i].start;
+		uint32_t end = (uint32_t)exceptions[i].end;
 
 		if (esf->mepc >= start && esf->mepc < end) {
-			esf->mepc = (ulong_t)exceptions[i].fixup;
+			esf->mepc = (uint32_t)exceptions[i].fixup;
 			return;
 		}
 	}
@@ -119,15 +119,7 @@ void _Fault(z_arch_esf_t *esf)
 	LOG_ERR("  mtval: %lx", mtval);
 #endif
 
-	unsigned int reason = K_ERR_CPU_EXCEPTION;
-
-#if !defined(CONFIG_USERSPACE)
-	if (esf->t5 == ARCH_EXCEPT_MARKER) {
-		reason = esf->t6;
-	}
-#endif
-
-	z_riscv_fatal_error(reason, esf);
+	z_riscv_fatal_error(K_ERR_CPU_EXCEPTION, esf);
 }
 
 #ifdef CONFIG_USERSPACE

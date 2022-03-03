@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: Apache-2.0
-set_property(TARGET linker PROPERTY devices_start_symbol "__device_start")
 
 find_program(CMAKE_LINKER     ld.lld )
 
@@ -9,8 +8,6 @@ set_ifndef(LINKERFLAGPREFIX -Wl)
 # NOTE: ${linker_script_gen} will be produced at build-time; not at configure-time
 macro(configure_linker_script linker_script_gen linker_pass_define)
   set(extra_dependencies ${ARGN})
-  set(template_script_defines ${linker_pass_define})
-  list(TRANSFORM template_script_defines PREPEND "-D")
 
   # Different generators deal with depfiles differently.
   if(CMAKE_GENERATOR STREQUAL "Unix Makefiles")
@@ -47,7 +44,7 @@ macro(configure_linker_script linker_script_gen linker_pass_define)
     -D_ASMLANGUAGE
     ${current_includes}
     ${current_defines}
-    ${template_script_defines}
+    ${linker_pass_define}
     -E ${LINKER_SCRIPT}
     -P # Prevent generation of debug `#line' directives.
     -o ${linker_script_gen}

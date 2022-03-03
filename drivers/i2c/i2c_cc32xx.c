@@ -38,8 +38,12 @@ LOG_MODULE_REGISTER(i2c_cc32xx);
 
 #define IS_I2C_MSG_WRITE(flags) ((flags & I2C_MSG_RW_MASK) == I2C_MSG_WRITE)
 
+#define DEV_CFG(dev) \
+	((const struct i2c_cc32xx_config *const)(dev)->config)
+#define DEV_DATA(dev) \
+	((struct i2c_cc32xx_data *const)(dev)->data)
 #define DEV_BASE(dev) \
-	(((const struct i2c_cc32xx_config *const)(dev)->config)->base)
+	((DEV_CFG(dev))->base)
 
 
 /* Since this driver does not explicitly enable the TX/RX FIFOs, there
@@ -112,7 +116,7 @@ static void i2c_cc32xx_prime_transfer(const struct device *dev,
 				      struct i2c_msg *msg,
 				      uint16_t addr)
 {
-	struct i2c_cc32xx_data *data = dev->data;
+	struct i2c_cc32xx_data *data = DEV_DATA(dev);
 	uint32_t base = DEV_BASE(dev);
 
 	/* Initialize internal counters and buf pointers: */
@@ -157,7 +161,7 @@ static void i2c_cc32xx_prime_transfer(const struct device *dev,
 static int i2c_cc32xx_transfer(const struct device *dev, struct i2c_msg *msgs,
 			       uint8_t num_msgs, uint16_t addr)
 {
-	struct i2c_cc32xx_data *data = dev->data;
+	struct i2c_cc32xx_data *data = DEV_DATA(dev);
 	int retval = 0;
 
 	/* Acquire the driver mutex */
@@ -260,7 +264,7 @@ static void i2c_cc32xx_isr_handle_read(uint32_t base,
 static void i2c_cc32xx_isr(const struct device *dev)
 {
 	uint32_t base = DEV_BASE(dev);
-	struct i2c_cc32xx_data *data = dev->data;
+	struct i2c_cc32xx_data *data = DEV_DATA(dev);
 	uint32_t err_status;
 	uint32_t int_status;
 
@@ -322,8 +326,8 @@ static void i2c_cc32xx_isr(const struct device *dev)
 static int i2c_cc32xx_init(const struct device *dev)
 {
 	uint32_t base = DEV_BASE(dev);
-	const struct i2c_cc32xx_config *config = dev->config;
-	struct i2c_cc32xx_data *data = dev->data;
+	const struct i2c_cc32xx_config *config = DEV_CFG(dev);
+	struct i2c_cc32xx_data *data = DEV_DATA(dev);
 	uint32_t bitrate_cfg;
 	int error;
 	uint32_t regval;
@@ -378,7 +382,7 @@ static const struct i2c_cc32xx_config i2c_cc32xx_config = {
 
 static struct i2c_cc32xx_data i2c_cc32xx_data;
 
-I2C_DEVICE_DT_INST_DEFINE(0, i2c_cc32xx_init, NULL,
+DEVICE_DT_INST_DEFINE(0, &i2c_cc32xx_init, NULL,
 		    &i2c_cc32xx_data, &i2c_cc32xx_config,
 		    POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    &i2c_cc32xx_driver_api);

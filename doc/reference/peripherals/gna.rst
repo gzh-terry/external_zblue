@@ -14,7 +14,7 @@ Configuration Options
 
 Related configuration options:
 
-* :kconfig:option:`CONFIG_INTEL_GNA`
+* :option:`CONFIG_INTEL_GNA`
 
 API Reference
 *************

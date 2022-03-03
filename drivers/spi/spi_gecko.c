@@ -29,6 +29,8 @@ LOG_MODULE_REGISTER(spi_gecko);
 
 #define SPI_WORD_SIZE 8
 
+#define DEV_DATA(dev) ((struct spi_gecko_data *) ((dev)->data))
+
 /* Structure Declarations */
 
 struct spi_gecko_data {
@@ -53,12 +55,7 @@ static int spi_config(const struct device *dev,
 		      uint16_t *control)
 {
 	const struct spi_gecko_config *gecko_config = dev->config;
-	struct spi_gecko_data *data = dev->data;
-
-	if (config->operation & SPI_HALF_DUPLEX) {
-		LOG_ERR("Half-duplex not supported");
-		return -ENOTSUP;
-	}
+	struct spi_gecko_data *data = DEV_DATA(dev);
 
 	if (SPI_WORD_SIZE_GET(config->operation) != SPI_WORD_SIZE) {
 		LOG_ERR("Word size must be %d", SPI_WORD_SIZE);
@@ -75,8 +72,7 @@ static int spi_config(const struct device *dev,
 		return -ENOTSUP;
 	}
 
-	if (IS_ENABLED(CONFIG_SPI_EXTENDED_MODES) &&
-	    (config->operation & SPI_LINES_MASK) != SPI_LINES_SINGLE) {
+	if ((config->operation & SPI_LINES_MASK) != SPI_LINES_SINGLE) {
 		LOG_ERR("Only supports single mode");
 		return -ENOTSUP;
 	}
@@ -110,6 +106,8 @@ static int spi_config(const struct device *dev,
 
 	/* At this point, it's mandatory to set this on the context! */
 	data->ctx.config = config;
+
+	spi_context_cs_configure(&data->ctx);
 
 	return 0;
 }
@@ -170,9 +168,9 @@ static void spi_gecko_xfer(const struct device *dev,
 			   const struct spi_config *config)
 {
 	int ret;
-	struct spi_gecko_data *data = dev->data;
-	struct spi_context *ctx = &data->ctx;
+	struct spi_context *ctx = &DEV_DATA(dev)->ctx;
 	const struct spi_gecko_config *gecko_config = dev->config;
+	struct spi_gecko_data *data = DEV_DATA(dev);
 
 	spi_context_cs_control(ctx, true);
 
@@ -211,9 +209,7 @@ static void spi_gecko_init_pins(const struct device *dev)
 
 static int spi_gecko_init(const struct device *dev)
 {
-	int err;
 	const struct spi_gecko_config *config = dev->config;
-	struct spi_gecko_data *data = dev->data;
 	USART_InitSync_TypeDef usartInit = USART_INITSYNC_DEFAULT;
 
 	/* The peripheral and gpio clock are already enabled from soc and gpio
@@ -241,11 +237,6 @@ static int spi_gecko_init(const struct device *dev)
 	/* Initialize USART pins */
 	spi_gecko_init_pins(dev);
 
-	err = spi_context_cs_configure_all(&data->ctx);
-	if (err < 0) {
-		return err;
-	}
-
 	/* Enable the peripheral */
 	config->base->CMD = (uint32_t) usartEnable;
 
@@ -257,11 +248,10 @@ static int spi_gecko_transceive(const struct device *dev,
 				const struct spi_buf_set *tx_bufs,
 				const struct spi_buf_set *rx_bufs)
 {
-	struct spi_gecko_data *data = dev->data;
 	uint16_t control = 0;
 
 	spi_config(dev, config, &control);
-	spi_context_buffers_setup(&data->ctx, tx_bufs, rx_bufs, 1);
+	spi_context_buffers_setup(&DEV_DATA(dev)->ctx, tx_bufs, rx_bufs, 1);
 	spi_gecko_xfer(dev, config);
 	return 0;
 }
@@ -301,7 +291,6 @@ static struct spi_driver_api spi_gecko_api = {
 	static struct spi_gecko_data spi_gecko_data_##n = { \
 		SPI_CONTEXT_INIT_LOCK(spi_gecko_data_##n, ctx), \
 		SPI_CONTEXT_INIT_SYNC(spi_gecko_data_##n, ctx), \
-		SPI_CONTEXT_CS_GPIOS_INITIALIZE(DT_DRV_INST(n), ctx)	\
 	}; \
 	static struct spi_gecko_config spi_gecko_cfg_##n = { \
 	    .base = (USART_TypeDef *) \

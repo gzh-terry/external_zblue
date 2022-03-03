@@ -1,11 +1,8 @@
 /*
  * Copyright (c) 2018 Jan Van Winkel <jan.van_winkel@dxplore.eu>
- * Copyright (c) 2021 Nordic Semiconductor
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-
-#define DT_DRV_COMPAT zephyr_sdl_dc
 
 #include <drivers/display.h>
 
@@ -18,25 +15,24 @@
 #include <logging/log.h>
 LOG_MODULE_REGISTER(display_sdl);
 
-struct sdl_display_config {
-	uint16_t height;
-	uint16_t width;
-};
-
 struct sdl_display_data {
 	SDL_Window *window;
 	SDL_Renderer *renderer;
 	SDL_Texture *texture;
 	bool display_on;
 	enum display_pixel_format current_pixel_format;
-	uint8_t *buf;
+	uint8_t buf[4 * CONFIG_SDL_DISPLAY_X_RES * CONFIG_SDL_DISPLAY_Y_RES];
 };
+
+static struct sdl_display_data sdl_display_data;
 
 static int sdl_display_init(const struct device *dev)
 {
-	const struct sdl_display_config *config = dev->config;
-	struct sdl_display_data *disp_data = dev->data;
+	struct sdl_display_data *disp_data =
+	    (struct sdl_display_data *)dev->data;
 	LOG_DBG("Initializing display driver");
+
+	memset(disp_data, 0, sizeof(struct sdl_display_data));
 
 	disp_data->current_pixel_format =
 #if defined(CONFIG_SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_RGB_888)
@@ -56,8 +52,8 @@ static int sdl_display_init(const struct device *dev)
 
 	disp_data->window =
 	    SDL_CreateWindow("Zephyr Display", SDL_WINDOWPOS_UNDEFINED,
-			     SDL_WINDOWPOS_UNDEFINED, config->width,
-			     config->height, SDL_WINDOW_SHOWN);
+			     SDL_WINDOWPOS_UNDEFINED, CONFIG_SDL_DISPLAY_X_RES,
+			     CONFIG_SDL_DISPLAY_Y_RES, SDL_WINDOW_SHOWN);
 	if (disp_data->window == NULL) {
 		LOG_ERR("Failed to create SDL window: %s", SDL_GetError());
 		return -EIO;
@@ -73,8 +69,8 @@ static int sdl_display_init(const struct device *dev)
 
 	disp_data->texture = SDL_CreateTexture(
 	    disp_data->renderer, SDL_PIXELFORMAT_ARGB8888,
-	    SDL_TEXTUREACCESS_STATIC, config->width,
-	    config->height);
+	    SDL_TEXTUREACCESS_STATIC, CONFIG_SDL_DISPLAY_X_RES,
+	    CONFIG_SDL_DISPLAY_Y_RES);
 	if (disp_data->texture == NULL) {
 		LOG_ERR("Failed to create SDL texture: %s", SDL_GetError());
 		return -EIO;
@@ -220,26 +216,27 @@ static int sdl_display_write(const struct device *dev, const uint16_t x,
 			     const struct display_buffer_descriptor *desc,
 			     const void *buf)
 {
-	const struct sdl_display_config *config = dev->config;
-	struct sdl_display_data *disp_data = dev->data;
 	SDL_Rect rect;
+
+	struct sdl_display_data *disp_data =
+		(struct sdl_display_data *)dev->data;
 
 	LOG_DBG("Writing %dx%d (w,h) bitmap @ %dx%d (x,y)", desc->width,
 			desc->height, x, y);
 
 	__ASSERT(desc->width <= desc->pitch, "Pitch is smaller then width");
-	__ASSERT(desc->pitch <= config->width,
+	__ASSERT(desc->pitch <= CONFIG_SDL_DISPLAY_X_RES,
 		"Pitch in descriptor is larger than screen size");
-	__ASSERT(desc->height <= config->height,
+	__ASSERT(desc->height <= CONFIG_SDL_DISPLAY_Y_RES,
 		"Height in descriptor is larger than screen size");
-	__ASSERT(x + desc->pitch <= config->width,
+	__ASSERT(x + desc->pitch <= CONFIG_SDL_DISPLAY_X_RES,
 		 "Writing outside screen boundaries in horizontal direction");
-	__ASSERT(y + desc->height <= config->height,
+	__ASSERT(y + desc->height <= CONFIG_SDL_DISPLAY_Y_RES,
 		 "Writing outside screen boundaries in vertical direction");
 
 	if (desc->width > desc->pitch ||
-	    x + desc->pitch > config->width ||
-	    y + desc->height > config->height) {
+	    x + desc->pitch > CONFIG_SDL_DISPLAY_X_RES ||
+	    y + desc->height > CONFIG_SDL_DISPLAY_Y_RES) {
 		return -EINVAL;
 	}
 
@@ -280,7 +277,8 @@ static int sdl_display_read(const struct device *dev, const uint16_t x,
 			    const struct display_buffer_descriptor *desc,
 			    void *buf)
 {
-	struct sdl_display_data *disp_data = dev->data;
+	struct sdl_display_data *disp_data =
+		(struct sdl_display_data *)dev->data;
 	SDL_Rect rect;
 
 	rect.x = x;
@@ -306,7 +304,8 @@ static void *sdl_display_get_framebuffer(const struct device *dev)
 
 static int sdl_display_blanking_off(const struct device *dev)
 {
-	struct sdl_display_data *disp_data = dev->data;
+	struct sdl_display_data *disp_data =
+		(struct sdl_display_data *)dev->data;
 
 	LOG_DBG("Turning display blacking off");
 
@@ -321,7 +320,8 @@ static int sdl_display_blanking_off(const struct device *dev)
 
 static int sdl_display_blanking_on(const struct device *dev)
 {
-	struct sdl_display_data *disp_data = dev->data;
+	struct sdl_display_data *disp_data =
+		(struct sdl_display_data *)dev->data;
 
 	LOG_DBG("Turning display blanking on");
 
@@ -347,12 +347,12 @@ static int sdl_display_set_contrast(const struct device *dev,
 static void sdl_display_get_capabilities(
 	const struct device *dev, struct display_capabilities *capabilities)
 {
-	const struct sdl_display_config *config = dev->config;
-	struct sdl_display_data *disp_data = dev->data;
+	struct sdl_display_data *disp_data =
+	    (struct sdl_display_data *)dev->data;
 
 	memset(capabilities, 0, sizeof(struct display_capabilities));
-	capabilities->x_resolution = config->width;
-	capabilities->y_resolution = config->height;
+	capabilities->x_resolution = CONFIG_SDL_DISPLAY_X_RES;
+	capabilities->y_resolution = CONFIG_SDL_DISPLAY_Y_RES;
 	capabilities->supported_pixel_formats = PIXEL_FORMAT_ARGB_8888 |
 		PIXEL_FORMAT_RGB_888 |
 		PIXEL_FORMAT_MONO01 |
@@ -367,7 +367,8 @@ static void sdl_display_get_capabilities(
 static int sdl_display_set_pixel_format(const struct device *dev,
 		const enum display_pixel_format pixel_format)
 {
-	struct sdl_display_data *disp_data = dev->data;
+	struct sdl_display_data *disp_data =
+		(struct sdl_display_data *)dev->data;
 
 	switch (pixel_format) {
 	case PIXEL_FORMAT_ARGB_8888:
@@ -384,21 +385,21 @@ static int sdl_display_set_pixel_format(const struct device *dev,
 	}
 }
 
-static void sdl_display_cleanup(struct sdl_display_data *disp_data)
+static void sdl_display_cleanup(void)
 {
-	if (disp_data->texture != NULL) {
-		SDL_DestroyTexture(disp_data->texture);
-		disp_data->texture = NULL;
+	if (sdl_display_data.texture != NULL) {
+		SDL_DestroyTexture(sdl_display_data.texture);
+		sdl_display_data.texture = NULL;
 	}
 
-	if (disp_data->renderer != NULL) {
-		SDL_DestroyRenderer(disp_data->renderer);
-		disp_data->renderer = NULL;
+	if (sdl_display_data.renderer != NULL) {
+		SDL_DestroyRenderer(sdl_display_data.renderer);
+		sdl_display_data.renderer = NULL;
 	}
 
-	if (disp_data->window != NULL) {
-		SDL_DestroyWindow(disp_data->window);
-		disp_data->window = NULL;
+	if (sdl_display_data.window != NULL) {
+		SDL_DestroyWindow(sdl_display_data.window);
+		sdl_display_data.window = NULL;
 	}
 }
 
@@ -414,30 +415,9 @@ static const struct display_driver_api sdl_display_api = {
 	.set_pixel_format = sdl_display_set_pixel_format,
 };
 
-#define DISPLAY_SDL_DEFINE(n)						\
-	static const struct sdl_display_config sdl_config_##n = {	\
-		.height = DT_INST_PROP(n, height),			\
-		.width = DT_INST_PROP(n, width),			\
-	};								\
-									\
-	static uint8_t sdl_buf_##n[4 * DT_INST_PROP(n, height)		\
-				   * DT_INST_PROP(n, width)];		\
-	static struct sdl_display_data sdl_data_##n = {			\
-		.buf = sdl_buf_##n,					\
-	};								\
-									\
-	DEVICE_DT_INST_DEFINE(n, &sdl_display_init, NULL,		\
-			      &sdl_data_##n,				\
-			      &sdl_config_##n,				\
-			      APPLICATION,				\
-			      CONFIG_DISPLAY_INIT_PRIORITY,		\
-			      &sdl_display_api);			\
-									\
-	static void sdl_display_cleanup_##n(void)			\
-	{								\
-		sdl_display_cleanup(&sdl_data_##n);			\
-	}								\
-									\
-	NATIVE_TASK(sdl_display_cleanup_##n, ON_EXIT, 1);
+DEVICE_DEFINE(sdl_display, CONFIG_SDL_DISPLAY_DEV_NAME, &sdl_display_init,
+		NULL, &sdl_display_data, NULL, APPLICATION,
+		CONFIG_APPLICATION_INIT_PRIORITY, &sdl_display_api);
 
-DT_INST_FOREACH_STATUS_OKAY(DISPLAY_SDL_DEFINE)
+
+NATIVE_TASK(sdl_display_cleanup, ON_EXIT, 1);

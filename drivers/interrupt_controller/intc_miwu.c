@@ -23,8 +23,8 @@
  * it include:
  *  1. npcxn-miwus-wui-map.dtsi: it presents relationship between wake-up inputs
  *     (WUI) and its source device such as gpio, timer, eSPI VWs and so on.
- *  2. npcxn-miwus-int-map.dtsi: it presents relationship between MIWU group
- *     and NVIC interrupt in npcx series. Please notice it isn't 1-to-1 mapping.
+ *  2. npcx7-miwus-int-map.dtsi: it presents relationship between MIWU group
+ *     and NVIC interrupt in npcx7. Please notice it isn't 1-to-1 mapping.
  *     For example, here is the mapping between miwu0's group a & d and IRQ7:
  *
  *     map_miwu0_groups: {
@@ -79,6 +79,10 @@ sys_slist_t cb_list_gpio;
  */
 sys_slist_t cb_list_generic;
 
+/* Driver convenience defines */
+#define DRV_CONFIG(dev) \
+	((const struct intc_miwu_config *)(dev)->config)
+
 BUILD_ASSERT(sizeof(struct miwu_io_callback) == sizeof(struct gpio_callback),
 	"Size of struct miwu_io_callback must equal to struct gpio_callback");
 
@@ -131,8 +135,7 @@ static void intc_miwu_dispatch_generic_isr(uint8_t wui_table,
 static void intc_miwu_isr_pri(int wui_table, int wui_group)
 {
 	int wui_bit;
-	const struct intc_miwu_config *config = miwu_devs[wui_table]->config;
-	const uint32_t base = config->base;
+	const uint32_t base = DRV_CONFIG(miwu_devs[wui_table])->base;
 	uint8_t mask = NPCX_WKPND(base, wui_group) & NPCX_WKEN(base, wui_group);
 
 	/* Clear pending bits before dispatch ISR */
@@ -155,48 +158,42 @@ static void intc_miwu_isr_pri(int wui_table, int wui_group)
 /* Platform specific MIWU functions */
 void npcx_miwu_irq_enable(const struct npcx_wui *wui)
 {
-	const struct intc_miwu_config *config = miwu_devs[wui->table]->config;
-	const uint32_t base = config->base;
+	const uint32_t base = DRV_CONFIG(miwu_devs[wui->table])->base;
 
 	NPCX_WKEN(base, wui->group) |= BIT(wui->bit);
 }
 
 void npcx_miwu_irq_disable(const struct npcx_wui *wui)
 {
-	const struct intc_miwu_config *config = miwu_devs[wui->table]->config;
-	const uint32_t base = config->base;
+	const uint32_t base = DRV_CONFIG(miwu_devs[wui->table])->base;
 
 	NPCX_WKEN(base, wui->group) &= ~BIT(wui->bit);
 }
 
 void npcx_miwu_io_enable(const struct npcx_wui *wui)
 {
-	const struct intc_miwu_config *config = miwu_devs[wui->table]->config;
-	const uint32_t base = config->base;
+	const uint32_t base = DRV_CONFIG(miwu_devs[wui->table])->base;
 
 	NPCX_WKINEN(base, wui->group) |= BIT(wui->bit);
 }
 
 void npcx_miwu_io_disable(const struct npcx_wui *wui)
 {
-	const struct intc_miwu_config *config = miwu_devs[wui->table]->config;
-	const uint32_t base = config->base;
+	const uint32_t base = DRV_CONFIG(miwu_devs[wui->table])->base;
 
 	NPCX_WKINEN(base, wui->group) &= ~BIT(wui->bit);
 }
 
 bool npcx_miwu_irq_get_state(const struct npcx_wui *wui)
 {
-	const struct intc_miwu_config *config = miwu_devs[wui->table]->config;
-	const uint32_t base = config->base;
+	const uint32_t base = DRV_CONFIG(miwu_devs[wui->table])->base;
 
 	return IS_BIT_SET(NPCX_WKEN(base, wui->group), wui->bit);
 }
 
 bool npcx_miwu_irq_get_and_clear_pending(const struct npcx_wui *wui)
 {
-	const struct intc_miwu_config *config = miwu_devs[wui->table]->config;
-	const uint32_t base = config->base;
+	const uint32_t base = DRV_CONFIG(miwu_devs[wui->table])->base;
 	bool pending = IS_BIT_SET(NPCX_WKPND(base, wui->group), wui->bit);
 
 	if (pending) {
@@ -209,8 +206,7 @@ bool npcx_miwu_irq_get_and_clear_pending(const struct npcx_wui *wui)
 int npcx_miwu_interrupt_configure(const struct npcx_wui *wui,
 		enum miwu_int_mode mode, enum miwu_int_trig trig)
 {
-	const struct intc_miwu_config *config = miwu_devs[wui->table]->config;
-	const uint32_t base = config->base;
+	const uint32_t base = DRV_CONFIG(miwu_devs[wui->table])->base;
 	uint8_t pmask = BIT(wui->bit);
 
 	/* Disable interrupt of wake-up input source before configuring it */
@@ -354,8 +350,7 @@ int npcx_miwu_manage_dev_callback(struct miwu_dev_callback *cb, bool set)
 	static int intc_miwu_init##inst(const struct device *dev)              \
 	{                                                                      \
 		int i;                                                         \
-		const struct intc_miwu_config *config = dev->config;           \
-		const uint32_t base = config->base;                            \
+		const uint32_t base = DRV_CONFIG(dev)->base;                   \
 									       \
 		/* Clear all MIWUs' pending and enable bits of MIWU device */  \
 		for (i = 0; i < NPCX_MIWU_GROUP_COUNT; i++) {                  \

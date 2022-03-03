@@ -20,6 +20,9 @@ LOG_MODULE_REGISTER(sample_driver);
  * The driver sets up a timer which is used to fake interrupts.
  */
 
+#define DEV_DATA(dev) \
+	((struct sample_driver_foo_dev_data *const)(dev)->data)
+
 struct sample_driver_foo_dev_data {
 	const struct device *dev;
 	sample_driver_callback_t cb;
@@ -39,7 +42,7 @@ static int sample_driver_foo_set_callback(const struct device *dev,
 					  sample_driver_callback_t cb,
 					  void *context)
 {
-	struct sample_driver_foo_dev_data *data = dev->data;
+	struct sample_driver_foo_dev_data *data = DEV_DATA(dev);
 	int key = irq_lock();
 
 	data->cb_context = context;
@@ -51,7 +54,7 @@ static int sample_driver_foo_set_callback(const struct device *dev,
 
 static int sample_driver_foo_state_set(const struct device *dev, bool active)
 {
-	struct sample_driver_foo_dev_data *data = dev->data;
+	struct sample_driver_foo_dev_data *data = DEV_DATA(dev);
 
 	LOG_DBG("%s(%p, %d)", __func__, dev, active);
 
@@ -95,7 +98,7 @@ static void sample_driver_timer_cb(struct k_timer *timer)
 
 static int sample_driver_foo_init(const struct device *dev)
 {
-	struct sample_driver_foo_dev_data *data = dev->data;
+	struct sample_driver_foo_dev_data *data = DEV_DATA(dev);
 
 	k_timer_init(&data->timer, sample_driver_timer_cb, NULL);
 

@@ -78,12 +78,10 @@ extern bool pcie_msi_vector_connect(pcie_bdf_t bdf,
  *
  * @param irq The IRQ we wish to trigger via MSI.
  * @param vector The vector for which you want the address (or NULL)
- * @param n_vector the size of the vector array
  * @return A (32-bit) value for the MSI MAP register.
  */
 extern uint32_t pcie_msi_map(unsigned int irq,
-			     msi_vector_t *vector,
-			     uint8_t n_vector);
+			     msi_vector_t *vector);
 
 /**
  * @brief Compute the data for an MSI posted write.
@@ -103,21 +101,18 @@ extern uint16_t pcie_msi_mdr(unsigned int irq,
  * @param bdf the target PCI endpoint
  * @param vectors an array of allocated vector(s)
  * @param n_vector the size of the vector array
- * @param irq The IRQ we wish to trigger via MSI.
  * @return true if the endpoint supports MSI, false otherwise.
  */
 extern bool pcie_msi_enable(pcie_bdf_t bdf,
 			    msi_vector_t *vectors,
-			    uint8_t n_vector,
-			    unsigned int irq);
+			    uint8_t n_vector);
 
-/**
- * @brief Check if the given PCI endpoint supports MSI/MSI-X
- *
- * @param bdf the target PCI endpoint
- * @return true if the endpoint support MSI/MSI-X
+/*
+ * MSI capability IDs in the PCI configuration capability list.
  */
-extern bool pcie_is_msi(pcie_bdf_t bdf);
+
+#define PCIE_MSI_CAP_ID		0x05U
+#define PCIE_MSIX_CAP_ID	0x11U
 
 /*
  * The first word of the MSI capability is shared with the
@@ -157,12 +152,8 @@ extern bool pcie_is_msi(pcie_bdf_t bdf);
 #define PCIE_MSIR_TABLE_ENTRY_SIZE	16
 
 #define PCIE_MSIX_TR			1U
-#define PCIE_MSIX_TR_BIR		0x00000007U /* Table BIR mask */
+#define PCIE_MSIX_TR_BIR		0x00000007U /* BIR mask */
 #define PCIE_MSIX_TR_OFFSET		0xFFFFFFF8U /* Offset mask */
-
-#define PCIE_MSIX_PBA			2U
-#define PCIE_MSIX_PBA_BIR		0x00000007U /* PBA BIR mask */
-#define PCIE_MSIX_PBA_OFFSET		0xFFFFFFF8U /* Offset mask */
 
 #define PCIE_VTBL_MA			0U /* Msg Address offset */
 #define PCIE_VTBL_MUA			4U /* Msg Upper Address offset */

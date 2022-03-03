@@ -4,6 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+struct node_tx_iso {
+	union {
+		void        *next;
+		memq_link_t *link;
+	};
+
+	uint64_t payload_number : 39; /* cisPayloadNumber */
+	uint8_t  pdu[];
+};
+
 struct lll_conn_iso_stream_rxtx {
 	uint8_t phy;            /* PHY */
 	uint8_t burst_number;   /* Burst number (BN) */
@@ -50,9 +60,12 @@ struct lll_conn_iso_group {
 	uint8_t  num_cis : 5;   /* Number of CISes in this CIG */
 	uint8_t  role : 1;      /* 0: CENTRAL, 1: PERIPHERAL*/
 	uint8_t  paused : 1;    /* 1: CIG is paused */
+#if defined(CONFIG_BT_CTLR_CONN_ISO_STREAMS_PER_GROUP)
+	uint16_t cis_handles[CONFIG_BT_CTLR_CONN_ISO_STREAMS_PER_GROUP];
+#endif /* CONFIG_BT_CTLR_CONN_ISO_STREAMS */
 
 	/* Resumption information */
-	uint16_t resume_cis;    /* CIS handle to schedule at resume */
+	uint8_t  resume_cis;    /* CIS index to schedule at resume */
 };
 
 int lll_conn_iso_init(void);

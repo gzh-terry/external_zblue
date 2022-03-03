@@ -145,11 +145,6 @@ __sparc_trap_interrupt:
 	nop
 	nop
 
-#ifdef CONFIG_SCHED_THREAD_USAGE
-	call	z_sched_usage_stop
-	nop
-#endif
-
 #ifdef CONFIG_TRACING_ISR
 	call	sys_trace_isr_enter
 	 nop

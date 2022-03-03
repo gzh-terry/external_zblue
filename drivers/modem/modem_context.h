@@ -66,13 +66,8 @@ struct modem_context {
 	char *data_imsi;
 	char *data_iccid;
 #endif
-#if defined(CONFIG_MODEM_CELL_INFO)
-	int   data_operator;
-	int   data_lac;
-	int   data_cellid;
-#endif
-	int   *data_rssi;
-	bool  is_automatic_oper;
+	int   data_rssi;
+
 	/* pin config */
 	struct modem_pin *pins;
 	size_t pins_len;
@@ -91,12 +86,10 @@ struct modem_context {
  * @brief  IP address to string
  *
  * @param  addr: sockaddr to be converted
- * @param  buf:  Buffer to store IP in string form
- * @param  buf_size:  buffer size
  *
- * @retval 0 if ok, < 0 if error.
+ * @retval Buffer with IP in string form
  */
-int modem_context_sprint_ip_addr(const struct sockaddr *addr, char *buf, size_t buf_size);
+char *modem_context_sprint_ip_addr(const struct sockaddr *addr);
 
 /**
  * @brief  Get port from IP address

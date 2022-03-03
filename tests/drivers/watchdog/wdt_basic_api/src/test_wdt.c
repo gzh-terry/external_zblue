@@ -91,10 +91,6 @@
 #define WDT_NODE DT_INST(0, nuvoton_npcx_watchdog)
 #elif DT_HAS_COMPAT_STATUS_OKAY(ti_cc32xx_watchdog)
 #define WDT_NODE DT_INST(0, ti_cc32xx_watchdog)
-#elif DT_HAS_COMPAT_STATUS_OKAY(nxp_imx_wdog)
-#define WDT_NODE DT_INST(0, nxp_imx_wdog)
-#elif DT_HAS_COMPAT_STATUS_OKAY(zephyr_counter_watchdog)
-#define WDT_NODE DT_COMPAT_GET_ANY_STATUS_OKAY(zephyr_counter_watchdog)
 #endif
 
 #ifdef WDT_NODE
@@ -203,7 +199,7 @@ static int test_wdt_no_callback(void)
 		TC_PRINT("Watchdog install error\n");
 	}
 
-	err = wdt_setup(wdt, WDT_OPT_PAUSE_HALTED_BY_DBG);
+	err = wdt_setup(wdt, 0);
 	if (err < 0) {
 		TC_PRINT("Watchdog setup error\n");
 	}
@@ -256,7 +252,7 @@ static int test_wdt_callback_1(void)
 		return TC_FAIL;
 	}
 
-	err = wdt_setup(wdt, WDT_OPT_PAUSE_HALTED_BY_DBG);
+	err = wdt_setup(wdt, 0);
 	if (err < 0) {
 		TC_PRINT("Watchdog setup error\n");
 		return TC_FAIL;
@@ -316,7 +312,7 @@ static int test_wdt_callback_2(void)
 		return TC_FAIL;
 	}
 
-	err = wdt_setup(wdt, WDT_OPT_PAUSE_HALTED_BY_DBG);
+	err = wdt_setup(wdt, 0);
 	if (err < 0) {
 		TC_PRINT("Watchdog setup error\n");
 		return TC_FAIL;

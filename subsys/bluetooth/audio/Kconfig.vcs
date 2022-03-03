@@ -6,12 +6,13 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+if BT_AUDIO
+
 ##################### Volume Control Service #####################
 
 config BT_VCS
-	bool "Volume Control Service Support [EXPERIMENTAL]"
+	bool "Volume Control Service Support"
 	default n
-	select EXPERIMENTAL
 	help
 	  This option enables support for Volume Control Service.
 
@@ -50,6 +51,7 @@ config BT_VCS_AICS
 
 config BT_DEBUG_VCS
 	bool "Volume Control Service debug"
+	depends on BT_AUDIO_DEBUG
 	help
 	  Use this option to enable Volume Control Service debug logs for the
 	  Bluetooth Audio functionality.
@@ -59,10 +61,8 @@ endif # BT_VCS
 ##################### Volume Control Profile Client #####################
 
 config BT_VCS_CLIENT
-	bool "Volume Control Profile Support [EXPERIMENTAL]"
+	bool "Volume Control Profile Support"
 	select BT_GATT_CLIENT
-	select BT_GATT_AUTO_DISCOVER_CCC
-	select EXPERIMENTAL
 	default n
 	help
 	  This option enables support for Volume Control Profile.
@@ -103,8 +103,11 @@ config BT_VCS_CLIENT_AICS
 
 config BT_DEBUG_VCS_CLIENT
 	bool "Volume Control Profile debug"
+	depends on BT_AUDIO_DEBUG
 	help
 	  Use this option to enable Volume Control Profile debug logs for the
 	  Bluetooth Audio functionality.
 
 endif # BT_VCS_CLIENT
+
+endif # BT_AUDIO

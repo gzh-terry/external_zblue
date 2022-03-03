@@ -7,12 +7,11 @@
 #include "test_queue.h"
 
 #define TIMEOUT K_MSEC(100)
-#define STACK_SIZE (512 + CONFIG_TEST_EXTRA_STACK_SIZE)
+#define STACK_SIZE (512 + CONFIG_TEST_EXTRA_STACKSIZE)
 #define LIST_LEN 2
 
 static K_THREAD_STACK_DEFINE(tstack, STACK_SIZE);
 static struct k_thread tdata;
-K_SEM_DEFINE(sem, 0, 1);
 
 /*test cases*/
 /**
@@ -33,12 +32,8 @@ void test_queue_get_fail(void)
 /* The sub-thread entry */
 static void tThread_entry(void *p1, void *p2, void *p3)
 {
-	k_sem_give(&sem);
-
 	/* wait the queue for data */
-	qdata_t *p = k_queue_get((struct k_queue *)p1, K_FOREVER);
-
-	zassert_equal(p, p2, "Failed to append a unnormal list");
+	k_queue_get((struct k_queue *)p1, K_FOREVER);
 }
 
 /**
@@ -58,9 +53,9 @@ static void tThread_entry(void *p1, void *p2, void *p3)
  */
 void test_queue_append_list_error(void)
 {
-	static qdata_t data_l[2];
+	qdata_t data_l[2];
 	static struct k_queue queue;
-	static qdata_t *head = NULL, *tail = &data_l[1];
+	qdata_t *head = NULL, *tail = &data_l[1];
 
 	k_queue_init(&queue);
 	memset(data_l, 0, sizeof(data_l));
@@ -77,19 +72,16 @@ void test_queue_append_list_error(void)
 			"failed to CHECKIF tail == NULL");
 	/* Initializing the queue for re-using below */
 	k_queue_init(&queue);
-
-	/* Append unnormal list(just one node)into the queue for sub-thread */
-	head = &data_l[0];
-	head->snode.next = NULL;
-
 	k_thread_create(&tdata, tstack, STACK_SIZE, tThread_entry, &queue,
-			head, NULL, K_PRIO_PREEMPT(0), 0, K_NO_WAIT);
+			NULL, NULL, K_PRIO_PREEMPT(0), 0, K_NO_WAIT);
 	/* Delay for thread initializing */
-	k_sem_take(&sem, K_FOREVER);
-
-	k_queue_append_list(&queue, (uint32_t *)head, (uint32_t *)head);
-
-	k_thread_join(&tdata, K_FOREVER);
+	k_sleep(K_MSEC(500));
+	/* Append list into the queue for sub-thread */
+	head = &data_l[0];
+	tail = &data_l[1];
+	head->snode.next = (sys_snode_t *)tail;
+	tail->snode.next = NULL;
+	k_queue_append_list(&queue, (uint32_t *)head, (uint32_t *)tail);
 }
 
 /**

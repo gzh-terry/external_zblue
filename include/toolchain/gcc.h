@@ -14,22 +14,6 @@
  * Macros to abstract compiler capabilities for GCC toolchain.
  */
 
-#define GCC_VERSION \
-	((__GNUC__ * 10000) + (__GNUC_MINOR__ * 100) + __GNUC_PATCHLEVEL__)
-
-/* GCC supports #pragma diagnostics since 4.6.0 */
-#if !defined(TOOLCHAIN_HAS_PRAGMA_DIAG) && (GCC_VERSION >= 40600)
-#define TOOLCHAIN_HAS_PRAGMA_DIAG 1
-#endif
-
-#if !defined(TOOLCHAIN_HAS_C_GENERIC) && (GCC_VERSION >= 40900)
-#define TOOLCHAIN_HAS_C_GENERIC 1
-#endif
-
-#if !defined(TOOLCHAIN_HAS_C_AUTO_TYPE) && (GCC_VERSION >= 40900)
-#define TOOLCHAIN_HAS_C_AUTO_TYPE 1
-#endif
-
 /*
  * Older versions of GCC do not define __BYTE_ORDER__, so it must be manually
  * detected and defined using arch-specific definitions.
@@ -65,8 +49,9 @@
 
 
 /* C++11 has static_assert built in */
-#if defined(__cplusplus) && (__cplusplus >= 201103L)
+#ifdef __cplusplus
 #define BUILD_ASSERT(EXPR, MSG...) static_assert(EXPR, "" MSG)
+#define BUILD_ASSERT_MSG(EXPR, MSG) __DEPRECATED_MACRO BUILD_ASSERT(EXPR, MSG)
 
 /*
  * GCC 4.6 and higher have the C11 _Static_assert built in, and its
@@ -75,14 +60,10 @@
 #elif (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)) || \
 	(__STDC_VERSION__) >= 201100
 #define BUILD_ASSERT(EXPR, MSG...) _Static_assert(EXPR, "" MSG)
+#define BUILD_ASSERT_MSG(EXPR, MSG) __DEPRECATED_MACRO BUILD_ASSERT(EXPR, MSG)
 #else
 #define BUILD_ASSERT(EXPR, MSG...)
-#endif
-
-#ifdef __cplusplus
-#define ZRESTRICT __restrict
-#else
-#define ZRESTRICT restrict
+#define BUILD_ASSERT_MSG(EXPR, MSG)
 #endif
 
 #include <toolchain/common.h>
@@ -170,16 +151,10 @@ do {                                                                    \
 	__attribute__((section("." STRINGIFY(segment))))
 #define Z_GENERIC_DOT_SECTION(segment) __GENERIC_DOT_SECTION(segment)
 
-#define ___in_section(a, b, c) \
-	__attribute__((section("." Z_STRINGIFY(a)			\
-				"." Z_STRINGIFY(b)			\
-				"." Z_STRINGIFY(c))))
+#define ___in_section(a, b, c)
 #define __in_section(a, b, c) ___in_section(a, b, c)
 
 #define __in_section_unique(seg) ___in_section(seg, __FILE__, __COUNTER__)
-
-#define __in_section_unique_named(seg, name) \
-	___in_section(seg, __FILE__, name)
 
 /* When using XIP, using '__ramfunc' places a function into RAM instead
  * of FLASH. Make sure '__ramfunc' is defined only when
@@ -218,9 +193,6 @@ do {                                                                    \
 #endif
 #ifndef __attribute_const__
 #define __attribute_const__ __attribute__((__const__))
-#endif
-#ifndef __must_check
-#define __must_check __attribute__((warn_unused_result))
 #endif
 #define ARG_UNUSED(x) (void)(x)
 
@@ -311,8 +283,7 @@ do {                                                                    \
 #if defined(_ASMLANGUAGE)
 
 #if defined(CONFIG_ARM) || defined(CONFIG_NIOS2) || defined(CONFIG_RISCV) \
-	|| defined(CONFIG_XTENSA) || defined(CONFIG_ARM64) \
-	|| defined(CONFIG_MIPS)
+	|| defined(CONFIG_XTENSA) || defined(CONFIG_ARM64)
 #define GTEXT(sym) .global sym; .type sym, %function
 #define GDATA(sym) .global sym; .type sym, %object
 #define WTEXT(sym) .weak sym; .type sym, %function
@@ -493,8 +464,7 @@ do {                                                                    \
 		"\n\t.equ\t" #name "," #value       \
 		"\n\t.type\t" #name ",@object")
 
-#elif defined(CONFIG_NIOS2) || defined(CONFIG_RISCV) || \
-	defined(CONFIG_XTENSA) || defined(CONFIG_MIPS)
+#elif defined(CONFIG_NIOS2) || defined(CONFIG_RISCV) || defined(CONFIG_XTENSA)
 
 /* No special prefixes necessary for constants in this arch AFAICT */
 #define GEN_ABSOLUTE_SYM(name, value)		\
@@ -530,7 +500,8 @@ do {                                                                    \
 		"\n\t.type\t" #name ",#object")
 
 #else
-#error processor architecture not supported
+#define GEN_ABSOLUTE_SYM(name, value)
+#define GEN_ABSOLUTE_SYM_KCONFIG(name, value)
 #endif
 
 #define compiler_barrier() do { \

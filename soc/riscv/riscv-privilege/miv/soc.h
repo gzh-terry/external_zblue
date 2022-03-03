@@ -5,6 +5,7 @@
 #define __RISCV32_MIV_SOC_H_
 
 #include <soc_common.h>
+#include <devicetree.h>
 
 /* GPIO Interrupts */
 #define MIV_GPIO_0_IRQ           (0)

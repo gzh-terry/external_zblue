@@ -12,27 +12,19 @@
 #ifndef ZEPHYR_DRIVERS_SERIAL_UART_STM32_H_
 #define ZEPHYR_DRIVERS_SERIAL_UART_STM32_H_
 
-#include <drivers/pinctrl.h>
-
-#include <stm32_ll_usart.h>
+#include <drivers/pinmux.h>
 
 /* device config */
 struct uart_stm32_config {
-	/* USART instance */
-	USART_TypeDef *usart;
+	struct uart_device_config uconf;
 	/* clock subsystem driving this peripheral */
 	struct stm32_pclken pclken;
 	/* initial hardware flow control, 1 for RTS/CTS */
 	bool hw_flow_control;
 	/* initial parity, 0 for none, 1 for odd, 2 for even */
 	int  parity;
-	/* switch to enable single wire / half duplex feature */
-	bool single_wire;
-	const struct pinctrl_dev_config *pcfg;
-#if defined(CONFIG_UART_INTERRUPT_DRIVEN) || defined(CONFIG_UART_ASYNC_API) || \
-	defined(CONFIG_PM)
-	uart_irq_config_func_t irq_config_func;
-#endif
+	const struct soc_gpio_pinctrl *pinctrl_list;
+	size_t pinctrl_list_size;
 };
 
 #ifdef CONFIG_UART_ASYNC_API
@@ -75,10 +67,8 @@ struct uart_stm32_data {
 	uint8_t *rx_next_buffer;
 	size_t rx_next_buffer_len;
 #endif
-#ifdef CONFIG_PM
-	bool tx_poll_stream_on;
-	bool tx_int_stream_on;
-	bool pm_constraint_on;
+#ifdef CONFIG_PM_DEVICE
+	uint32_t pm_state;
 #endif
 };
 

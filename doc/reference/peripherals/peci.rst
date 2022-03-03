@@ -19,7 +19,7 @@ Configuration Options
 
 Related configuration options:
 
-* :kconfig:option:`CONFIG_PECI`
+* :option:`CONFIG_PECI`
 
 API Reference
 *************

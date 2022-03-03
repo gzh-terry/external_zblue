@@ -34,6 +34,7 @@
  * _load_all_float_registers(), _store_all_float_registers() and
  * _load_then_store_all_float_registers() agree on the format.
  *
+ * @return N/A
  */
 
 static inline void _load_all_float_registers(struct fp_register_set *regs)
@@ -77,6 +78,7 @@ static inline void _load_all_float_registers(struct fp_register_set *regs)
  * floating point operations was also co-operatively switched out and simply
  * inherits the existing x87 FPU state (expecting the stack to be empty).
  *
+ * @return N/A
  */
 
 static inline void
@@ -126,6 +128,7 @@ _load_then_store_all_float_registers(struct fp_register_set *regs)
  * _load_all_float_registers() occurred to load all the floating point
  * registers from a memory buffer.
  *
+ * @return N/A
  */
 
 static inline void _store_all_float_registers(struct fp_register_set *regs)

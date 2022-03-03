@@ -24,9 +24,12 @@ struct pinmux_sifive_regs_t {
 	uint32_t iof_sel;
 };
 
+#define DEV_CFG(dev)					\
+	((const struct pinmux_sifive_config * const)	\
+	 (dev)->config)
+
 #define DEV_PINMUX(dev)						\
-	((struct pinmux_sifive_regs_t *)			\
-	 ((const struct pinmux_sifive_config * const)(dev->config))->base)
+	((struct pinmux_sifive_regs_t *)(DEV_CFG(dev))->base)
 
 static int pinmux_sifive_set(const struct device *dev, uint32_t pin,
 			     uint32_t func)

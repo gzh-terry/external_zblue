@@ -43,9 +43,9 @@ void RtcBkupRead(uint32_t *data0, uint32_t *data1)
 
 uint32_t RtcGetCalendarTime(uint16_t *milliseconds)
 {
-	int64_t now = k_uptime_get();
+	uint32_t now = k_uptime_get_32();
 
-	*milliseconds = now % MSEC_PER_SEC;
+	*milliseconds = now;
 
 	/* Return in seconds */
 	return now / MSEC_PER_SEC;

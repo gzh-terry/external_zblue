@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 
-# Define the toolchain to be used (by eg CI)
 if(${ZEPHYR_TOOLCHAIN_VARIANT} STREQUAL "zephyr")
   set(COMPILER_FULL_PATH ${ZEPHYR_SDK_INSTALL_DIR}/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc)
 elseif(${ZEPHYR_TOOLCHAIN_VARIANT} STREQUAL "gnuarmemb")
@@ -8,8 +7,8 @@ elseif(${ZEPHYR_TOOLCHAIN_VARIANT} STREQUAL "gnuarmemb")
 endif()
 
 if(CONFIG_BUILD_WITH_TFM)
-  set_property(GLOBAL APPEND PROPERTY extra_post_build_commands
+  set_property(GLOBAL APPEND PROPERTY extra_post_build_byproducts
     #Execute post build script postbuild.sh
-    COMMAND $<TARGET_PROPERTY:tfm,TFM_BINARY_DIR>/postbuild.sh ${COMPILER_FULL_PATH}
+    COMMAND ${CMAKE_BINARY_DIR}/tfm/postbuild.sh ${COMPILER_FULL_PATH}
   )
 endif()

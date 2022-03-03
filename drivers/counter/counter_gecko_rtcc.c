@@ -40,6 +40,10 @@ struct counter_gecko_data {
 };
 
 #define DEV_NAME(dev) ((dev)->name)
+#define DEV_CFG(dev) \
+	((const struct counter_gecko_config * const)(dev)->config)
+#define DEV_DATA(dev) \
+	((struct counter_gecko_data *const)(dev)->data)
 
 #ifdef CONFIG_SOC_GECKO_HAS_ERRATA_RTCC_E201
 #define ERRATA_RTCC_E201_MESSAGE \
@@ -92,13 +96,13 @@ static int counter_gecko_get_value(const struct device *dev, uint32_t *ticks)
 static int counter_gecko_set_top_value(const struct device *dev,
 				       const struct counter_top_cfg *cfg)
 {
-	struct counter_gecko_data *const dev_data = dev->data;
+	struct counter_gecko_data *const dev_data = DEV_DATA(dev);
 	uint32_t ticks;
 	uint32_t flags;
 	int err = 0;
 
 #ifdef CONFIG_SOC_GECKO_HAS_ERRATA_RTCC_E201
-	const struct counter_gecko_config *const dev_cfg = dev->config;
+	const struct counter_gecko_config *const dev_cfg = DEV_CFG(dev);
 
 	if (dev_cfg->prescaler != 1) {
 		LOG_ERR(ERRATA_RTCC_E201_MESSAGE);
@@ -153,7 +157,7 @@ static int counter_gecko_set_alarm(const struct device *dev, uint8_t chan_id,
 				   const struct counter_alarm_cfg *alarm_cfg)
 {
 	uint32_t count = RTCC_CounterGet();
-	struct counter_gecko_data *const dev_data = dev->data;
+	struct counter_gecko_data *const dev_data = DEV_DATA(dev);
 	uint32_t top_value = counter_gecko_get_top_value(dev);
 	uint32_t ccv;
 
@@ -196,7 +200,7 @@ static int counter_gecko_set_alarm(const struct device *dev, uint8_t chan_id,
 static int counter_gecko_cancel_alarm(const struct device *dev,
 				      uint8_t chan_id)
 {
-	struct counter_gecko_data *const dev_data = dev->data;
+	struct counter_gecko_data *const dev_data = DEV_DATA(dev);
 
 	uint8_t cc_idx = chan_id2cc_idx(chan_id);
 
@@ -223,7 +227,7 @@ static uint32_t counter_gecko_get_pending_int(const struct device *dev)
 
 static int counter_gecko_init(const struct device *dev)
 {
-	const struct counter_gecko_config *const dev_cfg = dev->config;
+	const struct counter_gecko_config *const dev_cfg = DEV_CFG(dev);
 
 	RTCC_Init_TypeDef rtcc_config = {
 		false,                /* Don't start counting */
@@ -323,7 +327,7 @@ static const struct counter_driver_api counter_gecko_driver_api = {
 ISR_DIRECT_DECLARE(counter_gecko_isr_0)
 {
 	const struct device *dev = DEVICE_DT_INST_GET(0);
-	struct counter_gecko_data *const dev_data = dev->data;
+	struct counter_gecko_data *const dev_data = DEV_DATA(dev);
 	counter_alarm_callback_t alarm_callback;
 	uint32_t count = RTCC_CounterGet();
 	uint32_t flags = RTCC_IntGetEnabled();
@@ -380,5 +384,5 @@ static struct counter_gecko_data counter_gecko_0_data;
 
 DEVICE_DT_INST_DEFINE(0, counter_gecko_init, NULL,
 	&counter_gecko_0_data, &counter_gecko_0_config,
-	PRE_KERNEL_1, CONFIG_COUNTER_INIT_PRIORITY,
+	PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 	&counter_gecko_driver_api);

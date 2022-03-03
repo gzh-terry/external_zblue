@@ -361,7 +361,7 @@ DEVICE_DT_INST_DEFINE(0,
 		    gpio_sifive_init,
 		    NULL,
 		    &gpio_sifive_data0, &gpio_sifive_config0,
-		    PRE_KERNEL_1, CONFIG_GPIO_INIT_PRIORITY,
+		    POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    &gpio_sifive_driver);
 
 #define		IRQ_INIT(n)					\

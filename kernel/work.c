@@ -104,7 +104,7 @@ static inline void init_work_cancel(struct z_work_canceller *canceler,
  *
  * Reschedules.
  *
- * @param work the work structure that has completed cancellation
+ * @param work the work structre that has completed cancellation
  */
 static void finalize_cancel_locked(struct k_work *work)
 {
@@ -586,7 +586,6 @@ static void work_queue_main(void *workq_ptr, void *p2, void *p3)
 		struct k_work *work = NULL;
 		k_work_handler_t handler = NULL;
 		k_spinlock_key_t key = k_spin_lock(&lock);
-		bool yield;
 
 		/* Check for and prepare any new work. */
 		node = sys_slist_get(&queue->pending);
@@ -598,19 +597,6 @@ static void work_queue_main(void *workq_ptr, void *p2, void *p3)
 			work = CONTAINER_OF(node, struct k_work, node);
 			flag_set(&work->flags, K_WORK_RUNNING_BIT);
 			flag_clear(&work->flags, K_WORK_QUEUED_BIT);
-
-			/* Static code analysis tool can raise a false-positive violation
-			 * in the line below that 'work' is checked for null after being
-			 * dereferenced.
-			 *
-			 * The work is figured out by CONTAINER_OF, as a container
-			 * of type struct k_work that contains the node.
-			 * The only way for it to be NULL is if node would be a member
-			 * of struct k_work object that has been placed at address NULL,
-			 * which should never happen, even line 'if (work != NULL)'
-			 * ensures that.
-			 * This means that if node is not NULL, then work will not be NULL.
-			 */
 			handler = work->handler;
 		} else if (flag_test_and_clear(&queue->flags,
 					       K_WORK_QUEUE_DRAIN_BIT)) {
@@ -645,43 +631,36 @@ static void work_queue_main(void *workq_ptr, void *p2, void *p3)
 
 		k_spin_unlock(&lock, key);
 
-		__ASSERT_NO_MSG(handler != NULL);
-		handler(work);
+		if (work != NULL) {
+			bool yield;
 
-		/* Mark the work item as no longer running and deal
-		 * with any cancellation issued while it was running.
-		 * Clear the BUSY flag and optionally yield to prevent
-		 * starving other threads.
-		 */
-		key = k_spin_lock(&lock);
+			__ASSERT_NO_MSG(handler != NULL);
+			handler(work);
 
-		flag_clear(&work->flags, K_WORK_RUNNING_BIT);
-		if (flag_test(&work->flags, K_WORK_CANCELING_BIT)) {
-			finalize_cancel_locked(work);
-		}
+			/* Mark the work item as no longer running and deal
+			 * with any cancellation issued while it was running.
+			 * Clear the BUSY flag and optionally yield to prevent
+			 * starving other threads.
+			 */
+			key = k_spin_lock(&lock);
 
-		flag_clear(&queue->flags, K_WORK_QUEUE_BUSY_BIT);
-		yield = !flag_test(&queue->flags, K_WORK_QUEUE_NO_YIELD_BIT);
-		k_spin_unlock(&lock, key);
+			flag_clear(&work->flags, K_WORK_RUNNING_BIT);
+			if (flag_test(&work->flags, K_WORK_CANCELING_BIT)) {
+				finalize_cancel_locked(work);
+			}
 
-		/* Optionally yield to prevent the work queue from
-		 * starving other threads.
-		 */
-		if (yield) {
-			k_yield();
+			flag_clear(&queue->flags, K_WORK_QUEUE_BUSY_BIT);
+			yield = !flag_test(&queue->flags, K_WORK_QUEUE_NO_YIELD_BIT);
+			k_spin_unlock(&lock, key);
+
+			/* Optionally yield to prevent the work queue from
+			 * starving other threads.
+			 */
+			if (yield) {
+				k_yield();
+			}
 		}
 	}
-}
-
-void k_work_queue_init(struct k_work_q *queue)
-{
-	__ASSERT_NO_MSG(queue != NULL);
-
-	*queue = (struct k_work_q) {
-		.flags = 0,
-	};
-
-	SYS_PORT_TRACING_OBJ_INIT(k_work_queue, queue);
 }
 
 void k_work_queue_start(struct k_work_q *queue,
@@ -826,7 +805,7 @@ void k_work_init_delayable(struct k_work_delayable *dwork,
 
 static inline int work_delayable_busy_get_locked(const struct k_work_delayable *dwork)
 {
-	return flags_get(&dwork->work.flags) & K_WORK_MASK;
+	return atomic_get(&dwork->work.flags) & K_WORK_MASK;
 }
 
 int k_work_delayable_busy_get(const struct k_work_delayable *dwork)

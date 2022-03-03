@@ -9,6 +9,7 @@
 
 #ifndef _ASMLANGUAGE
 #include "system_cmsdk_musca_s1.h"
+#include <devicetree.h>
 #include <sys/util.h>
 #endif
 

@@ -285,7 +285,6 @@ static void log_exception(uintptr_t vector, uintptr_t code)
 		LOG_ERR("Security exception");
 		break;
 	default:
-		LOG_ERR("Exception not handled (code 0x%lx)", code);
 		break;
 	}
 }

@@ -8,14 +8,7 @@
 #ifndef __CAVS_VERSION_H__
 #define __CAVS_VERSION_H__
 
-/* Note: this is not a Zephyr API and Zephyr doesn't use it
- * (preferring the kconfig/devicetree mechanisms from which this is
- * derived).  SOF uses the CAVS_VERSION symbol internally and needs it
- * defined, and apparently that definition ended up here.  Really this
- * should be moved to SOF proper, but until then let's make sure it
- * doesn't spread:
- */
-#ifdef CONFIG_SOF
+#include <autoconf.h>
 
 #define CAVS_VERSION_1_5 0x10500
 #define CAVS_VERSION_1_8 0x10800
@@ -32,7 +25,5 @@
 #elif CONFIG_SOC_SERIES_INTEL_CAVS_V25
 #define CAVS_VERSION CAVS_VERSION_2_5
 #endif
-
-#endif /* CONFIG_SOF */
 
 #endif /* __CAVS_VERSION_H__ */

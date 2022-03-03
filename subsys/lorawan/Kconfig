@@ -8,7 +8,6 @@ menuconfig LORAWAN
 	depends on LORA
 	select HAS_SEMTECH_LORAMAC
 	select HAS_SEMTECH_SOFT_SE
-	select EXPERIMENTAL
 	help
 	  This option enables LoRaWAN support.
 
@@ -25,7 +24,7 @@ config LORAWAN_SYSTEM_MAX_RX_ERROR
 	  System Max Rx timing error value in ms to be used by LoRaWAN stack
 	  for calculating the RX1/RX2 window timing.
 
-choice LORAMAC_REGION
+choice
 	prompt "LoRaWAN Region Selection"
 	default LORAMAC_REGION_UNKNOWN
 	help

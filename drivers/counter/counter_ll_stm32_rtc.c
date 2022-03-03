@@ -47,8 +47,7 @@ LOG_MODULE_REGISTER(counter_rtc_stm32, CONFIG_COUNTER_LOG_LEVEL);
 	|| defined(CONFIG_SOC_SERIES_STM32G4X) \
 	|| defined(CONFIG_SOC_SERIES_STM32L0X) \
 	|| defined(CONFIG_SOC_SERIES_STM32L1X) \
-	|| defined(CONFIG_SOC_SERIES_STM32H7X) \
-	|| defined(CONFIG_SOC_SERIES_STM32WLX)
+	|| defined(CONFIG_SOC_SERIES_STM32H7X)
 #define RTC_EXTI_LINE	LL_EXTI_LINE_17
 #endif
 
@@ -63,6 +62,12 @@ struct rtc_stm32_data {
 	uint32_t ticks;
 	void *user_data;
 };
+
+
+#define DEV_DATA(dev) ((struct rtc_stm32_data *)(dev)->data)
+#define DEV_CFG(dev)	\
+((const struct rtc_stm32_config * const)(dev)->config)
+
 
 static void rtc_stm32_irq_config(const struct device *dev);
 
@@ -139,7 +144,7 @@ static int rtc_stm32_set_alarm(const struct device *dev, uint8_t chan_id,
 	struct tm alarm_tm;
 	time_t alarm_val;
 	LL_RTC_AlarmTypeDef rtc_alarm;
-	struct rtc_stm32_data *data = dev->data;
+	struct rtc_stm32_data *data = DEV_DATA(dev);
 
 	uint32_t now = rtc_stm32_read(dev);
 	uint32_t ticks = alarm_cfg->ticks;
@@ -200,15 +205,13 @@ static int rtc_stm32_set_alarm(const struct device *dev, uint8_t chan_id,
 
 static int rtc_stm32_cancel_alarm(const struct device *dev, uint8_t chan_id)
 {
-	struct rtc_stm32_data *data = dev->data;
-
 	LL_RTC_DisableWriteProtection(RTC);
 	LL_RTC_ClearFlag_ALRA(RTC);
 	LL_RTC_DisableIT_ALRA(RTC);
 	LL_RTC_ALMA_Disable(RTC);
 	LL_RTC_EnableWriteProtection(RTC);
 
-	data->callback = NULL;
+	DEV_DATA(dev)->callback = NULL;
 
 	return 0;
 }
@@ -245,7 +248,7 @@ static int rtc_stm32_set_top_value(const struct device *dev,
 
 void rtc_stm32_isr(const struct device *dev)
 {
-	struct rtc_stm32_data *data = dev->data;
+	struct rtc_stm32_data *data = DEV_DATA(dev);
 	counter_alarm_callback_t alarm_callback = data->callback;
 
 	uint32_t now = rtc_stm32_read(dev);
@@ -277,10 +280,9 @@ void rtc_stm32_isr(const struct device *dev)
 static int rtc_stm32_init(const struct device *dev)
 {
 	const struct device *clk = DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE);
-	const struct rtc_stm32_config *cfg = dev->config;
-	struct rtc_stm32_data *data = dev->data;
+	const struct rtc_stm32_config *cfg = DEV_CFG(dev);
 
-	data->callback = NULL;
+	DEV_DATA(dev)->callback = NULL;
 
 	if (clock_control_on(clk, (clock_control_subsys_t *) &cfg->pclken) != 0) {
 		LOG_ERR("clock op failed\n");
@@ -418,7 +420,7 @@ static const struct counter_driver_api rtc_stm32_driver_api = {
 
 DEVICE_DT_INST_DEFINE(0, &rtc_stm32_init, NULL,
 		    &rtc_data, &rtc_config, PRE_KERNEL_1,
-		    CONFIG_COUNTER_INIT_PRIORITY, &rtc_stm32_driver_api);
+		    CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &rtc_stm32_driver_api);
 
 static void rtc_stm32_irq_config(const struct device *dev)
 {

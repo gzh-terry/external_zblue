@@ -5,7 +5,6 @@ zephyr_library_sources(
   util/mem.c
   util/memq.c
   util/mayfly.c
-  util/dbuf.c
   util/util.c
   ticker/ticker.c
   ll_sw/ll_addr.c
@@ -20,15 +19,6 @@ zephyr_library_sources_ifdef(
   )
 
 if(CONFIG_BT_LL_SW_SPLIT)
-  if(CONFIG_BT_CTLR_ADVANCED_FEATURES)
-    message(WARNING "\nCONFIG_BT_CTLR_ADVANCED_FEATURES=y, Advanced Features' "
-		    "default value change could change Zephyr Bluetooth "
-		    "Controller's functional behavior.")
-  endif()
-  if(CONFIG_BT_CTLR_ADV_EXT)
-    message(WARNING "\nCONFIG_BT_CTLR_ADV_EXT=y, Advertising Extensions "
-		    "Feature in Zephyr Bluetooth Controller is EXPERIMENTAL.")
-  endif()
   zephyr_library_sources(
     ll_sw/ll_feat.c
     ll_sw/ull.c
@@ -72,30 +62,9 @@ if(CONFIG_BT_LL_SW_SPLIT)
     zephyr_library_sources(
       ll_sw/ull_conn.c
       )
-    if(CONFIG_BT_LL_SW_LLCP_LEGACY)
-    else()
-      zephyr_library_sources_ifdef(
-        CONFIG_BT_PHY_UPDATE
-        ll_sw/ull_llcp_phy.c
-        )
-      zephyr_library_sources_ifdef(
-        CONFIG_BT_CTLR_LE_ENC
-        ll_sw/ull_llcp_enc.c
-        )
-      zephyr_library_sources(
-        ll_sw/ull_tx_queue.c
-        ll_sw/ull_llcp.c
-        ll_sw/ull_llcp_common.c
-        ll_sw/ull_llcp_local.c
-        ll_sw/ull_llcp_pdu.c
-        ll_sw/ull_llcp_conn_upd.c
-        ll_sw/ull_llcp_chmu.c
-        ll_sw/ull_llcp_remote.c
-        )
-    endif()
     if(CONFIG_BT_PERIPHERAL)
       zephyr_library_sources(
-        ll_sw/ull_peripheral.c
+        ll_sw/ull_slave.c
       )
     zephyr_library_sources_ifdef(
         CONFIG_BT_CTLR_PERIPHERAL_ISO
@@ -104,19 +73,18 @@ if(CONFIG_BT_LL_SW_SPLIT)
     endif()
     if(CONFIG_BT_CENTRAL)
       zephyr_library_sources(
-        ll_sw/ull_central.c
+        ll_sw/ull_master.c
         )
       zephyr_library_sources_ifdef(
         CONFIG_BT_CTLR_CENTRAL_ISO
         ll_sw/ull_central_iso.c
       )
     endif()
-  endif()
-  if(CONFIG_BT_CTLR_SCHED_ADVANCED AND
-     (CONFIG_BT_CONN OR CONFIG_BT_CTLR_ADV_ISO))
-    zephyr_library_sources(
-      ll_sw/ull_sched.c
-    )
+    if(CONFIG_BT_CTLR_SCHED_ADVANCED)
+      zephyr_library_sources(
+        ll_sw/ull_sched.c
+      )
+    endif()
   endif()
   if(CONFIG_BT_CTLR_DF)
     zephyr_library_sources(
@@ -135,8 +103,6 @@ if(CONFIG_BT_LL_SW_SPLIT)
       )
   endif()
   if(CONFIG_BT_CONN OR
-     (CONFIG_BT_BROADCASTER AND
-      CONFIG_BT_CTLR_ADV_EXT) OR
      CONFIG_BT_CTLR_ADV_PERIODIC OR
      CONFIG_BT_CTLR_SYNC_PERIODIC)
     zephyr_library_sources(
@@ -144,12 +110,10 @@ if(CONFIG_BT_LL_SW_SPLIT)
       ll_sw/lll_chan.c
       )
   endif()
-  if(CONFIG_BT_CTLR_FILTER_ACCEPT_LIST OR
-     CONFIG_BT_CTLR_SYNC_PERIODIC_ADV_LIST)
-    zephyr_library_sources(
-      ll_sw/ull_filter.c
-      )
-  endif()
+  zephyr_library_sources_ifdef(
+    CONFIG_BT_CTLR_FILTER
+    ll_sw/ull_filter.c
+    )
   zephyr_library_sources_ifdef(
     CONFIG_BT_HCI_MESH_EXT
     ll_sw/ll_mesh.c

@@ -22,7 +22,7 @@
 #define BUF_ALLOC_TIMEOUT K_MSEC(50)
 
 /* TODO: make msgq size configurable */
-CAN_MSGQ_DEFINE(socket_can_msgq, 5);
+CAN_DEFINE_MSGQ(socket_can_msgq, 5);
 K_KERNEL_STACK_DEFINE(rx_thread_stack, RX_THREAD_STACK_SIZE);
 
 struct socket_can_context {
@@ -45,12 +45,12 @@ static inline void socket_can_iface_init(struct net_if *iface)
 	LOG_DBG("Init CAN interface %p dev %p", iface, dev);
 }
 
-static inline void tx_irq_callback(int error, void *arg)
+static inline void tx_irq_callback(uint32_t error_flags, void *arg)
 {
 	char *caller_str = (char *)arg;
-	if (error != 0) {
+	if (error_flags) {
 		LOG_DBG("TX error from %s! error-code: %d",
-			caller_str, error);
+			caller_str, error_flags);
 	}
 }
 
@@ -93,9 +93,9 @@ static inline int socket_can_setsockopt(const struct device *dev, void *obj,
 
 	__ASSERT_NO_MSG(optlen == sizeof(struct zcan_filter));
 
-	ret = can_add_rx_filter_msgq(socket_context->can_dev, socket_context->msgq,
-				     optval);
-	if (ret == -ENOSPC) {
+	ret = can_attach_msgq(socket_context->can_dev, socket_context->msgq,
+			      optval);
+	if (ret == CAN_NO_FREE_FILTER) {
 		errno = ENOSPC;
 		return -1;
 	}
@@ -109,7 +109,7 @@ static inline void socket_can_close(const struct device *dev, int filter_id)
 {
 	struct socket_can_context *socket_context = dev->data;
 
-	can_remove_rx_filter(socket_context->can_dev, filter_id);
+	can_detach(socket_context->can_dev, filter_id);
 }
 
 static struct canbus_api socket_can_api = {
@@ -123,18 +123,18 @@ static inline void rx_thread(void *ctx, void *unused1, void *unused2)
 {
 	struct socket_can_context *socket_context = ctx;
 	struct net_pkt *pkt;
-	struct zcan_frame frame;
+	struct zcan_frame msg;
 	int ret;
 
 	ARG_UNUSED(unused1);
 	ARG_UNUSED(unused2);
 
 	while (1) {
-		k_msgq_get((struct k_msgq *)socket_context->msgq, &frame,
+		k_msgq_get((struct k_msgq *)socket_context->msgq, &msg,
 			   K_FOREVER);
 
 		pkt = net_pkt_rx_alloc_with_buffer(socket_context->iface,
-						   sizeof(frame),
+						   sizeof(msg),
 						   AF_CAN, 0,
 						   BUF_ALLOC_TIMEOUT);
 		if (!pkt) {
@@ -142,7 +142,7 @@ static inline void rx_thread(void *ctx, void *unused1, void *unused2)
 			continue;
 		}
 
-		if (net_pkt_write(pkt, (void *)&frame, sizeof(frame))) {
+		if (net_pkt_write(pkt, (void *)&msg, sizeof(msg))) {
 			LOG_ERR("Failed to append RX data");
 			net_pkt_unref(pkt);
 			continue;

@@ -17,35 +17,17 @@ module = CAN
 module-str = CAN
 source "subsys/logging/Kconfig.template.log_config"
 
-config CAN_INIT_PRIORITY
-	int "CAN init priority"
-	default KERNEL_INIT_PRIORITY_DEVICE
-	help
-	  CAN driver device initialization priority.
-
 config CAN_SHELL
 	bool "Enable CAN Shell"
 	default y
 	depends on SHELL
-	select POLL
 	help
 	  Enable CAN Shell for testing.
-
-config CAN_STATS
-	bool "Enable CAN controller device statistics"
-	depends on STATS
-	help
-	  Enable CAN controller device statistics.
 
 config CAN_HAS_CANFD
 	bool
 	help
 	  driver supports CAN-FD
-
-config CAN_HAS_RX_TIMESTAMP
-	bool
-	help
-	  driver supports RX timestamps
 
 config CAN_FD_MODE
 	bool "CAN-FD"
@@ -75,9 +57,16 @@ config CAN_INIT_PRIORITY
 	  Note that the priority needs to be lower than the net stack
 	  so that it can start before the networking sub-system.
 
+config CAN_WORKQ_FRAMES_BUF_CNT
+	int "Work queue buffer frame count"
+	default 4
+	range 1 65534
+	help
+	  Number of frames in the buffer of a zcan_work.
+
 config CAN_RX_TIMESTAMP
 	bool "Enable receiving timestamps"
-	depends on CAN_HAS_RX_TIMESTAMP
+	depends on CAN_STM32 || CAN_MCUX_FLEXCAN || CAN_STM32FD
 	help
 	  This option enables a timestamp value of the CAN free running timer.
 	  The value is incremented every bit time and starts when the controller
@@ -92,14 +81,11 @@ config CAN_AUTO_BUS_OFF_RECOVERY
 	  recessive bits). When this option is enabled, the recovery API is not
 	  available.
 
-source "drivers/can/Kconfig.sam"
 source "drivers/can/Kconfig.stm32"
 source "drivers/can/Kconfig.stm32fd"
-source "drivers/can/Kconfig.stm32h7"
 source "drivers/can/Kconfig.mcux"
 source "drivers/can/Kconfig.mcp2515"
 source "drivers/can/Kconfig.mcan"
-source "drivers/can/Kconfig.rcar"
 source "drivers/can/Kconfig.loopback"
 source "drivers/can/Kconfig.net"
 

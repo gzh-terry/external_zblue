@@ -30,7 +30,6 @@ def test_testsuite_add_testcases(class_testsuite):
                           'test_c.check_2',
                           'test_a.check_1',
                           'test_a.check_2',
-                          'test_d.check_1',
                           'sample_test.app']
     testcase_list = []
     for key in sorted(class_testsuite.testcases.keys()):
@@ -59,19 +58,25 @@ def test_add_configurations(test_data, class_testsuite, board_root_dir):
 def test_get_all_testcases(class_testsuite, all_testcases_dict):
     """ Testing get_all_testcases function of TestSuite class in Twister """
     class_testsuite.testcases = all_testcases_dict
-    expected_tests = ['sample_test.app', 'test_a.check_1.1a',
-                      'test_a.check_1.1c',
-                      'test_a.check_1.2a', 'test_a.check_1.2b',
-                      'test_a.check_1.Unit_1c', 'test_a.check_1.unit_1a',
-                      'test_a.check_1.unit_1b', 'test_a.check_2.1a',
-                      'test_a.check_2.1c', 'test_a.check_2.2a',
-                      'test_a.check_2.2b', 'test_a.check_2.Unit_1c',
-                      'test_a.check_2.unit_1a', 'test_a.check_2.unit_1b',
-                      'test_b.check_1', 'test_b.check_2', 'test_c.check_1',
-                      'test_c.check_2', 'test_d.check_1.unit_1a',
-                      'test_d.check_1.unit_1b']
-    assert len(class_testsuite.get_all_tests()) == len(expected_tests)
+    expected_tests = ['sample_test.app', 'test_a.check_1.1a', 'test_a.check_1.1c',
+                    'test_a.check_1.2a', 'test_a.check_1.2b', 'test_a.check_1.Unit_1c', 'test_a.check_1.unit_1a', 'test_a.check_1.unit_1b', 'test_a.check_2.1a', 'test_a.check_2.1c', 'test_a.check_2.2a', 'test_a.check_2.2b', 'test_a.check_2.Unit_1c', 'test_a.check_2.unit_1a', 'test_a.check_2.unit_1b', 'test_b.check_1', 'test_b.check_2', 'test_c.check_1', 'test_c.check_2']
+    assert len(class_testsuite.get_all_tests()) == 19
     assert sorted(class_testsuite.get_all_tests()) == sorted(expected_tests)
+
+def test_get_toolchain(class_testsuite, monkeypatch, capsys):
+    """ Testing get_toolchain function of TestSuite class in Twister
+    Test 1 : Test toolchain returned by get_toolchain function is same as in the environment.
+    Test 2 : Monkeypatch to delete the  ZEPHYR_TOOLCHAIN_VARIANT env var
+    and check if appropriate error is raised"""
+    monkeypatch.setenv("ZEPHYR_TOOLCHAIN_VARIANT", "zephyr")
+    toolchain = class_testsuite.get_toolchain()
+    assert toolchain in ["zephyr"]
+
+    monkeypatch.delenv("ZEPHYR_TOOLCHAIN_VARIANT", raising=False)
+    with pytest.raises(SystemExit):
+        class_testsuite.get_toolchain()
+    out, _ = capsys.readouterr()
+    assert out == "E: Variable ZEPHYR_TOOLCHAIN_VARIANT is not defined\n"
 
 def test_get_platforms(class_testsuite, platforms_list):
     """ Testing get_platforms function of TestSuite class in Twister """
@@ -164,7 +169,6 @@ def test_apply_filters_part1(class_testsuite, all_testcases_dict, platforms_list
         assert not discards
 
     class_testsuite.platforms = platforms_list
-    class_testsuite.platform_names = [p.name for p in platforms_list]
     class_testsuite.testcases = all_testcases_dict
     for plat in class_testsuite.platforms:
         if plat_attribute == "ignore_tags":
@@ -235,7 +239,6 @@ def test_apply_filters_part2(class_testsuite, all_testcases_dict,
     """
 
     class_testsuite.platforms = platforms_list
-    class_testsuite.platform_names = [p.name for p in platforms_list]
     class_testsuite.testcases = all_testcases_dict
     kwargs = {
         extra_filter : extra_filter_value,
@@ -266,7 +269,6 @@ def test_apply_filters_part3(class_testsuite, all_testcases_dict, platforms_list
     Part 3 : Testing edge cases for ram and flash values of platforms & testcases
     """
     class_testsuite.platforms = platforms_list
-    class_testsuite.platform_names = [p.name for p in platforms_list]
     class_testsuite.testcases = all_testcases_dict
 
     for plat in class_testsuite.platforms:

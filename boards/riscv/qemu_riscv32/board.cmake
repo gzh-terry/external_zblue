@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
-set(SUPPORTED_EMU_PLATFORMS qemu)
+set(EMU_PLATFORM qemu)
 
 set(QEMU_binary_suffix riscv32)
 set(QEMU_CPU_TYPE_${ARCH} riscv32)
 
-if(CONFIG_BOARD_QEMU_RISCV32 OR CONFIG_BOARD_QEMU_RISCV32_SMP)
+if(CONFIG_BOARD_QEMU_RISCV32)
   set(QEMU_FLAGS_${ARCH}
     -nographic
     -machine virt

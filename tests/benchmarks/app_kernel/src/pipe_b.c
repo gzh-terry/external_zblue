@@ -91,6 +91,7 @@ int pipeput(struct k_pipe *pipe, enum pipe_options
  *
  * @brief Test the pipes transfer speed
  *
+ * @return N/A
  */
 void pipe_test(void)
 {

@@ -1,4 +1,0 @@
-tests:
-  subsys.pm.multicore:
-    platform_allow: qemu_x86_64
-    tags: pm

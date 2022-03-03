@@ -15,7 +15,6 @@
 #include <mbedtls/pk.h>
 #include <mbedtls/rsa.h>
 #include <mbedtls/sha256.h>
-#include <random/rand32.h>
 #endif
 
 #ifdef CONFIG_JWT_SIGN_ECDSA
@@ -191,14 +190,6 @@ int jwt_add_payload(struct jwt_builder *builder,
 }
 
 #ifdef CONFIG_JWT_SIGN_RSA
-
-static int csprng_wrapper(void *ctx, unsigned char *dest, size_t size)
-{
-	ARG_UNUSED(ctx);
-
-	return sys_csrand_get((void *)dest, size);
-}
-
 int jwt_sign(struct jwt_builder *builder,
 	     const char *der_key,
 	     size_t der_key_len)
@@ -209,7 +200,7 @@ int jwt_sign(struct jwt_builder *builder,
 	mbedtls_pk_init(&ctx);
 
 	res = mbedtls_pk_parse_key(&ctx, der_key, der_key_len,
-			       NULL, 0, csprng_wrapper, NULL);
+				       NULL, 0);
 	if (res != 0) {
 		return res;
 	}
@@ -226,8 +217,8 @@ int jwt_sign(struct jwt_builder *builder,
 
 	res = mbedtls_pk_sign(&ctx, MBEDTLS_MD_SHA256,
 			      hash, sizeof(hash),
-			      sig, sig_len, &sig_len,
-			      csprng_wrapper, NULL);
+			      sig, &sig_len,
+			      NULL, NULL);
 	if (res != 0) {
 		return res;
 	}

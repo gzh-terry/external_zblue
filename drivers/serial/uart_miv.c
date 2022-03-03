@@ -145,9 +145,13 @@ struct uart_miv_data {
 #endif
 };
 
+#define DEV_CFG(dev)						\
+	((const struct uart_miv_device_config * const)		\
+	 (dev)->config)
 #define DEV_UART(dev)						\
-	((struct uart_miv_regs_t *)				\
-	 ((const struct uart_miv_device_config * const)(dev)->config)->uart_addr)
+	((struct uart_miv_regs_t *)(DEV_CFG(dev))->uart_addr)
+#define DEV_DATA(dev)						\
+	((struct uart_miv_data * const)(dev)->data)
 
 static void uart_miv_poll_out(const struct device *dev,
 				       unsigned char c)
@@ -293,7 +297,7 @@ static int uart_miv_irq_update(const struct device *dev)
 
 static void uart_miv_irq_handler(const struct device *dev)
 {
-	struct uart_miv_data *data = dev->data;
+	struct uart_miv_data *data = DEV_DATA(dev);
 
 	if (data->callback) {
 		data->callback(dev, data->cb_data);
@@ -311,7 +315,7 @@ void uart_miv_rx_thread(void *arg1, void *arg2, void *arg3)
 	struct uart_miv_data *data = (struct uart_miv_data *)arg1;
 	const struct device *dev = data->dev;
 	volatile struct uart_miv_regs_t *uart = DEV_UART(dev);
-	const struct uart_miv_device_config *const cfg = dev->config;
+	const struct uart_miv_device_config *const cfg = DEV_CFG(dev);
 	/* Make it go to sleep for a period no longer than
 	 * time to receive next character.
 	 */
@@ -332,7 +336,7 @@ static void uart_miv_irq_callback_set(const struct device *dev,
 				      uart_irq_callback_user_data_t cb,
 				      void *cb_data)
 {
-	struct uart_miv_data *data = dev->data;
+	struct uart_miv_data *data = DEV_DATA(dev);
 
 	data->callback = cb;
 	data->cb_data = cb_data;
@@ -342,7 +346,7 @@ static void uart_miv_irq_callback_set(const struct device *dev,
 
 static int uart_miv_init(const struct device *dev)
 {
-	const struct uart_miv_device_config *const cfg = dev->config;
+	const struct uart_miv_device_config *const cfg = DEV_CFG(dev);
 	volatile struct uart_miv_regs_t *uart = DEV_UART(dev);
 	/* Calculate divider value to set baudrate */
 	uint16_t baud_value = (cfg->sys_clk_freq / (cfg->baud_rate * 16U)) - 1;
@@ -405,13 +409,13 @@ static const struct uart_miv_device_config uart_miv_dev_cfg_0 = {
 
 DEVICE_DT_INST_DEFINE(0, uart_miv_init, NULL,
 		    &uart_miv_data_0, &uart_miv_dev_cfg_0,
-		    PRE_KERNEL_1, CONFIG_SERIAL_INIT_PRIORITY,
+		    PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    (void *)&uart_miv_driver_api);
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 static void uart_miv_irq_cfg_func_0(const struct device *dev)
 {
-	struct uart_miv_data *data = dev->data;
+	struct uart_miv_data *data = DEV_DATA(dev);
 
 	data->dev = dev;
 

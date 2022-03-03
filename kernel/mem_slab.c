@@ -21,8 +21,7 @@
  * Perform any initialization of memory slabs that wasn't done at build time.
  * Currently this just involves creating the list of free blocks for each slab.
  *
- * @retval 0 on success.
- * @retval -EINVAL if @p slab contains invalid configuration and/or values.
+ * @return N/A
  */
 static int create_free_list(struct k_mem_slab *slab)
 {
@@ -51,14 +50,14 @@ static int create_free_list(struct k_mem_slab *slab)
  *
  * Perform any initialization that wasn't done at build time.
  *
- * @return 0 on success, fails otherwise.
+ * @return N/A
  */
 static int init_mem_slab_module(const struct device *dev)
 {
 	int rc = 0;
 	ARG_UNUSED(dev);
 
-	STRUCT_SECTION_FOREACH(k_mem_slab, slab) {
+	Z_STRUCT_SECTION_FOREACH(k_mem_slab, slab) {
 		rc = create_free_list(slab);
 		if (rc < 0) {
 			goto out;

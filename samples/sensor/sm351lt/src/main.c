@@ -33,7 +33,7 @@ static void fetch_and_display(const struct device *sensor)
 
 #ifdef CONFIG_SM351LT_TRIGGER
 static void trigger_handler(const struct device *dev,
-			    const struct sensor_trigger *trig)
+			    struct sensor_trigger *trig)
 {
 	fetch_and_display(dev);
 }

@@ -1,7 +1,7 @@
 .. _api_status_and_guidelines:
 
-API Status and Guidelines
-#########################
+API Status / Guidelines
+#######################
 
 .. toctree::
    :maxdepth: 1

@@ -15,9 +15,6 @@ GTEXT(__reset)
 
 /* imports */
 GTEXT(_PrepC)
-GTEXT(riscv_cpu_wake_flag)
-GTEXT(riscv_cpu_sp)
-GTEXT(z_riscv_secondary_cpu_init)
 
 #if CONFIG_INCLUDE_RESET_VECTOR
 SECTION_FUNC(reset, __reset)
@@ -36,17 +33,18 @@ SECTION_FUNC(reset, __reset)
  * the C domain
  */
 SECTION_FUNC(TEXT, __initialize)
+	/*
+	 * This will boot master core, just halt other cores.
+	 * Note: need to be updated for complete SMP support
+	 */
 	csrr a0, mhartid
-	beqz a0, boot_first_core
+	beqz a0, boot_master_core
 
-	li t0, CONFIG_MP_NUM_CPUS
-	blt a0, t0, boot_secondary_core
-
-loop_unconfigured_cores:
+loop_slave_core:
 	wfi
-	j loop_unconfigured_cores
+	j loop_slave_core
 
-boot_first_core:
+boot_master_core:
 
 #ifdef CONFIG_FPU
 	/*
@@ -95,16 +93,3 @@ aa_loop:
 	 * and then enters kernel z_cstart
 	 */
 	call _PrepC
-
-boot_secondary_core:
-	la t0, riscv_cpu_wake_flag
-	RV_OP_LOADREG t0, 0x00(t0)
-	bne a0, t0, boot_secondary_core
-
-	/* Set up stack */
-	la t0, riscv_cpu_sp
-	RV_OP_LOADREG sp, 0x00(t0)
-
-	la t0, riscv_cpu_wake_flag
-	RV_OP_STOREREG x0, 0x00(t0)
-	j z_riscv_secondary_cpu_init

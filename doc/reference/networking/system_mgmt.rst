@@ -16,5 +16,4 @@ Network System Management
    net_linkaddr.rst
    ethernet_mgmt.rst
    traffic-class.rst
-   net_pkt_filter.rst
    net_shell.rst

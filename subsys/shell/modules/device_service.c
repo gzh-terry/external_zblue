@@ -10,7 +10,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <device.h>
-#include <pm/device.h>
 #include <sys/arch_interface.h>
 
 extern const struct device __device_PRE_KERNEL_1_start[];
@@ -147,7 +146,7 @@ static int cmd_device_list(const struct shell *shell,
 			state = "DISABLED";
 		} else {
 #ifdef CONFIG_PM_DEVICE
-			enum pm_device_state st = PM_DEVICE_STATE_ACTIVE;
+			uint32_t st = PM_DEVICE_STATE_ACTIVE;
 			int err = pm_device_state_get(dev, &st);
 
 			if (!err) {

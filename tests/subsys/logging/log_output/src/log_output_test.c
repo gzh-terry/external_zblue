@@ -108,7 +108,7 @@ void test_log_output_string(void)
 	struct log_msg_ids src_level = {
 		.level = LOG_LEVEL_DBG,
 		.source_id = log_const_source_id(
-				&Z_LOG_ITEM_CONST_DATA(LOG_MODULE_NAME)),
+				&LOG_ITEM_CONST_DATA(LOG_MODULE_NAME)),
 		.domain_id = CONFIG_LOG_DOMAIN_ID,
 	};
 
@@ -149,11 +149,11 @@ void test_log_output_string(void)
 /*test case main entry*/
 void test_main(void)
 {
-	ztest_test_suite(test_log_output,
+	ztest_test_suite(test_log_message,
 		ztest_unit_test_setup_teardown(test_log_output_raw_string,
 					       setup, teardown),
 		ztest_unit_test_setup_teardown(test_log_output_string,
 					       setup, teardown)
 		);
-	ztest_run_test_suite(test_log_output);
+	ztest_run_test_suite(test_log_message);
 }

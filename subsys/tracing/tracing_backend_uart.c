@@ -4,11 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* Disable syscall tracing for all calls from this compilation unit to avoid
- * undefined symbols as the macros are not expanded recursively
- */
-#define DISABLE_SYSCALL_TRACING
-
 #include <errno.h>
 #include <ctype.h>
 #include <kernel.h>
@@ -18,7 +13,6 @@
 #include <tracing_core.h>
 #include <tracing_buffer.h>
 #include <tracing_backend.h>
-
 
 static const struct device *tracing_uart_dev;
 
@@ -66,8 +60,8 @@ static void uart_isr(const struct device *dev, void *user_data)
 #endif
 
 static void tracing_backend_uart_output(
-	const struct tracing_backend *backend,
-	uint8_t *data, uint32_t length)
+		const struct tracing_backend *backend,
+		uint8_t *data, uint32_t length)
 {
 	for (uint32_t i = 0; i < length; i++) {
 		uart_poll_out(tracing_uart_dev, data[i]);
@@ -98,7 +92,7 @@ static void tracing_backend_uart_init(void)
 
 const struct tracing_backend_api tracing_backend_uart_api = {
 	.init = tracing_backend_uart_init,
-	.output = tracing_backend_uart_output
+	.output  = tracing_backend_uart_output
 };
 
 TRACING_BACKEND_DEFINE(tracing_backend_uart, tracing_backend_uart_api);

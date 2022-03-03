@@ -3,6 +3,7 @@
 #
 # Copyright (c) 2018 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
+
 import os
 import contextlib
 import string
@@ -24,6 +25,7 @@ import glob
 import concurrent
 import xml.etree.ElementTree as ET
 import logging
+import pty
 from pathlib import Path
 from distutils.spawn import find_executable
 from colorama import Fore
@@ -32,7 +34,6 @@ import platform
 import yaml
 import json
 from multiprocessing import Lock, Process, Value
-from typing import List
 
 try:
     # Use the C LibYAML parser if available, rather than the Python parser.
@@ -56,14 +57,6 @@ try:
     import psutil
 except ImportError:
     print("Install psutil python module with pip to run in Qemu.")
-
-try:
-    import pty
-except ImportError as capture_error:
-    if os.name == "nt":  # "nt" means that program is running on Windows OS
-        pass  # "--device-serial-pty" option is not supported on Windows OS
-    else:
-        raise capture_error
 
 ZEPHYR_BASE = os.getenv("ZEPHYR_BASE")
 if not ZEPHYR_BASE:
@@ -407,7 +400,6 @@ class Handler:
         self.generator_cmd = None
 
         self.args = []
-        self.terminated = False
 
     def set_state(self, state, duration):
         self.state = state
@@ -426,48 +418,6 @@ class Handler:
                 for instance in harness.recording:
                     cw.writerow(instance)
 
-    def terminate(self, proc):
-        # encapsulate terminate functionality so we do it consistently where ever
-        # we might want to terminate the proc.  We need try_kill_process_by_pid
-        # because of both how newer ninja (1.6.0 or greater) and .NET / renode
-        # work.  Newer ninja's don't seem to pass SIGTERM down to the children
-        # so we need to use try_kill_process_by_pid.
-        for child in psutil.Process(proc.pid).children(recursive=True):
-            try:
-                os.kill(child.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-        proc.terminate()
-        # sleep for a while before attempting to kill
-        time.sleep(0.5)
-        proc.kill()
-        self.terminated = True
-
-    def add_missing_testscases(self, harness):
-        """
-        If testsuite was broken by some error (e.g. timeout) it is necessary to
-        add information about next testcases, which were not be
-        performed due to this error.
-        """
-        for c in self.instance.testcase.cases:
-            if c not in harness.tests:
-                harness.tests[c] = "BLOCK"
-
-    def _set_skip_reason(self, harness_state):
-        """
-        If testcase written in ztest framework is skipped by "ztest_test_skip()"
-        function, then such testcase is marked in instance.results dict as
-        "SKIP", but reason of this sipping still "Unknown". This method pick up
-        this situation and complete the instance.reason properly.
-        """
-        harness_state_pass = "passed"
-        harness_testcase_result_skip = "SKIP"
-        instance_reason_unknown = "Unknown"
-        if harness_state == harness_state_pass and \
-                self.instance.reason == instance_reason_unknown and \
-                harness_testcase_result_skip in self.instance.results.values():
-            self.instance.reason = "ztest skip"
-
 
 class BinaryHandler(Handler):
     def __init__(self, instance, type_str):
@@ -477,6 +427,7 @@ class BinaryHandler(Handler):
         """
         super().__init__(instance, type_str)
 
+        self.terminated = False
         self.call_west_flash = False
 
         # Tool options
@@ -495,6 +446,23 @@ class BinaryHandler(Handler):
                 os.kill(pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
+
+    def terminate(self, proc):
+        # encapsulate terminate functionality so we do it consistently where ever
+        # we might want to terminate the proc.  We need try_kill_process_by_pid
+        # because of both how newer ninja (1.6.0 or greater) and .NET / renode
+        # work.  Newer ninja's don't seem to pass SIGTERM down to the children
+        # so we need to use try_kill_process_by_pid.
+        for child in psutil.Process(proc.pid).children(recursive=True):
+            try:
+                os.kill(child.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+        proc.terminate()
+        # sleep for a while before attempting to kill
+        time.sleep(0.5)
+        proc.kill()
+        self.terminated = True
 
     def _output_reader(self, proc):
         self.line = proc.stdout.readline()
@@ -622,9 +590,6 @@ class BinaryHandler(Handler):
         else:
             self.set_state("timeout", handler_time)
             self.instance.reason = "Timeout"
-            self.add_missing_testscases(harness)
-
-        self._set_skip_reason(harness.state)
 
         self.record(harness)
 
@@ -723,10 +688,8 @@ class DeviceHandler(Handler):
     def run_custom_script(script, timeout):
         with subprocess.Popen(script, stderr=subprocess.PIPE, stdout=subprocess.PIPE) as proc:
             try:
-                stdout, stderr = proc.communicate(timeout=timeout)
+                stdout, _ = proc.communicate(timeout=timeout)
                 logger.debug(stdout.decode())
-                if proc.returncode != 0:
-                    logger.error(f"Custom script failure: {stderr.decode(errors='ignore')}")
 
             except subprocess.TimeoutExpired:
                 proc.kill()
@@ -759,7 +722,7 @@ class DeviceHandler(Handler):
         else:
             serial_device = hardware.serial
 
-        logger.debug(f"Using serial device {serial_device} @ {hardware.baud} baud")
+        logger.debug("Using serial device {}".format(serial_device))
 
         if (self.suite.west_flash is not None) or runner:
             command = ["west", "flash", "--skip-rebuild", "-d", self.build_dir]
@@ -786,7 +749,7 @@ class DeviceHandler(Handler):
                         command_extra_args.append("--board-id")
                         command_extra_args.append(board_id)
                     elif runner == "nrfjprog":
-                        command_extra_args.append("--dev-id")
+                        command_extra_args.append("--snr")
                         command_extra_args.append(board_id)
                     elif runner == "openocd" and product == "STM32 STLink":
                         command_extra_args.append("--cmd-pre-init")
@@ -799,8 +762,6 @@ class DeviceHandler(Handler):
                         command_extra_args.append("cmsis_dap_serial %s" % (board_id))
                     elif runner == "jlink":
                         command.append("--tool-opt=-SelectEmuBySN  %s" % (board_id))
-                    elif runner == "stm32cubeprogrammer":
-                        command.append("--tool-opt=sn=%s" % (board_id))
 
             if command_extra_args != []:
                 command.append('--')
@@ -818,7 +779,7 @@ class DeviceHandler(Handler):
         try:
             ser = serial.Serial(
                 serial_device,
-                baudrate=hardware.baud,
+                baudrate=115200,
                 parity=serial.PARITY_NONE,
                 stopbits=serial.STOPBITS_ONE,
                 bytesize=serial.EIGHTBITS,
@@ -857,8 +818,7 @@ class DeviceHandler(Handler):
             with subprocess.Popen(command, stderr=subprocess.PIPE, stdout=subprocess.PIPE) as proc:
                 try:
                     (stdout, stderr) = proc.communicate(timeout=30)
-                    # ignore unencodable unicode chars
-                    logger.debug(stdout.decode(errors = "ignore"))
+                    logger.debug(stdout.decode())
 
                     if proc.returncode != 0:
                         self.instance.reason = "Device issue (Flash?)"
@@ -899,7 +859,9 @@ class DeviceHandler(Handler):
         handler_time = time.time() - start_time
 
         if out_state in ["timeout", "flash_error"]:
-            self.add_missing_testscases(harness)
+            for c in self.instance.testcase.cases:
+                if c not in harness.tests:
+                    harness.tests[c] = "BLOCK"
 
             if out_state == "timeout":
                 self.instance.reason = "Timeout"
@@ -923,8 +885,6 @@ class DeviceHandler(Handler):
                 self.instance.reason = "Failed"
         else:
             self.set_state(out_state, handler_time)
-
-        self._set_skip_reason(harness.state)
 
         if post_script:
             self.run_custom_script(post_script, 30)
@@ -1163,22 +1123,31 @@ class QEMUHandler(Handler):
                 # twister to judge testing result by console output
 
                 is_timeout = True
-                self.terminate(proc)
-                if harness.state == "passed":
-                    self.returncode = 0
+                if os.path.exists(self.pid_fn):
+                    qemu_pid = int(open(self.pid_fn).read())
+                    try:
+                        os.kill(qemu_pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    proc.wait()
+                    if harness.state == "passed":
+                        self.returncode = 0
+                    else:
+                        self.returncode = proc.returncode
                 else:
+                    proc.terminate()
+                    proc.kill()
                     self.returncode = proc.returncode
             else:
                 if os.path.exists(self.pid_fn):
                     qemu_pid = int(open(self.pid_fn).read())
                 logger.debug(f"No timeout, return code from QEMU ({qemu_pid}): {proc.returncode}")
                 self.returncode = proc.returncode
+
             # Need to wait for harness to finish processing
             # output from QEMU. Otherwise it might miss some
             # error messages.
-            self.thread.join(0)
-            if self.thread.is_alive():
-                logger.debug("Timed out while monitoring QEMU output")
+            self.thread.join()
 
             if os.path.exists(self.pid_fn):
                 qemu_pid = int(open(self.pid_fn).read())
@@ -1192,9 +1161,6 @@ class QEMUHandler(Handler):
                 self.instance.reason = "Timeout"
             else:
                 self.instance.reason = "Exited with {}".format(self.returncode)
-            self.add_missing_testscases(harness)
-
-        self._set_skip_reason(harness.state)
 
     def get_fifo(self):
         return self.fifo_fn
@@ -1609,46 +1575,6 @@ class DisablePyTestCollectionMixin(object):
     __test__ = False
 
 
-class ScanPathResult:
-    """Result of the TestCase.scan_path function call.
-
-    Attributes:
-        matches                          A list of test cases
-        warnings                         A string containing one or more
-                                         warnings to display
-        has_registered_test_suites       Whether or not the path contained any
-                                         calls to the ztest_register_test_suite
-                                         macro.
-        has_run_registered_test_suites   Whether or not the path contained at
-                                         least one call to
-                                         ztest_run_registered_test_suites.
-        has_test_main                    Whether or not the path contains a
-                                         definition of test_main(void)
-    """
-    def __init__(self,
-                 matches: List[str] = None,
-                 warnings: str = None,
-                 has_registered_test_suites: bool = False,
-                 has_run_registered_test_suites: bool = False,
-                 has_test_main: bool = False):
-        self.matches = matches
-        self.warnings = warnings
-        self.has_registered_test_suites = has_registered_test_suites
-        self.has_run_registered_test_suites = has_run_registered_test_suites
-        self.has_test_main = has_test_main
-
-    def __eq__(self, other):
-        if not isinstance(other, ScanPathResult):
-            return False
-        return (sorted(self.matches) == sorted(other.matches) and
-                self.warnings == other.warnings and
-                (self.has_registered_test_suites ==
-                 other.has_registered_test_suites) and
-                (self.has_run_registered_test_suites ==
-                 other.has_run_registered_test_suites) and
-                self.has_test_main == other.has_test_main)
-
-
 class TestCase(DisablePyTestCollectionMixin):
     """Class representing a test application
     """
@@ -1735,52 +1661,29 @@ Tests should reference the category and subsystem with a dot as a separator.
             # line--as we only search starting the end of this match
             br"^\s*ztest_test_suite\(\s*(?P<suite_name>[a-zA-Z0-9_]+)\s*,",
             re.MULTILINE)
-        registered_suite_regex = re.compile(
-            br"^\s*ztest_register_test_suite"
-            br"\(\s*(?P<suite_name>[a-zA-Z0-9_]+)\s*,",
-            re.MULTILINE)
-        # Checks if the file contains a definition of "void test_main(void)"
-        # Since ztest provides a plain test_main implementation it is OK to:
-        # 1. register test suites and not call the run function iff the test
-        #    doesn't have a custom test_main.
-        # 2. register test suites and a custom test_main definition iff the test
-        #    also calls ztest_run_registered_test_suites.
-        test_main_regex = re.compile(
-            br"^\s*void\s+test_main\(void\)",
-            re.MULTILINE)
         stc_regex = re.compile(
-            br"""^\s*  # empy space at the beginning is ok
+            br"^\s*"  # empy space at the beginning is ok
             # catch the case where it is declared in the same sentence, e.g:
             #
             # ztest_test_suite(mutex_complex, ztest_user_unit_test(TESTNAME));
-            # ztest_register_test_suite(n, p, ztest_user_unit_test(TESTNAME),
-            (?:ztest_
-              (?:test_suite\(|register_test_suite\([a-zA-Z0-9_]+\s*,\s*)
-              [a-zA-Z0-9_]+\s*,\s*
-            )?
+            br"(?:ztest_test_suite\([a-zA-Z0-9_]+,\s*)?"
             # Catch ztest[_user]_unit_test-[_setup_teardown](TESTNAME)
-            ztest_(?:1cpu_)?(?:user_)?unit_test(?:_setup_teardown)?
+            br"ztest_(?:1cpu_)?(?:user_)?unit_test(?:_setup_teardown)?"
             # Consume the argument that becomes the extra testcse
-            \(\s*(?P<stc_name>[a-zA-Z0-9_]+)
+            br"\(\s*"
+            br"(?P<stc_name>[a-zA-Z0-9_]+)"
             # _setup_teardown() variant has two extra arguments that we ignore
-            (?:\s*,\s*[a-zA-Z0-9_]+\s*,\s*[a-zA-Z0-9_]+)?
-            \s*\)""",
+            br"(?:\s*,\s*[a-zA-Z0-9_]+\s*,\s*[a-zA-Z0-9_]+)?"
+            br"\s*\)",
             # We don't check how it finishes; we don't care
-            re.MULTILINE | re.VERBOSE)
+            re.MULTILINE)
         suite_run_regex = re.compile(
             br"^\s*ztest_run_test_suite\((?P<suite_name>[a-zA-Z0-9_]+)\)",
-            re.MULTILINE)
-        registered_suite_run_regex = re.compile(
-            br"^\s*ztest_run_registered_test_suites\("
-            br"(\*+|&)?(?P<state_identifier>[a-zA-Z0-9_]+)\)",
             re.MULTILINE)
         achtung_regex = re.compile(
             br"(#ifdef|#endif)",
             re.MULTILINE)
         warnings = None
-        has_registered_test_suites = False
-        has_run_registered_test_suites = False
-        has_test_main = False
 
         with open(inf_name) as inf:
             if os.name == 'nt':
@@ -1791,102 +1694,52 @@ Tests should reference the category and subsystem with a dot as a separator.
 
             with contextlib.closing(mmap.mmap(**mmap_args)) as main_c:
                 suite_regex_match = suite_regex.search(main_c)
-                registered_suite_regex_match = registered_suite_regex.search(
-                    main_c)
-
-                if registered_suite_regex_match:
-                    has_registered_test_suites = True
-                if registered_suite_run_regex.search(main_c):
-                    has_run_registered_test_suites = True
-                if test_main_regex.search(main_c):
-                    has_test_main = True
-
-                if not suite_regex_match and not has_registered_test_suites:
+                if not suite_regex_match:
                     # can't find ztest_test_suite, maybe a client, because
                     # it includes ztest.h
-                    return ScanPathResult(
-                        matches=None,
-                        warnings=None,
-                        has_registered_test_suites=has_registered_test_suites,
-                        has_run_registered_test_suites=has_run_registered_test_suites,
-                        has_test_main=has_test_main)
+                    return None, None
 
                 suite_run_match = suite_run_regex.search(main_c)
-                if suite_regex_match and not suite_run_match:
+                if not suite_run_match:
                     raise ValueError("can't find ztest_run_test_suite")
 
-                if suite_regex_match:
-                    search_start = suite_regex_match.end()
-                else:
-                    search_start = registered_suite_regex_match.end()
-
-                if suite_run_match:
-                    search_end = suite_run_match.start()
-                else:
-                    search_end = re.compile(br"\);", re.MULTILINE) \
-                        .search(main_c, search_start) \
-                        .end()
                 achtung_matches = re.findall(
                     achtung_regex,
-                    main_c[search_start:search_end])
+                    main_c[suite_regex_match.end():suite_run_match.start()])
                 if achtung_matches:
                     warnings = "found invalid %s in ztest_test_suite()" \
                                % ", ".join(sorted({match.decode() for match in achtung_matches},reverse = True))
                 _matches = re.findall(
                     stc_regex,
-                    main_c[search_start:search_end])
+                    main_c[suite_regex_match.end():suite_run_match.start()])
                 for match in _matches:
                     if not match.decode().startswith("test_"):
                         warnings = "Found a test that does not start with test_"
                 matches = [match.decode().replace("test_", "", 1) for match in _matches]
-                return ScanPathResult(
-                    matches=matches,
-                    warnings=warnings,
-                    has_registered_test_suites=has_registered_test_suites,
-                    has_run_registered_test_suites=has_run_registered_test_suites,
-                    has_test_main=has_test_main)
+                return matches, warnings
 
     def scan_path(self, path):
         subcases = []
-        has_registered_test_suites = False
-        has_run_registered_test_suites = False
-        has_test_main = False
         for filename in glob.glob(os.path.join(path, "src", "*.c*")):
             try:
-                result: ScanPathResult = self.scan_file(filename)
-                if result.warnings:
-                    logger.error("%s: %s" % (filename, result.warnings))
-                    raise TwisterRuntimeError(
-                        "%s: %s" % (filename, result.warnings))
-                if result.matches:
-                    subcases += result.matches
-                if result.has_registered_test_suites:
-                    has_registered_test_suites = True
-                if result.has_run_registered_test_suites:
-                    has_run_registered_test_suites = True
-                if result.has_test_main:
-                    has_test_main = True
+                _subcases, warnings = self.scan_file(filename)
+                if warnings:
+                    logger.error("%s: %s" % (filename, warnings))
+                    raise TwisterRuntimeError("%s: %s" % (filename, warnings))
+                if _subcases:
+                    subcases += _subcases
             except ValueError as e:
                 logger.error("%s: can't find: %s" % (filename, e))
 
         for filename in glob.glob(os.path.join(path, "*.c")):
             try:
-                result: ScanPathResult = self.scan_file(filename)
-                if result.warnings:
-                    logger.error("%s: %s" % (filename, result.warnings))
-                if result.matches:
-                    subcases += result.matches
+                _subcases, warnings = self.scan_file(filename)
+                if warnings:
+                    logger.error("%s: %s" % (filename, warnings))
+                if _subcases:
+                    subcases += _subcases
             except ValueError as e:
                 logger.error("%s: can't find: %s" % (filename, e))
-
-        if (has_registered_test_suites and has_test_main and
-                not has_run_registered_test_suites):
-            warning = \
-                "Found call to 'ztest_register_test_suite()' but no "\
-                "call to 'ztest_run_registered_test_suites()'"
-            logger.error(warning)
-            raise TwisterRuntimeError(warning)
-
         return subcases
 
     def parse_subcases(self, test_path):
@@ -1979,7 +1832,7 @@ class TestInstance(DisablePyTestCollectionMixin):
 
         target_ready = bool(self.testcase.type == "unit" or \
                         self.platform.type == "native" or \
-                        self.platform.simulation in ["mdb-nsim", "nsim", "renode", "qemu", "tsim", "armfvp", "xt-sim"] or \
+                        self.platform.simulation in ["mdb-nsim", "nsim", "renode", "qemu", "tsim", "armfvp"] or \
                         filter == 'runnable')
 
         if self.platform.simulation == "nsim":
@@ -2045,7 +1898,7 @@ class TestInstance(DisablePyTestCollectionMixin):
         """
         fns = glob.glob(os.path.join(self.build_dir, "zephyr", "*.elf"))
         fns.extend(glob.glob(os.path.join(self.build_dir, "zephyr", "*.exe")))
-        fns = [x for x in fns if '_pre' not in x]
+        fns = [x for x in fns if not x.endswith('_prebuilt.elf')]
         if len(fns) != 1:
             raise BuildError("Missing/multiple output ELF binary")
 
@@ -2142,7 +1995,7 @@ class CMake():
                     log.write(log_msg)
 
             if log_msg:
-                res = re.findall("region `(FLASH|ROM|RAM|ICCM|DCCM|SRAM)' overflowed by", log_msg)
+                res = re.findall("region `(FLASH|RAM|ICCM|DCCM|SRAM)' overflowed by", log_msg)
                 if res and not self.overflow_as_errors:
                     logger.debug("Test skipped due to {} Overflow".format(res[0]))
                     self.instance.status = "skipped"
@@ -2163,8 +2016,8 @@ class CMake():
         if self.warnings_as_errors:
             ldflags = "-Wl,--fatal-warnings"
             cflags = "-Werror"
-            aflags = "-Werror -Wa,--fatal-warnings"
-            gen_defines_args = "--edtlib-Werror"
+            aflags = "-Wa,--fatal-warnings"
+            gen_defines_args = "--err-on-deprecated-properties"
         else:
             ldflags = cflags = aflags = ""
             gen_defines_args = ""
@@ -2173,12 +2026,15 @@ class CMake():
         cmake_args = [
             f'-B{self.build_dir}',
             f'-S{self.source_dir}',
-            f'-DEXTRA_CFLAGS={cflags}',
-            f'-DEXTRA_AFLAGS={aflags}',
-            f'-DEXTRA_LDFLAGS={ldflags}',
+            f'-DEXTRA_CFLAGS="{cflags}"',
+            f'-DEXTRA_AFLAGS="{aflags}',
+            f'-DEXTRA_LDFLAGS="{ldflags}"',
             f'-DEXTRA_GEN_DEFINES_ARGS={gen_defines_args}',
             f'-G{self.generator}'
         ]
+
+        if self.cmake_only:
+            cmake_args.append("-DCMAKE_EXPORT_COMPILE_COMMANDS=1")
 
         args = ["-D{}".format(a.replace('"', '')) for a in args]
         cmake_args.extend(args)
@@ -2212,7 +2068,6 @@ class CMake():
         else:
             self.instance.status = "error"
             self.instance.reason = "Cmake build failure"
-            self.instance.fill_results_by_status()
             logger.error("Cmake build failure: %s for %s" % (self.source_dir, self.platform.name))
             results = {"returncode": p.returncode}
 
@@ -2247,13 +2102,6 @@ class CMake():
         p = subprocess.Popen(cmd, **kwargs)
         out, _ = p.communicate()
 
-        # It might happen that the environment adds ANSI escape codes like \x1b[0m,
-        # for instance if twister is executed from inside a makefile. In such a
-        # scenario it is then necessary to remove them, as otherwise the JSON decoding
-        # will fail.
-        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-        out = ansi_escape.sub('', out.decode())
-
         if p.returncode == 0:
             msg = "Finished running  %s" % (args[0])
             logger.debug(msg)
@@ -2261,7 +2109,7 @@ class CMake():
 
         else:
             logger.error("Cmake script failure: %s" % (args[0]))
-            results = {"returncode": p.returncode, "returnmsg": out}
+            results = {"returncode": p.returncode}
 
         return results
 
@@ -2440,12 +2288,10 @@ class ProjectBuilder(FilterBuilder):
         elif instance.platform.simulation == "mdb-nsim":
             if find_executable("mdb"):
                 instance.handler = BinaryHandler(instance, "nsim")
-                instance.handler.call_make_run = True
+                instance.handler.pid_fn = os.path.join(instance.build_dir, "mdb.pid")
+                instance.handler.call_west_flash = True
         elif instance.platform.simulation == "armfvp":
             instance.handler = BinaryHandler(instance, "armfvp")
-            instance.handler.call_make_run = True
-        elif instance.platform.simulation == "xt-sim":
-            instance.handler = BinaryHandler(instance, "xt-sim")
             instance.handler.call_make_run = True
 
         if instance.handler:
@@ -2797,7 +2643,6 @@ class TestSuite(DisablePyTestCollectionMixin):
         self.testcases = {}
         self.quarantine = {}
         self.platforms = []
-        self.platform_names = []
         self.selected_platforms = []
         self.filtered_platforms = []
         self.default_platforms = []
@@ -2817,9 +2662,6 @@ class TestSuite(DisablePyTestCollectionMixin):
         # run integration tests only
         self.integration = False
 
-        # used during creating shorter build paths
-        self.link_dir_counter = 0
-
         self.pipeline = None
         self.version = "NA"
 
@@ -2836,7 +2678,7 @@ class TestSuite(DisablePyTestCollectionMixin):
             logger.info("Cannot read zephyr version.")
 
     def get_platform_instances(self, platform):
-        filtered_dict = {k:v for k,v in self.instances.items() if k.startswith(platform + os.sep)}
+        filtered_dict = {k:v for k,v in self.instances.items() if k.startswith(platform + "/")}
         return filtered_dict
 
     def config(self):
@@ -3043,8 +2885,6 @@ class TestSuite(DisablePyTestCollectionMixin):
                     logger.error("E: %s: can't load: %s" % (file, e))
                     self.load_errors += 1
 
-        self.platform_names = [p.name for p in self.platforms]
-
     def get_all_tests(self):
         tests = []
         for _, tc in self.testcases.items():
@@ -3055,12 +2895,12 @@ class TestSuite(DisablePyTestCollectionMixin):
 
     @staticmethod
     def get_toolchain():
-        toolchain_script = Path(ZEPHYR_BASE) / Path('cmake/modules/verify-toolchain.cmake')
+        toolchain_script = Path(ZEPHYR_BASE) / Path('cmake/verify-toolchain.cmake')
         result = CMake.run_cmake_script([toolchain_script, "FORMAT=json"])
 
         try:
             if result['returncode']:
-                raise TwisterRuntimeError(f"E: {result['returnmsg']}")
+                raise TwisterRuntimeError("E: Variable ZEPHYR_TOOLCHAIN_VARIANT is not defined")
         except Exception as e:
             print(str(e))
             sys.exit(2)
@@ -3164,7 +3004,7 @@ class TestSuite(DisablePyTestCollectionMixin):
         quarantine_list = []
         for quar_dict in quarantine_yaml:
             if quar_dict['platforms'][0] == "all":
-                plat = self.platform_names
+                plat = [p.name for p in self.platforms]
             else:
                 plat = quar_dict['platforms']
             comment = quar_dict.get('comment', "NA")
@@ -3250,7 +3090,6 @@ class TestSuite(DisablePyTestCollectionMixin):
             emulation_platforms = True
 
         if platform_filter:
-            self.verify_platforms_existence(platform_filter, f"platform_filter")
             platforms = list(filter(lambda p: p.name in platform_filter, self.platforms))
         elif emu_filter:
             platforms = list(filter(lambda p: p.simulation != 'na', self.platforms))
@@ -3268,8 +3107,6 @@ class TestSuite(DisablePyTestCollectionMixin):
             if tc.build_on_all and not platform_filter:
                 platform_scope = self.platforms
             elif tc.integration_platforms and self.integration:
-                self.verify_platforms_existence(
-                    tc.integration_platforms, f"{tc_name} - integration_platforms")
                 platform_scope = list(filter(lambda item: item.name in tc.integration_platforms, \
                                          self.platforms))
             else:
@@ -3280,8 +3117,6 @@ class TestSuite(DisablePyTestCollectionMixin):
             # If there isn't any overlap between the platform_allow list and the platform_scope
             # we set the scope to the platform_allow list
             if tc.platform_allow and not platform_filter and not integration:
-                self.verify_platforms_existence(
-                    tc.platform_allow, f"{tc_name} - platform_allow")
                 a = set(platform_scope)
                 b = set(filter(lambda item: item.name in tc.platform_allow, self.platforms))
                 c = a.intersection(b)
@@ -3369,7 +3204,6 @@ class TestSuite(DisablePyTestCollectionMixin):
 
                 if not force_toolchain \
                         and toolchain and (toolchain not in plat.supported_toolchains) \
-                        and "host" not in plat.supported_toolchains \
                         and tc.type != 'unit':
                     discards[instance] = discards.get(instance, "Not supported by the toolchain")
 
@@ -3442,28 +3276,21 @@ class TestSuite(DisablePyTestCollectionMixin):
         self.discards = discards
         self.selected_platforms = set(p.platform.name for p in self.instances.values())
 
-        remove_from_discards = [] # configurations to be removed from discards.
         for instance in self.discards:
             instance.reason = self.discards[instance]
             # If integration mode is on all skips on integration_platforms are treated as errors.
-            if self.integration and instance.platform.name in instance.testcase.integration_platforms \
-                and "Quarantine" not in instance.reason:
+            # TODO: add quarantine relief here when PR with quarantine feature gets merged
+            if self.integration and instance.platform.name in instance.testcase.integration_platforms:
                 instance.status = "error"
                 instance.reason += " but is one of the integration platforms"
                 instance.fill_results_by_status()
                 self.instances[instance.name] = instance
-                # Such configuration has to be removed from discards to make sure it won't get skipped
-                remove_from_discards.append(instance)
             else:
                 instance.status = "skipped"
                 instance.fill_results_by_status()
 
         self.filtered_platforms = set(p.platform.name for p in self.instances.values()
                                       if p.status != "skipped" )
-
-        # Remove from discards configururations that must not be discarded (e.g. integration_platforms when --integration was used)
-        for instance in remove_from_discards:
-            del self.discards[instance]
 
         return discards
 
@@ -3491,16 +3318,16 @@ class TestSuite(DisablePyTestCollectionMixin):
             if build_only:
                 instance.run = False
 
-            if instance.status not in ['passed', 'skipped', 'error']:
-                logger.debug(f"adding {instance.name}")
-                instance.status = None
-                if test_only and instance.run:
-                    pipeline.put({"op": "run", "test": instance})
-                else:
+            if test_only and instance.run:
+                pipeline.put({"op": "run", "test": instance})
+            else:
+                if instance.status not in ['passed', 'skipped', 'error']:
+                    logger.debug(f"adding {instance.name}")
+                    instance.status = None
                     pipeline.put({"op": "cmake", "test": instance})
-            # If the instance got 'error' status before, proceed to the report stage
-            if instance.status == "error":
-                pipeline.put({"op": "report", "test": instance})
+                # If the instance got 'error' status before, proceed to the report stage
+                if instance.status == "error":
+                    pipeline.put({"op": "report", "test": instance})
 
     def pipeline_mgr(self, pipeline, done_queue, lock, results):
         while True:
@@ -3849,6 +3676,7 @@ class TestSuite(DisablePyTestCollectionMixin):
                 handler_time = instance.metrics.get('handler_time', 0)
                 ram_size = instance.metrics.get ("ram_size", 0)
                 rom_size  = instance.metrics.get("rom_size",0)
+
                 for k in instance.results.keys():
                     testcases = list(filter(lambda d: not (d.get('testcase') == k and d.get('platform') == p), testcases ))
                     testcase = {"testcase": k,
@@ -3860,14 +3688,12 @@ class TestSuite(DisablePyTestCollectionMixin):
                     if rom_size:
                         testcase["rom_size"] = rom_size
 
-                    if instance.results[k] in ["SKIP"] or instance.status == 'skipped':
-                        testcase["status"] = "skipped"
-                        testcase["reason"] = instance.reason
-                    elif instance.results[k] in ["PASS"] or instance.status == 'passed':
+                    if instance.results[k] in ["PASS"]:
                         testcase["status"] = "passed"
                         if instance.handler:
                             testcase["execution_time"] =  handler_time
-                    elif instance.results[k] in ['FAIL', 'BLOCK'] or instance.status in ["error", "failed", "timeout", "flash_error"]:
+
+                    elif instance.results[k] in ['FAIL', 'BLOCK'] or instance.status in ["error", "failed", "timeout"]:
                         testcase["status"] = "failed"
                         testcase["reason"] = instance.reason
                         testcase["execution_time"] =  handler_time
@@ -3877,6 +3703,9 @@ class TestSuite(DisablePyTestCollectionMixin):
                             testcase["device_log"] = self.process_log(device_log)
                         else:
                             testcase["build_log"] = self.process_log(build_log)
+                    else:
+                        testcase["status"] = "skipped"
+                        testcase["reason"] = instance.reason
                     testcases.append(testcase)
 
         suites = [ {"testcases": testcases} ]
@@ -3892,62 +3721,6 @@ class TestSuite(DisablePyTestCollectionMixin):
                 if case == identifier:
                     results.append(tc)
         return results
-
-    def verify_platforms_existence(self, platform_names_to_verify, log_info=""):
-        """
-        Verify if platform name (passed by --platform option, or in yaml file
-        as platform_allow or integration_platforms options) is correct. If not -
-        log and raise error.
-        """
-        for platform in platform_names_to_verify:
-            if platform in self.platform_names:
-                break
-            else:
-                logger.error(f"{log_info} - unrecognized platform - {platform}")
-                sys.exit(2)
-
-    def create_build_dir_links(self):
-        """
-        Iterate through all no-skipped instances in suite and create links
-        for each one build directories. Those links will be passed in the next
-        steps to the CMake command.
-        """
-
-        links_dir_name = "twister_links"  # folder for all links
-        links_dir_path = os.path.join(self.outdir, links_dir_name)
-        if not os.path.exists(links_dir_path):
-            os.mkdir(links_dir_path)
-
-        for instance in self.instances.values():
-            if instance.status != "skipped":
-                self._create_build_dir_link(links_dir_path, instance)
-
-    def _create_build_dir_link(self, links_dir_path, instance):
-        """
-        Create build directory with original "long" path. Next take shorter
-        path and link them with original path - create link. At the end
-        replace build_dir to created link. This link will be passed to CMake
-        command. This action helps to limit path length which can be
-        significant during building by CMake on Windows OS.
-        """
-
-        os.makedirs(instance.build_dir, exist_ok=True)
-
-        link_name = f"test_{self.link_dir_counter}"
-        link_path = os.path.join(links_dir_path, link_name)
-
-        if os.name == "nt":  # if OS is Windows
-            command = ["mklink", "/J", f"{link_path}", f"{instance.build_dir}"]
-            subprocess.call(command, shell=True)
-        else:  # for Linux and MAC OS
-            os.symlink(instance.build_dir, link_path)
-
-        # Here original build directory is replaced with symbolic link. It will
-        # be passed to CMake command
-        instance.build_dir = link_path
-
-        self.link_dir_counter += 1
-
 
 class CoverageTool:
     """ Base class for every supported coverage tool
@@ -3971,12 +3744,12 @@ class CoverageTool:
         return t
 
     @staticmethod
-    def retrieve_gcov_data(input_file):
-        logger.debug("Working on %s" % input_file)
+    def retrieve_gcov_data(intput_file):
+        logger.debug("Working on %s" % intput_file)
         extracted_coverage_info = {}
         capture_data = False
         capture_complete = False
-        with open(input_file, 'r') as fp:
+        with open(intput_file, 'r') as fp:
             for line in fp.readlines():
                 if re.search("GCOV_COVERAGE_DUMP_START", line):
                     capture_data = True
@@ -4145,12 +3918,10 @@ class Gcovr(CoverageTool):
                                ["-o", os.path.join(subdir, "index.html")],
                                stdout=coveragelog)
 
-
 class DUT(object):
     def __init__(self,
                  id=None,
                  serial=None,
-                 serial_baud=None,
                  platform=None,
                  product=None,
                  serial_pty=None,
@@ -4161,7 +3932,6 @@ class DUT(object):
                  runner=None):
 
         self.serial = serial
-        self.baud = serial_baud or 115200
         self.platform = platform
         self.serial_pty = serial_pty
         self._counter = Value("i", 0)
@@ -4253,8 +4023,8 @@ class HardwareMap:
         self.detected = []
         self.duts = []
 
-    def add_device(self, serial, platform, pre_script, is_pty, baud=None):
-        device = DUT(platform=platform, connected=True, pre_script=pre_script, serial_baud=baud)
+    def add_device(self, serial, platform, pre_script, is_pty):
+        device = DUT(platform=platform, connected=True, pre_script=pre_script)
 
         if is_pty:
             device.serial_pty = serial
@@ -4274,7 +4044,6 @@ class HardwareMap:
             id = dut.get('id')
             runner = dut.get('runner')
             serial = dut.get('serial')
-            baud = dut.get('baud', None)
             product = dut.get('product')
             fixtures = dut.get('fixtures', [])
             new_dut = DUT(platform=platform,
@@ -4282,7 +4051,6 @@ class HardwareMap:
                           runner=runner,
                           id=id,
                           serial=serial,
-                          serial_baud=baud,
                           connected=serial is not None,
                           pre_script=pre_script,
                           post_script=post_script,
@@ -4343,7 +4111,6 @@ class HardwareMap:
                             s_dev.runner = runner
 
                 s_dev.connected = True
-                s_dev.lock = None
                 self.detected.append(s_dev)
             else:
                 logger.warning("Unsupported device (%s): %s" % (d.manufacturer, d))

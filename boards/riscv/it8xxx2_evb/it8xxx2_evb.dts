@@ -5,19 +5,11 @@
 
 /dts-v1/;
 
-#include <dt-bindings/gpio/gpio.h>
 #include <it8xxx2.dtsi>
-#include <it8xxx2-alts-map.dtsi>
 
 / {
 	model = "IT8XXX2 EV-Board";
 	compatible = "riscv,it8xxx2-evb";
-
-	aliases {
-		i2c-0 = &i2c0;
-		peci-0 = &peci0;
-	};
-
 	chosen {
 		zephyr,console = &uart1;
 		zephyr,shell-uart = &uart1;
@@ -26,22 +18,6 @@
 		zephyr,flash = &flash0;
 		zephyr,flash-controller = &flashctrl;
 		zephyr,code-partition = &slot0_partition;
-		zephyr,keyboard-scan = &kscan0;
-	};
-
-	aliases {
-		led0 = &led0;
-		kscan0 = &kscan0;
-		watchdog0 = &twd0;
-		pwm-0 = &pwm0;
-	};
-
-	leds {
-		compatible = "gpio-leds";
-		led0: led_0 {
-			gpios = <&gpioc 0 GPIO_ACTIVE_HIGH>;
-			label = "Green LED";
-		};
 	};
 };
 &adc0 {
@@ -80,37 +56,6 @@
 	status = "okay";
 	current-speed = <460800>;
 	clock-frequency = <1804800>;
-};
-&ite_uart1_wrapper {
-	status = "okay";
-};
-&ite_uart2_wrapper {
-	status = "okay";
-};
-/* pwm for test */
-&pwm0 {
-	status = "okay";
-	prescaler-cx = <PWM_PRESCALER_C6>;
-	/*
-	 * If we need pwm output in ITE chip power saving mode,
-	 * then we should set frequency <=324Hz.
-	 */
-	pwm-output-frequency = <324>;
-};
-/* pwm for fan */
-&pwm7 {
-	status = "okay";
-	prescaler-cx = <PWM_PRESCALER_C4>;
-	pwm-output-frequency = <30000>;
-};
-/* fan tachometer sensor */
-&tach0 {
-	status = "okay";
-	channel = <IT8XXX2_TACH_CHANNEL_A>;
-	pulses-per-round = <2>;
-};
-&kscan0 {
-	status = "okay";
 };
 &flash0 {
 	partitions {

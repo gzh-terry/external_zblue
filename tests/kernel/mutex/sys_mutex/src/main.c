@@ -50,7 +50,7 @@
 #include <ztest.h>
 #include <sys/mutex.h>
 
-#define STACKSIZE (512 + CONFIG_TEST_EXTRA_STACK_SIZE)
+#define STACKSIZE (512 + CONFIG_TEST_EXTRA_STACKSIZE)
 
 static ZTEST_DMEM int tc_rc = TC_PASS;         /* test case return code */
 
@@ -73,6 +73,7 @@ extern void test_mutex_multithread_competition(void);
  *
  * thread_05 -
  *
+ * @return  N/A
  */
 
 void thread_05(void)
@@ -95,6 +96,7 @@ void thread_05(void)
  *
  * thread_06 -
  *
+ * @return  N/A
  */
 
 void thread_06(void)
@@ -126,6 +128,7 @@ void thread_06(void)
  *
  * thread_07 -
  *
+ * @return  N/A
  */
 
 void thread_07(void)
@@ -155,6 +158,7 @@ void thread_07(void)
  *
  * thread_08 -
  *
+ * @return  N/A
  */
 
 void thread_08(void)
@@ -178,6 +182,7 @@ void thread_08(void)
  *
  * thread_09 -
  *
+ * @return  N/A
  */
 
 void thread_09(void)
@@ -210,6 +215,7 @@ void thread_09(void)
  *
  * thread_11 -
  *
+ * @return N/A
  */
 
 void thread_11(void)
@@ -237,6 +243,7 @@ extern void thread_12(void);
  * This thread will lock on mutex_1, mutex_2, mutex_3 and mutex_4. It later
  * recursively locks private_mutex, releases it, then re-locks it.
  *
+ * @return  N/A
  */
 
 void test_mutex(void)

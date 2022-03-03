@@ -22,8 +22,6 @@ LOG_MODULE_REGISTER(net_wifi_shell, LOG_LEVEL_INF);
 #include <net/wifi_mgmt.h>
 #include <net/net_event.h>
 
-#include "net_private.h"
-
 #define WIFI_SHELL_MODULE "wifi"
 
 #define WIFI_SHELL_MGMT_EVENTS (NET_EVENT_WIFI_SCAN_RESULT |		\
@@ -62,22 +60,21 @@ static void handle_wifi_scan_result(struct net_mgmt_event_callback *cb)
 {
 	const struct wifi_scan_result *entry =
 		(const struct wifi_scan_result *)cb->info;
-	uint8_t mac_string_buf[sizeof("xx:xx:xx:xx:xx:xx")];
 
 	scan_result++;
 
 	if (scan_result == 1U) {
 		print(context.shell, SHELL_NORMAL,
-		      "\n%-4s | %-32s %-5s | %-4s | %-4s | %-5s    | %s\n",
-		      "Num", "SSID", "(len)", "Chan", "RSSI", "Sec", "MAC");
+		      "%-4s | %-32s %-5s | %-4s | %-4s | %-5s\n",
+		      "Num", "SSID", "(len)", "Chan", "RSSI", "Sec");
 	}
 
-	print(context.shell, SHELL_NORMAL, "%-4d | %-32s %-5u | %-4u | %-4d | %-5s | %s\n",
-	      scan_result, entry->ssid, entry->ssid_length, entry->channel, entry->rssi,
-	      (entry->security == WIFI_SECURITY_TYPE_PSK ? "WPA/WPA2" : "Open    "),
-	      ((entry->mac_length) ?
-		      net_sprint_ll_addr_buf(entry->mac, WIFI_MAC_ADDR_LEN, mac_string_buf,
-					     sizeof(mac_string_buf)) : ""));
+	print(context.shell, SHELL_NORMAL,
+	      "%-4d | %-32s %-5u | %-4u | %-4d | %-5s\n",
+	      scan_result, entry->ssid, entry->ssid_length,
+	      entry->channel, entry->rssi,
+	      (entry->security == WIFI_SECURITY_TYPE_PSK ?
+	       "WPA/WPA2" : "Open"));
 }
 
 static void handle_wifi_scan_done(struct net_mgmt_event_callback *cb)

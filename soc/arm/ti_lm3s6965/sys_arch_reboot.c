@@ -15,6 +15,7 @@
  *
  * This routine resets the processor.
  *
+ * @return N/A
  */
 
 void sys_arch_reboot(int type)

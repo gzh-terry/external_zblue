@@ -36,7 +36,6 @@
 #include "beacon.h"
 #include "rpl.h"
 #include "settings.h"
-#include "host/ecc.h"
 #include "prov.h"
 
 /* Tracking of what storage changes are pending for Net Keys. We track this in
@@ -67,7 +66,7 @@ static struct bt_mesh_subnet subnets[CONFIG_BT_MESH_SUBNET_COUNT] = {
 
 static void subnet_evt(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
 {
-	STRUCT_SECTION_FOREACH(bt_mesh_subnet_cb, cb) {
+	Z_STRUCT_SECTION_FOREACH(bt_mesh_subnet_cb, cb) {
 		cb->evt_handler(sub, evt);
 	}
 }
@@ -538,7 +537,7 @@ uint8_t bt_mesh_subnet_node_id_set(uint16_t net_idx,
 		bt_mesh_proxy_identity_stop(sub);
 	}
 
-	bt_mesh_adv_gatt_update();
+	bt_mesh_adv_update();
 
 	return STATUS_SUCCESS;
 }
@@ -638,7 +637,8 @@ int bt_mesh_subnet_set(uint16_t net_idx, uint8_t kr_phase,
 	return 0;
 }
 
-struct bt_mesh_subnet *bt_mesh_subnet_find(bool (*cb)(struct bt_mesh_subnet *sub, void *cb_data),
+struct bt_mesh_subnet *bt_mesh_subnet_find(int (*cb)(struct bt_mesh_subnet *sub,
+						     void *cb_data),
 					   void *cb_data)
 {
 	for (int i = 0; i < ARRAY_SIZE(subnets); i++) {

@@ -44,13 +44,11 @@ static struct configs configs = {
 #if CONFIG_MCUMGR_SMP_UDP_IPV4
 	.ipv4 = {
 		.proto = "IPv4",
-		.sock  = -1,
 	},
 #endif
 #if CONFIG_MCUMGR_SMP_UDP_IPV6
 	.ipv6 = {
 		.proto = "IPv6",
-		.sock  = -1,
 	},
 #endif
 };
@@ -123,11 +121,6 @@ static void smp_udp_receive_thread(void *p1, void *p2, void *p3)
 
 			/* store sender address in user data for reply */
 			nb = mcumgr_buf_alloc();
-			if (!nb) {
-				LOG_ERR("Failed to allocate mcumgr buffer");
-				/* No free space, drop smp frame */
-				continue;
-			}
 			net_buf_add_mem(nb, conf->recv_buffer, len);
 			ud = net_buf_user_data(nb);
 			net_ipaddr_copy(ud, &addr);
@@ -206,7 +199,7 @@ int smp_udp_open(void)
 	memset(&addr4, 0, sizeof(addr4));
 	addr4.sin_family = AF_INET;
 	addr4.sin_port = htons(CONFIG_MCUMGR_SMP_UDP_PORT);
-	addr4.sin_addr.s_addr = htonl(INADDR_ANY);
+	inet_pton(AF_INET, INADDR_ANY, &addr4.sin_addr);
 
 	conf = &configs.ipv4;
 	conf->sock = create_socket((struct sockaddr *)&addr4, conf->proto);
@@ -242,19 +235,13 @@ int smp_udp_open(void)
 int smp_udp_close(void)
 {
 #if CONFIG_MCUMGR_SMP_UDP_IPV4
-	if (configs.ipv4.sock >= 0) {
-		k_thread_abort(&(configs.ipv4.thread));
-		close(configs.ipv4.sock);
-		configs.ipv4.sock = -1;
-	}
+	k_thread_abort(&(configs.ipv4.thread));
+	close(configs.ipv4.sock);
 #endif
 
 #if CONFIG_MCUMGR_SMP_UDP_IPV6
-	if (configs.ipv6.sock >= 0) {
-		k_thread_abort(&(configs.ipv6.thread));
-		close(configs.ipv6.sock);
-		configs.ipv6.sock = -1;
-	}
+	k_thread_abort(&(configs.ipv6.thread));
+	close(configs.ipv6.sock);
 #endif
 
 	return MGMT_ERR_EOK;

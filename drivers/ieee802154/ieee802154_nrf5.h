@@ -17,7 +17,7 @@
 struct nrf5_802154_rx_frame {
 	void *fifo_reserved; /* 1st word reserved for use by fifo. */
 	uint8_t *psdu; /* Pointer to a received frame. */
-	uint64_t time; /* RX timestamp. */
+	uint32_t time; /* RX timestamp. */
 	uint8_t lqi; /* Last received frame LQI value. */
 	int8_t rssi; /* Last received frame RSSI value. */
 	bool ack_fpb; /* FPB value in ACK sent for the received frame. */
@@ -83,15 +83,6 @@ struct nrf5_802154_data {
 
 	/* Capabilities of the network interface. */
 	enum ieee802154_hw_caps capabilities;
-
-	/* Next CSL receive time */
-	uint32_t csl_rx_time;
-
-	/* Indicates if currently processed TX frame is secured. */
-	bool tx_frame_is_secured;
-
-	/* Indicates if currently processed TX frame has dynamic data updated. */
-	bool tx_frame_mac_hdr_rdy;
 };
 
 #endif /* ZEPHYR_DRIVERS_IEEE802154_IEEE802154_NRF5_H_ */

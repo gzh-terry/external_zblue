@@ -33,11 +33,13 @@ struct nios2_msgdma_dev_cfg {
 };
 
 #define DEV_NAME(dev) ((dev)->name)
+#define DEV_CFG(dev) \
+	((struct nios2_msgdma_dev_cfg *)(dev)->config)
 
 static void nios2_msgdma_isr(void *arg)
 {
 	const struct device *dev = (const struct device *)arg;
-	struct nios2_msgdma_dev_cfg *cfg = (struct nios2_msgdma_dev_cfg *)dev->config;
+	struct nios2_msgdma_dev_cfg *cfg = DEV_CFG(dev);
 
 	/* Call Altera HAL driver ISR */
 	alt_handle_irq(cfg->msgdma_dev, DT_INST_IRQN(0));
@@ -68,7 +70,7 @@ static void nios2_msgdma_callback(void *context)
 static int nios2_msgdma_config(const struct device *dev, uint32_t channel,
 			       struct dma_config *cfg)
 {
-	struct nios2_msgdma_dev_cfg *dev_cfg = (struct nios2_msgdma_dev_cfg *)dev->config;
+	struct nios2_msgdma_dev_cfg *dev_cfg = DEV_CFG(dev);
 	struct dma_block_config *dma_block;
 	int status;
 	uint32_t control;
@@ -153,7 +155,7 @@ static int nios2_msgdma_config(const struct device *dev, uint32_t channel,
 static int nios2_msgdma_transfer_start(const struct device *dev,
 				       uint32_t channel)
 {
-	struct nios2_msgdma_dev_cfg *cfg = (struct nios2_msgdma_dev_cfg *)dev->config;
+	struct nios2_msgdma_dev_cfg *cfg = DEV_CFG(dev);
 	int status;
 
 	/* Nios-II mSGDMA supports only one channel per DMA core */
@@ -177,7 +179,7 @@ static int nios2_msgdma_transfer_start(const struct device *dev,
 static int nios2_msgdma_transfer_stop(const struct device *dev,
 				      uint32_t channel)
 {
-	struct nios2_msgdma_dev_cfg *cfg = (struct nios2_msgdma_dev_cfg *)dev->config;
+	struct nios2_msgdma_dev_cfg *cfg = DEV_CFG(dev);
 	int ret = -EIO;
 	uint32_t status;
 
@@ -207,7 +209,7 @@ static const struct dma_driver_api nios2_msgdma_driver_api = {
 
 static int nios2_msgdma0_initialize(const struct device *dev)
 {
-	struct nios2_msgdma_dev_cfg *dev_cfg = (struct nios2_msgdma_dev_cfg *)dev->config;
+	struct nios2_msgdma_dev_cfg *dev_cfg = DEV_CFG(dev);
 
 	dev_cfg->dev = dev;
 
@@ -233,4 +235,4 @@ static struct nios2_msgdma_dev_cfg dma0_nios2_config = {
 
 DEVICE_DT_INST_DEFINE(0, &nios2_msgdma0_initialize,
 		NULL, NULL, &dma0_nios2_config, POST_KERNEL,
-		CONFIG_DMA_INIT_PRIORITY, &nios2_msgdma_driver_api);
+		CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &nios2_msgdma_driver_api);

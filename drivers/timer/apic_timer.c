@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <device.h>
 #include <drivers/timer/system_timer.h>
 #include <sys_clock.h>
 #include <spinlock.h>
@@ -214,7 +213,7 @@ uint32_t sys_clock_cycle_get_32(void)
 
 #endif
 
-static int sys_clock_driver_init(const struct device *dev)
+int sys_clock_driver_init(const struct device *dev)
 {
 	uint32_t val;
 
@@ -241,6 +240,3 @@ static int sys_clock_driver_init(const struct device *dev)
 
 	return 0;
 }
-
-SYS_INIT(sys_clock_driver_init, PRE_KERNEL_2,
-	 CONFIG_SYSTEM_CLOCK_INIT_PRIORITY);

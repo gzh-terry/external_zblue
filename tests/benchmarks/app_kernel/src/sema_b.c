@@ -15,6 +15,7 @@
  *
  * @brief Semaphore signal speed test
  *
+ * @return N/A
  */
 void sema_test(void)
 {

@@ -403,6 +403,6 @@ DEVICE_DT_INST_DEFINE(0,
 		    NULL,
 		    &gpio_eos_s3_data,
 		    &gpio_eos_s3_config,
-		    PRE_KERNEL_1,
-		    CONFIG_GPIO_INIT_PRIORITY,
+		    POST_KERNEL,
+		    CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,
 		    &gpio_eos_s3_driver_api);

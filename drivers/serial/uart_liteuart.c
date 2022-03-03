@@ -90,6 +90,8 @@ static int uart_liteuart_poll_in(const struct device *dev, unsigned char *c)
  * @brief Enable TX interrupt in event register
  *
  * @param dev UART device struct
+ *
+ * @return N/A
  */
 static void uart_liteuart_irq_tx_enable(const struct device *dev)
 {
@@ -102,6 +104,8 @@ static void uart_liteuart_irq_tx_enable(const struct device *dev)
  * @brief Disable TX interrupt in event register
  *
  * @param dev UART device struct
+ *
+ * @return N/A
  */
 static void uart_liteuart_irq_tx_disable(const struct device *dev)
 {
@@ -114,6 +118,8 @@ static void uart_liteuart_irq_tx_disable(const struct device *dev)
  * @brief Enable RX interrupt in event register
  *
  * @param dev UART device struct
+ *
+ * @return N/A
  */
 static void uart_liteuart_irq_rx_enable(const struct device *dev)
 {
@@ -126,6 +132,8 @@ static void uart_liteuart_irq_rx_enable(const struct device *dev)
  * @brief Disable RX interrupt in event register
  *
  * @param dev UART device struct
+ *
+ * @return N/A
  */
 static void uart_liteuart_irq_rx_disable(const struct device *dev)
 {
@@ -250,6 +258,8 @@ static int uart_liteuart_irq_update(const struct device *dev)
  *
  * @param dev UART device struct
  * @param cb Callback function pointer.
+ *
+ * @return N/A
  */
 static void uart_liteuart_irq_callback_set(const struct device *dev,
 					   uart_irq_callback_user_data_t cb,
@@ -257,14 +267,14 @@ static void uart_liteuart_irq_callback_set(const struct device *dev,
 {
 	struct uart_liteuart_data *data;
 
-	data = dev->data;
+	data = (struct uart_liteuart_data *)dev->data;
 	data->callback = cb;
 	data->cb_data = cb_data;
 }
 
 static void liteuart_uart_irq_handler(const struct device *dev)
 {
-	struct uart_liteuart_data *data = dev->data;
+	struct uart_liteuart_data *data = DEV_DATA(dev);
 	int key = irq_lock();
 
 	if (data->callback) {
@@ -311,7 +321,7 @@ DEVICE_DT_INST_DEFINE(0,
 		uart_liteuart_init,
 		NULL,
 		&uart_liteuart_data_0, &uart_liteuart_dev_cfg_0,
-		PRE_KERNEL_1, CONFIG_SERIAL_INIT_PRIORITY,
+		PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		(void *)&uart_liteuart_driver_api);
 
 static int uart_liteuart_init(const struct device *dev)

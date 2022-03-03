@@ -306,15 +306,9 @@ otError otPlatSettingsDelete(otInstance *aInstance, uint16_t aKey, int aIndex)
 
 void otPlatSettingsWipe(otInstance *aInstance)
 {
-	int ret;
-
 	ARG_UNUSED(aInstance);
 
-	ret = ot_setting_delete_subtree(-1, -1);
-	if (ret != 0) {
-		LOG_ERR("Failed to delete OT subtree");
-		__ASSERT_NO_MSG(false);
-	}
+	(void)ot_setting_delete_subtree(-1, -1);
 }
 
 void otPlatSettingsDeinit(otInstance *aInstance)

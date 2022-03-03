@@ -102,5 +102,5 @@ static struct entropy_driver_api entropy_gecko_trng_api_funcs = {
 DEVICE_DT_INST_DEFINE(0,
 			entropy_gecko_trng_init, NULL,
 			NULL, NULL,
-			PRE_KERNEL_1, CONFIG_ENTROPY_INIT_PRIORITY,
+			PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 			&entropy_gecko_trng_api_funcs);

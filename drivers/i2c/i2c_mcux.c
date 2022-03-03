@@ -18,8 +18,12 @@ LOG_MODULE_REGISTER(i2c_mcux);
 
 #include "i2c-priv.h"
 
+#define DEV_CFG(dev) \
+	((const struct i2c_mcux_config * const)(dev)->config)
+#define DEV_DATA(dev) \
+	((struct i2c_mcux_data * const)(dev)->data)
 #define DEV_BASE(dev) \
-	((I2C_Type *)((const struct i2c_mcux_config * const)(dev)->config)->base)
+	((I2C_Type *)(DEV_CFG(dev))->base)
 
 struct i2c_mcux_config {
 	I2C_Type *base;
@@ -39,8 +43,8 @@ static int i2c_mcux_configure(const struct device *dev,
 			      uint32_t dev_config_raw)
 {
 	I2C_Type *base = DEV_BASE(dev);
-	struct i2c_mcux_data *data = dev->data;
-	const struct i2c_mcux_config *config = dev->config;
+	struct i2c_mcux_data *data = DEV_DATA(dev);
+	const struct i2c_mcux_config *config = DEV_CFG(dev);
 	uint32_t clock_freq;
 	uint32_t baudrate;
 
@@ -106,7 +110,7 @@ static int i2c_mcux_transfer(const struct device *dev, struct i2c_msg *msgs,
 			     uint8_t num_msgs, uint16_t addr)
 {
 	I2C_Type *base = DEV_BASE(dev);
-	struct i2c_mcux_data *data = dev->data;
+	struct i2c_mcux_data *data = DEV_DATA(dev);
 	i2c_master_transfer_t transfer;
 	status_t status;
 	int ret = 0;
@@ -174,7 +178,7 @@ static int i2c_mcux_transfer(const struct device *dev, struct i2c_msg *msgs,
 static void i2c_mcux_isr(const struct device *dev)
 {
 	I2C_Type *base = DEV_BASE(dev);
-	struct i2c_mcux_data *data = dev->data;
+	struct i2c_mcux_data *data = DEV_DATA(dev);
 
 	I2C_MasterTransferHandleIRQ(base, &data->handle);
 }
@@ -182,8 +186,8 @@ static void i2c_mcux_isr(const struct device *dev)
 static int i2c_mcux_init(const struct device *dev)
 {
 	I2C_Type *base = DEV_BASE(dev);
-	const struct i2c_mcux_config *config = dev->config;
-	struct i2c_mcux_data *data = dev->data;
+	const struct i2c_mcux_config *config = DEV_CFG(dev);
+	struct i2c_mcux_data *data = DEV_DATA(dev);
 	uint32_t clock_freq, bitrate_cfg;
 	i2c_master_config_t master_config;
 	int error;
@@ -226,8 +230,8 @@ static const struct i2c_driver_api i2c_mcux_driver_api = {
 									\
 	static struct i2c_mcux_data i2c_mcux_data_ ## n;		\
 									\
-	I2C_DEVICE_DT_INST_DEFINE(n,					\
-			i2c_mcux_init, NULL,				\
+	DEVICE_DT_INST_DEFINE(n,					\
+			&i2c_mcux_init, NULL,				\
 			&i2c_mcux_data_ ## n,				\
 			&i2c_mcux_config_ ## n, POST_KERNEL,		\
 			CONFIG_KERNEL_INIT_PRIORITY_DEVICE,		\

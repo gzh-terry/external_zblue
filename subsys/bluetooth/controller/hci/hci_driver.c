@@ -31,11 +31,9 @@
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_HCI_DRIVER)
 #define LOG_MODULE_NAME bt_ctlr_hci_driver
 #include "common/log.h"
-#include "hal/debug.h"
 
 #include "util/util.h"
 #include "util/memq.h"
-#include "util/dbuf.h"
 
 #include "hal/ccm.h"
 
@@ -45,23 +43,17 @@
 
 #include "ll_sw/pdu.h"
 #include "ll_sw/lll.h"
-#include "lll/lll_df_types.h"
-#include "ll_sw/lll_sync_iso.h"
-#include "ll_sw/lll_conn.h"
-#include "ll_sw/lll_conn_iso.h"
-#include "ll_sw/isoal.h"
-
-#include "ll_sw/ull_iso_types.h"
-#include "ll_sw/ull_conn_iso_types.h"
-
-#include "ll_sw/ull_iso_internal.h"
-#include "ll_sw/ull_sync_iso_internal.h"
-#include "ll_sw/ull_conn_internal.h"
-#include "ll_sw/ull_conn_iso_internal.h"
-
 #include "ll.h"
 
+#include "isoal.h"
+#include "lll_conn_iso.h"
+#include "ull_conn_iso_internal.h"
+#include "ull_conn_iso_types.h"
+#include "ull_iso_types.h"
+
 #include "hci_internal.h"
+
+#include "hal/debug.h"
 
 static K_SEM_DEFINE(sem_prio_recv, 0, K_SEM_MAX_LIMIT);
 static K_FIFO_DEFINE(recv_fifo);
@@ -90,7 +82,7 @@ isoal_status_t sink_sdu_alloc_hci(const struct isoal_sink    *sink_ctx,
 	ARG_UNUSED(sink_ctx);
 	ARG_UNUSED(valid_pdu); /* TODO copy valid pdu into netbuf ? */
 
-	struct net_buf *buf  = bt_buf_get_rx(BT_BUF_ISO_IN, K_FOREVER);
+	struct net_buf *buf  = bt_buf_get_rx(BT_BUF_ISO_IN, K_NO_WAIT);
 
 	if (buf) {
 		/* Reserve space for headers */
@@ -121,16 +113,7 @@ isoal_status_t sink_sdu_emit_hci(const struct isoal_sink         *sink_ctx,
 
 	buf = (struct net_buf *) valid_sdu->contents.dbuf;
 
-
 	if (buf) {
-#if defined(CONFIG_BT_CTLR_CONN_ISO_HCI_DATAPATH_SKIP_INVALID_DATA)
-		if (valid_sdu->status != ISOAL_SDU_STATUS_VALID) {
-			/* unref buffer if invalid fragment */
-			net_buf_unref(buf);
-
-			return ISOAL_STATUS_OK;
-		}
-#endif /* CONFIG_BT_CTLR_CONN_ISO_HCI_DATAPATH_SKIP_INVALID_DATA */
 		data_hdr = net_buf_push(buf, BT_HCI_ISO_TS_DATA_HDR_SIZE);
 		hdr = net_buf_push(buf, BT_HCI_ISO_HDR_SIZE);
 
@@ -138,38 +121,14 @@ isoal_status_t sink_sdu_emit_hci(const struct isoal_sink         *sink_ctx,
 
 		pb = sink_ctx->sdu_production.sdu_state;
 
-		/*
-		 * BLUETOOTH CORE SPECIFICATION Version 5.3 | Vol 4, Part E
-		 * 5.4.5 HCI ISO Data packets
-		 *
-		 * PB_Flag:
-		 *  Value   Parameter Description
-		 *  0b00    The ISO_Data_Load field contains a header and the first fragment
-		 *          of a fragmented SDU.
-		 *  0b01    The ISO_Data_Load field contains a continuation fragment of an SDU.
-		 *  0b10    The ISO_Data_Load field contains a header and a complete SDU.
-		 *  0b11    The ISO_Data_Load field contains the last fragment of an SDU.
-		 *
-		 * The TS_Flag bit shall be set if the ISO_Data_Load field contains a
-		 * Time_Stamp field. This bit shall only be set if the PB_Flag field equals 0b00 or
-		 * 0b10.
-		 */
-		ts = !(pb & 1);
+		ts = 1;   /*TODO: Always assume timestamp? */
 		handle_packed = bt_iso_handle_pack(handle, pb, ts);
 		len = sink_ctx->sdu_production.sdu_written + BT_HCI_ISO_TS_DATA_HDR_SIZE;
 
 		hdr->handle = sys_cpu_to_le16(handle_packed);
 		hdr->len = sys_cpu_to_le16(len);
 
-		packet_status_flag = valid_sdu->status;
-		/* TODO: Validity of length might need to be reconsidered here. Not handled in
-		 * ISO-AL.
-		 * BT Core V5.3 : Vol 4 HCI I/F : Part G HCI Func. Spec.:
-		 * 5.4.5 HCI ISO Data packets
-		 * If Packet_Status_Flag equals 0b10 then PB_Flag shall equal 0b10.
-		 * When Packet_Status_Flag is set to 0b10 in packets from the Controller to the
-		 * Host, there is no data and ISO_SDU_Length shall be set to zero.
-		 */
+		packet_status_flag = 0x0000; /* TODO: For now always assume "valid data" */
 		slen = sink_ctx->sdu_production.sdu_written;
 		slen_packed = bt_iso_pkt_len_pack(slen, packet_status_flag);
 
@@ -236,34 +195,12 @@ static void prio_recv_thread(void *p1, void *p2, void *p3)
 	while (1) {
 		struct node_rx_pdu *node_rx;
 		struct net_buf *buf;
-		bool iso_received;
 		uint8_t num_cmplt;
 		uint16_t handle;
 
-		iso_received = false;
-
-#if defined(CONFIG_BT_CTLR_SYNC_ISO) || defined(CONFIG_BT_CTLR_CONN_ISO)
-		node_rx = ll_iso_rx_get();
-		if (node_rx) {
-			ll_iso_rx_dequeue();
-
-			/* Find out and store the class for this node */
-			node_rx->hdr.user_meta = hci_get_class(node_rx);
-
-			/* Send the rx node up to Host thread,
-			 * recv_thread()
-			 */
-			BT_DBG("ISO RX node enqueue");
-			k_fifo_put(&recv_fifo, node_rx);
-
-			iso_received = true;
-		}
-#endif /* CONFIG_BT_CTLR_SYNC_ISO || CONFIG_BT_CTLR_CONN_ISO */
-
 		/* While there are completed rx nodes */
 		while ((num_cmplt = ll_rx_get((void *)&node_rx, &handle))) {
-#if defined(CONFIG_BT_CONN) || defined(CONFIG_BT_CTLR_ADV_ISO) || \
-	defined(CONFIG_BT_CTLR_CONN_ISO)
+#if defined(CONFIG_BT_CONN)
 
 			buf = bt_buf_get_evt(BT_HCI_EVT_NUM_COMPLETED_PACKETS,
 					     false, K_FOREVER);
@@ -271,7 +208,7 @@ static void prio_recv_thread(void *p1, void *p2, void *p3)
 			BT_DBG("Num Complete: 0x%04x:%u", handle, num_cmplt);
 			bt_recv_prio(buf);
 			k_yield();
-#endif /* CONFIG_BT_CONN || CONFIG_BT_CTLR_ADV_ISO || CONFIG_BT_CTLR_CONN_ISO */
+#endif
 		}
 
 		if (node_rx) {
@@ -309,14 +246,13 @@ static void prio_recv_thread(void *p1, void *p2, void *p3)
 				BT_DBG("RX node enqueue");
 				k_fifo_put(&recv_fifo, node_rx);
 			}
-		}
 
-		if (iso_received || node_rx) {
 			/* There may still be completed nodes, continue
 			 * pushing all those up to Host before waiting
 			 * for ULL mayfly
 			 */
 			continue;
+
 		}
 
 		BT_DBG("sem take...");
@@ -358,26 +294,19 @@ static inline struct net_buf *encode_node(struct node_rx_pdu *node_rx,
 		hci_acl_encode(node_rx, buf);
 		break;
 #endif
-#if defined(CONFIG_BT_CTLR_SYNC_ISO) || defined(CONFIG_BT_CTLR_CONN_ISO)
+#if defined(CONFIG_BT_CTLR_ISO)
 	case HCI_CLASS_ISO_DATA: {
 #if defined(CONFIG_BT_CTLR_CONN_ISO)
-		uint8_t handle = node_rx->hdr.handle;
-		struct ll_iso_stream_hdr *hdr = NULL;
-
-		if (IS_CIS_HANDLE(handle)) {
-			struct ll_conn_iso_stream *cis =
-				ll_conn_iso_stream_get(handle);
-			hdr = &cis->hdr;
-		}
-
-		struct ll_iso_datapath *dp = hdr->datapath_out;
+		struct ll_conn_iso_stream *cis =
+			ll_conn_iso_stream_get(node_rx->hdr.handle);
+		struct ll_iso_datapath *dp = cis->datapath_out;
 		isoal_sink_handle_t sink = dp->sink_hdl;
 
 		if (dp->path_id == BT_HCI_DATAPATH_ID_HCI) {
 			/* If HCI datapath pass to ISO AL here */
 			struct isoal_pdu_rx pckt_meta = {
 				.meta = &node_rx->hdr.rx_iso_meta,
-				.pdu  = (struct pdu_iso *) &node_rx->pdu[0]
+				.pdu  = (union isoal_pdu *) &node_rx->pdu[0]
 			};
 
 			/* Pass the ISO PDU through ISO-AL */
@@ -386,34 +315,10 @@ static inline struct net_buf *encode_node(struct node_rx_pdu *node_rx,
 
 			LL_ASSERT(err == ISOAL_STATUS_OK); /* TODO handle err */
 		}
-#endif /* CONFIG_BT_CTLR_CONN_ISO */
-
-#if defined(CONFIG_BT_CTLR_SYNC_ISO)
-		const struct lll_sync_iso_stream *stream;
-		struct isoal_pdu_rx isoal_rx;
-		isoal_status_t err;
-
-		stream = ull_sync_iso_stream_get(node_rx->hdr.handle);
-
-		/* Check validity of the data path sink. FIXME: A channel disconnect race
-		 * may cause ISO data pending without valid data path.
-		 */
-		if (stream && stream->dp) {
-			isoal_rx.meta = &node_rx->hdr.rx_iso_meta;
-			isoal_rx.pdu = (void *)node_rx->pdu;
-			err = isoal_rx_pdu_recombine(stream->dp->sink_hdl, &isoal_rx);
-
-			LL_ASSERT(err == ISOAL_STATUS_OK ||
-				  err == ISOAL_STATUS_ERR_SDU_ALLOC);
-		}
-#endif /* CONFIG_BT_CTLR_SYNC_ISO */
-
-		node_rx->hdr.next = NULL;
-		ll_iso_rx_mem_release((void **)&node_rx);
-
-		return buf;
+#endif
+		break;
 	}
-#endif /* CONFIG_BT_CTLR_SYNC_ISO || CONFIG_BT_CTLR_CONN_ISO */
+#endif
 
 	default:
 		LL_ASSERT(0);
@@ -613,8 +518,9 @@ static void recv_thread(void *p1, void *p2, void *p3)
 			/* Increment ref count, which will be
 			 * unref on call to net_buf_frag_del
 			 */
-			frag = net_buf_ref(buf);
-			buf = net_buf_frag_del(NULL, buf);
+			frag = buf;
+			net_buf_ref(frag);
+			buf = net_buf_frag_del(NULL, frag);
 
 			if (frag->len) {
 				BT_DBG("Packet in: type:%u len:%u",
@@ -667,22 +573,6 @@ static int acl_handle(struct net_buf *buf)
 }
 #endif /* CONFIG_BT_CONN */
 
-#if defined(CONFIG_BT_CTLR_ADV_ISO) || defined(CONFIG_BT_CTLR_CONN_ISO)
-static int iso_handle(struct net_buf *buf)
-{
-	struct net_buf *evt;
-	int err;
-
-	err = hci_iso_handle(buf, &evt);
-	if (evt) {
-		BT_DBG("Replying with event of %u bytes", evt->len);
-		bt_recv_prio(evt);
-	}
-
-	return err;
-}
-#endif /* CONFIG_BT_CTLR_ADV_ISO || CONFIG_BT_CTLR_CONN_ISO */
-
 static int hci_driver_send(struct net_buf *buf)
 {
 	uint8_t type;
@@ -705,11 +595,6 @@ static int hci_driver_send(struct net_buf *buf)
 	case BT_BUF_CMD:
 		err = cmd_handle(buf);
 		break;
-#if defined(CONFIG_BT_CTLR_ADV_ISO) || defined(CONFIG_BT_CTLR_CONN_ISO)
-	case BT_BUF_ISO_OUT:
-		err = iso_handle(buf);
-		break;
-#endif /* CONFIG_BT_CTLR_ADV_ISO || CONFIG_BT_CTLR_CONN_ISO */
 	default:
 		BT_ERR("Unknown HCI type %u", type);
 		return -EINVAL;

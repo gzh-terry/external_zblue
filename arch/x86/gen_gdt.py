@@ -40,14 +40,14 @@ import sys
 import struct
 import os
 
-from packaging import version
+from distutils.version import LooseVersion
 
 import elftools
 from elftools.elf.elffile import ELFFile
 from elftools.elf.sections import SymbolTableSection
 
 
-if version.parse(elftools.__version__) < version.parse('0.24'):
+if LooseVersion(elftools.__version__) < LooseVersion('0.24'):
     sys.exit("pyelftools is out of date, need version 0.24 or later")
 
 

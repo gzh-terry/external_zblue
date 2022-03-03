@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#define DT_DRV_COMPAT altr_nios2_i2c
+#define DT_DRV_COMPAT nios2_i2c
 
 #include <errno.h>
 #include <drivers/i2c.h>
@@ -19,6 +19,9 @@ LOG_MODULE_REGISTER(i2c_nios2);
 
 #define NIOS2_I2C_TIMEOUT_USEC		1000
 
+#define DEV_CFG(dev) \
+	((struct i2c_nios2_config *)(dev)->config)
+
 struct i2c_nios2_config {
 	ALT_AVALON_I2C_DEV_t	i2c_dev;
 	IRQ_DATA_t		irq_data;
@@ -27,7 +30,7 @@ struct i2c_nios2_config {
 
 static int i2c_nios2_configure(const struct device *dev, uint32_t dev_config)
 {
-	struct i2c_nios2_config *config = (struct i2c_nios2_config *)dev->config;
+	struct i2c_nios2_config *config = DEV_CFG(dev);
 	int32_t rc = 0;
 
 	k_sem_take(&config->sem_lock, K_FOREVER);
@@ -59,7 +62,7 @@ i2c_cfg_err:
 static int i2c_nios2_transfer(const struct device *dev, struct i2c_msg *msgs,
 			      uint8_t num_msgs, uint16_t addr)
 {
-	struct i2c_nios2_config *config = (struct i2c_nios2_config *)dev->config;
+	struct i2c_nios2_config *config = DEV_CFG(dev);
 	ALT_AVALON_I2C_STATUS_CODE status;
 	uint32_t restart, stop;
 	int32_t i, timeout, rc = 0;
@@ -140,7 +143,7 @@ i2c_transfer_err:
 
 static void i2c_nios2_isr(const struct device *dev)
 {
-	struct i2c_nios2_config *config = (struct i2c_nios2_config *)dev->config;
+	struct i2c_nios2_config *config = DEV_CFG(dev);
 
 	/* Call Altera HAL driver ISR */
 	alt_handle_irq(&config->i2c_dev, DT_INST_IRQN(0));
@@ -162,14 +165,14 @@ static struct i2c_nios2_config i2c_nios2_cfg = {
 	},
 };
 
-I2C_DEVICE_DT_INST_DEFINE(0, i2c_nios2_init, NULL,
+DEVICE_DT_INST_DEFINE(0, &i2c_nios2_init, NULL,
 		    NULL, &i2c_nios2_cfg,
 		    POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    &i2c_nios2_driver_api);
 
 static int i2c_nios2_init(const struct device *dev)
 {
-	struct i2c_nios2_config *config = (struct i2c_nios2_config *)dev->config;
+	struct i2c_nios2_config *config = DEV_CFG(dev);
 	int rc;
 
 	/* initialize semaphore */

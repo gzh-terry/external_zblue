@@ -4,7 +4,6 @@
 
 /*
  * Copyright (c) 2020 Intel Corporation
- * Copyright (c) 2021 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -24,30 +23,6 @@ struct iso_data {
 	uint16_t handle;
 };
 
-enum bt_iso_cig_state {
-	BT_ISO_CIG_STATE_IDLE,
-	BT_ISO_CIG_STATE_CONFIGURED,
-	BT_ISO_CIG_STATE_ACTIVE,
-	BT_ISO_CIG_STATE_INACTIVE
-};
-
-struct bt_iso_cig {
-	/** List of ISO channels to setup as CIS (the CIG). */
-	sys_slist_t cis_channels;
-
-	/** Total number of CISes in the CIG. */
-	uint8_t  num_cis;
-
-	/** The CIG ID */
-	uint8_t id;
-
-	/** The CIG state
-	 *
-	 * Refer to BT Core Spec 5.3, Vol 6, Part 6, Figure 4.63
-	 */
-	enum bt_iso_cig_state state;
-};
-
 enum {
 	BT_BIG_INITIALIZED,
 
@@ -60,8 +35,8 @@ enum {
 };
 
 struct bt_iso_big {
-	/** List of ISO channels to setup as BIS (the BIG). */
-	sys_slist_t bis_channels;
+	/** Array of ISO channels to setup as BIS (the BIG). */
+	struct bt_iso_chan **bis;
 
 	/** Total number of BISes in the BIG. */
 	uint8_t  num_bis;
@@ -84,8 +59,11 @@ void hci_iso(struct net_buf *buf);
 /* Allocates RX buffer */
 struct net_buf *bt_iso_get_rx(k_timeout_t timeout);
 
-/* Process CIS Established event */
-void hci_le_cis_established(struct net_buf *buf);
+/* Create new ISO connecting */
+struct bt_conn *iso_new(void);
+
+/* Process CIS Estabilished event */
+void hci_le_cis_estabilished(struct net_buf *buf);
 
 /* Process CIS Request event */
 void hci_le_cis_req(struct net_buf *buf);
@@ -103,10 +81,13 @@ void hci_le_big_sync_established(struct net_buf *buf);
 void hci_le_big_sync_lost(struct net_buf *buf);
 
 /* Notify ISO channels of a new connection */
-void bt_iso_connected(struct bt_conn *iso);
+int bt_iso_accept(struct bt_conn *conn);
+
+/* Notify ISO channels of a new connection */
+void bt_iso_connected(struct bt_conn *conn);
 
 /* Notify ISO channels of a disconnect event */
-void bt_iso_disconnected(struct bt_conn *iso);
+void bt_iso_disconnected(struct bt_conn *conn);
 
 /* Allocate ISO PDU */
 #if defined(CONFIG_NET_BUF_LOG)
@@ -159,4 +140,6 @@ void bt_iso_chan_set_state(struct bt_iso_chan *chan, uint8_t state);
 #endif /* CONFIG_BT_DEBUG_ISO */
 
 /* Process incoming data for a connection */
-void bt_iso_recv(struct bt_conn *iso, struct net_buf *buf, uint8_t flags);
+void bt_iso_recv(struct bt_conn *conn, struct net_buf *buf, uint8_t flags);
+
+struct bt_conn_iso *bt_conn_iso(struct bt_conn *conn);

@@ -13,7 +13,7 @@ Configuration Options
 
 Related configuration options:
 
-* :kconfig:option:`CONFIG_DAC`
+* :option:`CONFIG_DAC`
 
 API Reference
 *************

@@ -50,10 +50,13 @@
 extern uint32_t _sse_mxcsr_default_value;
 
 /**
+ *
  * @brief Disallow use of floating point capabilities
  *
  * This routine sets CR0[TS] to 1, which disallows the use of FP instructions
  * by the currently executing thread.
+ *
+ * @return N/A
  */
 static inline void z_FpAccessDisable(void)
 {
@@ -70,12 +73,15 @@ static inline void z_FpAccessDisable(void)
 
 
 /**
+ *
  * @brief Save non-integer context information
  *
  * This routine saves the system's "live" non-integer context into the
  * specified area.  If the specified thread supports SSE then
  * x87/MMX/SSEx thread info is saved, otherwise only x87/MMX thread is saved.
  * Function is invoked by FpCtxSave(struct k_thread *thread)
+ *
+ * @return N/A
  */
 static inline void z_do_fp_regs_save(void *preemp_float_reg)
 {
@@ -86,12 +92,15 @@ static inline void z_do_fp_regs_save(void *preemp_float_reg)
 }
 
 /**
+ *
  * @brief Save non-integer context information
  *
  * This routine saves the system's "live" non-integer context into the
  * specified area.  If the specified thread supports SSE then
  * x87/MMX/SSEx thread info is saved, otherwise only x87/MMX thread is saved.
  * Function is invoked by FpCtxSave(struct k_thread *thread)
+ *
+ * @return N/A
  */
 static inline void z_do_fp_and_sse_regs_save(void *preemp_float_reg)
 {
@@ -102,9 +111,12 @@ static inline void z_do_fp_and_sse_regs_save(void *preemp_float_reg)
 }
 
 /**
+ *
  * @brief Initialize floating point register context information.
  *
  * This routine initializes the system's "live" floating point registers.
+ *
+ * @return N/A
  */
 static inline void z_do_fp_regs_init(void)
 {
@@ -112,9 +124,12 @@ static inline void z_do_fp_regs_init(void)
 }
 
 /**
+ *
  * @brief Initialize SSE register context information.
  *
  * This routine initializes the system's "live" SSE registers.
+ *
+ * @return N/A
  */
 static inline void z_do_sse_regs_init(void)
 {

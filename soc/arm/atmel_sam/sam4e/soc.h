@@ -19,6 +19,8 @@
 
 #ifndef _ASMLANGUAGE
 
+/* Add include for DTS generated information */
+#include <devicetree.h>
 
 #define DONT_USE_CMSIS_INIT
 #define DONT_USE_PREDEFINED_CORE_HANDLERS

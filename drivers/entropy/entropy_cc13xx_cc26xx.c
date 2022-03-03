@@ -36,7 +36,16 @@ struct entropy_cc13xx_cc26xx_data {
 	Power_NotifyObj post_notify;
 	bool constrained;
 #endif
+#ifdef CONFIG_PM_DEVICE
+	uint32_t pm_state;
+#endif
 };
+
+static inline struct entropy_cc13xx_cc26xx_data *
+get_dev_data(const struct device *dev)
+{
+	return dev->data;
+}
 
 static void start_trng(struct entropy_cc13xx_cc26xx_data *data)
 {
@@ -94,7 +103,7 @@ static int entropy_cc13xx_cc26xx_get_entropy(const struct device *dev,
 					     uint8_t *buf,
 					     uint16_t len)
 {
-	struct entropy_cc13xx_cc26xx_data *data = dev->data;
+	struct entropy_cc13xx_cc26xx_data *data = get_dev_data(dev);
 	uint32_t cnt;
 
 #ifdef CONFIG_PM
@@ -127,8 +136,7 @@ static int entropy_cc13xx_cc26xx_get_entropy(const struct device *dev,
 
 static void entropy_cc13xx_cc26xx_isr(const void *arg)
 {
-	const struct device *dev = arg;
-	struct entropy_cc13xx_cc26xx_data *data = dev->data;
+	struct entropy_cc13xx_cc26xx_data *data = get_dev_data(arg);
 	uint32_t src = 0;
 	uint32_t cnt;
 	uint32_t num[2];
@@ -170,7 +178,7 @@ static int entropy_cc13xx_cc26xx_get_entropy_isr(const struct device *dev,
 						 uint8_t *buf, uint16_t len,
 						 uint32_t flags)
 {
-	struct entropy_cc13xx_cc26xx_data *data = dev->data;
+	struct entropy_cc13xx_cc26xx_data *data = get_dev_data(dev);
 	uint16_t cnt;
 	uint16_t read = len;
 	uint32_t src;
@@ -250,7 +258,7 @@ static int post_notify_fxn(unsigned int eventType, uintptr_t eventArg,
 
 		if (Power_getDependencyCount(res_id) != 0) {
 			/* Reconfigure and enable TRNG only if powered */
-			start_trng(dev->data);
+			start_trng(get_dev_data(dev));
 		}
 	}
 
@@ -259,31 +267,66 @@ static int post_notify_fxn(unsigned int eventType, uintptr_t eventArg,
 #endif
 
 #ifdef CONFIG_PM_DEVICE
-static int entropy_cc13xx_cc26xx_pm_action(const struct device *dev,
-					   enum pm_device_action action)
+static int entropy_cc13xx_cc26xx_set_power_state(const struct device *dev,
+						 uint32_t new_state)
 {
-	struct entropy_cc13xx_cc26xx_data *data = dev->data;
+	struct entropy_cc13xx_cc26xx_data *data = get_dev_data(dev);
+	int ret = 0;
 
-	switch (action) {
-	case PM_DEVICE_ACTION_RESUME:
+	if ((new_state == PM_DEVICE_STATE_ACTIVE) &&
+		(new_state != data->pm_state)) {
 		Power_setDependency(PowerCC26XX_PERIPH_TRNG);
 		start_trng(data);
-		break;
-	case PM_DEVICE_ACTION_SUSPEND:
-		stop_trng(data);
-		Power_releaseDependency(PowerCC26XX_PERIPH_TRNG);
-		break;
-	default:
-		return -ENOTSUP;
+	} else {
+		__ASSERT_NO_MSG(new_state == PM_DEVICE_STATE_LOW_POWER ||
+			new_state == PM_DEVICE_STATE_SUSPEND ||
+			new_state == PM_DEVICE_STATE_OFF);
+
+		if (data->pm_state == PM_DEVICE_STATE_ACTIVE) {
+			stop_trng(data);
+			Power_releaseDependency(PowerCC26XX_PERIPH_TRNG);
+		}
+	}
+	data->pm_state = new_state;
+
+	return ret;
+}
+
+static int entropy_cc13xx_cc26xx_pm_control(const struct device *dev,
+					    uint32_t ctrl_command,
+					    uint32_t *state, pm_device_cb cb,
+					    void *arg)
+{
+	struct entropy_cc13xx_cc26xx_data *data = get_dev_data(dev);
+	int ret = 0;
+
+	if (ctrl_command == PM_DEVICE_STATE_SET) {
+		uint32_t new_state = *state;
+
+		if (new_state != data->pm_state) {
+			ret = entropy_cc13xx_cc26xx_set_power_state(dev,
+				new_state);
+		}
+	} else {
+		__ASSERT_NO_MSG(ctrl_command == PM_DEVICE_STATE_GET);
+		*state = data->pm_state;
 	}
 
-	return 0;
+	if (cb) {
+		cb(dev, ret, state, arg);
+	}
+
+	return ret;
 }
 #endif /* CONFIG_PM_DEVICE */
 
 static int entropy_cc13xx_cc26xx_init(const struct device *dev)
 {
-	struct entropy_cc13xx_cc26xx_data *data = dev->data;
+	struct entropy_cc13xx_cc26xx_data *data = get_dev_data(dev);
+
+#ifdef CONFIG_PM_DEVICE
+	get_dev_data(dev)->pm_state = PM_DEVICE_STATE_ACTIVE;
+#endif
 
 	/* Initialize driver data */
 	ring_buf_init(&data->pool, sizeof(data->data), data->data);
@@ -344,11 +387,9 @@ static struct entropy_cc13xx_cc26xx_data entropy_cc13xx_cc26xx_data = {
 	.sync = Z_SEM_INITIALIZER(entropy_cc13xx_cc26xx_data.sync, 0, 1),
 };
 
-PM_DEVICE_DT_INST_DEFINE(0, entropy_cc13xx_cc26xx_pm_action);
-
 DEVICE_DT_INST_DEFINE(0,
 		entropy_cc13xx_cc26xx_init,
-		PM_DEVICE_DT_INST_GET(0),
+		entropy_cc13xx_cc26xx_pm_control,
 		&entropy_cc13xx_cc26xx_data, NULL,
-		PRE_KERNEL_1, CONFIG_ENTROPY_INIT_PRIORITY,
+		PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		&entropy_cc13xx_cc26xx_driver_api);

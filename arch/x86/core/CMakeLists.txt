@@ -3,10 +3,14 @@
 
 zephyr_library()
 
+if (CONFIG_COVERAGE)
+  zephyr_compile_options($<TARGET_PROPERTY:compiler,coverage>)
+  zephyr_link_libraries($<TARGET_PROPERTY:linker,coverage>)
+endif ()
+
 zephyr_library_sources(cpuhalt.c)
 zephyr_library_sources(prep_c.c)
 zephyr_library_sources(fatal.c)
-zephyr_library_sources(cpuid.c)
 zephyr_library_sources(spec_ctrl.c)
 
 zephyr_library_sources_ifdef(CONFIG_X86_MEMMAP memmap.c)

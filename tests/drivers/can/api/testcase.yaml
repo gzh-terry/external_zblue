@@ -1,5 +1,4 @@
 tests:
-  drivers.can.api:
-    tags: drivers can
+  drivers.can:
+    tags: driver can
     depends_on: can
-    filter: dt_chosen_enabled("zephyr,canbus")

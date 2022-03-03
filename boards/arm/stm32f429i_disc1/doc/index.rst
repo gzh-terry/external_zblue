@@ -97,8 +97,6 @@ The Zephyr stm32f429i_disc1 board configuration supports the following hardware 
 +-----------+------------+-------------------------------------+
 | SPI       | on-chip    | spi                                 |
 +-----------+------------+-------------------------------------+
-| FMC       | on-chip    | memc (SDRAM)                        |
-+-----------+------------+-------------------------------------+
 
 Other hardware features are not yet supported on Zephyr porting.
 
@@ -119,6 +117,8 @@ Default Zephyr Peripheral Mapping:
 ----------------------------------
 - UART_1_TX : PA9
 - UART_1_RX : PA10
+- UART_2_TX : PA2
+- UART_2_RX : PA3
 - USER_PB : PA0
 - LD3 : PG13
 - LD4 : PG12

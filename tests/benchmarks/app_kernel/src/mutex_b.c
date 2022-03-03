@@ -14,6 +14,7 @@
  *
  * @brief Mutex lock/unlock test
  *
+ * @return N/A
  */
 void mutex_test(void)
 {
