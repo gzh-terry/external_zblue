@@ -11,7 +11,7 @@
 #include <device.h>
 #include <zephyr.h>
 #include <string.h>
-#include <crypto/cipher.h>
+#include <crypto/crypto.h>
 
 #define LOG_LEVEL CONFIG_CRYPTO_LOG_LEVEL
 #include <logging/log.h>
@@ -21,8 +21,10 @@ LOG_MODULE_REGISTER(main);
 #define CRYPTO_DRV_NAME CONFIG_CRYPTO_TINYCRYPT_SHIM_DRV_NAME
 #elif CONFIG_CRYPTO_MBEDTLS_SHIM
 #define CRYPTO_DRV_NAME CONFIG_CRYPTO_MBEDTLS_SHIM_DRV_NAME
-#elif CONFIG_CRYPTO_STM32
+#elif DT_HAS_COMPAT_STATUS_OKAY(st_stm32_cryp)
 #define CRYPTO_DRV_NAME DT_LABEL(DT_INST(0, st_stm32_cryp))
+#elif DT_HAS_COMPAT_STATUS_OKAY(st_stm32_aes)
+#define CRYPTO_DRV_NAME DT_LABEL(DT_INST(0, st_stm32_aes))
 #elif CONFIG_CRYPTO_NRF_ECB
 #define CRYPTO_DRV_NAME DT_LABEL(DT_INST(0, nordic_nrf_ecb))
 #else
@@ -79,7 +81,7 @@ int validate_hw_compatibility(const struct device *dev)
 {
 	uint32_t flags = 0U;
 
-	flags = cipher_query_hwcaps(dev);
+	flags = crypto_query_hwcaps(dev);
 	if ((flags & CAP_RAW_KEY) == 0U) {
 		LOG_INF("Please provision the key separately "
 			"as the module doesnt support a raw key");

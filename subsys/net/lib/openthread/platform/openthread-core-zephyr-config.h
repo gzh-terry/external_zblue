@@ -18,6 +18,16 @@
 #include <toolchain.h>
 
 /**
+ * @def OPENTHREAD_CONFIG_PLATFORM_ASSERT_MANAGEMENT
+ *
+ * The assert is managed by platform defined logic when this flag is set.
+ *
+ */
+#ifndef OPENTHREAD_CONFIG_PLATFORM_ASSERT_MANAGEMENT
+#define OPENTHREAD_CONFIG_PLATFORM_ASSERT_MANAGEMENT 1
+#endif
+
+/**
  * @def OPENTHREAD_CONFIG_NUM_MESSAGE_BUFFERS
  *
  * The number of message buffers in the buffer pool.
@@ -92,6 +102,55 @@
 #endif
 
 /**
+ * @def OPENTHREAD_CONFIG_MLE_INFORM_PREVIOUS_PARENT_ON_REATTACH
+ *
+ * Define as 1 for a child to inform its previous parent when it attaches to a new parent.
+ *
+ */
+#ifdef CONFIG_OPENTHREAD_MLE_INFORM_PREVIOUS_PARENT_ON_REATTACH
+#define OPENTHREAD_CONFIG_MLE_INFORM_PREVIOUS_PARENT_ON_REATTACH 1
+#endif
+
+/**
+ * @def OPENTHREAD_CONFIG_PARENT_SEARCH_ENABLE
+ *
+ * Define as 1 to enable periodic parent search feature.
+ *
+ */
+#ifdef CONFIG_OPENTHREAD_PARENT_SEARCH
+#define OPENTHREAD_CONFIG_PARENT_SEARCH_ENABLE 1
+
+/**
+ * @def OPENTHREAD_CONFIG_PARENT_SEARCH_CHECK_INTERVAL
+ *
+ * Specifies the interval in seconds for a child to check the trigger condition
+ * to perform a parent search.
+ *
+ */
+#define OPENTHREAD_CONFIG_PARENT_SEARCH_CHECK_INTERVAL                         \
+	CONFIG_OPENTHREAD_PARENT_SEARCH_CHECK_INTERVAL
+
+/**
+ * @def OPENTHREAD_CONFIG_PARENT_SEARCH_BACKOFF_INTERVAL
+ *
+ * Specifies the backoff interval in seconds for a child to not perform a parent
+ * search after triggering one.
+ *
+ */
+#define OPENTHREAD_CONFIG_PARENT_SEARCH_BACKOFF_INTERVAL                       \
+	CONFIG_OPENTHREAD_PARENT_SEARCH_BACKOFF_INTERVAL
+
+/**
+ * @def OPENTHREAD_CONFIG_PARENT_SEARCH_RSS_THRESHOLD
+ *
+ * Specifies the RSS threshold used to trigger a parent search.
+ *
+ */
+#define OPENTHREAD_CONFIG_PARENT_SEARCH_RSS_THRESHOLD                          \
+	CONFIG_OPENTHREAD_PARENT_SEARCH_RSS_THRESHOLD
+#endif
+
+/**
  * @def OPENTHREAD_CONFIG_MAC_SOFTWARE_TX_TIMING_ENABLE
  *
  * Define to 1 to enable software transmission target time logic.
@@ -140,8 +199,8 @@
  * in platform.
  *
  */
-#define OPENTHREAD_CONFIG_PLATFORM_USEC_TIMER_ENABLE                           \
-	(OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE &&                          \
+#define OPENTHREAD_CONFIG_PLATFORM_USEC_TIMER_ENABLE                                               \
+	(CONFIG_OPENTHREAD_CSL_RECEIVER &&                                                         \
 	 (OPENTHREAD_CONFIG_THREAD_VERSION >= OT_THREAD_VERSION_1_2))
 
 /* Zephyr does not use OpenThread's heap. mbedTLS will use heap memory allocated
@@ -214,38 +273,6 @@
 #define RADIO_CONFIG_SRC_MATCH_EXT_ENTRY_NUM 0
 
 /**
- * @def OPENTHREAD_CONFIG_PLAT_LOG_MACRO_NAME
- *
- * The platform logging function for openthread.
- *
- */
-#define _OT_CONF_PLAT_LOG_FUN_NARGS__IMPL(		\
-		_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10,\
-		_11, _12, _13, _14, N, ...) N
-
-#define _OT_CONF_PLAT_LOG_FUN_NARGS__GET(...) \
-		_OT_CONF_PLAT_LOG_FUN_NARGS__IMPL(__VA_ARGS__,\
-		15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, ~)
-
-#define OPENTHREAD_CONFIG_PLAT_LOG_MACRO_NAME__COUNT_ARGS(aLogLevel, unused, \
-							aFormat, ...) \
-	do { \
-		ARG_UNUSED(unused); \
-		otPlatLog( \
-		  aLogLevel, \
-		  (otLogRegion)_OT_CONF_PLAT_LOG_FUN_NARGS__GET(__VA_ARGS__),\
-		  aFormat, ##__VA_ARGS__); \
-	} while (false)
-
-#ifdef OPENTHREAD_CONFIG_PLAT_LOG_MACRO_NAME
-#error OPENTHREAD_CONFIG_PLAT_LOG_MACRO_NAME \
-	"OPENTHREAD_CONFIG_PLAT_LOG_MACRO_NAME mustn't be defined before"
-#endif
-
-#define OPENTHREAD_CONFIG_PLAT_LOG_MACRO_NAME \
-	OPENTHREAD_CONFIG_PLAT_LOG_MACRO_NAME__COUNT_ARGS
-
-/**
  * @def OPENTHREAD_CONFIG_RADIO_LINK_IEEE_802_15_4_ENABLE
  *
  * Set to 1 to enable support for IEEE802.15.4 radio link.
@@ -283,12 +310,120 @@
  *
  * For some reasons, CSL receivers wake up a little later than expected. This
  * variable specifies how much time that CSL receiver would wake up earlier
- * than the expected sample window. The time is in unit of 10 symbols.
+ * than the expected sample window. The time is in unit of microseconds.
  *
  */
 #ifdef CONFIG_OPENTHREAD_CSL_RECEIVE_TIME_AHEAD
 #define OPENTHREAD_CONFIG_CSL_RECEIVE_TIME_AHEAD \
 	CONFIG_OPENTHREAD_CSL_RECEIVE_TIME_AHEAD
 #endif /* CONFIG_OPENTHREAD_CSL_RECEIVE_TIME_AHEAD */
+
+/**
+ * @def OPENTHREAD_CONFIG_CSL_MIN_RECEIVE_ON
+ *
+ * The minimum CSL receive window (in microseconds) required to receive an IEEE 802.15.4 frame.
+ *
+ */
+#ifdef CONFIG_OPENTHREAD_CSL_MIN_RECEIVE_ON
+#define OPENTHREAD_CONFIG_CSL_MIN_RECEIVE_ON CONFIG_OPENTHREAD_CSL_MIN_RECEIVE_ON
+#endif /* CONFIG_OPENTHREAD_CSL_MIN_RECEIVE_ON */
+
+/**
+ * @def OPENTHREAD_CONFIG_PLATFORM_CSL_UNCERT
+ *
+ * The Uncertainty of the scheduling CSL of transmission by the parent, in ±10 us units.
+ */
+
+#ifdef CONFIG_OPENTHREAD_PLATFORM_CSL_UNCERT
+#define OPENTHREAD_CONFIG_PLATFORM_CSL_UNCERT CONFIG_OPENTHREAD_PLATFORM_CSL_UNCERT
+#endif /* CONFIG_OPENTHREAD_PLATFORM_CSL_UNCERT */
+
+/**
+ * @def OPENTHREAD_CONFIG_MAC_SOFTWARE_TX_SECURITY_ENABLE
+ *
+ * Set to 1 to enable software transmission security logic.
+ *
+ */
+#ifdef CONFIG_OPENTHREAD_MAC_SOFTWARE_TX_SECURITY_ENABLE
+#define OPENTHREAD_CONFIG_MAC_SOFTWARE_TX_SECURITY_ENABLE                                          \
+	CONFIG_OPENTHREAD_MAC_SOFTWARE_TX_SECURITY_ENABLE
+#endif /* CONFIG_OPENTHREAD_MAC_SOFTWARE_TX_SECURITY_ENABLE */
+
+/**
+ * @def OPENTHREAD_CONFIG_CLI_MAX_LINE_LENGTH
+ *
+ * The maximum size of the CLI line in bytes.
+ *
+ */
+#ifdef CONFIG_OPENTHREAD_CLI_MAX_LINE_LENGTH
+#define OPENTHREAD_CONFIG_CLI_MAX_LINE_LENGTH CONFIG_OPENTHREAD_CLI_MAX_LINE_LENGTH
+#endif /* CONFIG_OPENTHREAD_CLI_MAX_LINE_LENGTH */
+
+/**
+ * @def OPENTHREAD_CONFIG_CLI_PROMPT_ENABLE
+ *
+ * Enable CLI prompt.
+ *
+ * When enabled, the CLI will print prompt on the output after processing a command.
+ * Otherwise, no prompt is added to the output.
+ *
+ */
+#define OPENTHREAD_CONFIG_CLI_PROMPT_ENABLE 0
+
+/**
+ * @def OPENTHREAD_CONFIG_IP6_MAX_EXT_UCAST_ADDRS
+ *
+ * The maximum number of supported IPv6 addresses allows to be externally added.
+ *
+ */
+#ifdef CONFIG_OPENTHREAD_IP6_MAX_EXT_UCAST_ADDRS
+#define OPENTHREAD_CONFIG_IP6_MAX_EXT_UCAST_ADDRS CONFIG_OPENTHREAD_IP6_MAX_EXT_UCAST_ADDRS
+#endif /* CONFIG_OPENTHREAD_IP6_MAX_EXT_UCAST_ADDRS */
+
+/**
+ * @def OPENTHREAD_CONFIG_IP6_MAX_EXT_MCAST_ADDRS
+ *
+ * The maximum number of supported IPv6 multicast addresses allows to be externally added.
+ *
+ */
+#ifdef CONFIG_OPENTHREAD_IP6_MAX_EXT_MCAST_ADDRS
+#define OPENTHREAD_CONFIG_IP6_MAX_EXT_MCAST_ADDRS CONFIG_OPENTHREAD_IP6_MAX_EXT_MCAST_ADDRS
+#endif /* CONFIG_OPENTHREAD_IP6_MAX_EXT_MCAST_ADDRS */
+
+/**
+ * @def OPENTHREAD_CONFIG_TCP_ENABLE
+ *
+ * Enable TCP.
+ *
+ */
+#define OPENTHREAD_CONFIG_TCP_ENABLE IS_ENABLED(CONFIG_OPENTHREAD_TCP_ENABLE)
+
+/**
+ * @def OPENTHREAD_CONFIG_CLI_TCP_ENABLE
+ *
+ * Enable TCP in the CLI tool.
+ *
+ */
+#define OPENTHREAD_CONFIG_CLI_TCP_ENABLE IS_ENABLED(CONFIG_OPENTHREAD_CLI_TCP_ENABLE)
+
+/**
+ * @def OPENTHREAD_CONFIG_CRYPTO_LIB
+ *
+ * Selects crypto backend library for OpenThread.
+ *
+ */
+#ifdef CONFIG_OPENTHREAD_CRYPTO_PSA
+#define OPENTHREAD_CONFIG_CRYPTO_LIB OPENTHREAD_CONFIG_CRYPTO_LIB_PSA
+#endif
+
+/**
+ * @def OPENTHREAD_CONFIG_PLATFORM_KEY_REFERENCES_ENABLE
+ *
+ * Set to 1 if you want to enable key reference usage support.
+ *
+ */
+#ifdef CONFIG_OPENTHREAD_PLATFORM_KEY_REFERENCES_ENABLE
+#define OPENTHREAD_CONFIG_PLATFORM_KEY_REFERENCES_ENABLE 1
+#endif
 
 #endif  /* OPENTHREAD_CORE_ZEPHYR_CONFIG_H_ */

@@ -234,7 +234,7 @@ struct bt_l2cap_fixed_chan {
 };
 
 #define BT_L2CAP_CHANNEL_DEFINE(_name, _cid, _accept, _destroy)         \
-	const Z_STRUCT_SECTION_ITERABLE(bt_l2cap_fixed_chan, _name) = { \
+	const STRUCT_SECTION_ITERABLE(bt_l2cap_fixed_chan, _name) = {   \
 				.cid = _cid,                            \
 				.accept = _accept,                      \
 				.destroy = _destroy,                    \
@@ -247,7 +247,7 @@ struct bt_l2cap_br_fixed_chan {
 };
 
 #define BT_L2CAP_BR_CHANNEL_DEFINE(_name, _cid, _accept)		\
-	const Z_STRUCT_SECTION_ITERABLE(bt_l2cap_br_fixed_chan, _name) = { \
+	const STRUCT_SECTION_ITERABLE(bt_l2cap_br_fixed_chan, _name) = { \
 				.cid = _cid,			\
 				.accept = _accept,		\
 			}
@@ -312,7 +312,7 @@ static inline int bt_l2cap_send(struct bt_conn *conn, uint16_t cid,
 }
 
 /* Receive a new L2CAP PDU from a connection */
-void bt_l2cap_recv(struct bt_conn *conn, struct net_buf *buf);
+void bt_l2cap_recv(struct bt_conn *conn, struct net_buf *buf, bool complete);
 
 /* Perform connection parameter update request */
 int bt_l2cap_update_conn_param(struct bt_conn *conn,
@@ -360,3 +360,13 @@ void l2cap_br_encrypt_change(struct bt_conn *conn, uint8_t hci_status);
 
 /* Handle received data */
 void bt_l2cap_br_recv(struct bt_conn *conn, struct net_buf *buf);
+
+struct bt_l2cap_ecred_cb {
+	void (*ecred_conn_rsp)(struct bt_conn *conn, uint16_t result, uint8_t attempted,
+			       uint8_t succeeded);
+	void (*ecred_conn_req)(struct bt_conn *conn, uint16_t result, uint8_t attempted,
+			       uint8_t succeeded);
+};
+
+/* Register callbacks for Enhanced Credit based Flow Control */
+void bt_l2cap_register_ecred_cb(const struct bt_l2cap_ecred_cb *cb);

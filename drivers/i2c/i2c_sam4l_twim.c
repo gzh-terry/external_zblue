@@ -102,15 +102,9 @@ struct i2c_sam_twim_dev_data {
 	bool cur_need_rs;
 };
 
-#define DEV_NAME(dev) ((dev)->name)
-#define DEV_CFG(dev) \
-	((const struct i2c_sam_twim_dev_cfg *const)(dev)->config)
-#define DEV_DATA(dev) \
-	((struct i2c_sam_twim_dev_data *const)(dev)->data)
-
 static int i2c_clk_set(const struct device *dev, uint32_t speed)
 {
-	const struct i2c_sam_twim_dev_cfg *const cfg = DEV_CFG(dev);
+	const struct i2c_sam_twim_dev_cfg *const cfg = dev->config;
 	Twim *const twim = cfg->regs;
 	uint32_t per_clk = SOC_ATMEL_SAM_MCK_FREQ_HZ;
 	uint32_t f_prescaled = (per_clk / speed / 2);
@@ -286,8 +280,8 @@ static uint32_t i2c_prepare_xfer_cmd(struct i2c_sam_twim_dev_data *data,
 
 static void i2c_start_xfer(const struct device *dev, uint16_t daddr)
 {
-	const struct i2c_sam_twim_dev_cfg *const cfg = DEV_CFG(dev);
-	struct i2c_sam_twim_dev_data *data = DEV_DATA(dev);
+	const struct i2c_sam_twim_dev_cfg *const cfg = dev->config;
+	struct i2c_sam_twim_dev_data *data = dev->data;
 	struct i2c_msg *msg = &data->msgs[0];
 	Twim *const twim = cfg->regs;
 	uint32_t cmdr_reg;
@@ -420,8 +414,8 @@ static void i2c_prepare_next(struct i2c_sam_twim_dev_data *data,
 
 static void i2c_sam_twim_isr(const struct device *dev)
 {
-	const struct i2c_sam_twim_dev_cfg *const cfg = DEV_CFG(dev);
-	struct i2c_sam_twim_dev_data *const data = DEV_DATA(dev);
+	const struct i2c_sam_twim_dev_cfg *const cfg = dev->config;
+	struct i2c_sam_twim_dev_data *const data = dev->data;
 	Twim *const twim = cfg->regs;
 	struct i2c_msg *msg = &data->msgs[data->msg_cur_idx];
 	uint32_t isr_status;
@@ -507,7 +501,7 @@ static int i2c_sam_twim_transfer(const struct device *dev,
 				 struct i2c_msg *msgs,
 				 uint8_t num_msgs, uint16_t addr)
 {
-	struct i2c_sam_twim_dev_data *data = DEV_DATA(dev);
+	struct i2c_sam_twim_dev_data *data = dev->data;
 	int ret = 0;
 
 	/* Send out messages */
@@ -538,8 +532,8 @@ static int i2c_sam_twim_transfer(const struct device *dev,
 
 static int i2c_sam_twim_initialize(const struct device *dev)
 {
-	const struct i2c_sam_twim_dev_cfg *const cfg = DEV_CFG(dev);
-	struct i2c_sam_twim_dev_data *data = DEV_DATA(dev);
+	const struct i2c_sam_twim_dev_cfg *const cfg = dev->config;
+	struct i2c_sam_twim_dev_data *data = dev->data;
 	Twim *const twim = cfg->regs;
 	uint32_t bitrate_cfg;
 	int ret;
@@ -576,14 +570,14 @@ static int i2c_sam_twim_initialize(const struct device *dev)
 
 	ret = i2c_sam_twim_configure(dev, I2C_MODE_MASTER | bitrate_cfg);
 	if (ret < 0) {
-		LOG_ERR("Failed to initialize %s device", DEV_NAME(dev));
+		LOG_ERR("Failed to initialize %s device", dev->name);
 		return ret;
 	}
 
 	/* Enable module's IRQ */
 	irq_enable(cfg->irq_id);
 
-	LOG_INF("Device %s initialized", DEV_NAME(dev));
+	LOG_INF("Device %s initialized", dev->name);
 
 	return 0;
 }
@@ -592,8 +586,6 @@ static const struct i2c_driver_api i2c_sam_twim_driver_api = {
 	.configure = i2c_sam_twim_configure,
 	.transfer = i2c_sam_twim_transfer,
 };
-
-#define DT_INST_ENUM_IDX(inst, prop) DT_ENUM_IDX(DT_DRV_INST(inst), prop)
 
 #define I2C_TWIM_SAM_SLEW_REGS(n)					\
 	.std_clk_slew_lim = DT_INST_ENUM_IDX(n, std_clk_slew_lim),	\
@@ -614,8 +606,7 @@ static const struct i2c_driver_api i2c_sam_twim_driver_api = {
 			    DEVICE_DT_INST_GET(n), 0);			\
 	}								\
 									\
-	static const struct soc_gpio_pin pins_twim##n[] =		\
-		{ATMEL_SAM_DT_PIN(n, 0), ATMEL_SAM_DT_PIN(n, 1)};	\
+	static const struct soc_gpio_pin pins_twim##n[] = ATMEL_SAM_DT_INST_PINS(n); \
 									\
 	static const struct i2c_sam_twim_dev_cfg i2c##n##_sam_config = {\
 		.regs = (Twim *)DT_INST_REG_ADDR(n),			\
@@ -631,7 +622,7 @@ static const struct i2c_driver_api i2c_sam_twim_driver_api = {
 									\
 	static struct i2c_sam_twim_dev_data i2c##n##_sam_data;		\
 									\
-	DEVICE_DT_INST_DEFINE(n, &i2c_sam_twim_initialize,		\
+	I2C_DEVICE_DT_INST_DEFINE(n, i2c_sam_twim_initialize,		\
 			    NULL,					\
 			    &i2c##n##_sam_data, &i2c##n##_sam_config,	\
 			    POST_KERNEL, CONFIG_I2C_INIT_PRIORITY,	\

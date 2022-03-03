@@ -10,7 +10,7 @@
 #include <drivers/sensor.h>
 
 #ifdef CONFIG_GROVE_LCD_RGB
-#include <display/grove_lcd.h>
+#include <drivers/misc/grove_lcd/grove_lcd.h>
 #include <stdio.h>
 #include <string.h>
 #endif
@@ -19,7 +19,9 @@
 
 void main(void)
 {
-	const struct device *dev = device_get_binding(DT_LABEL(DT_INST(0, grove_temperature)));
+	const struct device *dev =
+		device_get_binding(DT_LABEL(DT_INST(0,
+						    seeed_grove_temperature)));
 	struct sensor_value temp;
 	int read;
 

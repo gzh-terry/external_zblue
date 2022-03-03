@@ -12,51 +12,40 @@ config LOG_BACKEND_UART
 
 if LOG_BACKEND_UART
 
-config LOG_BACKEND_UART_OUTPUT_DICTIONARY
-	bool
-	depends on LOG2
-	select LOG_DICTIONARY_SUPPORT
-	help
-	  UART backend is in dictionary-based logging output mode.
+config LOG_BACKEND_UART_ASYNC
+	bool "Use UART Asynchronous API"
+	depends on UART_ASYNC_API
+	depends on !LOG_BACKEND_UART_OUTPUT_DICTIONARY_HEX
+
+backend = UART
+backend-str = uart
+source "subsys/logging/Kconfig.template.log_format_config"
+
+if LOG_BACKEND_UART_OUTPUT_DICTIONARY
 
 choice
-	prompt "UART Backend Output Mode"
-	default LOG_BACKEND_UART_OUTPUT_TEXT
-
-config LOG_BACKEND_UART_OUTPUT_TEXT
-	bool "Text"
-	help
-	  Output in text.
-
-config LOG_BACKEND_UART_SYST_ENABLE
-	bool "MIPI SyS-T"
-	depends on LOG_BACKEND_UART
-	depends on LOG_MIPI_SYST_ENABLE
-	help
-	  When enabled backend is using UART to output syst format logs.
-
-config LOG_BACKEND_UART_OUTPUT_DICTIONARY_HEX
-	bool "Dictionary (hexadecimal)"
-	depends on LOG2
-	select LOG_BACKEND_UART_OUTPUT_DICTIONARY
-	help
-	  Dictionary-based logging output in hexadecimal.
+	prompt "Dictionary mode output format"
+	default LOG_BACKEND_UART_OUTPUT_DICTIONARY_BIN
 
 config LOG_BACKEND_UART_OUTPUT_DICTIONARY_BIN
 	bool "Dictionary (binary)"
-	depends on LOG2
-	select LOG_BACKEND_UART_OUTPUT_DICTIONARY
 	help
 	  Dictionary-based logging output in binary.
 
+config LOG_BACKEND_UART_OUTPUT_DICTIONARY_HEX
+	bool "Dictionary (hexadecimal)"
+	help
+	  Dictionary-based logging output in hexadecimal. Supported only for UART backend.
+
 endchoice
+
+endif # LOG_BACKEND_UART_OUTPUT_DICTIONARY
 
 endif # LOG_BACKEND_UART
 
 config LOG_BACKEND_SWO
 	bool "Enable Serial Wire Output (SWO) backend"
 	depends on HAS_SWO
-	depends on !LOG2
 	help
 	  When enabled, backend will use SWO for logging.
 
@@ -77,11 +66,9 @@ config LOG_BACKEND_SWO_FREQ_HZ
 	  reset. To ensure flawless operation the frequency configured here and
 	  by the SWO viewer program has to match.
 
-config LOG_BACKEND_SWO_SYST_ENABLE
-	bool "Enable SWO syst backend"
-	depends on LOG_MIPI_SYST_ENABLE
-	help
-	  When enabled backend is using SWO to output syst format logs.
+backend = SWO
+backend-str = swo
+source "subsys/logging/Kconfig.template.log_format_config"
 
 endif # LOG_BACKEND_SWO
 
@@ -100,7 +87,7 @@ config LOG_BACKEND_RTT
 
 if LOG_BACKEND_RTT
 
-choice
+choice LOG_BACKEND_RTT_MODE
 	prompt "Logger behavior"
 	default LOG_BACKEND_RTT_MODE_BLOCK
 
@@ -116,13 +103,17 @@ config LOG_BACKEND_RTT_MODE_BLOCK
 	help
 	  Waits until there is enough space in the up-buffer for a message.
 
-config LOG_BACKEND_RTT_SYST_ENABLE
-	bool "Enable RTT syst backend"
-	depends on LOG_MIPI_SYST_ENABLE
+config LOG_BACKEND_RTT_MODE_OVERWRITE
+	bool "Overwrite messages if up-buffer full"
 	help
-	  When enabled backend is using RTT to output syst format logs.
+	  If there is not enough space in up-buffer for a message overwrite
+	  oldest one.
 
 endchoice
+
+backend = RTT
+backend-str = rtt
+source "subsys/logging/Kconfig.template.log_format_config"
 
 config LOG_BACKEND_RTT_MESSAGE_SIZE
 	int "Size of internal buffer for storing messages."
@@ -188,9 +179,8 @@ endif # LOG_BACKEND_RTT
 
 config LOG_BACKEND_SPINEL
 	bool "Enable OpenThread dedicated Spinel protocol backend"
-	depends on (OPENTHREAD_COPROCESSOR_SPINEL_ON_UART_DEV_NAME!=UART_CONSOLE_ON_DEV_NAME || !LOG_BACKEND_UART)
+	depends on !LOG_BACKEND_UART
 	depends on NET_L2_OPENTHREAD
-	depends on !LOG2
 	help
 	  When enabled, backend will use OpenThread dedicated SPINEL protocol for logging.
 	  This protocol is byte oriented and wrapps given messages into serial frames.
@@ -205,6 +195,10 @@ config LOG_BACKEND_SPINEL_BUFFER_SIZE
 	help
 	  Specify reserved size of up-buffer used for logger output.
 
+backend = SPINEL
+backend-str = spinel
+source "subsys/logging/Kconfig.template.log_format_config"
+
 endif # LOG_BACKEND_SPINEL
 
 config LOG_BACKEND_NATIVE_POSIX
@@ -213,10 +207,17 @@ config LOG_BACKEND_NATIVE_POSIX
 	help
 	  Enable backend in native_posix
 
+if LOG_BACKEND_NATIVE_POSIX
+
+backend = NATIVE_POSIX
+backend-str = native_posix
+source "subsys/logging/Kconfig.template.log_format_config"
+
+endif # LOG_BACKEND_NATIVE_POSIX
+
 config LOG_BACKEND_XTENSA_SIM
 	bool "Enable xtensa simulator backend"
 	depends on SOC_XTENSA_SAMPLE_CONTROLLER || SOC_FAMILY_INTEL_ADSP
-	depends on !LOG2
 	help
 	  Enable backend in xtensa simulator
 
@@ -228,12 +229,19 @@ config LOG_BACKEND_XTENSA_OUTPUT_BUFFER_SIZE
 	  Buffer is used by log_output module for preparing output data (e.g.
 	  string formatting).
 
+if LOG_BACKEND_XTENSA_SIM
+
+backend = XTENSA_SIM
+backend-str = xtensa_sim
+source "subsys/logging/Kconfig.template.log_format_config"
+
+endif # LOG_BACKEND_XTENSA_SIM
+
 # Immediate mode cannot be used with network backend as it would cause the sent
 # rsyslog message to be malformed.
 config LOG_BACKEND_NET
 	bool "Enable networking backend"
-	depends on !LOG2
-	depends on NETWORKING && NET_UDP && !LOG_IMMEDIATE
+	depends on NETWORKING && NET_UDP && !LOG_MODE_IMMEDIATE
 	select NET_CONTEXT_NET_PKT_POOL
 	help
 	  Send syslog messages to network server.
@@ -276,12 +284,6 @@ config LOG_BACKEND_NET_MAX_BUF_SIZE
 	  IPv6 the size is 1180 octets. As each buffer will use RAM, the value
 	  should be selected so that typical messages will fit the buffer.
 
-config LOG_BACKEND_NET_SYST_ENABLE
-	bool "Enable networking syst backend"
-	depends on LOG_MIPI_SYST_ENABLE
-	help
-	  When enabled backend is using networking to output syst format logs.
-
 config LOG_BACKEND_NET_AUTOSTART
 	bool "Automatically start networking backend"
 	default y if NET_CONFIG_NEED_IPV4 || NET_CONFIG_NEED_IPV6
@@ -292,6 +294,10 @@ config LOG_BACKEND_NET_AUTOSTART
 	  started by the application later on. Otherwise the logging
 	  thread might block.
 
+backend = NET
+backend-str = net
+source "subsys/logging/Kconfig.template.log_format_config"
+
 endif # LOG_BACKEND_NET
 
 config LOG_BACKEND_ADSP
@@ -301,13 +307,28 @@ config LOG_BACKEND_ADSP
 	  Enable backend for the host trace protocol of the Intel ADSP
 	  family of audio processors
 
+if LOG_BACKEND_ADSP
+
+backend = ADSP
+backend-str = adsp
+source "subsys/logging/Kconfig.template.log_format_config"
+
+endif # LOG_BACKEND_ADSP
+
 config LOG_BACKEND_FS
-	bool "Enable LittleFS backend"
+	bool "Enable file system backend"
 	depends on FILE_SYSTEM
 	help
-	  When enabled backend is using LittleFS to output logs.
+	  When enabled, backend is using the configured file system to output logs.
+	  As the file system must be mounted for the logging to work, it must be
+	  either configured for auto-mount or manually mounted by the application.
+	  Log messages are discarded as long as the file system is not mounted.
 
 if LOG_BACKEND_FS
+
+backend = FS
+backend-str = fs
+source "subsys/logging/Kconfig.template.log_format_config"
 
 config LOG_BACKEND_FS_OVERWRITE
 	bool "Enable old log files overwrite"
@@ -332,7 +353,7 @@ config LOG_BACKEND_FS_DIR
 config LOG_BACKEND_FS_FILE_SIZE
 	int "User defined log file size"
 	default 4096
-	range 128 16384
+	range 128 1073741824
 	help
 	  Max log file size (in bytes).
 

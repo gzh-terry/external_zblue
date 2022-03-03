@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
-if(NOT CONFIG_LOG_MINIMAL)
+if(NOT CONFIG_LOG_MODE_MINIMAL)
   zephyr_sources_ifdef(
     CONFIG_LOG
     log_list.c
     log_core.c
+    log_mgmt.c
     log_msg.c
     log_output.c
   )
@@ -14,6 +15,24 @@ if(NOT CONFIG_LOG_MINIMAL)
     log_msg2.c
   )
 
+  # Determine if __auto_type is supported. If not then runtime approach must always
+  # be used.
+  # Supported by:
+  # - C++ (auto)
+  # - GCC 4.9.0 https://gcc.gnu.org/gcc-4.9/changes.html
+  # - Clang 3.8
+  if (NOT CONFIG_LOG2_ALWAYS_RUNTIME)
+    if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+      if(CMAKE_C_COMPILER_VERSION VERSION_LESS "3.8.0")
+        message(WARNING "Compiler version requires CONFIG_LOG2_ALWAYS_RUNTIME to be set")
+      endif()
+    endif()
+    if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+      if(CMAKE_C_COMPILER_VERSION VERSION_LESS "4.9.0")
+        message(WARNING "Compiler version requires CONFIG_LOG2_ALWAYS_RUNTIME to be set")
+      endif()
+    endif()
+  endif()
 
   zephyr_sources_ifdef(
     CONFIG_LOG_BACKEND_UART
@@ -24,8 +43,6 @@ if(NOT CONFIG_LOG_MINIMAL)
     CONFIG_LOG_BACKEND_FS
     log_backend_fs.c
   )
-
-  zephyr_link_libraries_ifdef(CONFIG_LOG_BACKEND_FS LITTLEFS)
 
   zephyr_sources_ifdef(
     CONFIG_LOG_CMDS
@@ -84,4 +101,16 @@ if(NOT CONFIG_LOG_MINIMAL)
 
 else()
   zephyr_sources(log_minimal.c)
+endif()
+
+if(CONFIG_LOG2_MODE_IMMEDIATE OR CONFIG_LOG2_MODE_DEFERRED)
+  message(WARNING "CONFIG_LOG2_MODE_{IMMEDIATE,DEFERRED} is deprecated. Please \
+￼                  use CONFIG_LOG_MODE_{IMMEDIATE,DEFERRED} which defaults to v2"
+￼         )
+endif()
+
+if(CONFIG_LOG1)
+  message(WARNING "Logging v1 has been deprecated. Use v2 instead and adapt \
+                   custom backend to the new backend API"
+￼         )
 endif()

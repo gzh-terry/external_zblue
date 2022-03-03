@@ -35,6 +35,7 @@ static uint8_t output_buf[CONFIG_LOG_BACKEND_NET_MAX_BUF_SIZE];
 static bool net_init_done;
 struct sockaddr server_addr;
 static bool panic_mode;
+static uint32_t log_format_current = CONFIG_LOG_BACKEND_NET_OUTPUT_DEFAULT;
 
 const struct log_backend *log_backend_net_get(void);
 
@@ -78,8 +79,8 @@ LOG_OUTPUT_DEFINE(log_output_net, line_out, output_buf, sizeof(output_buf));
 static int do_net_init(void)
 {
 	struct sockaddr *local_addr = NULL;
-	struct sockaddr_in6 local_addr6;
-	struct sockaddr_in local_addr4;
+	struct sockaddr_in6 local_addr6 = {0};
+	struct sockaddr_in local_addr4 = {0};
 	socklen_t server_addr_len;
 	struct net_context *ctx;
 	int ret;
@@ -188,10 +189,34 @@ static void send_output(const struct log_backend *const backend,
 	log_output_msg_process(&log_output_net, msg,
 			       LOG_OUTPUT_FLAG_FORMAT_SYSLOG |
 			       LOG_OUTPUT_FLAG_TIMESTAMP |
-			(IS_ENABLED(CONFIG_LOG_BACKEND_NET_SYST_ENABLE) ?
+			(IS_ENABLED(CONFIG_LOG_BACKEND_NET_OUTPUT_SYST) ?
 			LOG_OUTPUT_FLAG_FORMAT_SYST : 0));
 
 	log_msg_put(msg);
+}
+
+static void process(const struct log_backend *const backend,
+		    union log_msg2_generic *msg)
+{
+	uint32_t flags = LOG_OUTPUT_FLAG_FORMAT_SYSLOG | LOG_OUTPUT_FLAG_TIMESTAMP;
+
+	if (panic_mode) {
+		return;
+	}
+
+	if (!net_init_done && do_net_init() == 0) {
+		net_init_done = true;
+	}
+
+	log_format_func_t log_output_func = log_format_func_t_get(log_format_current);
+
+	log_output_func(&log_output_net, &msg->log, flags);
+}
+
+static int format_set(const struct log_backend *const backend, uint32_t log_type)
+{
+	log_format_current = log_type;
+	return 0;
 }
 
 static void init_net(struct log_backend const *const backend)
@@ -223,7 +248,7 @@ static void sync_string(const struct log_backend *const backend,
 {
 	uint32_t flags = LOG_OUTPUT_FLAG_LEVEL | LOG_OUTPUT_FLAG_FORMAT_SYSLOG |
 		LOG_OUTPUT_FLAG_TIMESTAMP |
-		(IS_ENABLED(CONFIG_LOG_BACKEND_NET_SYST_ENABLE) ?
+		(IS_ENABLED(CONFIG_LOG_BACKEND_NET_OUTPUT_SYST) ?
 		LOG_OUTPUT_FLAG_FORMAT_SYST : 0);
 	uint32_t key;
 
@@ -240,14 +265,16 @@ static void sync_string(const struct log_backend *const backend,
 const struct log_backend_api log_backend_net_api = {
 	.panic = panic,
 	.init = init_net,
-	.put = IS_ENABLED(CONFIG_LOG_IMMEDIATE) ? NULL : send_output,
-	.put_sync_string = IS_ENABLED(CONFIG_LOG_IMMEDIATE) ?
+	.process = IS_ENABLED(CONFIG_LOG2) ? process : NULL,
+	.put = IS_ENABLED(CONFIG_LOG1_DEFERRED) ? send_output : NULL,
+	.put_sync_string = IS_ENABLED(CONFIG_LOG1_IMMEDIATE) ?
 							sync_string : NULL,
 	/* Currently we do not send hexdumps over network to remote server
-	 * in CONFIG_LOG_IMMEDIATE mode. This is just to save resources,
+	 * if CONFIG_LOG_MODE_IMMEDIATE is used. This is just to save resources,
 	 * this can be revisited if needed.
 	 */
 	.put_sync_hexdump = NULL,
+	.format_set = IS_ENABLED(CONFIG_LOG1) ? NULL : format_set,
 };
 
 /* Note that the backend can be activated only after we have networking

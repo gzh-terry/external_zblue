@@ -91,10 +91,11 @@ static void eswifi_off_read_work(struct k_work *work)
 	int next_timeout_ms = 100;
 	int err, len;
 	char *data;
+	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
 
 	LOG_DBG("");
 
-	socket = CONTAINER_OF(work, struct eswifi_off_socket, read_work);
+	socket = CONTAINER_OF(dwork, struct eswifi_off_socket, read_work);
 	eswifi = eswifi_socket_to_dev(socket);
 
 	eswifi_lock(eswifi);
@@ -152,7 +153,7 @@ do_recv_cb:
 done:
 	err = k_work_reschedule_for_queue(&eswifi->work_q, &socket->read_work,
 					  K_MSEC(next_timeout_ms));
-	if (err) {
+	if (err < 0) {
 		LOG_ERR("Rescheduling socket read error");
 	}
 
@@ -205,6 +206,7 @@ int __eswifi_off_start_client(struct eswifi_dev *eswifi,
 		LOG_ERR("Unable to start TCP/UDP client");
 		return -EIO;
 	}
+	net_context_set_state(socket->context, NET_CONTEXT_CONNECTED);
 
 	return 0;
 }

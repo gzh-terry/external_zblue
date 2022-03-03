@@ -40,6 +40,7 @@ synchronization.
    synchronization/semaphores.rst
    synchronization/mutexes.rst
    synchronization/condvar.rst
+   synchronization/events.rst
    smp/smp.rst
 
 .. _kernel_data_passing_api:
@@ -124,3 +125,4 @@ These pages cover other kernel services.
    other/cxx_support.rst
    other/version.rst
    other/fatal.rst
+   other/thread_local_storage.rst

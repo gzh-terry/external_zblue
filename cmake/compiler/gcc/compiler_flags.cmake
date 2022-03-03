@@ -42,14 +42,6 @@ check_set_compiler_property(APPEND PROPERTY warning_base -Wpointer-arith)
 # not portable
 check_set_compiler_property(APPEND PROPERTY warning_base -Wexpansion-to-defined)
 
-if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "9.1.0")
-  set_compiler_property(APPEND PROPERTY warning_base
-                        # FIXME: Remove once #16587 is fixed
-                        -Wno-address-of-packed-member
-  )
-endif()
-
-
 # GCC options for warning levels 1, 2, 3, when using `-DW=[1|2|3]`
 set_compiler_property(PROPERTY warning_dw_1
                       -Waggregate-return
@@ -120,6 +112,8 @@ if (NOT CONFIG_NEWLIB_LIBC AND
   set_compiler_property(APPEND PROPERTY nostdinc_include ${NOSTDINC})
 endif()
 
+set_compiler_property(TARGET compiler-cpp PROPERTY nostdincxx "-nostdinc++")
+
 # Required C++ flags when using gcc
 set_property(TARGET compiler-cpp PROPERTY required "-fcheck-new")
 
@@ -129,6 +123,10 @@ set_property(TARGET compiler-cpp PROPERTY dialect_cpp11 "-std=c++11" "-Wno-regis
 set_property(TARGET compiler-cpp PROPERTY dialect_cpp14 "-std=c++14" "-Wno-register")
 set_property(TARGET compiler-cpp PROPERTY dialect_cpp17 "-std=c++17" "-Wno-register")
 set_property(TARGET compiler-cpp PROPERTY dialect_cpp2a "-std=c++2a"
+  "-Wno-register" "-Wno-volatile")
+set_property(TARGET compiler-cpp PROPERTY dialect_cpp20 "-std=c++20"
+  "-Wno-register" "-Wno-volatile")
+set_property(TARGET compiler-cpp PROPERTY dialect_cpp2b "-std=c++2b"
   "-Wno-register" "-Wno-volatile")
 
 # Disable exeptions flag in C++
@@ -167,6 +165,10 @@ set_compiler_property(PROPERTY freestanding -ffreestanding)
 # Flag to enable debugging
 set_compiler_property(PROPERTY debug -g)
 
+# GCC 11 by default emits DWARF version 5 which cannot be parsed by
+# pyelftools. Can be removed once pyelftools supports v5.
+check_set_compiler_property(APPEND PROPERTY debug -gdwarf-4)
+
 set_compiler_property(PROPERTY no_common -fno-common)
 
 # GCC compiler flags for imacros. The specific header must be appended by user.
@@ -184,4 +186,6 @@ set_property(TARGET compiler-cpp PROPERTY no_threadsafe_statics "-fno-threadsafe
 set_property(TARGET asm PROPERTY required "-xassembler-with-cpp")
 
 # gcc flag for colourful diagnostic messages
+if (NOT COMPILER STREQUAL "xcc")
 set_compiler_property(PROPERTY diagnostic -fdiagnostics-color=always)
+endif()

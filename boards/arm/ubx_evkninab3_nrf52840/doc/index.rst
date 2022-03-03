@@ -85,7 +85,7 @@ hardware features:
 | WDT       | on-chip    | watchdog             |
 +-----------+------------+----------------------+
 
-Other hardware features are not supported by the Zephyr kernel.
+Other hardware features have not been enabled yet for this board.
 See the `u-blox website`_ for a complete list of EVK-NINA-B30x
 hardware features.
 
@@ -95,9 +95,9 @@ Connections and IOs
 LED
 ---
 
-* LED1 (red) = P0.13
+* LED0 (red) = P0.13
+* LED1 (green) = P0.25
 * LED2 (blue) = P1.00
-* LED3 (green) = P0.25
 
 Push buttons
 ------------

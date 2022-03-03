@@ -31,6 +31,9 @@ Configuration options
 - ``doxyrunner_doxyfile``: Path to Doxyfile.
 - ``doxyrunner_outdir``: Doxygen build output directory (inserted to
   ``OUTPUT_DIRECTORY``)
+- ``doxyrunner_outdir_var``: Variable representing the Doxygen build output
+  directory, as used by ``OUTPUT_DIRECTORY``. This can be useful if other
+  Doxygen variables reference to the output directory.
 - ``doxyrunner_fmt``: Flag to indicate if Doxyfile should be formatted.
 - ``doxyrunner_fmt_vars``: Format variables dictionary (name: value).
 - ``doxyrunner_fmt_pattern``: Format pattern.
@@ -39,8 +42,8 @@ Configuration options
 """
 
 import filecmp
+import hashlib
 from pathlib import Path
-import pickle
 import re
 import shlex
 import shutil
@@ -49,6 +52,7 @@ import tempfile
 from typing import List, Dict, Optional, Any
 
 from sphinx.application import Sphinx
+from sphinx.environment import BuildEnvironment
 from sphinx.util import logging
 
 
@@ -57,6 +61,21 @@ __version__ = "0.1.0"
 
 logger = logging.getLogger(__name__)
 
+
+def hash_file(file: Path) -> str:
+    """Compute the hash (SHA256) of a file in text mode.
+
+    Args:
+        file: File to be hashed.
+
+    Returns:
+        Hash.
+    """
+
+    with open(file, encoding="utf-8") as f:
+        sha256 = hashlib.sha256(f.read().encode("utf-8"))
+
+    return sha256.hexdigest()
 
 def get_doxygen_option(doxyfile: str, option: str) -> List[str]:
     """Obtain the value of a Doxygen option.
@@ -112,18 +131,26 @@ def get_doxygen_option(doxyfile: str, option: str) -> List[str]:
 def process_doxyfile(
     doxyfile: str,
     outdir: Path,
+    silent: bool,
     fmt: bool = False,
     fmt_pattern: Optional[str] = None,
     fmt_vars: Optional[Dict[str, str]] = None,
+    outdir_var: Optional[str] = None,
 ) -> str:
     """Process Doxyfile.
+
+    Notes:
+        OUTPUT_DIRECTORY, WARN_FORMAT and QUIET are overridden to satisfy
+        extension operation needs.
 
     Args:
         doxyfile: Path to the Doxyfile.
         outdir: Output directory of the Doxygen build.
+        silent: If Doxygen should be run in quiet mode or not.
         fmt: If Doxyfile should be formatted.
         fmt_pattern: Format pattern.
         fmt_vars: Format variables.
+        outdir_var: Variable representing output directory.
 
      Returns:
         Processed Doxyfile content.
@@ -139,9 +166,27 @@ def process_doxyfile(
         flags=re.MULTILINE,
     )
 
+    content = re.sub(
+        r"^\s*WARN_FORMAT\s*=.*$",
+        'WARN_FORMAT="$file:$line: $text"',
+        content,
+        flags=re.MULTILINE,
+    )
+
+    content = re.sub(
+        r"^\s*QUIET\s*=.*$",
+        "QUIET=" + "YES" if silent else "NO",
+        content,
+        flags=re.MULTILINE,
+    )
+
     if fmt:
         if not fmt_pattern or not fmt_vars:
             raise ValueError("Invalid formatting pattern or variables")
+
+        if outdir_var:
+            fmt_vars = fmt_vars.copy()
+            fmt_vars[outdir_var] = outdir.as_posix()
 
         for var, value in fmt_vars.items():
             content = content.replace(fmt_pattern.format(var), value)
@@ -149,12 +194,12 @@ def process_doxyfile(
     return content
 
 
-def doxygen_input_has_changed(doxyfile: str, cache_dir: Path) -> bool:
+def doxygen_input_has_changed(env: BuildEnvironment, doxyfile: str) -> bool:
     """Check if Doxygen input files have changed.
 
     Args:
+        env: Sphinx build environment instance.
         doxyfile: Doxyfile content.
-        cache_dir: Directory where cache file is located.
 
     Returns:
         True if changed, False otherwise.
@@ -169,33 +214,51 @@ def doxygen_input_has_changed(doxyfile: str, cache_dir: Path) -> bool:
     if not file_patterns:
         raise ValueError("No FILE_PATTERNS set in Doxyfile")
 
-    # build a dict of input files <-> current modification time
-    files = dict()
+    # build a set with input files hash
+    cache = set()
     for file in input_files:
         path = Path(file)
         if path.is_file():
-            files[path.as_posix()] = path.stat().st_mtime_ns
+            cache.add(hash_file(path))
         else:
             for pattern in file_patterns:
                 for p_file in path.glob("**/" + pattern):
-                    files[p_file.as_posix()] = p_file.stat().st_mtime_ns
+                    cache.add(hash_file(p_file))
 
     # check if any file has changed
-    dirty = True
-    files_cache_file = cache_dir / "doxygen.cache"
-    if files_cache_file.exists():
-        with open(files_cache_file, "rb") as f:
-            files_cache = pickle.load(f)
-        dirty = files != files_cache
-
-    if not dirty:
+    if hasattr(env, "doxyrunner_cache") and env.doxyrunner_cache == cache:
         return False
 
     # store current state
-    with open(files_cache_file, "wb") as f:
-        pickle.dump(files, f)
+    env.doxyrunner_cache = cache
 
     return True
+
+
+def process_doxygen_output(line: str, silent: bool) -> None:
+    """Process a line of Doxygen program output.
+
+    This function will map Doxygen output to the Sphinx logger output. Errors
+    and warnings will be converted to Sphinx errors and warnings. Other
+    messages, if not silent, will be mapped to the info logger channel.
+
+    Args:
+        line: Doxygen program line.
+        silent: True if regular messages should be logged, False otherwise.
+    """
+
+    m = re.match(r"(.*):(\d+): ([a-z]+): (.*)", line)
+    if m:
+        type = m.group(3)
+        message = f"{m.group(1)}:{m.group(2)}: {m.group(4)}"
+        if type == "error":
+            logger.error(message)
+        elif type == "warning":
+            logger.warning(message)
+        else:
+            logger.info(message)
+    elif not silent:
+        logger.info(line)
 
 
 def run_doxygen(doxygen: str, doxyfile: str, silent: bool = False) -> None:
@@ -214,8 +277,8 @@ def run_doxygen(doxygen: str, doxyfile: str, silent: bool = False) -> None:
     p = Popen([doxygen, f_doxyfile.name], stdout=PIPE, stderr=STDOUT, encoding="utf-8")
     while True:
         line = p.stdout.readline()  # type: ignore
-        if line and not silent:
-            logger.info(line.rstrip())
+        if line:
+            process_doxygen_output(line.rstrip(), silent)
         if p.poll() is not None:
             break
 
@@ -239,7 +302,7 @@ def sync_doxygen(doxyfile: str, new: Path, prev: Path) -> None:
     """
 
     generate_html = get_doxygen_option(doxyfile, "GENERATE_HTML")
-    if generate_html == "YES":
+    if generate_html[0] == "YES":
         html_output = get_doxygen_option(doxyfile, "HTML_OUTPUT")
         if not html_output:
             raise ValueError("No HTML_OUTPUT set in Doxyfile")
@@ -291,13 +354,15 @@ def doxygen_build(app: Sphinx) -> None:
     doxyfile = process_doxyfile(
         app.config.doxyrunner_doxyfile,
         tmp_outdir,
+        app.config.doxyrunner_silent,
         app.config.doxyrunner_fmt,
         app.config.doxyrunner_fmt_pattern,
         app.config.doxyrunner_fmt_vars,
+        app.config.doxyrunner_outdir_var,
     )
 
     logger.info("Checking if Doxygen needs to be run...")
-    changed = doxygen_input_has_changed(doxyfile, outdir)
+    changed = doxygen_input_has_changed(app.env, doxyfile)
     if not changed:
         logger.info("Doxygen build will be skipped (no changes)!")
         return
@@ -319,10 +384,11 @@ def setup(app: Sphinx) -> Dict[str, Any]:
     app.add_config_value("doxyrunner_doxygen", "doxygen", "env")
     app.add_config_value("doxyrunner_doxyfile", None, "env")
     app.add_config_value("doxyrunner_outdir", None, "env")
+    app.add_config_value("doxyrunner_outdir_var", None, "env")
     app.add_config_value("doxyrunner_fmt", False, "env")
     app.add_config_value("doxyrunner_fmt_vars", {}, "env")
     app.add_config_value("doxyrunner_fmt_pattern", "@{}@", "env")
-    app.add_config_value("doxyrunner_silent", False, "")
+    app.add_config_value("doxyrunner_silent", True, "")
 
     app.connect("builder-inited", doxygen_build)
 

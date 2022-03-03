@@ -65,7 +65,6 @@ GEN_OFFSET_SYM(_callee_saved_t, fs11);
 
 /* esf member offsets */
 GEN_OFFSET_SYM(z_arch_esf_t, ra);
-GEN_OFFSET_SYM(z_arch_esf_t, gp);
 GEN_OFFSET_SYM(z_arch_esf_t, tp);
 GEN_OFFSET_SYM(z_arch_esf_t, t0);
 GEN_OFFSET_SYM(z_arch_esf_t, t1);
@@ -131,5 +130,7 @@ GEN_ABSOLUTE_SYM(__z_arch_esf_t_SIZEOF, STACK_ROUND_UP(sizeof(z_arch_esf_t)));
  */
 GEN_ABSOLUTE_SYM(_K_THREAD_NO_FLOAT_SIZEOF,
 		 STACK_ROUND_UP(sizeof(struct k_thread)));
+
+GEN_ABSOLUTE_SYM(___cpu_t_SIZEOF, sizeof(_cpu_t));
 
 GEN_ABS_SYM_END

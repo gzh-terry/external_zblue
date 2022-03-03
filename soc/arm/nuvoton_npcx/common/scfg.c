@@ -38,7 +38,9 @@ static const struct npcx_alt def_alts[] =
 
 static const struct npcx_lvol def_lvols[] = NPCX_DT_IO_LVOL_ITEMS_DEF_LIST;
 
+#if DT_HAS_COMPAT_STATUS_OKAY(nuvoton_npcx_pslctrl_def)
 static const struct npcx_psl_in psl_in_confs[] = NPCX_DT_PSL_IN_ITEMS_LIST;
+#endif
 
 static const struct npcx_scfg_config npcx_scfg_cfg = {
 	.base_scfg = DT_REG_ADDR_BY_NAME(DT_NODELABEL(scfg), scfg),
@@ -72,17 +74,6 @@ static void npcx_pinctrl_alt_sel(const struct npcx_alt *alt, int alt_func)
 		NPCX_DEVALT(scfg_base, alt->group) |=  alt_mask;
 	} else {
 		NPCX_DEVALT(scfg_base, alt->group) &= ~alt_mask;
-	}
-}
-
-static void npcx_pinctrl_psl_detect_mode_sel(uint32_t offset, bool edge_mode)
-{
-	struct glue_reg *const inst_glue = HAL_GLUE_INST();
-
-	if (edge_mode) {
-		inst_glue->PSL_CTS |= NPCX_PSL_CTS_MODE_BIT(offset);
-	} else {
-		inst_glue->PSL_CTS &= ~NPCX_PSL_CTS_MODE_BIT(offset);
 	}
 }
 
@@ -179,6 +170,18 @@ void npcx_pinctrl_psl_output_set_inactive(void)
 	inst->PDOUT |= BIT(pin);
 }
 
+#if DT_HAS_COMPAT_STATUS_OKAY(nuvoton_npcx_pslctrl_def)
+static void npcx_pinctrl_psl_detect_mode_sel(uint32_t offset, bool edge_mode)
+{
+	struct glue_reg *const inst_glue = HAL_GLUE_INST();
+
+	if (edge_mode) {
+		inst_glue->PSL_CTS |= NPCX_PSL_CTS_MODE_BIT(offset);
+	} else {
+		inst_glue->PSL_CTS &= ~NPCX_PSL_CTS_MODE_BIT(offset);
+	}
+}
+
 bool npcx_pinctrl_psl_input_asserted(uint32_t i)
 {
 	struct glue_reg *const inst_glue = HAL_GLUE_INST();
@@ -208,19 +211,26 @@ void npcx_pinctrl_psl_input_configure(void)
 		npcx_pinctrl_alt_sel(&psl_in_confs[i].pinctrl, 1);
 	}
 }
+#endif
+
+void npcx_host_interface_sel(enum npcx_hif_type hif_type)
+{
+	struct scfg_reg *inst_scfg = HAL_SFCG_INST();
+
+	SET_FIELD(inst_scfg->DEVCNT, NPCX_DEVCNT_HIF_TYP_SEL_FIELD, hif_type);
+}
 
 /* Pin-control driver registration */
 static int npcx_scfg_init(const struct device *dev)
 {
 	struct scfg_reg *inst_scfg = HAL_SFCG_INST();
 
-#if defined(CONFIG_SOC_SERIES_NPCX7)
 	/*
 	 * Set bit 7 of DEVCNT again for npcx7 series. Please see Errata
 	 * for more information. It will be fixed in next chip.
 	 */
-	inst_scfg->DEVCNT |= BIT(7);
-#endif
+	if (IS_ENABLED(CONFIG_SOC_SERIES_NPCX7))
+		inst_scfg->DEVCNT |= BIT(7);
 
 	/* Change all pads whose default functionality isn't IO to GPIO */
 	npcx_pinctrl_mux_configure(def_alts, ARRAY_SIZE(def_alts), 0);

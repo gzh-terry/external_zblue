@@ -360,24 +360,24 @@ struct k_mem_slab * const _k_mem_slab_list[] =
 /* k_mem_slab END */
 
 /* bt_mesh_subnet_cb START */
-extern const struct bt_mesh_subnet_cb bt_mesh_subnet_cb_subnet_evt_app_keys;
-extern const struct bt_mesh_subnet_cb bt_mesh_subnet_cb_subnet_evt_beacon;
-extern const struct bt_mesh_subnet_cb bt_mesh_subnet_cb_subnet_evt_friend;
-extern const struct bt_mesh_subnet_cb bt_mesh_subnet_cb_subnet_evt_lpn;
-extern const struct bt_mesh_subnet_cb bt_mesh_subnet_cb_subnet_evt_proxy;
+extern const struct bt_mesh_subnet_cb bt_mesh_subnet_cb_app_keys;
+extern const struct bt_mesh_subnet_cb bt_mesh_subnet_cb_beacon;
+extern const struct bt_mesh_subnet_cb bt_mesh_subnet_cb_friend;
+extern const struct bt_mesh_subnet_cb bt_mesh_subnet_cb_lpn;
+extern const struct bt_mesh_subnet_cb bt_mesh_subnet_cb_proxy;
 const struct bt_mesh_subnet_cb * const _bt_mesh_subnet_cb_list[] =
 {
 #if defined(CONFIG_BT_MESH)
-	&bt_mesh_subnet_cb_subnet_evt_app_keys,
-	&bt_mesh_subnet_cb_subnet_evt_beacon,
+	& bt_mesh_subnet_cb_app_keys,
+	& bt_mesh_subnet_cb_beacon,
 #if defined(CONFIG_BT_MESH_FRIEND)
-	&bt_mesh_subnet_cb_subnet_evt_friend,
+	& bt_mesh_subnet_cb_friend,
 #endif /* CONFIG_BT_MESH_FRIEND */
 #if defined(CONFIG_BT_MESH_LPN)
-	&bt_mesh_subnet_cb_subnet_evt_lpn,
+	& bt_mesh_subnet_cb_lpn,
 #endif /* CONFIG_BT_MESH_LPN */
 #if defined(CONFIG_BT_MESH_GATT_PROXY)
-	&bt_mesh_subnet_cb_subnet_evt_proxy,
+	& bt_mesh_subnet_cb_proxy,
 #endif /* CONFIG_BT_MESH_GATT_PROXY */
 #endif /* CONFIG_BT_MESH */
 	NULL,

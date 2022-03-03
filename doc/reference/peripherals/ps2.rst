@@ -19,7 +19,7 @@ Configuration Options
 
 Related configuration options:
 
-* :option:`CONFIG_PS2`
+* :kconfig:option:`CONFIG_PS2`
 
 API Reference
 *************

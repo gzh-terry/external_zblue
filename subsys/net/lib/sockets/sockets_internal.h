@@ -13,6 +13,9 @@
 #define SOCK_NONBLOCK 2
 
 int zsock_close_ctx(struct net_context *ctx);
+int zsock_poll_internal(struct zsock_pollfd *fds, int nfds, k_timeout_t timeout);
+
+int zsock_wait_data(struct net_context *ctx, k_timeout_t *timeout);
 
 static inline void sock_set_flag(struct net_context *ctx, uintptr_t mask,
 				 uintptr_t flag)
@@ -48,6 +51,7 @@ static inline bool net_socket_is_tls(void *obj)
 
 struct socket_op_vtable {
 	struct fd_op_vtable fd_vtable;
+	int (*shutdown)(void *obj, int how);
 	int (*bind)(void *obj, const struct sockaddr *addr, socklen_t addrlen);
 	int (*connect)(void *obj, const struct sockaddr *addr,
 		       socklen_t addrlen);

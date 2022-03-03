@@ -17,9 +17,11 @@
 #endif /* CONFIG_CBPRINTF_LIBC_SUBSTS */
 
 /* Determine if _Generic is supported.
- * In general it's a C11 feature but it was added also in:
+ * In general it's a C11 feature but it is supported in releases after:
  * - GCC 4.9.0 https://gcc.gnu.org/gcc-4.9/changes.html
- * - Clang 3.0 https://releases.llvm.org/3.0/docs/ClangReleaseNotes.html
+ * - Clang 3.8 Introduced in 3.0 (https://releases.llvm.org/3.0/docs/ClangReleaseNotes.html)
+ *   but with bug (http://www.open-std.org/jtc1/sc22/wg14/www/docs/summary.htm#dr_481)
+ *   that was fixed in 3.8.
  *
  * @note Z_C_GENERIC is also set for C++ where functionality is implemented
  * using overloading and templates.
@@ -27,7 +29,7 @@
 #ifndef Z_C_GENERIC
 #if defined(__cplusplus) || (((__STDC_VERSION__ >= 201112L) || \
 	((__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__) >= 40900) || \
-	((__clang_major__ * 10000 + __clang_minor__ * 100 + __clang_patchlevel__) >= 30000)))
+	((__clang_major__ * 10000 + __clang_minor__ * 100 + __clang_patchlevel__) >= 30800)))
 #define Z_C_GENERIC 1
 #else
 #define Z_C_GENERIC 0
@@ -63,6 +65,33 @@ extern "C" {
 		sizeof(long double) : MAX(sizeof(double), sizeof(long long)))
 #endif
 
+/**@defgroup CBPRINTF_PACKAGE_FLAGS Package flags.
+ * @{
+ */
+
+/** @brief Append indexes of read-only string arguments in the package.
+ *
+ * When used, package contains locations of read-only string arguments. Package
+ * with that information can be converted to fully self-contain package using
+ * @ref cbprintf_fsc_package.
+ */
+#define CBPRINTF_PACKAGE_ADD_STRING_IDXS BIT(0)
+
+/**@} */
+
+/**@defgroup CBPRINTF_MUST_RUNTIME_PACKAGE_FLAGS Package flags.
+ * @{
+ */
+
+/** @brief Consider constant string pointers as pointing to fixed strings.
+ *
+ * When flag is set then const (w)char pointers arguments in the string does
+ * not trigger runtime packaging.
+ */
+#define CBPRINTF_MUST_RUNTIME_PACKAGE_CONST_CHAR BIT(0)
+
+/**@} */
+
 /** @brief Signature for a cbprintf callback function.
  *
  * This function expects two parameters:
@@ -82,6 +111,27 @@ extern "C" {
  */
 typedef int (*cbprintf_cb)(/* int c, void *ctx */);
 
+/** @brief Signature for a external formatter function identical to cbvprintf.
+ *
+ * This function expects the following parameters:
+ *
+ * @param out the function used to emit each generated character.
+ *
+ * @param ctx a pointer to an object that provides context for the
+ * external formatter.
+ *
+ * @param fmt a standard ISO C format string with characters and
+ * conversion specifications.
+ *
+ * @param ap captured stack arguments corresponding to the conversion
+ * specifications found within @p fmt.
+ *
+ * @return vprintf like return values: the number of characters printed,
+ * or a negative error value returned from external formatter.
+ */
+typedef int (*cbvprintf_exteral_formatter_func)(cbprintf_cb out, void *ctx,
+						const char *fmt, va_list ap);
+
 /** @brief Determine if string must be packaged in run time.
  *
  * Static packaging can be applied if size of the package can be determined
@@ -89,17 +139,22 @@ typedef int (*cbprintf_cb)(/* int c, void *ctx */);
  * if there are no string arguments which might be copied into package body if
  * they are considered transient.
  *
+ * @note By default any char pointers are considered to be pointing at transient
+ * strings. This can be narrowed down to non const pointers by using
+ * @ref CBPRINTF_MUST_RUNTIME_PACKAGE_CONST_CHAR.
+ *
  * @param skip number of read only string arguments in the parameter list. It
  * shall be non-zero if there are known read only string arguments present
  * in the string (e.g. function name prefix in the log message).
  *
  * @param ... String with arguments.
+ * @param flags option flags. See @ref CBPRINTF_MUST_RUNTIME_PACKAGE_FLAGS.
  *
  * @retval 1 if string must be packaged in run time.
  * @retval 0 string can be statically packaged.
  */
-#define CBPRINTF_MUST_RUNTIME_PACKAGE(skip, .../* fmt, ... */) \
-	Z_CBPRINTF_MUST_RUNTIME_PACKAGE(skip, __VA_ARGS__)
+#define CBPRINTF_MUST_RUNTIME_PACKAGE(skip, flags, ... /* fmt, ... */) \
+	Z_CBPRINTF_MUST_RUNTIME_PACKAGE(skip, flags, __VA_ARGS__)
 
 /** @brief Statically package string.
  *
@@ -126,12 +181,14 @@ typedef int (*cbprintf_cb)(/* int c, void *ctx */);
  * that @p packaged is aligned to CBPRINTF_PACKAGE_ALIGNMENT so it must be
  * multiply of CBPRINTF_PACKAGE_ALIGNMENT or 0.
  *
+ * @param flags option flags. See @ref CBPRINTF_PACKAGE_FLAGS.
+ *
  * @param ... formatted string with arguments. Format string must be constant.
  */
-#define CBPRINTF_STATIC_PACKAGE(packaged, inlen, outlen, align_offset, \
+#define CBPRINTF_STATIC_PACKAGE(packaged, inlen, outlen, align_offset, flags, \
 				... /* fmt, ... */) \
 	Z_CBPRINTF_STATIC_PACKAGE(packaged, inlen, outlen, \
-				  align_offset, __VA_ARGS__)
+				  align_offset, flags, __VA_ARGS__)
 
 /** @brief Capture state required to output formatted data later.
  *
@@ -158,6 +215,8 @@ typedef int (*cbprintf_cb)(/* int c, void *ctx */);
  * so it must be multiply of CBPRINTF_PACKAGE_ALIGNMENT or 0 when @p packaged is
  * null.
  *
+ * @param flags option flags. See @ref CBPRINTF_PACKAGE_FLAGS.
+ *
  * @param format a standard ISO C format string with characters and conversion
  * specifications.
  *
@@ -171,9 +230,10 @@ typedef int (*cbprintf_cb)(/* int c, void *ctx */);
  * @retval -ENOSPC if @p packaged was not null and the space required to store
  * exceed @p len.
  */
-__printf_like(3, 4)
+__printf_like(4, 5)
 int cbprintf_package(void *packaged,
 		     size_t len,
+		     uint32_t flags,
 		     const char *format,
 		     ...);
 
@@ -197,6 +257,8 @@ int cbprintf_package(void *packaged,
  * @param len this must be set to the number of bytes available at @p packaged.
  * Ignored if @p packaged is NULL.
  *
+ * @param flags option flags. See @ref CBPRINTF_PACKAGE_FLAGS.
+ *
  * @param format a standard ISO C format string with characters and conversion
  * specifications.
  *
@@ -211,15 +273,50 @@ int cbprintf_package(void *packaged,
  */
 int cbvprintf_package(void *packaged,
 		      size_t len,
+		      uint32_t flags,
 		      const char *format,
 		      va_list ap);
 
+/** @brief Convert package to fully self-contained (fsc) package.
+ *
+ * By default, package does not contain read only strings. However, if needed
+ * it may be converted to a fully self-contained package which contains all
+ * strings. In order to allow such conversion, original package must be created
+ * with @ref CBPRINTF_PACKAGE_ADD_STRING_IDXS flag. Such package will contain
+ * necessary data to find read only strings in the package and copy them into
+ * package body.
+ *
+ * @param in_packaged pointer to original package created with
+ * @ref CBPRINTF_PACKAGE_ADD_STRING_IDXS.
+ *
+ * @param in_len @p in_packaged length.
+ *
+ * @param packaged pointer to location where fully self-contained version of the
+ * input package will be written. Pass a null pointer to calculate space required.
+ *
+ * @param len must be set to the number of bytes available at @p packaged. Not
+ * used if @p packaged is null.
+ *
+ * @retval nonegative the number of bytes successfully stored at @p packaged.
+ * This will not exceed @p len. If @p packaged is null, calculated length.
+ * @retval -ENOSPC if @p packaged was not null and the space required to store
+ * exceed @p len.
+ * @retval -EINVAL if @p in_packaged is null.
+ */
+int cbprintf_fsc_package(void *in_packaged,
+			 size_t in_len,
+			 void *packaged,
+			 size_t len);
+
 /** @brief Generate the output for a previously captured format
- * operation.
+ * operation using an external formatter.
  *
  * @param out the function used to emit each generated character.
  *
- * @param ctx context provided when invoking out
+ * @param formatter external formatter function.
+ *
+ * @param ctx a pointer to an object that provides context for the
+ * external formatter.
  *
  * @param packaged the data required to generate the formatted output, as
  * captured by cbprintf_package() or cbvprintf_package(). The alignment
@@ -228,12 +325,13 @@ int cbvprintf_package(void *packaged,
  * @note Memory indicated by @p packaged will be modified in a non-destructive
  * way, meaning that it could still be reused with this function again.
  *
- * @return the number of characters printed, or a negative error value
- * returned from invoking @p out.
+ * @return printf like return values: the number of characters printed,
+ * or a negative error value returned from external formatter.
  */
-int cbpprintf(cbprintf_cb out,
-	      void *ctx,
-	      void *packaged);
+int cbpprintf_external(cbprintf_cb out,
+		       cbvprintf_exteral_formatter_func formatter,
+		       void *ctx,
+		       void *packaged);
 
 /** @brief *printf-like output through a callback.
  *
@@ -246,7 +344,7 @@ int cbpprintf(cbprintf_cb out,
  * the functionality is enabled.
  *
  * @note The functionality of this function is significantly reduced
- * when @option{CONFIG_CBPRINTF_NANO} is selected.
+ * when @kconfig{CONFIG_CBPRINTF_NANO} is selected.
  *
  * @param out the function used to emit each generated character.
  *
@@ -272,10 +370,10 @@ int cbprintf(cbprintf_cb out, void *ctx, const char *format, ...);
  * temporary buffer.
  *
  * @note This function is available only when
- * @option{CONFIG_CBPRINTF_LIBC_SUBSTS} is selected.
+ * @kconfig{CONFIG_CBPRINTF_LIBC_SUBSTS} is selected.
  *
  * @note The functionality of this function is significantly reduced when
- * @option{CONFIG_CBPRINTF_NANO} is selected.
+ * @kconfig{CONFIG_CBPRINTF_NANO} is selected.
  *
  * @param out the function used to emit each generated character.
  *
@@ -291,15 +389,38 @@ int cbprintf(cbprintf_cb out, void *ctx, const char *format, ...);
  */
 int cbvprintf(cbprintf_cb out, void *ctx, const char *format, va_list ap);
 
+/** @brief Generate the output for a previously captured format
+ * operation.
+ *
+ * @param out the function used to emit each generated character.
+ *
+ * @param ctx context provided when invoking out
+ *
+ * @param packaged the data required to generate the formatted output, as
+ * captured by cbprintf_package() or cbvprintf_package(). The alignment
+ * requirement on this data is the same as when it was initially created.
+ *
+ * @note Memory indicated by @p packaged will be modified in a non-destructive
+ * way, meaning that it could still be reused with this function again.
+ *
+ * @return the number of characters printed, or a negative error value
+ * returned from invoking @p out.
+ */
+static inline
+int cbpprintf(cbprintf_cb out, void *ctx, void *packaged)
+{
+	return cbpprintf_external(out, cbvprintf, ctx, packaged);
+}
+
 #ifdef CONFIG_CBPRINTF_LIBC_SUBSTS
 
 /** @brief fprintf using Zephyrs cbprintf infrastructure.
  *
  * @note This function is available only when
- * @option{CONFIG_CBPRINTF_LIBC_SUBSTS} is selected.
+ * @kconfig{CONFIG_CBPRINTF_LIBC_SUBSTS} is selected.
  *
  * @note The functionality of this function is significantly reduced
- * when @option{CONFIG_CBPRINTF_NANO} is selected.
+ * when @kconfig{CONFIG_CBPRINTF_NANO} is selected.
  *
  * @param stream the stream to which the output should be written.
  *
@@ -317,10 +438,10 @@ int fprintfcb(FILE * stream, const char *format, ...);
 /** @brief vfprintf using Zephyrs cbprintf infrastructure.
  *
  * @note This function is available only when
- * @option{CONFIG_CBPRINTF_LIBC_SUBSTS} is selected.
+ * @kconfig{CONFIG_CBPRINTF_LIBC_SUBSTS} is selected.
  *
  * @note The functionality of this function is significantly reduced when
- * @option{CONFIG_CBPRINTF_NANO} is selected.
+ * @kconfig{CONFIG_CBPRINTF_NANO} is selected.
  *
  * @param stream the stream to which the output should be written.
  *
@@ -336,10 +457,10 @@ int vfprintfcb(FILE *stream, const char *format, va_list ap);
 /** @brief printf using Zephyrs cbprintf infrastructure.
  *
  * @note This function is available only when
- * @option{CONFIG_CBPRINTF_LIBC_SUBSTS} is selected.
+ * @kconfig{CONFIG_CBPRINTF_LIBC_SUBSTS} is selected.
  *
  * @note The functionality of this function is significantly reduced
- * when @option{CONFIG_CBPRINTF_NANO} is selected.
+ * when @kconfig{CONFIG_CBPRINTF_NANO} is selected.
  *
  * @param format a standard ISO C format string with characters and
  * conversion specifications.
@@ -355,10 +476,10 @@ int printfcb(const char *format, ...);
 /** @brief vprintf using Zephyrs cbprintf infrastructure.
  *
  * @note This function is available only when
- * @option{CONFIG_CBPRINTF_LIBC_SUBSTS} is selected.
+ * @kconfig{CONFIG_CBPRINTF_LIBC_SUBSTS} is selected.
  *
  * @note The functionality of this function is significantly reduced when
- * @option{CONFIG_CBPRINTF_NANO} is selected.
+ * @kconfig{CONFIG_CBPRINTF_NANO} is selected.
  *
  * @param format a standard ISO C format string with characters and conversion
  * specifications.
@@ -372,10 +493,10 @@ int vprintfcb(const char *format, va_list ap);
 /** @brief snprintf using Zephyrs cbprintf infrastructure.
  *
  * @note This function is available only when
- * @option{CONFIG_CBPRINTF_LIBC_SUBSTS} is selected.
+ * @kconfig{CONFIG_CBPRINTF_LIBC_SUBSTS} is selected.
  *
  * @note The functionality of this function is significantly reduced
- * when @option{CONFIG_CBPRINTF_NANO} is selected.
+ * when @kconfig{CONFIG_CBPRINTF_NANO} is selected.
  *
  * @param str where the formatted content should be written
  *
@@ -398,10 +519,10 @@ int snprintfcb(char *str, size_t size, const char *format, ...);
 /** @brief vsnprintf using Zephyrs cbprintf infrastructure.
  *
  * @note This function is available only when
- * @option{CONFIG_CBPRINTF_LIBC_SUBSTS} is selected.
+ * @kconfig{CONFIG_CBPRINTF_LIBC_SUBSTS} is selected.
  *
  * @note The functionality of this function is significantly reduced when
- * @option{CONFIG_CBPRINTF_NANO} is selected.
+ * @kconfig{CONFIG_CBPRINTF_NANO} is selected.
  *
  * @param str where the formatted content should be written
  *

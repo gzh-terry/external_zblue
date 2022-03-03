@@ -1,5 +1,5 @@
 /** @file
- *  @brief Bluetooth Mesh Profile APIs.
+ *  @brief Bluetooth mesh Profile APIs.
  */
 
 /*
@@ -11,8 +11,8 @@
 #define ZEPHYR_INCLUDE_BLUETOOTH_MESH_MAIN_H_
 
 /**
- * @brief Bluetooth Mesh Provisioning
- * @defgroup bt_mesh_prov Bluetooth Mesh Provisioning
+ * @brief Provisioning
+ * @defgroup bt_mesh_prov Provisioning
  * @ingroup bt_mesh
  * @{
  */
@@ -105,6 +105,23 @@ struct bt_mesh_prov {
 	/** Out of Band information field. */
 	bt_mesh_prov_oob_info_t oob_info;
 
+	/** Pointer to Public Key in big-endian for OOB public key type support.
+	 *
+	 * Remember to enable @kconfig{CONFIG_BT_MESH_PROV_OOB_PUBLIC_KEY}
+	 * when initializing this parameter.
+	 *
+	 * Must be used together with @ref bt_mesh_prov::private_key_be.
+	 */
+	const uint8_t *public_key_be;
+	/** Pointer to Private Key in big-endian for OOB public key type support.
+	 *
+	 * Remember to enable @kconfig{CONFIG_BT_MESH_PROV_OOB_PUBLIC_KEY}
+	 * when initializing this parameter.
+	 *
+	 * Must be used together with @ref bt_mesh_prov::public_key_be.
+	 */
+	const uint8_t *private_key_be;
+
 	/** Static OOB value */
 	const uint8_t *static_val;
 	/** Static OOB value length */
@@ -196,6 +213,17 @@ struct bt_mesh_prov {
 					    bt_mesh_prov_oob_info_t oob_info,
 					    uint32_t *uri_hash);
 
+	/** @brief PB-GATT Unprovisioned Advertising has been received.
+	 *
+	 *  This callback notifies the application that an PB-GATT
+	 *  unprovisioned Advertising has been received.
+	 *
+	 *  @param uuid     UUID
+	 *  @param oob_info OOB Information
+	 */
+	void        (*unprovisioned_beacon_gatt)(uint8_t uuid[16],
+						 bt_mesh_prov_oob_info_t oob_info);
+
 	/** @brief Provisioning link has been opened.
 	 *
 	 *  This callback notifies the application that a provisioning
@@ -274,7 +302,7 @@ int bt_mesh_input_number(uint32_t num);
 
 /** @brief Provide Device public key.
  *
- *  @param public_key Device public key.
+ *  @param public_key Device public key in big-endian.
  *
  *  @return Zero on success or (negative) error code otherwise.
  */
@@ -407,6 +435,19 @@ int bt_mesh_provision(const uint8_t net_key[16], uint16_t net_idx,
 int bt_mesh_provision_adv(const uint8_t uuid[16], uint16_t net_idx, uint16_t addr,
 			  uint8_t attention_duration);
 
+/** @brief Provision a Mesh Node using PB-GATT
+ *
+ *  @param uuid               UUID
+ *  @param net_idx            Network Key Index
+ *  @param addr               Address to assign to remote device. If addr is 0,
+ *                            the lowest available address will be chosen.
+ *  @param attention_duration The attention duration to be send to remote device
+ *
+ *  @return Zero on success or (negative) error code otherwise.
+ */
+int bt_mesh_provision_gatt(const uint8_t uuid[16], uint16_t net_idx, uint16_t addr,
+			   uint8_t attention_duration);
+
 /** @brief Check if the local node has been provisioned.
  *
  *  This API can be used to check if the local node has been provisioned
@@ -423,8 +464,8 @@ bool bt_mesh_is_provisioned(void);
  */
 
 /**
- * @brief Bluetooth Mesh
- * @defgroup bt_mesh Bluetooth Mesh
+ * @brief Bluetooth mesh
+ * @defgroup bt_mesh Bluetooth mesh
  * @ingroup bluetooth
  * @{
  */
@@ -648,6 +689,19 @@ struct bt_mesh_friend_cb {
  *  @return Zero on success or (negative) error code otherwise.
  */
 int bt_mesh_friend_terminate(uint16_t lpn_addr);
+
+/** @brief Store pending RPL entry(ies) in the persistent storage.
+ *
+ * This API allows the user to store pending RPL entry(ies) in the persistent
+ * storage without waiting for the timeout.
+ *
+ * @note When flash is used as the persistent storage, calling this API too
+ *       frequently may wear it out.
+ *
+ * @param addr Address of the node which RPL entry needs to be stored or
+ * @ref BT_MESH_ADDR_ALL_NODES to store all pending RPL entries.
+ */
+void bt_mesh_rpl_pending_store(uint16_t addr);
 
 #ifdef __cplusplus
 }

@@ -60,13 +60,16 @@
 "area: ARM64":
   - "arch/arm64/**/*"
   - "include/arch/arm64/**/*"
+"area: MIPS":
+  - "arch/mips/**/*"
+  - "include/arch/mips/**/*"
 "area: NIOS2":
   - "arch/nios2/**/*"
   - "include/arch/nios2/**/*"
 "area: Xtensa":
   - "arch/xtensa/**/*"
   - "include/arch/xtensa/**/*"
-"area: RISCv32/64":
+"area: RISCV":
   - "arch/risv/**/*"
   - "include/arch/riscv/**/*"
 "area: ARC":

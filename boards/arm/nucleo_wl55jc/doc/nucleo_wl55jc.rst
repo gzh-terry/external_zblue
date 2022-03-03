@@ -179,24 +179,40 @@ features:
 +-----------+------------+-------------------------------------+
 | Interface | Controller | Driver/Component                    |
 +===========+============+=====================================+
-| NVIC      | on-chip    | nested vector interrupt controller  |
+| AES       | on-chip    | crypto                              |
 +-----------+------------+-------------------------------------+
-| UART      | on-chip    | serial port-polling;                |
-|           |            | serial port-interrupt               |
+| CLOCK     | on-chip    | reset and clock_control             |
 +-----------+------------+-------------------------------------+
-| PINMUX    | on-chip    | pinmux                              |
+| FLASH     | on-chip    | flash                               |
 +-----------+------------+-------------------------------------+
 | GPIO      | on-chip    | gpio                                |
 +-----------+------------+-------------------------------------+
 | I2C       | on-chip    | i2c                                 |
 +-----------+------------+-------------------------------------+
+| MPU       | on-chip    | arch/arm                            |
++-----------+------------+-------------------------------------+
+| NVIC      | on-chip    | arch/arm                            |
++-----------+------------+-------------------------------------+
+| PINMUX    | on-chip    | pinmux                              |
++-----------+------------+-------------------------------------+
+| RADIO     | on-chip    | LoRa                                |
++-----------+------------+-------------------------------------+
+| RNG       | on-chip    | entropy                             |
++-----------+------------+-------------------------------------+
 | SPI       | on-chip    | spi                                 |
++-----------+------------+-------------------------------------+
+| UART      | on-chip    | serial port-polling;                |
+|           |            | serial port-interrupt               |
++-----------+------------+-------------------------------------+
+| ADC       | on-chip    | ADC Controller                      |
 +-----------+------------+-------------------------------------+
 
 Other hardware features are not yet supported on this Zephyr port.
 
-The default configuration can be found in the defconfig file:
-``boards/arm/nucleo_wl55jc/nucleo_wl55jc_defconfig``
+The default configuration can be found in the defconfig and dts files:
+
+- :zephyr_file:`boards/arm/nucleo_wl55jc/nucleo_wl55jc_defconfig`
+- :zephyr_file:`boards/arm/nucleo_wl55jc/nucleo_wl55jc.dts`
 
 
 Connections and IOs
@@ -217,6 +233,7 @@ Default Zephyr Peripheral Mapping:
 - SPI_1_SCK : PA5 (arduino_spi)
 - SPI_1_MISO : PA6 (arduino_spi)
 - SPI_1_MOSI : PA7 (arduino_spi)
+- ADC1_IN5 : PB1 (Arduino pin A0)
 
 System Clock
 ------------
@@ -273,6 +290,15 @@ You should see the following message on the console:
 .. code-block:: console
 
    Hello World! arm
+
+.. Note:
+
+   Nucleo WL55JC board is provided with a stock firmware which demonstrates
+   sleep mode. Unfortunately, default openocd configuration, which is debug
+   compatible, doesn't allow flashing when SoC is in sleep mode.
+   As a consequence, when flashing Nucleo WL55JC board over a stock firmware,
+   please update board's openocd.cfg configuration file to select sleep mode
+   compatible configuration.
 
 Debugging
 =========

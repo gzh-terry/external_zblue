@@ -7,6 +7,7 @@
 #ifndef ZEPHYR_INCLUDE_PM_DEVICE_H_
 #define ZEPHYR_INCLUDE_PM_DEVICE_H_
 
+#include <device.h>
 #include <kernel.h>
 #include <sys/atomic.h>
 
@@ -16,157 +17,522 @@ extern "C" {
 
 /**
  * @brief Device Power Management API
- *
- * @defgroup device_power_management_api Device Power Management API
- * @ingroup power_management_api
+ * @defgroup subsys_pm_device Device
+ * @ingroup subsys_pm
  * @{
  */
 
+/** @cond INTERNAL_HIDDEN */
+
 struct device;
 
-/** @def PM_DEVICE_STATE_ACTIVE
+/** @brief Device PM flags. */
+enum pm_device_flag {
+	/** Indicate if the device is busy or not. */
+	PM_DEVICE_FLAG_BUSY,
+	/**
+	 * Indicates whether or not the device is capable of waking the system
+	 * up.
+	 */
+	PM_DEVICE_FLAG_WS_CAPABLE,
+	/** Indicates if the device is being used as wakeup source. */
+	PM_DEVICE_FLAG_WS_ENABLED,
+	/** Indicates if device runtime is enabled  */
+	PM_DEVICE_FLAG_RUNTIME_ENABLED,
+	/** Indicates if the device pm is locked.  */
+	PM_DEVICE_FLAG_STATE_LOCKED,
+};
+
+/** @endcond */
+
+/** @brief Device power states. */
+enum pm_device_state {
+	/** Device is in active or regular state. */
+	PM_DEVICE_STATE_ACTIVE,
+	/**
+	 * Device is suspended.
+	 *
+	 * @note
+	 *     Device context may be lost.
+	 */
+	PM_DEVICE_STATE_SUSPENDED,
+	/** Device is being suspended. */
+	PM_DEVICE_STATE_SUSPENDING,
+	/**
+	 * Device is turned off (power removed).
+	 *
+	 * @note
+	 *     Device context is lost.
+	 */
+	PM_DEVICE_STATE_OFF
+};
+
+/** @brief Device PM actions. */
+enum pm_device_action {
+	/** Suspend. */
+	PM_DEVICE_ACTION_SUSPEND,
+	/** Resume. */
+	PM_DEVICE_ACTION_RESUME,
+	/**
+	 * Turn off.
+	 * @note
+	 *     Action triggered only by a power domain.
+	 */
+	PM_DEVICE_ACTION_TURN_OFF,
+	/**
+	 * Turn on.
+	 * @note
+	 *     Action triggered only by a power domain.
+	 */
+	PM_DEVICE_ACTION_TURN_ON,
+	/** Force suspend. */
+	PM_DEVICE_ACTION_FORCE_SUSPEND,
+};
+
+/** @cond INTERNAL_HIDDEN */
+
+/**
+ * @brief Device PM action callback.
  *
- * @brief device is in ACTIVE power state
+ * @param dev Device instance.
+ * @param action Requested action.
  *
- * @details Normal operation of the device. All device context is retained.
+ * @retval 0 If successful.
+ * @retval -ENOTSUP If the requested action is not supported.
+ * @retval Errno Other negative errno on failure.
  */
-#define PM_DEVICE_STATE_ACTIVE          1
+typedef int (*pm_device_action_cb_t)(const struct device *dev,
+				     enum pm_device_action action);
 
-/** @def PM_DEVICE_STATE_LOW_POWER
+/**
+ * @brief Device PM action failed callback
  *
- * @brief device is in LOW power state
+ * @param dev Device that failed the action.
+ * @param err Return code of action failure.
  *
- * @details Device context is preserved by the HW and need not be
- * restored by the driver.
+ * @return True to continue iteration, false to halt iteration.
  */
-#define PM_DEVICE_STATE_LOW_POWER       2
-
-/** @def PM_DEVICE_STATE_SUSPEND
- *
- * @brief device is in SUSPEND power state
- *
- * @details Most device context is lost by the hardware.
- * Device drivers must save and restore or reinitialize any context
- * lost by the hardware
- */
-#define PM_DEVICE_STATE_SUSPEND         3
-
-/** @def PM_DEVICE_STATE_FORCE_SUSPEND
- *
- * @brief device is in force SUSPEND power state
- *
- * @details Driver puts the device in suspended state after
- * completing the ongoing transactions and will not process any
- * queued work or will not take any new requests for processing.
- * Most device context is lost by the hardware. Device drivers must
- * save and restore or reinitialize any context lost by the hardware.
- */
-#define PM_DEVICE_STATE_FORCE_SUSPEND	4
-
-/** @def PM_DEVICE_STATE_OFF
- *
- * @brief device is in OFF power state
- *
- * @details - Power has been fully removed from the device.
- * The device context is lost when this state is entered, so the OS
- * software will reinitialize the device when powering it back on
- */
-#define PM_DEVICE_STATE_OFF             5
-
-/** @def PM_DEVICE_STATE_RESUMING
- *
- * @brief device is resuming to active state.
- *
- * @details - The device was previously suspended and is now
- * transitioning to become ACTIVE.
- */
-#define PM_DEVICE_STATE_RESUMING             6
-
-/** @def PM_DEVICE_STATE_SUSPENDING
- *
- * @brief device is suspending.
- *
- * @details - The device is currently transitioning from ACTIVE
- * to SUSPEND.
- */
-#define PM_DEVICE_STATE_SUSPENDING             7
-
-/* Constants defining support device power commands */
-#define PM_DEVICE_STATE_SET       1
-#define PM_DEVICE_STATE_GET       2
-
-typedef void (*pm_device_cb)(const struct device *dev,
-			     int status, uint32_t *state, void *arg);
+typedef bool (*pm_device_action_failed_cb_t)(const struct device *dev,
+					 int err);
 
 /**
  * @brief Device PM info
  */
 struct pm_device {
+#if defined(CONFIG_PM_DEVICE_RUNTIME) || defined(__DOXYGEN__)
 	/** Pointer to the device */
 	const struct device *dev;
 	/** Lock to synchronize the get/put operations */
 	struct k_mutex lock;
-	/* Following are packed fields protected by #lock. */
-	/** Device pm enable flag */
-	bool enable : 1;
-	/* Following are packed fields accessed with atomic bit operations. */
-	atomic_t atomic_flags;
 	/** Device usage count */
 	uint32_t usage;
-	/** Device idle internal power state */
-	uint8_t state;
 	/** Work object for asynchronous calls */
 	struct k_work_delayable work;
 	/** Event conditional var to listen to the sync request events */
 	struct k_condvar condvar;
+#endif /* CONFIG_PM_DEVICE_RUNTIME */
+#ifdef CONFIG_PM_DEVICE_POWER_DOMAIN
+	/** Power Domain it belongs */
+	const struct device *domain;
+#endif /* CONFIG_PM_DEVICE_POWER_DOMAIN */
+	/* Device PM status flags. */
+	atomic_t flags;
+	/** Device power state */
+	enum pm_device_state state;
+	/** Device PM action callback */
+	pm_device_action_cb_t action_cb;
 };
 
-/** Bit position in device_pm::atomic_flags that records whether the
- * device is busy.
+#ifdef CONFIG_PM_DEVICE_RUNTIME
+#define Z_PM_DEVICE_RUNTIME_INIT(obj)			\
+	.lock = Z_MUTEX_INITIALIZER(obj.lock),		\
+	.condvar = Z_CONDVAR_INITIALIZER(obj.condvar),
+#else
+#define Z_PM_DEVICE_RUNTIME_INIT(obj)
+#endif /* CONFIG_PM_DEVICE_RUNTIME */
+
+#ifdef CONFIG_PM_DEVICE_POWER_DOMAIN
+#define	Z_PM_DEVICE_POWER_DOMAIN_INIT(_node_id)			\
+	.domain = DEVICE_DT_GET_OR_NULL(DT_PHANDLE(_node_id,	\
+				   power_domain)),
+#else
+#define Z_PM_DEVICE_POWER_DOMAIN_INIT(obj)
+#endif /* CONFIG_PM_DEVICE_POWER_DOMAIN */
+
+/**
+ * @brief Utility macro to initialize #pm_device.
+ *
+ * @note #DT_PROP_OR is used to retrieve the wakeup_source property because
+ * it may not be defined on all devices.
+ *
+ * @param obj Name of the #pm_device structure being initialized.
+ * @param node_id Devicetree node for the initialized device (can be invalid).
+ * @param pm_action_cb Device PM control callback function.
  */
-#define PM_DEVICE_ATOMIC_FLAGS_BUSY_BIT 0
+#define Z_PM_DEVICE_INIT(obj, node_id, pm_action_cb)			\
+	{								\
+		Z_PM_DEVICE_RUNTIME_INIT(obj)				\
+		.action_cb = pm_action_cb,				\
+		.state = PM_DEVICE_STATE_ACTIVE,			\
+		.flags = ATOMIC_INIT(COND_CODE_1(			\
+				DT_NODE_EXISTS(node_id),		\
+				(DT_PROP_OR(node_id, wakeup_source, 0)),\
+				(0)) << PM_DEVICE_FLAG_WS_CAPABLE),	\
+		Z_PM_DEVICE_POWER_DOMAIN_INIT(node_id)			\
+	}
+
+/**
+ * Get the name of device PM resources.
+ *
+ * @param dev_name Device name.
+ */
+#define Z_PM_DEVICE_NAME(dev_name) _CONCAT(__pm_device__, dev_name)
+
+/**
+ * @brief Define device PM slot.
+ *
+ * This macro defines a pointer to a device in the z_pm_device_slots region.
+ * When invoked for each device with PM, it will effectively result in a device
+ * pointer array with the same size of the actual devices with PM enabled. This
+ * is used internally by the PM subsystem to keep track of suspended devices
+ * during system power transitions.
+ *
+ * @param dev_name Device name.
+ */
+#define Z_PM_DEVICE_DEFINE_SLOT(dev_name)				\
+	static const Z_DECL_ALIGN(struct device *)			\
+	_CONCAT(Z_PM_DEVICE_NAME(dev_name), slot) __used		\
+	__attribute__((__section__(".z_pm_device_slots")))
+
+#ifdef CONFIG_PM_DEVICE
+/**
+ * Define device PM resources for the given node identifier.
+ *
+ * @param node_id Node identifier (DT_INVALID_NODE if not a DT device).
+ * @param dev_name Device name.
+ * @param pm_action_cb PM control callback.
+ */
+#define Z_PM_DEVICE_DEFINE(node_id, dev_name, pm_action_cb)		\
+	Z_PM_DEVICE_DEFINE_SLOT(dev_name);				\
+	static struct pm_device Z_PM_DEVICE_NAME(dev_name) =		\
+	Z_PM_DEVICE_INIT(Z_PM_DEVICE_NAME(dev_name), node_id,		\
+			 pm_action_cb)
+
+/**
+ * Get a reference to the device PM resources.
+ *
+ * @param dev_name Device name.
+ */
+#define Z_PM_DEVICE_GET(dev_name) (&Z_PM_DEVICE_NAME(dev_name))
+
+#else
+#define Z_PM_DEVICE_DEFINE(node_id, dev_name, pm_action_cb)
+#define Z_PM_DEVICE_GET(dev_name) NULL
+#endif /* CONFIG_PM_DEVICE */
+
+/** @endcond */
+
+/**
+ * Define device PM resources for the given device name.
+ *
+ * @note This macro is a no-op if @kconfig{CONFIG_PM_DEVICE} is not enabled.
+ *
+ * @param dev_name Device name.
+ * @param pm_action_cb PM control callback.
+ *
+ * @see #PM_DEVICE_DT_DEFINE, #PM_DEVICE_DT_INST_DEFINE
+ */
+#define PM_DEVICE_DEFINE(dev_name, pm_action_cb) \
+	Z_PM_DEVICE_DEFINE(DT_INVALID_NODE, dev_name, pm_action_cb)
+
+/**
+ * Define device PM resources for the given node identifier.
+ *
+ * @note This macro is a no-op if @kconfig{CONFIG_PM_DEVICE} is not enabled.
+ *
+ * @param node_id Node identifier.
+ * @param pm_action_cb PM control callback.
+ *
+ * @see #PM_DEVICE_DT_INST_DEFINE, #PM_DEVICE_DEFINE
+ */
+#define PM_DEVICE_DT_DEFINE(node_id, pm_action_cb)			\
+	Z_PM_DEVICE_DEFINE(node_id, Z_DEVICE_DT_DEV_NAME(node_id),	\
+			   pm_action_cb)
+
+/**
+ * Define device PM resources for the given instance.
+ *
+ * @note This macro is a no-op if @kconfig{CONFIG_PM_DEVICE} is not enabled.
+ *
+ * @param idx Instance index.
+ * @param pm_action_cb PM control callback.
+ *
+ * @see #PM_DEVICE_DT_DEFINE, #PM_DEVICE_DEFINE
+ */
+#define PM_DEVICE_DT_INST_DEFINE(idx, pm_action_cb)			\
+	Z_PM_DEVICE_DEFINE(DT_DRV_INST(idx),				\
+			   Z_DEVICE_DT_DEV_NAME(DT_DRV_INST(idx)),	\
+			   pm_action_cb)
+
+/**
+ * @brief Obtain a reference to the device PM resources for the given device.
+ *
+ * @param dev_name Device name.
+ *
+ * @return Reference to the device PM resources (NULL if device
+ * @kconfig{CONFIG_PM_DEVICE} is disabled).
+ */
+#define PM_DEVICE_GET(dev_name) \
+	Z_PM_DEVICE_GET(dev_name)
+
+/**
+ * @brief Obtain a reference to the device PM resources for the given node.
+ *
+ * @param node_id Node identifier.
+ *
+ * @return Reference to the device PM resources (NULL if device
+ * @kconfig{CONFIG_PM_DEVICE} is disabled).
+ */
+#define PM_DEVICE_DT_GET(node_id) \
+	PM_DEVICE_GET(Z_DEVICE_DT_DEV_NAME(node_id))
+
+/**
+ * @brief Obtain a reference to the device PM resources for the given instance.
+ *
+ * @param idx Instance index.
+ *
+ * @return Reference to the device PM resources (NULL if device
+ * @kconfig{CONFIG_PM_DEVICE} is disabled).
+ */
+#define PM_DEVICE_DT_INST_GET(idx) \
+	PM_DEVICE_DT_GET(DT_DRV_INST(idx))
 
 /**
  * @brief Get name of device PM state
  *
  * @param state State id which name should be returned
  */
-const char *pm_device_state_str(uint32_t state);
+const char *pm_device_state_str(enum pm_device_state state);
 
 /**
- * @brief Call the set power state function of a device
+ * @brief Obtain the power state of a device.
  *
- * Called by the application or power management service to let the device do
- * required operations when moving to the required power state
- * Note that devices may support just some of the device power states
- * @param dev Pointer to device structure of the driver instance.
- * @param device_power_state Device power state to be set
- * @param cb Callback function to notify device power status
- * @param arg Caller passed argument to callback function
- *
- * @retval 0 If successful in queuing the request or changing the state.
- * @retval Errno Negative errno code if failure. Callback will not be called.
- */
-int pm_device_state_set(const struct device *dev, uint32_t device_power_state,
-			pm_device_cb cb, void *arg);
-
-/**
- * @brief Call the get power state function of a device
- *
- * This function lets the caller know the current device
- * power state at any time. This state will be one of the defined
- * power states allowed for the devices in that system
- *
- * @param dev pointer to device structure of the driver instance.
- * @param device_power_state Device power state to be filled by the device
+ * @param dev Device instance.
+ * @param state Pointer where device power state will be stored.
  *
  * @retval 0 If successful.
- * @retval Errno Negative errno code if failure.
+ * @retval -ENOSYS If device does not implement power management.
  */
-int pm_device_state_get(const struct device *dev, uint32_t *device_power_state);
+int pm_device_state_get(const struct device *dev,
+			enum pm_device_state *state);
 
-/** Alias for legacy use of device_pm_control_nop */
-#define device_pm_control_nop __DEPRECATED_MACRO NULL
+/**
+ * @brief Run a pm action on a device.
+ *
+ * This function calls the device PM control callback so that the device does
+ * the necessary operations to execute the given action.
+ *
+ * @param dev Device instance.
+ * @param action Device pm action.
+ *
+ * @retval 0 If successful.
+ * @retval -ENOTSUP If requested state is not supported.
+ * @retval -EALREADY If device is already at the requested state.
+ * @retval -EBUSY If device is changing its state.
+ * @retval -ENOSYS If device does not support PM.
+ * @retval -EPERM If device has power state locked.
+ * @retval Errno Other negative errno on failure.
+ */
+int pm_device_action_run(const struct device *dev,
+		enum pm_device_action action);
+
+/**
+ * @brief Run a pm action on all children of a device.
+ *
+ * This function calls all child devices PM control callback so that the device
+ * does the necessary operations to execute the given action.
+ *
+ * @param dev Device instance.
+ * @param action Device pm action.
+ * @param failure_cb Function to call if a child fails the action, can be NULL.
+ */
+void pm_device_children_action_run(const struct device *dev,
+		enum pm_device_action action,
+		pm_device_action_failed_cb_t failure_cb);
+
+#if defined(CONFIG_PM_DEVICE) || defined(__DOXYGEN__)
+/**
+ * @brief Mark a device as busy.
+ *
+ * Devices marked as busy will not be suspended when the system goes into
+ * low-power states. This can be useful if, for example, the device is in the
+ * middle of a transaction.
+ *
+ * @param dev Device instance.
+ *
+ * @see pm_device_busy_clear()
+ */
+void pm_device_busy_set(const struct device *dev);
+
+/**
+ * @brief Clear a device busy status.
+ *
+ * @param dev Device instance.
+ *
+ * @see pm_device_busy_set()
+ */
+void pm_device_busy_clear(const struct device *dev);
+
+/**
+ * @brief Check if any device is busy.
+ *
+ * @retval false If no device is busy
+ * @retval true If one or more devices are busy
+ */
+bool pm_device_is_any_busy(void);
+
+/**
+ * @brief Check if a device is busy.
+ *
+ * @param dev Device instance.
+ *
+ * @retval false If the device is not busy
+ * @retval true If the device is busy
+ */
+bool pm_device_is_busy(const struct device *dev);
+
+/**
+ * @brief Enable or disable a device as a wake up source.
+ *
+ * A device marked as a wake up source will not be suspended when the system
+ * goes into low-power modes, thus allowing to use it as a wake up source for
+ * the system.
+ *
+ * @param dev Device instance.
+ * @param enable @c true to enable or @c false to disable
+ *
+ * @retval true If the wakeup source was successfully enabled.
+ * @retval false If the wakeup source was not successfully enabled.
+ */
+bool pm_device_wakeup_enable(struct device *dev, bool enable);
+
+/**
+ * @brief Check if a device is enabled as a wake up source.
+ *
+ * @param dev Device instance.
+ *
+ * @retval true if the wakeup source is enabled.
+ * @retval false if the wakeup source is not enabled.
+ */
+bool pm_device_wakeup_is_enabled(const struct device *dev);
+
+/**
+ * @brief Check if a device is wake up capable
+ *
+ * @param dev Device instance.
+ *
+ * @retval true If the device is wake up capable.
+ * @retval false If the device is not wake up capable.
+ */
+bool pm_device_wakeup_is_capable(const struct device *dev);
+
+/**
+ * @brief Lock current device state.
+ *
+ * This function locks the current device power state. Once
+ * locked the device power state will not be changed by
+ * system power management or device runtime power
+ * management until unlocked.
+ *
+ * @note The given device should not have device runtime enabled.
+ *
+ * @see pm_device_state_unlock
+ *
+ * @param dev Device instance.
+ */
+void pm_device_state_lock(const struct device *dev);
+
+/**
+ * @brief Unlock the current device state.
+ *
+ * Unlocks a previously locked device pm.
+ *
+ * @see pm_device_state_lock
+ *
+ * @param dev Device instance.
+ */
+void pm_device_state_unlock(const struct device *dev);
+
+/**
+ * @brief Check if the device pm is locked.
+ *
+ * @param dev Device instance.
+ *
+ * @retval true If device is locked.
+ * @retval false If device is not locked.
+ */
+bool pm_device_state_is_locked(const struct device *dev);
+
+/**
+ * @brief Check if the device is on a switchable power domain.
+ *
+ * @param dev Device instance.
+ *
+ * @retval true If device is on a switchable power domain.
+ * @retval false If device is not on a switchable power domain.
+ */
+bool pm_device_on_power_domain(const struct device *dev);
+
+#else
+static inline void pm_device_busy_set(const struct device *dev)
+{
+	ARG_UNUSED(dev);
+}
+static inline void pm_device_busy_clear(const struct device *dev)
+{
+	ARG_UNUSED(dev);
+}
+static inline bool pm_device_is_any_busy(void) { return false; }
+static inline bool pm_device_is_busy(const struct device *dev)
+{
+	ARG_UNUSED(dev);
+	return false;
+}
+static inline bool pm_device_wakeup_enable(struct device *dev, bool enable)
+{
+	ARG_UNUSED(dev);
+	ARG_UNUSED(enable);
+	return false;
+}
+static inline bool pm_device_wakeup_is_enabled(const struct device *dev)
+{
+	ARG_UNUSED(dev);
+	return false;
+}
+static inline bool pm_device_wakeup_is_capable(const struct device *dev)
+{
+	ARG_UNUSED(dev);
+	return false;
+}
+static inline void pm_device_state_lock(const struct device *dev)
+{
+	ARG_UNUSED(dev);
+}
+static inline void pm_device_state_unlock(const struct device *dev)
+{
+	ARG_UNUSED(dev);
+}
+static inline bool pm_device_state_is_locked(const struct device *dev)
+{
+	ARG_UNUSED(dev);
+	return false;
+}
+static inline bool pm_device_on_power_domain(const struct device *dev)
+{
+	ARG_UNUSED(dev);
+	return false;
+}
+#endif /* CONFIG_PM_DEVICE */
 
 /** @} */
 

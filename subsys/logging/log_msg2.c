@@ -5,15 +5,14 @@
  */
 #include <zephyr.h>
 #include <syscall_handler.h>
-#include <logging/log_msg2.h>
-#include <logging/log_core.h>
+#include <logging/log_internal.h>
 #include <logging/log_ctrl.h>
 
 void z_log_msg2_finalize(struct log_msg2 *msg, const void *source,
 			 const struct log_msg2_desc desc, const void *data)
 {
 	if (!msg) {
-		z_log_dropped();
+		z_log_dropped(false);
 
 		return;
 	}
@@ -63,7 +62,7 @@ void z_impl_z_log_msg2_runtime_vcreate(uint8_t domain_id, const void *source,
 		va_list ap2;
 
 		va_copy(ap2, ap);
-		plen = cbvprintf_package(NULL, Z_LOG_MSG2_ALIGN_OFFSET,
+		plen = cbvprintf_package(NULL, Z_LOG_MSG2_ALIGN_OFFSET, 0,
 					 fmt, ap2);
 		__ASSERT_NO_MSG(plen >= 0);
 		va_end(ap2);
@@ -76,14 +75,14 @@ void z_impl_z_log_msg2_runtime_vcreate(uint8_t domain_id, const void *source,
 	struct log_msg2_desc desc =
 		Z_LOG_MSG_DESC_INITIALIZER(domain_id, level, plen, dlen);
 
-	if (IS_ENABLED(CONFIG_LOG2_MODE_IMMEDIATE)) {
+	if (IS_ENABLED(CONFIG_LOG_MODE_IMMEDIATE)) {
 		msg = alloca(msg_wlen * sizeof(int));
 	} else {
 		msg = z_log_msg2_alloc(msg_wlen);
 	}
 
 	if (msg && fmt) {
-		plen = cbvprintf_package(msg->data, plen, fmt, ap);
+		plen = cbvprintf_package(msg->data, (size_t)plen, 0, fmt, ap);
 		__ASSERT_NO_MSG(plen >= 0);
 	}
 

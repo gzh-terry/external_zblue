@@ -496,7 +496,7 @@ enum ethernet_hw_caps eth_posix_native_get_capabilities(const struct device *dev
 {
 	ARG_UNUSED(dev);
 
-	return 0
+	return ETHERNET_TXTIME
 #if defined(CONFIG_NET_VLAN)
 		| ETHERNET_HW_VLAN
 #endif
@@ -559,6 +559,11 @@ static int set_config(const struct device *dev,
 
 		ret = eth_promisc_mode(context->if_name,
 				       context->promisc_mode);
+	} else if (type == ETHERNET_CONFIG_TYPE_MAC_ADDRESS) {
+		struct eth_context *context = dev->data;
+
+		memcpy(context->mac_addr, config->mac_address.addr,
+		       sizeof(context->mac_addr));
 	}
 
 	return ret;
@@ -695,7 +700,7 @@ static int ptp_clock_adjust_native_posix(const struct device *clk,
 }
 
 static int ptp_clock_rate_adjust_native_posix(const struct device *clk,
-					      float ratio)
+					      double ratio)
 {
 	ARG_UNUSED(clk);
 	ARG_UNUSED(ratio);

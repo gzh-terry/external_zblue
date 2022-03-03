@@ -58,6 +58,9 @@ extern "C" {
  */
 #define MPSC_PBUF_MODE_OVERWRITE BIT(1)
 
+/** @brief Flag indicating that maximum buffer usage is tracked. */
+#define MPSC_PBUF_MAX_UTILIZATION BIT(2)
+
 /**@} */
 
 /* Forward declaration */
@@ -69,7 +72,7 @@ struct mpsc_pbuf_buffer;
  *
  * @return Size of the packet in 32 bit words.
  */
-typedef uint32_t (*mpsc_pbuf_get_wlen)(union mpsc_pbuf_generic *packet);
+typedef uint32_t (*mpsc_pbuf_get_wlen)(const union mpsc_pbuf_generic *packet);
 
 /** @brief Callback called when packet is dropped.
  *
@@ -77,8 +80,8 @@ typedef uint32_t (*mpsc_pbuf_get_wlen)(union mpsc_pbuf_generic *packet);
  *
  * @param packet Packet that is being dropped.
  */
-typedef void (*mpsc_pbuf_notify_drop)(struct mpsc_pbuf_buffer *buffer,
-					union mpsc_pbuf_generic *packet);
+typedef void (*mpsc_pbuf_notify_drop)(const struct mpsc_pbuf_buffer *buffer,
+				      const union mpsc_pbuf_generic *packet);
 
 /** @brief MPSC packet buffer structure. */
 struct mpsc_pbuf_buffer {
@@ -111,6 +114,9 @@ struct mpsc_pbuf_buffer {
 
 	/* Buffer size in 32 bit words. */
 	uint32_t size;
+
+	/* Store max buffer usage. */
+	uint32_t max_usage;
 
 	struct k_sem sem;
 };
@@ -179,7 +185,7 @@ void mpsc_pbuf_commit(struct mpsc_pbuf_buffer *buffer,
  * and data on remaining bits.
  */
 void mpsc_pbuf_put_word(struct mpsc_pbuf_buffer *buffer,
-			union mpsc_pbuf_generic word);
+			const union mpsc_pbuf_generic word);
 
 /** @brief Put a packet consisting of a word and a pointer.
  *  *
@@ -194,7 +200,8 @@ void mpsc_pbuf_put_word(struct mpsc_pbuf_buffer *buffer,
  * @param data User data.
  */
 void mpsc_pbuf_put_word_ext(struct mpsc_pbuf_buffer *buffer,
-			union mpsc_pbuf_generic word, void *data);
+			    const union mpsc_pbuf_generic word,
+			    const void *data);
 
 /** @brief Put a packet into a buffer.
  *
@@ -203,18 +210,20 @@ void mpsc_pbuf_put_word_ext(struct mpsc_pbuf_buffer *buffer,
  *
  * @param buffer Buffer.
  *
- * @param data First word of data must contain MPSC_PBUF_HDR with valid set.
+ * @param data First word of data must contain MPSC_PBUF_HDR with valid bit set.
  *
  * @param wlen Packet size in words.
  */
 void mpsc_pbuf_put_data(struct mpsc_pbuf_buffer *buffer,
-			uint32_t *data, size_t wlen);
+			const uint32_t *data, size_t wlen);
 
 /** @brief Claim the first pending packet.
  *
  * @param buffer Buffer.
+ *
+ * @return Pointer to the claimed packet or null if none available.
  */
-union mpsc_pbuf_generic *mpsc_pbuf_claim(struct mpsc_pbuf_buffer *buffer);
+const union mpsc_pbuf_generic *mpsc_pbuf_claim(struct mpsc_pbuf_buffer *buffer);
 
 /** @brief Free a packet.
  *
@@ -223,7 +232,7 @@ union mpsc_pbuf_generic *mpsc_pbuf_claim(struct mpsc_pbuf_buffer *buffer);
  * @param packet Packet.
  */
 void mpsc_pbuf_free(struct mpsc_pbuf_buffer *buffer,
-		    union mpsc_pbuf_generic *packet);
+		    const union mpsc_pbuf_generic *packet);
 
 /** @brief Check if there are any message pending.
  *
@@ -234,6 +243,24 @@ void mpsc_pbuf_free(struct mpsc_pbuf_buffer *buffer,
  */
 bool mpsc_pbuf_is_pending(struct mpsc_pbuf_buffer *buffer);
 
+/** @brief Get current memory utilization.
+ *
+ * @param[in, out] buffer Buffer.
+ * @param[out]     size   Buffer size in bytes.
+ * @param[out]     now    Current buffer usage in bytes.
+ */
+void mpsc_pbuf_get_utilization(struct mpsc_pbuf_buffer *buffer,
+			       uint32_t *size, uint32_t *now);
+
+/** @brief Get maximum memory utilization.
+ *
+ * @param[in, out] buffer Buffer.
+ * @param[out]     max    Maximum buffer usage in bytes.
+ *
+ * retval 0 if utilization data collected successfully.
+ * retval -ENOTSUP if Collecting utilization data is not supported.
+ */
+int mpsc_pbuf_get_max_utilization(struct mpsc_pbuf_buffer *buffer, uint32_t *max);
 /**
  * @}
  */

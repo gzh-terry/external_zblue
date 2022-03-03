@@ -101,6 +101,14 @@
 				 <5 &adc 5>;	/* A5 = P0.26 = AIN5 */
 	};
 
+	gpio_fwd: nrf-gpio-forwarder {
+		compatible = "nordic,nrf-gpio-forwarder";
+		status = "okay";
+		uart {
+			gpios = <&gpio1 1 0>, <&gpio1 0 0>, <&gpio0 11 0>, <&gpio0 10 0>;
+		};
+	};
+
 	/* These aliases are provided for compatibility with samples */
 	aliases {
 		led0 = &led0;
@@ -144,8 +152,10 @@
 	current-speed = <115200>;
 	tx-pin = <20>;
 	rx-pin = <22>;
+	rx-pull-up;
 	rts-pin = <19>;
 	cts-pin = <21>;
+	cts-pull-up;
 };
 
 &pwm0 {
@@ -161,9 +171,9 @@
 	mx25r64: mx25r6435f@0 {
 		compatible = "nordic,qspi-nor";
 		reg = <0>;
-		/* MX24R64 supports only pp and pp4io */
+		/* MX25R64 supports only pp and pp4io */
 		writeoc = "pp4io";
-		/* MX24R64 supports all readoc options */
+		/* MX25R64 supports all readoc options */
 		readoc = "read4io";
 		sck-frequency = <8000000>;
 		label = "MX25R64";
@@ -198,6 +208,7 @@ arduino_serial: &uart1 {
 	current-speed = <115200>;
 	tx-pin = <33>;
 	rx-pin = <32>;
+	rx-pull-up;
 };
 
 arduino_i2c: &i2c1 {};
