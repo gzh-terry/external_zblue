@@ -302,7 +302,7 @@ int bt_mesh_pb_gatt_srv_adv_start(void)
 	return err;
 }
 
-BT_CONN_CB_DEFINE(conn_callbacks) = {
+BT_CONN_CB_DEFINE(pb_gatt_srv) = {
 	.connected = gatt_connected,
 	.disconnected = gatt_disconnected,
 };

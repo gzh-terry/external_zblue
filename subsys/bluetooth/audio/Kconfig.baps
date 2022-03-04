@@ -252,5 +252,5 @@ config BT_AUDIO_CAPABILITIES
 	bool
 	default y if BT_ASCS || BT_AUDIO_BROADCAST_SINK
 
-rsource "Kconfig.pacs"
-rsource "Kconfig.ascs"
+source "$APPSDIR/external/zblue/subsys/bluetooth/audio/Kconfig.pacs"
+source "$APPSDIR/external/zblue/subsys/bluetooth/audio/Kconfig.ascs"

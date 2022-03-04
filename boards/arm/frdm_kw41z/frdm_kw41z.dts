@@ -2,8 +2,7 @@
 
 /dts-v1/;
 
-#include <nxp/nxp_kw41z.dtsi>
-#include "frdm_kw41z-pinctrl.dtsi"
+#include <nxp/MKW41Z512VHT4.dtsi>
 
 / {
 	model = "NXP Freedom KW41Z board";
@@ -110,13 +109,13 @@
 
 &adc0 {
 	status = "okay";
-	pinctrl-0 = <&adc0_default>;
+	pinctrl-0 = <&ADC0_SE3_PTB2>;
 	pinctrl-names = "default";
 };
 
 &i2c1 {
 	status = "okay";
-	pinctrl-0 = <&i2c1_default>;
+	pinctrl-0 = <&I2C1_SCL_PTC2 &I2C1_SDA_PTC3>;
 	pinctrl-names = "default";
 
 	fxos8700@1f {
@@ -127,9 +126,17 @@
 	};
 };
 
+&I2C1_SCL_PTC2 {
+	bias-pull-up;
+};
+
+&I2C1_SDA_PTC3 {
+	bias-pull-up;
+};
+
 &lpuart0 {
 	status = "okay";
-	pinctrl-0 = <&lpuart0_default>;
+	pinctrl-0 = <&UART0_RX_PTC6 &UART0_TX_PTC7>;
 	pinctrl-names = "default";
 	current-speed = <115200>;
 };
@@ -144,13 +151,14 @@
 
 &spi0 {
 	status = "okay";
-	pinctrl-0 = <&spi0_default>;
+	pinctrl-0 = <&SPI0_SCK_PTC16 &SPI0_SOUT_PTC17
+		     &SPI0_SIN_PTC18 &SPI0_PCS0_PTC19>;
 	pinctrl-names = "default";
 };
 
 &tpm0 {
 	status = "okay";
-	pinctrl-0 = <&tpm0_default>;
+	pinctrl-0 = <&TPM0_CH2_PTC1>;
 	pinctrl-names = "default";
 };
 
@@ -160,6 +168,6 @@
 
 &tpm2 {
 	status = "okay";
-	pinctrl-0 = <&tmp2_default>;
+	pinctrl-0 = <&TPM2_CH1_PTA19 &TPM2_CH0_PTA18>;
 	pinctrl-names = "default";
 };

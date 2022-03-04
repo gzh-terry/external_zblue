@@ -2751,7 +2751,7 @@ static void lpn_polled(uint16_t net_idx, uint16_t friend_addr, bool retry)
 		    CONTROLLER_INDEX, (uint8_t *) &ev, sizeof(ev));
 }
 
-BT_MESH_LPN_CB_DEFINE(lpn_cb) = {
+BT_MESH_LPN_CB_DEFINE(tester_lpn_cb) = {
 	.established = lpn_established,
 	.terminated = lpn_terminated,
 	.polled = lpn_polled,

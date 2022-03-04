@@ -248,7 +248,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	printk("Disconnected (reason 0x%02x)\n", reason);
 }
 
-BT_CONN_CB_DEFINE(conn_callbacks) = {
+BT_CONN_CB_DEFINE(peripheral) = {
 	.connected = connected,
 	.disconnected = disconnected,
 };

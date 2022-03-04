@@ -202,7 +202,7 @@ bool z_smp_cpu_mobile(void);
 
 #else
 #define _current_cpu (&_kernel.cpus[0])
-#define _current _kernel.cpus[0].current
+#define _current k_current_get()
 #endif
 
 /* kernel wait queue record */
@@ -234,13 +234,6 @@ typedef void (*_timeout_func_t)(struct _timeout *t);
 
 struct _timeout {
 	sys_dnode_t node;
-	_timeout_func_t fn;
-#ifdef CONFIG_TIMEOUT_64BIT
-	/* Can't use k_ticks_t for header dependency reasons */
-	int64_t dticks;
-#else
-	int32_t dticks;
-#endif
 };
 
 #ifdef __cplusplus

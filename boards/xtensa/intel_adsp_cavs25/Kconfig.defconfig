@@ -2,10 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-if BOARD_INTEL_ADSP_CAVS25 || BOARD_INTEL_ADSP_CAVS25_TGPH
+if BOARD_INTEL_ADSP_CAVS25
 
 config BOARD
-	default "intel_adsp_cavs25" if BOARD_INTEL_ADSP_CAVS25
-	default "intel_adsp_cavs25_tgph" if BOARD_INTEL_ADSP_CAVS25_TGPH
+	default "intel_adsp_cavs25"
 
-endif # BOARD_INTEL_ADSP_CAVS25 || BOARD_INTEL_ADSP_CAVS25_TGPH
+config I2S_CAVS
+	default y
+	depends on I2S
+
+endif # BOARD_INTEL_ADSP_CAVS25

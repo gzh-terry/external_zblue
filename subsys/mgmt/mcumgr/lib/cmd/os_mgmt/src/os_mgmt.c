@@ -42,17 +42,16 @@ os_mgmt_echo(struct mgmt_ctxt *ctxt)
 		}
 	};
 
-	echo_buf[0] = '\0';
+	echo_buf[CONFIG_OS_MGMT_ECHO_LENGTH] = '\0';
 
 	err = cbor_read_object(&ctxt->it, attrs);
 	if (err != 0) {
 		return MGMT_ERR_EINVAL;
 	}
 
-	echo_buf[sizeof(echo_buf) - 1] = '\0';
-
 	err = cbor_encode_text_stringz(&ctxt->encoder, "r")				||
-	      cbor_encode_text_stringz(&ctxt->encoder, echo_buf);
+	      cbor_encode_text_string(&ctxt->encoder, echo_buf,
+				      strnlen(echo_buf, CONFIG_OS_MGMT_ECHO_LENGTH));
 
 	return (err == 0) ? 0 : MGMT_ERR_ENOMEM;
 }
@@ -65,40 +64,50 @@ static inline CborError
 os_mgmt_taskstat_encode_thread_name(struct CborEncoder *encoder, int idx,
 				    const struct k_thread *thread)
 {
-	size_t name_len = strlen(thread->name);
+	int err = 0;
 
 	ARG_UNUSED(idx);
 
-	if (name_len > CONFIG_OS_MGMT_TASKSTAT_THREAD_NAME_LEN) {
-		name_len = CONFIG_OS_MGMT_TASKSTAT_THREAD_NAME_LEN;
-	}
-
-	return cbor_encode_text_string(encoder, thread->name, name_len);
+	err = cbor_encode_text_string(encoder, thread->name, strnlen(thread->name,
+				      CONFIG_OS_MGMT_TASKSTAT_THREAD_NAME_LEN - 1));
+	return err;
 }
 
-#else
+#elif defined(CONFIG_OS_MGMT_TASKSTAT_USE_THREAD_PRIO_FOR_NAME)
 static inline CborError
 os_mgmt_taskstat_encode_thread_name(struct CborEncoder *encoder, int idx,
 				    const struct k_thread *thread)
 {
 	CborError err = 0;
-	char thread_name[CONFIG_OS_MGMT_TASKSTAT_THREAD_NAME_LEN + 1];
+	char thread_name[CONFIG_OS_MGMT_TASKSTAT_THREAD_NAME_LEN];
 
-#if defined(CONFIG_OS_MGMT_TASKSTAT_USE_THREAD_PRIO_FOR_NAME)
-	idx = (int)thread->base.prio;
-#elif defined(CONFIG_OS_MGMT_TASKSTAT_USE_THREAD_IDX_FOR_NAME)
-	ARG_UNUSED(thread);
-#else
-#error Unsupported option for taskstat thread name
-#endif
+	ARG_UNUSED(idx);
 
-	ll_to_s(idx, sizeof(thread_name) - 1, thread_name);
 	thread_name[sizeof(thread_name) - 1] = 0;
+	ll_to_s((int)thread->base.prio, sizeof(thread_name) - 1, thread_name);
 
 	err = cbor_encode_text_stringz(encoder, thread_name);
 	return err;
 }
 
+#elif defined(CONFIG_OS_MGMT_TASKSTAT_USE_THREAD_IDX_FOR_NAME)
+static inline CborError
+os_mgmt_taskstat_encode_thread_name(struct CborEncoder *encoder, int idx,
+				    const struct k_thread *thread)
+{
+	CborError err = 0;
+	char thread_name[CONFIG_OS_MGMT_TASKSTAT_THREAD_NAME_LEN];
+
+	ARG_UNUSED(thread);
+
+	thread_name[sizeof(thread_name) - 1] = 0;
+	ll_to_s(idx, sizeof(thread_name) - 1, thread_name);
+
+	err = cbor_encode_text_stringz(encoder, thread_name);
+	return err;
+}
+#else
+#error Unsupported option for taskstat thread name
 #endif
 
 static inline int
