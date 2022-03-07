@@ -31,7 +31,6 @@ source "$APPSDIR/external/zblue/subsys/bluetooth/audio/Kconfig.aics"
 source "$APPSDIR/external/zblue/subsys/bluetooth/audio/Kconfig.vcs"
 source "$APPSDIR/external/zblue/subsys/bluetooth/audio/Kconfig.mics"
 source "$APPSDIR/external/zblue/subsys/bluetooth/audio/Kconfig.csis"
-source "$APPSDIR/external/zblue/subsys/bluetooth/audio/Kconfig.otc"
 source "$APPSDIR/external/zblue/subsys/bluetooth/audio/Kconfig.mcs"
 
 endif # BT_AUDIO
