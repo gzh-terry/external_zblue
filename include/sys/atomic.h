@@ -40,6 +40,7 @@ typedef atomic_ptr_t atomic_ptr_val_t;
 # endif /* CONFIG_XTENSA */
 #else
 /* Default.  See this file for the Doxygen reference: */
+#include <sys/atomic_builtin.h>
 #endif
 
 /* Portable higher-level utilities: */

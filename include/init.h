@@ -56,7 +56,7 @@ void z_sys_init_run_level(int32_t level);
 /* A counter is used to avoid issues when two or more system devices
  * are declared in the same C file with the same init function.
  */
-#define Z_SYS_NAME(_init_fn) _CONCAT(sys_init_, _init_fn)
+#define Z_SYS_NAME(_init_fn) _CONCAT(_CONCAT(sys_init_, _init_fn), __COUNTER__)
 
 /**
  * @def Z_INIT_ENTRY_DEFINE
@@ -83,8 +83,9 @@ void z_sys_init_run_level(int32_t level);
  * other objects of the same initialization level. See SYS_INIT().
  */
 #define Z_INIT_ENTRY_DEFINE(_entry_name, _init_fn, _device, _level, _prio)	\
-	const Z_DECL_ALIGN(struct init_entry)				\
-		_CONCAT(__init_, _entry_name) __used = { 		\
+	static const Z_DECL_ALIGN(struct init_entry)			\
+		_CONCAT(__init_, _entry_name) __used			\
+	__attribute__((__section__(".z_init_" #_level STRINGIFY(_prio)"_"))) = { \
 		.init = (_init_fn),					\
 		.dev = (_device),					\
 	}
