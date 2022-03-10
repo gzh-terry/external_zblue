@@ -98,7 +98,6 @@ static inline int pthread_cond_init(pthread_cond_t *cv,
  */
 static inline int pthread_cond_destroy(pthread_cond_t *cv)
 {
-	ARG_UNUSED(cv);
 	return 0;
 }
 
@@ -140,7 +139,6 @@ int pthread_cond_timedwait(pthread_cond_t *cv, pthread_mutex_t *mut,
  */
 static inline int pthread_condattr_init(pthread_condattr_t *att)
 {
-	ARG_UNUSED(att);
 	return 0;
 }
 
@@ -153,7 +151,6 @@ static inline int pthread_condattr_init(pthread_condattr_t *att)
  */
 static inline int pthread_condattr_destroy(pthread_condattr_t *att)
 {
-	ARG_UNUSED(att);
 	return 0;
 }
 
@@ -467,7 +464,6 @@ static inline int pthread_equal(pthread_t pt1, pthread_t pt2)
  */
 static inline int pthread_rwlockattr_destroy(pthread_rwlockattr_t *attr)
 {
-	ARG_UNUSED(attr);
 	return 0;
 }
 
@@ -478,7 +474,6 @@ static inline int pthread_rwlockattr_destroy(pthread_rwlockattr_t *attr)
  */
 static inline int pthread_rwlockattr_init(pthread_rwlockattr_t *attr)
 {
-	ARG_UNUSED(attr);
 	return 0;
 }
 

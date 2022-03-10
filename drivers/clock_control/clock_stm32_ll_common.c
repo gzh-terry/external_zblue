@@ -452,7 +452,7 @@ int stm32_clock_control_init(const struct device *dev)
 
 #if STM32_MSI_PLL_MODE
 
-#ifndef STM32_LSE_ENABLED
+#ifndef STM32_LSE_CLOCK
 #error "MSI Hardware auto calibration requires LSE clock activation"
 #endif
 	/* Enable MSI hardware auto calibration */

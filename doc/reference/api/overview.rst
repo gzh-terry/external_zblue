@@ -287,11 +287,6 @@ current :ref:`stability level <api_lifecycle>`.
      - 2.5
      - 2.5
 
-   * - :ref:`tcpc_api`
-     - Experimental
-     - 3.1
-     - 3.1
-
    * - :ref:`uart_api`
      - Stable
      - 1.0

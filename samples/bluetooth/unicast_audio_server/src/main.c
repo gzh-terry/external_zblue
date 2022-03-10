@@ -222,7 +222,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	}
 
 	printk("Connected: %s\n", addr);
-	default_conn = bt_conn_ref(conn);
+	default_conn = conn;
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)

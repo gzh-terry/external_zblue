@@ -7,6 +7,7 @@
 
 #include "zephyr/types.h"
 #include "ztest.h"
+#include "kconfig.h"
 
 #include <bluetooth/hci.h>
 #include <sys/byteorder.h>

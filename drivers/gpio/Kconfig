@@ -16,7 +16,7 @@ module-str = gpio
 source "subsys/logging/Kconfig.template.log_config"
 
 config GPIO_SHELL
-	bool "GPIO Shell"
+	bool "Enable GPIO Shell"
 	depends on SHELL
 	help
 	  Enable GPIO Shell for testing.

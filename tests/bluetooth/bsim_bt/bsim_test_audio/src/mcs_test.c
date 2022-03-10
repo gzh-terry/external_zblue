@@ -25,6 +25,8 @@
 
 extern enum bst_result_t bst_result;
 
+static struct bt_conn *default_conn;
+
 CREATE_FLAG(ble_link_is_ready);
 
 /* Callback after Bluetoot initialization attempt */
@@ -56,7 +58,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	if (err) {
 		FAIL("Failed to connect to %s (%u)\n", addr, err);
 	} else {
-		default_conn = bt_conn_ref(conn);
+		default_conn = conn;
 		printk("Connected: %s\n", addr);
 		SET_FLAG(ble_link_is_ready);
 	}

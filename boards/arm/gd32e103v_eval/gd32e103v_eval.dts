@@ -102,7 +102,6 @@
 
 &timer0 {
 	status = "okay";
-	prescaler = <128>;
 
 	pwm0: pwm {
 		status = "okay";

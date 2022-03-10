@@ -276,39 +276,40 @@ static void can_rcar_error(const struct device *dev)
 
 	if (eifr & RCAR_CAN_EIFR_BEIF) {
 
+		LOG_DBG("Bus error interrupt:\n");
 		ecsr = sys_read8(config->reg_addr + RCAR_CAN_ECSR);
 		if (ecsr & RCAR_CAN_ECSR_ADEF) {
-			CAN_STATS_ACK_ERROR_INC(dev);
+			LOG_DBG("ACK Delimiter Error\n");
 			sys_write8((uint8_t)~RCAR_CAN_ECSR_ADEF,
 				   config->reg_addr + RCAR_CAN_ECSR);
 		}
 		if (ecsr & RCAR_CAN_ECSR_BE0F) {
-			CAN_STATS_BIT0_ERROR_INC(dev);
+			LOG_DBG("Bit Error (dominant)\n");
 			sys_write8((uint8_t)~RCAR_CAN_ECSR_BE0F,
 				   config->reg_addr + RCAR_CAN_ECSR);
 		}
 		if (ecsr & RCAR_CAN_ECSR_BE1F) {
-			CAN_STATS_BIT1_ERROR_INC(dev);
+			LOG_DBG("Bit Error (recessive)\n");
 			sys_write8((uint8_t)~RCAR_CAN_ECSR_BE1F,
 				   config->reg_addr + RCAR_CAN_ECSR);
 		}
 		if (ecsr & RCAR_CAN_ECSR_CEF) {
-			CAN_STATS_CRC_ERROR_INC(dev);
+			LOG_DBG("CRC Error\n");
 			sys_write8((uint8_t)~RCAR_CAN_ECSR_CEF,
 				   config->reg_addr + RCAR_CAN_ECSR);
 		}
 		if (ecsr & RCAR_CAN_ECSR_AEF) {
-			CAN_STATS_ACK_ERROR_INC(dev);
+			LOG_DBG("ACK Error\n");
 			sys_write8((uint8_t)~RCAR_CAN_ECSR_AEF,
 				   config->reg_addr + RCAR_CAN_ECSR);
 		}
 		if (ecsr & RCAR_CAN_ECSR_FEF) {
-			CAN_STATS_FORM_ERROR_INC(dev);
+			LOG_DBG("Form Error\n");
 			sys_write8((uint8_t)~RCAR_CAN_ECSR_FEF,
 				   config->reg_addr + RCAR_CAN_ECSR);
 		}
 		if (ecsr & RCAR_CAN_ECSR_SEF) {
-			CAN_STATS_STUFF_ERROR_INC(dev);
+			LOG_DBG("Stuff Error\n");
 			sys_write8((uint8_t)~RCAR_CAN_ECSR_SEF,
 				   config->reg_addr + RCAR_CAN_ECSR);
 		}
@@ -1058,7 +1059,7 @@ static const struct can_driver_api can_rcar_driver_api = {
 	};									\
 	static struct can_rcar_data can_rcar_data_##n;				\
 										\
-	CAN_DEVICE_DT_INST_DEFINE(n, can_rcar_init,				\
+	DEVICE_DT_INST_DEFINE(n, can_rcar_init,					\
 			      NULL,						\
 			      &can_rcar_data_##n,				\
 			      &can_rcar_cfg_##n,				\

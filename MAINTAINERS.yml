@@ -206,7 +206,6 @@ Bluetooth controller:
         - ppryga
         - mtpr-ot
         - wopu-ot
-        - erbr-ot
     files:
         - subsys/bluetooth/controller/
     labels:
@@ -1347,7 +1346,6 @@ RISCV arch:
         - mgielda
         - katsuster
         - henrikbrixandersen
-        - edersondisouza
     files:
         - arch/riscv/
         - boards/riscv/
