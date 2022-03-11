@@ -12,20 +12,58 @@
 #include <stddef.h>
 #include <stdarg.h>
 #include <inttypes.h>
-#include <syslog.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern int snprintf(char *str, size_t size, const char *format, ...);
-extern int vsnprintf(char *str, size_t size, const char *format, va_list ap);
+/**
+ *
+ * @brief Print kernel debugging message.
+ *
+ * This routine prints a kernel debugging message to the system console.
+ * Output is send immediately, without any mutual exclusion or buffering.
+ *
+ * A basic set of conversion specifier characters are supported:
+ *   - signed decimal: \%d, \%i
+ *   - unsigned decimal: \%u
+ *   - unsigned hexadecimal: \%x (\%X is treated as \%x)
+ *   - pointer: \%p
+ *   - string: \%s
+ *   - character: \%c
+ *   - percent: \%\%
+ *
+ * Field width (with or without leading zeroes) is supported.
+ * Length attributes h, hh, l, ll and z are supported. However, integral
+ * values with %lld and %lli are only printed if they fit in a long
+ * otherwise 'ERR' is printed. Full 64-bit values may be printed with %llx.
+ * Flags and precision attributes are not supported.
+ *
+ * @param fmt Format string.
+ * @param ... Optional list of format arguments.
+ */
+#ifdef CONFIG_PRINTK
 
-#define printk(fmt, ...)	syslog(LOG_INFO, fmt, ##__VA_ARGS__)
-#define vprintk(fmt, ap)	vsyslog(LOG_INFO, fmt, ap)
+extern __printf_like(1, 2) void printk(const char *fmt, ...);
+extern __printf_like(1, 0) void vprintk(const char *fmt, va_list ap);
 
-#define snprintk		snprintf
-#define vsnprintk		vsnprintf
+#else
+static inline __printf_like(1, 2) void printk(const char *fmt, ...)
+{
+	ARG_UNUSED(fmt);
+}
+
+static inline __printf_like(1, 0) void vprintk(const char *fmt, va_list ap)
+{
+	ARG_UNUSED(fmt);
+	ARG_UNUSED(ap);
+}
+#endif
+
+extern __printf_like(3, 4) int snprintk(char *str, size_t size,
+					const char *fmt, ...);
+extern __printf_like(3, 0) int vsnprintk(char *str, size_t size,
+					  const char *fmt, va_list ap);
 
 #ifdef __cplusplus
 }

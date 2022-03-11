@@ -8,11 +8,16 @@ menuconfig BT
 	bool "Bluetooth"
 	# Some BT threads use co-op priorities to implement critical sections,
 	# will need some refactoring to work on SMP systems.
+	depends on !SMP
 	select NET_BUF
 	help
 	  This option enables Bluetooth support.
 
 if BT
+
+module = BT
+module-str = bt
+source "subsys/logging/Kconfig.template.log_config"
 
 choice BT_STACK_SELECTION
 	prompt "Bluetooth Stack Selection"
@@ -33,6 +38,11 @@ config BT_CUSTOM
 	  this is, you probably want the HCI-based stack instead.
 
 endchoice
+
+# The Bluetooth subsystem requires the system workqueue to execute at
+# a cooperative priority.
+config SYSTEM_WORKQUEUE_PRIORITY
+	range -256 -1
 
 if BT_HCI
 
@@ -97,7 +107,7 @@ config BT_OBSERVER
 	help
 	  Select this for LE Observer role support.
 
-source "$APPSDIR/external/zblue/subsys/bluetooth/Kconfig.adv"
+rsource "Kconfig.adv"
 
 config BT_CONN
 	bool
@@ -154,11 +164,11 @@ config BT_DATA_LEN_UPDATE
 	  Enable support for Bluetooth v4.2 LE Data Length Update procedure.
 endif # BT_CONN
 
-source "$APPSDIR/external/zblue/subsys/bluetooth/Kconfig.iso"
-source "$APPSDIR/external/zblue/subsys/bluetooth/common/Kconfig"
-source "$APPSDIR/external/zblue/subsys/bluetooth/host/Kconfig"
-source "$APPSDIR/external/zblue/subsys/bluetooth/controller/Kconfig"
-source "$APPSDIR/external/zblue/subsys/bluetooth/shell/Kconfig"
+rsource "Kconfig.iso"
+rsource "common/Kconfig"
+rsource "host/Kconfig"
+rsource "controller/Kconfig"
+rsource "shell/Kconfig"
 
 endif # BT_HCI
 

@@ -188,7 +188,9 @@ struct shell_static_entry {
 			       mandatory, optional)			   \
 	static const struct shell_static_entry UTIL_CAT(_shell_, syntax) = \
 	SHELL_CMD_ARG(syntax, subcmd, help, handler, mandatory, optional); \
-	const struct shell_cmd_entry UTIL_CAT(shell_cmd_, syntax)   	   \
+	static const struct shell_cmd_entry UTIL_CAT(shell_cmd_, syntax)   \
+	__attribute__ ((section("."					   \
+			STRINGIFY(UTIL_CAT(shell_root_cmd_, syntax)))))	   \
 	__attribute__((used)) = {					   \
 		.is_dynamic = false,					   \
 		.u = {.entry = &UTIL_CAT(_shell_, syntax)}		   \
@@ -211,7 +213,7 @@ struct shell_static_entry {
  * @param[in] subcmd	Pointer to a subcommands array.
  * @param[in] help	Pointer to a command help string.
  * @param[in] handler	Pointer to a function handler.
- * @param[in] mandatory	Number of mandatory arguments includig command name.
+ * @param[in] mandatory	Number of mandatory arguments including command name.
  * @param[in] optional	Number of optional arguments.
  */
 #define SHELL_COND_CMD_ARG_REGISTER(flag, syntax, subcmd, help, handler, \
