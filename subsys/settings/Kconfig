@@ -9,12 +9,6 @@ menuconfig SETTINGS
 	  It supports several back-ends to store and load serialized data from
 	  and it can do so atomically for all involved modules.
 
-if SETTINGS
-module = SETTINGS
-module-str = settings
-source "subsys/logging/Kconfig.template.log_config"
-endif
-
 config SETTINGS_RUNTIME
 	bool "runtime storage back-end"
 	depends on SETTINGS
@@ -126,7 +120,7 @@ config SETTINGS_NVS_SECTOR_COUNT
 	  Number of sectors used for the NVS settings area
 
 config SETTINGS_SHELL
-	bool "Settings shell"
+	bool "Enable Settings shell"
 	depends on SETTINGS && SHELL
 	help
 	  Enable shell commands for listing and reading the settings. Note that

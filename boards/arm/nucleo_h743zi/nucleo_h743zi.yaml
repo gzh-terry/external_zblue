@@ -24,4 +24,3 @@ supported:
   - usb_device
   - can
   - canfd
-  - dac

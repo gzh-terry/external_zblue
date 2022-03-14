@@ -49,11 +49,6 @@ static void cache_add(uint8_t data[21], struct bt_mesh_subnet *sub)
 	memcpy(sub->beacon_cache, data, 21);
 }
 
-void bt_mesh_beacon_cache_clear(struct bt_mesh_subnet *sub)
-{
-	(void)memset(sub->beacon_cache, 0, 21);
-}
-
 static void beacon_complete(int err, void *user_data)
 {
 	struct bt_mesh_subnet *sub = user_data;
@@ -101,15 +96,12 @@ static bool secure_beacon_send(struct bt_mesh_subnet *sub, void *cb_data)
 	uint32_t now = k_uptime_get_32();
 	struct net_buf *buf;
 	uint32_t time_diff;
-	uint32_t time_since_last_recv;
 
 	BT_DBG("");
 
 	time_diff = now - sub->beacon_sent;
-	time_since_last_recv = now - sub->beacon_recv;
 	if (time_diff < (600 * MSEC_PER_SEC) &&
-		(time_diff < BEACON_THRESHOLD(sub) ||
-		 time_since_last_recv < (10 * MSEC_PER_SEC))) {
+		time_diff < BEACON_THRESHOLD(sub)) {
 		return false;
 	}
 
@@ -377,7 +369,6 @@ update_stats:
 	if (bt_mesh_beacon_enabled() &&
 	    sub->beacons_cur < 0xff) {
 		sub->beacons_cur++;
-		sub->beacon_recv = k_uptime_get_32();
 	}
 }
 
@@ -427,7 +418,7 @@ void bt_mesh_beacon_update(struct bt_mesh_subnet *sub)
 	}
 }
 
-static void subnet_evt(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
+static void subnet_evt_beacon(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
 {
 	if (evt != BT_MESH_KEY_DELETED) {
 		bt_mesh_beacon_update(sub);
@@ -435,7 +426,7 @@ static void subnet_evt(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
 }
 
 BT_MESH_SUBNET_CB_DEFINE(beacon) = {
-	.evt_handler = subnet_evt,
+	.evt_handler = subnet_evt_beacon,
 };
 
 void bt_mesh_beacon_init(void)

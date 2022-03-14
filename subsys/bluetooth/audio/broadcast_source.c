@@ -114,18 +114,6 @@ static void broadcast_source_set_ep_state(struct bt_audio_ep *ep, uint8_t state)
 	}
 }
 
-static void broadcast_source_iso_sent(struct bt_iso_chan *chan)
-{
-	struct bt_audio_ep *ep = CONTAINER_OF(chan, struct bt_audio_ep, iso);
-	struct bt_audio_stream_ops *ops = ep->stream->ops;
-
-	BT_DBG("stream %p ep %p", chan, ep);
-
-	if (ops != NULL && ops->sent != NULL) {
-		ops->sent(ep->stream);
-	}
-}
-
 static void broadcast_source_iso_connected(struct bt_iso_chan *chan)
 {
 	struct bt_audio_ep *ep = CONTAINER_OF(chan, struct bt_audio_ep, iso);
@@ -160,7 +148,6 @@ static void broadcast_source_iso_disconnected(struct bt_iso_chan *chan, uint8_t 
 }
 
 static struct bt_iso_chan_ops broadcast_source_iso_ops = {
-	.sent		= broadcast_source_iso_sent,
 	.connected	= broadcast_source_iso_connected,
 	.disconnected	= broadcast_source_iso_disconnected,
 };
@@ -185,7 +172,6 @@ static void broadcast_source_ep_init(struct bt_audio_ep *ep)
 	ep->iso.qos = &ep->iso_qos;
 	ep->iso.qos->rx = &ep->iso_rx;
 	ep->iso.qos->tx = &ep->iso_tx;
-	ep->dir = BT_AUDIO_SOURCE;
 }
 
 static struct bt_audio_ep *broadcast_source_new_ep(uint8_t index)
@@ -233,8 +219,7 @@ static int bt_audio_broadcast_source_setup_stream(uint8_t index,
 
 	bt_audio_stream_attach(NULL, stream, ep, codec);
 	stream->qos = qos;
-	stream->iso->qos->rx = NULL;
-	err = bt_audio_codec_qos_to_iso_qos(stream->iso->qos->tx, qos);
+	err = bt_audio_codec_qos_to_iso_qos(stream->iso->qos, qos);
 	if (err) {
 		BT_ERR("Unable to convert codec QoS to ISO QoS");
 		return err;
@@ -384,7 +369,7 @@ static void broadcast_source_cleanup(struct bt_audio_broadcast_source *source)
 }
 
 int bt_audio_broadcast_source_create(struct bt_audio_stream *streams,
-				     size_t num_stream,
+				     uint8_t num_stream,
 				     struct bt_codec *codec,
 				     struct bt_codec_qos *qos,
 				     struct bt_audio_broadcast_source **out_source)

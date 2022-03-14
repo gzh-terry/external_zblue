@@ -172,7 +172,7 @@ BUILD_ASSERT(DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT) <= 1,
 				  &i2c_b91_data_##inst,		      \
 				  &i2c_b91_cfg_##inst,		      \
 				  POST_KERNEL,			      \
-				  CONFIG_I2C_INIT_PRIORITY,	      \
+				  CONFIG_KERNEL_INIT_PRIORITY_DEVICE, \
 				  &i2c_b91_api);
 
 DT_INST_FOREACH_STATUS_OKAY(I2C_B91_INIT)

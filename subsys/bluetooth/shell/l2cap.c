@@ -184,7 +184,7 @@ static void l2cap_allowlist_remove(struct bt_conn *conn, uint8_t reason)
 	}
 }
 
-BT_CONN_CB_DEFINE(l2cap_conn_callbacks) = {
+BT_CONN_CB_DEFINE(l2cap) = {
 	.disconnected = l2cap_allowlist_remove,
 };
 

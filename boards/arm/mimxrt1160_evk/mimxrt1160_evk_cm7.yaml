@@ -20,7 +20,6 @@ supported:
   - can
   - spi
   - watchdog
-  - usb_device
   - i2c
   - pwm
   - dma

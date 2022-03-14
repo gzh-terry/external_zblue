@@ -28,9 +28,6 @@
 static sys_slist_t snks;
 static sys_slist_t srcs;
 
-static enum bt_audio_location sink_location;
-static enum bt_audio_location source_location;
-
 #if defined(CONFIG_BT_AUDIO_UNICAST_SERVER) && defined(CONFIG_BT_ASCS)
 /* TODO: The unicast server callbacks uses `const` for many of the pointers,
  * wheras the capabilities callbacks do no. The latter should be updated to use
@@ -38,7 +35,7 @@ static enum bt_audio_location source_location;
  */
 static int unicast_server_config_cb(struct bt_conn *conn,
 				    const struct bt_audio_ep *ep,
-				    enum bt_audio_pac_type type,
+				    uint8_t type,
 				    const struct bt_codec *codec,
 				    struct bt_audio_stream **stream,
 				    struct bt_codec_qos_pref *const pref)
@@ -66,7 +63,7 @@ static int unicast_server_config_cb(struct bt_conn *conn,
 		}
 
 		*stream = cap->ops->config(conn, (struct bt_audio_ep *)ep,
-					   type, cap, (struct bt_codec *)codec);
+					   cap, (struct bt_codec *)codec);
 
 		if (*stream == NULL) {
 			return -ENOMEM;
@@ -159,8 +156,8 @@ static int unicast_server_qos_cb(struct bt_audio_stream *stream,
 }
 
 static int unicast_server_enable_cb(struct bt_audio_stream *stream,
-				    const struct bt_codec_data *meta,
-				    size_t meta_count)
+				    uint8_t meta_count,
+				    const struct bt_codec_data *meta)
 {
 	struct bt_audio_capability *cap = stream->user_data;
 
@@ -168,8 +165,8 @@ static int unicast_server_enable_cb(struct bt_audio_stream *stream,
 		return -EACCES;
 	}
 
-	return cap->ops->enable(stream, (struct bt_codec_data *)meta,
-				meta_count);
+	return cap->ops->enable(stream, meta_count,
+					(struct bt_codec_data *)meta);
 }
 
 static int unicast_server_start_cb(struct bt_audio_stream *stream)
@@ -184,8 +181,8 @@ static int unicast_server_start_cb(struct bt_audio_stream *stream)
 }
 
 static int unicast_server_metadata_cb(struct bt_audio_stream *stream,
-				      const struct bt_codec_data *meta,
-				      size_t meta_count)
+				      uint8_t meta_count,
+				      const struct bt_codec_data *meta)
 {
 	struct bt_audio_capability *cap = stream->user_data;
 
@@ -193,8 +190,8 @@ static int unicast_server_metadata_cb(struct bt_audio_stream *stream,
 		return -EACCES;
 	}
 
-	return cap->ops->metadata(stream, (struct bt_codec_data *)meta,
-				  meta_count);
+	return cap->ops->metadata(stream, meta_count,
+					  (struct bt_codec_data *)meta);
 }
 
 static int unicast_server_disable_cb(struct bt_audio_stream *stream)
@@ -261,46 +258,6 @@ static int publish_capability_cb(struct bt_conn *conn, uint8_t type,
 	return -ENOENT;
 }
 
-static int publish_location_cb(struct bt_conn *conn,
-			       enum bt_audio_pac_type type,
-			       enum bt_audio_location *location)
-{
-	if (type == BT_AUDIO_SINK) {
-		*location = sink_location;
-	} else if (type == BT_AUDIO_SOURCE) {
-		*location = source_location;
-	} else {
-		BT_ERR("Invalid endpoint type: %u", type);
-
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-static int write_location_cb(struct bt_conn *conn, enum bt_audio_pac_type type,
-			     enum bt_audio_location location)
-{
-	int err;
-
-	if (type == BT_AUDIO_SINK) {
-		sink_location = location;
-	} else if (type == BT_AUDIO_SOURCE) {
-		source_location = location;
-	} else {
-		BT_ERR("Invalid endpoint type: %u", type);
-
-		return -EINVAL;
-	}
-
-	err = bt_audio_unicast_server_location_changed(type);
-	if (err) {
-		BT_DBG("Location for type %d wasn't notified: %d", type, err);
-	}
-
-	return 0;
-}
-
 static struct bt_audio_unicast_server_cb unicast_server_cb = {
 	.config = unicast_server_config_cb,
 	.reconfig = unicast_server_reconfig_cb,
@@ -312,8 +269,6 @@ static struct bt_audio_unicast_server_cb unicast_server_cb = {
 	.stop = unicast_server_stop_cb,
 	.release = unicast_server_release_cb,
 	.publish_capability = publish_capability_cb,
-	.publish_location = publish_location_cb,
-	.write_location = write_location_cb
 };
 #endif /* CONFIG_BT_AUDIO_UNICAST_SERVER && CONFIG_BT_ASCS */
 
@@ -417,32 +372,6 @@ int bt_audio_capability_unregister(struct bt_audio_capability *cap)
 #if defined(CONFIG_BT_PACS)
 	bt_pacs_remove_capability(cap->type);
 #endif /* CONFIG_BT_PACS */
-
-	return 0;
-}
-
-int bt_audio_capability_set_location(enum bt_audio_pac_type type,
-				     enum bt_audio_location location)
-{
-	int err;
-
-	if (type == BT_AUDIO_SINK) {
-		sink_location = location;
-	} else if (type == BT_AUDIO_SOURCE) {
-		source_location = location;
-	} else {
-		BT_ERR("Invalid endpoint type: %u", type);
-
-		return -EINVAL;
-	}
-
-	if (IS_ENABLED(CONFIG_BT_AUDIO_UNICAST_SERVER)) {
-		err = bt_audio_unicast_server_location_changed(type);
-		if (err) {
-			BT_DBG("Location for type %d wasn't notified: %d",
-			       type, err);
-		}
-	}
 
 	return 0;
 }

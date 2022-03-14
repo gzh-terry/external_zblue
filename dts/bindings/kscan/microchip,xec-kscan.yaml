@@ -6,7 +6,7 @@ description: Microchip XEC keyboard matrix controller
 
 compatible: "microchip,xec-kscan"
 
-include: [kscan.yaml, pinctrl-device.yaml]
+include: [kscan.yaml]
 
 properties:
     "#address-cells":
@@ -18,23 +18,17 @@ properties:
     reg:
       required: true
 
-    pinctrl-0:
-      required: false
-
-    pinctrl-names:
-      required: false
-
     interrupts:
       required: true
 
     girqs:
       type: array
-      required: true
+      required: false
       description: Array of pairs of GIRQ number and bit position
 
     pcrs:
       type: array
-      required: true
+      required: false
       description: ADC PCR register index and bit position
 
 girq-cells:

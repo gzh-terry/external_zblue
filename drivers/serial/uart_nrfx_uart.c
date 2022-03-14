@@ -10,7 +10,6 @@
 
 #include <drivers/uart.h>
 #include <pm/device.h>
-#include <soc.h>
 #include <hal/nrf_uart.h>
 
 #ifdef CONFIG_PINCTRL
@@ -1192,8 +1191,6 @@ static int uart_nrfx_pm_action(const struct device *dev,
 #ifdef CONFIG_PINCTRL
 PINCTRL_DT_INST_DEFINE(0);
 #endif /* CONFIG_PINCTRL */
-
-NRF_DT_ENSURE_PINS_ASSIGNED(DT_DRV_INST(0), tx_pin, rx_pin);
 
 static const struct uart_nrfx_config uart_nrfx_uart0_config = {
 #ifdef CONFIG_PINCTRL

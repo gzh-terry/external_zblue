@@ -110,7 +110,8 @@ int callbacks_configure(const struct device *gpio, uint32_t pin, int flags,
 		return -ENXIO;
 	}
 
-	gpio_pin_configure(gpio, pin, GPIO_INPUT | flags);
+	gpio_pin_configure(gpio, pin,
+			   GPIO_INPUT | GPIO_INT_DEBOUNCE | flags);
 	ret = gpio_pin_get(gpio, pin);
 	if (ret < 0) {
 		return ret;

@@ -12,7 +12,6 @@
 #include <init.h>
 #include <soc.h>
 #include <drivers/gpio.h>
-#include <dt-bindings/gpio/atmel-sam-gpio.h>
 
 #include "gpio_utils.h"
 
@@ -117,7 +116,7 @@ static int gpio_sam_port_configure(const struct device *dev, uint32_t mask,
 
 #if defined(CONFIG_SOC_SERIES_SAM3X)
 	/* Setup debounce. */
-	if (flags & SAM_GPIO_DEBOUNCE) {
+	if (flags & GPIO_INT_DEBOUNCE) {
 		pio->PIO_DIFSR = mask;
 	} else {
 		pio->PIO_SCIFSR = mask;
@@ -128,7 +127,7 @@ static int gpio_sam_port_configure(const struct device *dev, uint32_t mask,
 	defined(CONFIG_SOC_SERIES_SAMV71)
 
 	/* Setup debounce. */
-	if (flags & SAM_GPIO_DEBOUNCE) {
+	if (flags & GPIO_INT_DEBOUNCE) {
 		pio->PIO_IFSCER = mask;
 	} else {
 		pio->PIO_IFSCDR = mask;

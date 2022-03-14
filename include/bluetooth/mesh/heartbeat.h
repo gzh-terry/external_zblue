@@ -99,14 +99,6 @@ struct bt_mesh_hb_cb {
 	 *  @param sub Current Heartbeat subscription parameters.
 	 */
 	void (*sub_end)(const struct bt_mesh_hb_sub *sub);
-
-	/** @brief Publication sent callback for heartbeats.
-	 *
-	 *  Gets called when the heartbeat is successfully published.
-	 *
-	 *  @param pub Current Heartbeat publication parameters.
-	 */
-	void (*pub_sent)(const struct bt_mesh_hb_pub *pub);
 };
 
 /** @def BT_MESH_HB_CB_DEFINE
@@ -119,7 +111,7 @@ struct bt_mesh_hb_cb {
  *  @param _name Name of callback structure.
  */
 #define BT_MESH_HB_CB_DEFINE(_name)                                            \
-	static const STRUCT_SECTION_ITERABLE(bt_mesh_hb_cb, _name)
+	const STRUCT_SECTION_ITERABLE(bt_mesh_hb_cb, _name)
 
 /** @brief Get the current Heartbeat publication parameters.
  *

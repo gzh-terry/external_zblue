@@ -107,7 +107,6 @@ struct bt_audio_capability_ops {
 	 *
 	 *  @param conn Connection object
 	 *  @param ep Remote Audio Endpoint being configured
-	 *  @param type Type of the endpoint.
 	 *  @param cap Local Audio Capability being configured
 	 *  @param codec Codec configuration
 	 *
@@ -115,7 +114,6 @@ struct bt_audio_capability_ops {
 	 */
 	struct bt_audio_stream *(*config)(struct bt_conn *conn,
 					  struct bt_audio_ep *ep,
-					  enum bt_audio_pac_type type,
 					  struct bt_audio_capability *cap,
 					  struct bt_codec *codec);
 
@@ -157,9 +155,8 @@ struct bt_audio_capability_ops {
 	 *
 	 *  @return 0 in case of success or negative value in case of error.
 	 */
-	int (*enable)(struct bt_audio_stream *stream,
-		      struct bt_codec_data *meta,
-		      size_t meta_count);
+	int (*enable)(struct bt_audio_stream *stream, uint8_t meta_count,
+		      struct bt_codec_data *meta);
 
 	/** @brief Capability Start callback
 	 *
@@ -183,9 +180,8 @@ struct bt_audio_capability_ops {
 	 *
 	 *  @return 0 in case of success or negative value in case of error.
 	 */
-	int (*metadata)(struct bt_audio_stream *stream,
-			struct bt_codec_data *meta,
-			size_t meta_count);
+	int (*metadata)(struct bt_audio_stream *stream, uint8_t meta_count,
+			struct bt_codec_data *meta);
 
 	/** @brief Capability Disable callback
 	 *
@@ -260,15 +256,6 @@ int bt_audio_capability_register(struct bt_audio_capability *cap);
  *  @return 0 in case of success or negative value in case of error.
  */
 int bt_audio_capability_unregister(struct bt_audio_capability *cap);
-
-/** @brief Set the location for an endpoint type
- *
- * @param type     Type of the endpoint.
- * @param location The location to be set.
- *
- */
-int bt_audio_capability_set_location(enum bt_audio_pac_type type,
-				     enum bt_audio_location location);
 
 #ifdef __cplusplus
 }

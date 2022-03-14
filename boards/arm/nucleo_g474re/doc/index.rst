@@ -119,8 +119,6 @@ The Zephyr nucleo_g474re board configuration supports the following hardware fea
 +-----------+------------+-------------------------------------+
 | ADC       | on-chip    | adc                                 |
 +-----------+------------+-------------------------------------+
-| DAC       | on-chip    | DAC Controller                      |
-+-----------+------------+-------------------------------------+
 | FLASH     | on-chip    | flash memory                        |
 +-----------+------------+-------------------------------------+
 | COUNTER   | on-chip    | rtc                                 |
@@ -165,12 +163,10 @@ Default Zephyr Peripheral Mapping:
 - SPI_3_SCK : PC10
 - SPI_3_MISO : PC11
 - SPI_3_MOSI : PC12
-- PWM_2_CH1 : PA5 (might conflict with SPI1)
 - PWM_3_CH1 : PB4
 - USER_PB : PC13
 - LD2 : PA5
 - ADC1_IN1 : PA0
-- DAC1_OUT1 : PA4
 
 System Clock
 ------------

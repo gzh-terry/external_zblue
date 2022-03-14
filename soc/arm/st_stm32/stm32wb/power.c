@@ -16,6 +16,8 @@
 #include <clock_control/clock_stm32_ll_common.h>
 #include "stm32_hsem.h"
 
+#include <bluetooth/hci.h>
+
 #include <logging/log.h>
 LOG_MODULE_DECLARE(soc, CONFIG_SOC_LOG_LEVEL);
 
@@ -55,10 +57,41 @@ static void lpm_hsem_lock(void)
 	}
 }
 
+#define ACI_HAL_STACK_RESET 0xFC3B
+
+static void send_stack_reset(void)
+{
+	struct net_buf *rsp;
+	int err = 0;
+
+	err = bt_hci_cmd_send_sync(ACI_HAL_STACK_RESET, NULL, &rsp);
+
+	net_buf_unref(rsp);
+
+	if (err) {
+		LOG_ERR("M0 BLE stack reset issue");
+	}
+}
+
+
+static void shutdown_ble_stack(void)
+{
+	send_stack_reset();
+
+	/* Wait till C2DS set */
+	while (LL_PWR_IsActiveFlag_C2DS() == 0) {
+	};
+}
+
 /* Invoke Low Power/System Off specific Tasks */
 __weak void pm_state_set(enum pm_state state, uint8_t substate_id)
 {
 	if (state == PM_STATE_SOFT_OFF) {
+
+		if (IS_ENABLED(CONFIG_BT)) {
+			shutdown_ble_stack();
+		}
+
 		lpm_hsem_lock();
 
 		/* Clear all Wake-Up flags */
