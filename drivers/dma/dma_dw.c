@@ -21,6 +21,8 @@
 #include <logging/log.h>
 LOG_MODULE_REGISTER(dma_dw);
 
+#define DEV_NAME(dev) ((dev)->name)
+
 /* Device constant configuration parameters */
 struct dw_dma_cfg {
 	struct dw_dma_dev_cfg dw_cfg;
@@ -37,7 +39,7 @@ static int dw_dma_init(const struct device *dev)
 	/* Configure interrupts */
 	dev_cfg->irq_config();
 
-	LOG_INF("Device %s initialized", dev->name);
+	LOG_INF("Device %s initialized", DEV_NAME(dev));
 
 	return 0;
 }

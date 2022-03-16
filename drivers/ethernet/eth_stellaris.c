@@ -293,7 +293,7 @@ static struct net_stats_eth *eth_stellaris_stats(const struct device *dev)
 {
 	struct eth_stellaris_runtime *dev_data = dev->data;
 
-	return &dev_data->stats;
+	return &data->stats;
 }
 #endif
 

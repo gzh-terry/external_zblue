@@ -13,7 +13,18 @@
 #ifndef ZEPHYR_INCLUDE_KERNEL_H_
 #define ZEPHYR_INCLUDE_KERNEL_H_
 
+#include <nuttx/config.h>
+#include <nuttx/irq.h>
+#include <nuttx/clock.h>
+#include <nuttx/pthread.h>
+#include <nuttx/spinlock.h>
+#include <nuttx/wqueue.h>
+#include <nuttx/wdog.h>
+#include <nuttx/semaphore.h>
+#include <pthread.h>
+
 #if !defined(_ASMLANGUAGE)
+#include <sys/arch_interface.h>
 #include <kernel_includes.h>
 #include <errno.h>
 #include <limits.h>
@@ -39,8 +50,8 @@ extern "C" {
 #error Zero available thread priorities defined!
 #endif
 
-#define K_PRIO_COOP(x) (-(CONFIG_NUM_COOP_PRIORITIES - (x)))
-#define K_PRIO_PREEMPT(x) (x)
+#define K_PRIO_COOP(x) (CONFIG_NUM_COOP_PRIORITIES + (x))
+#define K_PRIO_PREEMPT(x) (CONFIG_NUM_COOP_PRIORITIES + (x))
 
 #define K_HIGHEST_THREAD_PRIO (-CONFIG_NUM_COOP_PRIORITIES)
 #define K_LOWEST_THREAD_PRIO CONFIG_NUM_PREEMPT_PRIORITIES
@@ -338,7 +349,6 @@ extern FUNC_NORETURN void k_thread_user_mode_enter(k_thread_entry_t entry,
 static inline void k_thread_heap_assign(struct k_thread *thread,
 					struct k_heap *heap)
 {
-	thread->resource_pool = heap;
 }
 
 #if defined(CONFIG_INIT_STACKS) && defined(CONFIG_THREAD_STACK_INFO)
@@ -569,7 +579,7 @@ __syscall k_ticks_t k_thread_timeout_expires_ticks(const struct k_thread *t);
 static inline k_ticks_t z_impl_k_thread_timeout_expires_ticks(
 						const struct k_thread *t)
 {
-	return z_timeout_expires(&t->base.timeout);
+	return -1;
 }
 
 /**
@@ -584,7 +594,7 @@ __syscall k_ticks_t k_thread_timeout_remaining_ticks(const struct k_thread *t);
 static inline k_ticks_t z_impl_k_thread_timeout_remaining_ticks(
 						const struct k_thread *t)
 {
-	return z_timeout_remaining(&t->base.timeout);
+	return -1;
 }
 
 #endif /* CONFIG_SYS_CLOCK_EXISTS */
@@ -863,47 +873,6 @@ __syscall void k_thread_resume(k_tid_t thread);
  * @param prio Highest thread priority level eligible for time slicing.
  */
 extern void k_sched_time_slice_set(int32_t slice, int prio);
-
-/**
- * @brief Set thread time slice
- *
- * As for k_sched_time_slice_set, but (when
- * CONFIG_TIMESLICE_PER_THREAD=y) sets the timeslice for a specific
- * thread.  When non-zero, this timeslice will take precedence over
- * the global value.
- *
- * When such a thread's timeslice expires, the configured callback
- * will be called before the thread is removed/re-added to the run
- * queue.  This callback will occur in interrupt context, and the
- * specified thread is guaranteed to have been preempted by the
- * currently-executing ISR.  Such a callback is free to, for example,
- * modify the thread priority or slice time for future execution,
- * suspend the thread, etc...
- *
- * @note Unlike the older API, the time slice parameter here is
- * specified in ticks, not milliseconds.  Ticks have always been the
- * internal unit, and not all platforms have integer conversions
- * between the two.
- *
- * @note Threads with a non-zero slice time set will be timesliced
- * always, even if they are higher priority than the maximum timeslice
- * priority set via k_sched_time_slice_set().
- *
- * @note The callback notification for slice expiration happens, as it
- * must, while the thread is still "current", and thus it happens
- * before any registered timeouts at this tick.  This has the somewhat
- * confusing side effect that the tick time (c.f. k_uptime_get()) does
- * not yet reflect the expired ticks.  Applications wishing to make
- * fine-grained timing decisions within this callback should use the
- * cycle API, or derived facilities like k_thread_runtime_stats_get().
- *
- * @param th A valid, initialized thread
- * @param slice_ticks Maximum timeslice, in ticks
- * @param expired Callback function called on slice expiration
- * @param data Parameter for the expiration handler
- */
-void k_thread_time_slice_set(struct k_thread *th, int32_t slice_ticks,
-			     k_thread_timeslice_fn_t expired, void *data);
 
 /** @} */
 
@@ -1673,7 +1642,6 @@ static inline uint64_t k_cycle_get_64(void)
 struct k_queue {
 	sys_sflist_t data_q;
 	struct k_spinlock lock;
-	_wait_q_t wait_q;
 
 	_POLL_EVENT;
 
@@ -1684,7 +1652,6 @@ struct k_queue {
 	{ \
 	.data_q = SYS_SFLIST_STATIC_INIT(&obj.data_q), \
 	.lock = { }, \
-	.wait_q = Z_WAIT_Q_INIT(&obj.wait_q),	\
 	_POLL_EVENT_OBJ_INIT(obj)		\
 	}
 
@@ -2668,6 +2635,8 @@ extern struct k_work_q k_sys_work_q;
  * @ingroup mutex_apis
  */
 struct k_mutex {
+	pthread_mutex_t mutex;
+
 	/** Mutex wait queue */
 	_wait_q_t wait_q;
 	/** Mutex owner */
@@ -2687,6 +2656,7 @@ struct k_mutex {
  */
 #define Z_MUTEX_INITIALIZER(obj) \
 	{ \
+	.mutex = PTHREAD_MUTEX_INITIALIZER, \
 	.wait_q = Z_WAIT_Q_INIT(&obj.wait_q), \
 	.owner = NULL, \
 	.lock_count = 0, \
@@ -2818,7 +2788,7 @@ __syscall int k_condvar_broadcast(struct k_condvar *condvar);
 /**
  * @brief Waits on the condition variable releasing the mutex lock
  *
- * Atomically releases the currently owned mutex, blocks the current thread
+ * Automically releases the currently owned mutex, blocks the current thread
  * waiting on the condition variable specified by @a condvar,
  * and finally acquires the mutex again.
  *
@@ -2857,7 +2827,7 @@ __syscall int k_condvar_wait(struct k_condvar *condvar, struct k_mutex *mutex,
  */
 
 struct k_sem {
-	_wait_q_t wait_q;
+	sem_t sem;
 	unsigned int count;
 	unsigned int limit;
 
@@ -2867,12 +2837,12 @@ struct k_sem {
 
 };
 
-#define Z_SEM_INITIALIZER(obj, initial_count, count_limit) \
-	{ \
-	.wait_q = Z_WAIT_Q_INIT(&obj.wait_q), \
-	.count = initial_count, \
-	.limit = count_limit, \
-	_POLL_EVENT_OBJ_INIT(obj) \
+#define Z_SEM_INITIALIZER(obj, initial_count, count_limit) 	\
+	{ 							\
+	.sem = SEM_INITIALIZER(initial_count), 			\
+	.count = initial_count, 				\
+	.limit = count_limit, 					\
+	_POLL_EVENT_OBJ_INIT(obj) 				\
 	}
 
 /**
@@ -3392,7 +3362,7 @@ int k_work_schedule_for_queue(struct k_work_q *queue,
  * delay.
  *
  * This is a thin wrapper around k_work_schedule_for_queue(), with all the API
- * characteristics of that function.
+ * characteristcs of that function.
  *
  * @param dwork pointer to the delayable work item.
  *
@@ -3447,7 +3417,7 @@ int k_work_reschedule_for_queue(struct k_work_q *queue,
  * delay.
  *
  * This is a thin wrapper around k_work_reschedule_for_queue(), with all the
- * API characteristics of that function.
+ * API characteristcs of that function.
  *
  * @param dwork pointer to the delayable work item.
  *
@@ -3611,6 +3581,12 @@ enum {
 
 /** @brief A structure used to submit work. */
 struct k_work {
+#if defined(CONFIG_ZEPHYR_WORK_QUEUE)
+		struct wdog_s wdog;
+#else
+		struct work_s nwork;
+#endif
+
 	/* All fields are protected by the work module spinlock.  No fields
 	 * are to be accessed except through kernel API.
 	 */
@@ -5244,7 +5220,7 @@ void k_heap_free(struct k_heap *h, void *mem);
  * @brief Define a static k_heap in uncached memory
  *
  * This macro defines and initializes a static memory region and
- * k_heap of the requested size in uncached memory.  After kernel
+ * k_heap of the requested size in uncache memory.  After kernel
  * start, &name can be used as if k_heap_init() had been called.
  *
  * Note that this macro enforces a minimum size on the memory region
@@ -5273,7 +5249,7 @@ void k_heap_free(struct k_heap *h, void *mem);
  * This routine provides semantics similar to aligned_alloc(); memory is
  * allocated from the heap with a specified alignment. However, one minor
  * difference is that k_aligned_alloc() accepts any non-zero @p size,
- * whereas aligned_alloc() only accepts a @p size that is an integral
+ * wherase aligned_alloc() only accepts a @p size that is an integral
  * multiple of @p align.
  *
  * Above, aligned_alloc() refers to:

@@ -11,9 +11,6 @@
 # It will be empty if not set in environment.
 
 macro(include_boilerplate location)
-  set(Zephyr_DIR ${ZEPHYR_BASE}/share/zephyr-package/cmake CACHE PATH
-      "The directory containing a CMake configuration file for Zephyr." FORCE
-  )
   list(PREPEND CMAKE_MODULE_PATH ${ZEPHYR_BASE}/cmake/modules)
   if(ZEPHYR_UNITTEST)
     message(WARNING "The ZephyrUnittest CMake package has been deprecated.\n"
@@ -115,8 +112,8 @@ if(NOT IS_INCLUDED)
     # This check works the following way.
     # CMake finds packages will look all packages registered in the user package registry.
     # As this code is processed inside registered packages, we simply test if another package has a
-    # common path with the current sample.
-    # and if so, we will return here, and let CMake call into the other registered package for real
+    # comon path with the current sample.
+    # and if so, we will retrun here, and let CMake call into the other registered package for real
     # version checking.
     check_zephyr_package(CURRENT_WORKSPACE_DIR ${CURRENT_WORKSPACE_DIR})
 

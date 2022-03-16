@@ -310,7 +310,7 @@ static int np_uart_stdin_poll_in(const struct device *dev,
 	if (disconnected || feof(stdin)) {
 		/*
 		 * The stdinput is fed from a file which finished or the user
-		 * pressed Ctrl+D
+		 * pressed Crtl+D
 		 */
 		disconnected = true;
 		return -1;

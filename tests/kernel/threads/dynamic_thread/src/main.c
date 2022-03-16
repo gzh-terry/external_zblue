@@ -143,19 +143,9 @@ static void test_thread_index_management(void)
 	TC_PRINT("created %d thread objects\n", ctr);
 
 	/* Show that the above NULL return value wasn't because we ran out of
-	 * heap space. For that we need to duplicate how objects are allocated
-	 * in kernel/userspace.c. We pessimize the alignment to the worst
-	 * case to simplify things somewhat.
+	 * heap space/
 	 */
-	size_t ret = 1024 * 1024;  /* sure-to-fail initial value */
-	void *blob;
-
-	switch (K_OBJ_THREAD) {
-	/** @cond keep_doxygen_away */
-	#include <otype-to-size.h>
-	/** @endcond */
-	}
-	blob = z_dynamic_object_aligned_create(16, ret);
+	void *blob = k_malloc(256);
 	zassert_true(blob != NULL, "out of heap memory");
 
 	/* Free one of the threads... */

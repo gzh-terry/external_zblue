@@ -10,7 +10,6 @@
 
 #include <kernel.h>
 #include <drivers/gpio.h>
-#include <dt-bindings/gpio/snps-designware-gpio.h>
 #include "gpio_dw.h"
 #include "gpio_utils.h"
 
@@ -302,7 +301,7 @@ static inline void dw_pin_config(const struct device *port,
 	 * interrupts according to datasheet.
 	 */
 	if (dw_interrupt_support(config) && (dir_port == SWPORTA_DDR)) {
-		need_debounce = (flags & DW_GPIO_DEBOUNCE);
+		need_debounce = (flags & GPIO_INT_DEBOUNCE);
 		dw_set_bit(base_addr, PORTA_DEBOUNCE, pin, need_debounce);
 	}
 }
@@ -511,7 +510,7 @@ static int gpio_dw_initialize(const struct device *port)
 	return 0;
 }
 
-/* Bindings to the platform */
+/* Bindings to the plaform */
 #ifdef CONFIG_GPIO_DW_0
 static void gpio_config_0_irq(const struct device *port);
 

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016 Piotr Mienkowski
- * Copyright (c) 2018 Antmicro Ltd
+ * Copyringt (c) 2018 Antmicro Ltd
  *
  * SPDX-License-Identifier: Apache-2.0
  */

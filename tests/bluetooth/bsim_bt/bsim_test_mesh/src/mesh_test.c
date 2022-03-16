@@ -297,12 +297,14 @@ int bt_mesh_test_recv(uint16_t len, uint16_t dst, k_timeout_t timeout)
 	}
 
 	if (len != msg->len) {
-		LOG_ERR("Recv: Invalid message length (%u, expected %u)", msg->len, len);
+		FAIL("Recv: Invalid message length (%u, expected %u)", msg->len,
+		     len);
 		return -EINVAL;
 	}
 
 	if (dst != BT_MESH_ADDR_UNASSIGNED && dst != msg->ctx.recv_dst) {
-		LOG_ERR("Recv: Invalid dst 0x%04x, expected 0x%04x", msg->ctx.recv_dst, dst);
+		FAIL("Recv: Invalid dst 0x%04x, expected 0x%04x",
+		     msg->ctx.recv_dst, dst);
 		return -EINVAL;
 	}
 
@@ -339,22 +341,10 @@ int bt_mesh_test_recv_clear(void)
 	return count;
 }
 
-struct sync_send_ctx {
-	struct k_sem sem;
-	int err;
-};
-
 static void tx_started(uint16_t dur, int err, void *data)
 {
-	struct sync_send_ctx *send_ctx = data;
-
 	if (err) {
-		LOG_ERR("Couldn't start sending (err: %d)", err);
-
-		send_ctx->err = err;
-		k_sem_give(&send_ctx->sem);
-
-		return;
+		FAIL("Couldn't start sending (err: %d)", err);
 	}
 
 	LOG_INF("Sending started");
@@ -362,17 +352,15 @@ static void tx_started(uint16_t dur, int err, void *data)
 
 static void tx_ended(int err, void *data)
 {
-	struct sync_send_ctx *send_ctx = data;
-
-	send_ctx->err = err;
+	struct k_sem *sem = data;
 
 	if (err) {
-		LOG_ERR("Send failed (%d)", err);
-	} else {
-		LOG_INF("Sending ended");
+		FAIL("Send failed (%d)", err);
 	}
 
-	k_sem_give(&send_ctx->sem);
+	LOG_INF("Sending ended");
+
+	k_sem_give(sem);
 }
 
 int bt_mesh_test_send_async(uint16_t addr, size_t len,
@@ -438,23 +426,19 @@ int bt_mesh_test_send(uint16_t addr, size_t len,
 		.end = tx_ended,
 	};
 	int64_t uptime = k_uptime_get();
-	struct sync_send_ctx send_ctx;
+	struct k_sem sem;
 	int err;
 
-	k_sem_init(&send_ctx.sem, 0, 1);
-	err = bt_mesh_test_send_async(addr, len, flags, &send_cb, &send_ctx);
+	k_sem_init(&sem, 0, 1);
+	err = bt_mesh_test_send_async(addr, len, flags, &send_cb, &sem);
 	if (err) {
 		return err;
 	}
 
-	err = k_sem_take(&send_ctx.sem, timeout);
+	err = k_sem_take(&sem, timeout);
 	if (err) {
 		LOG_ERR("Send timed out");
 		return err;
-	}
-
-	if (send_ctx.err) {
-		return send_ctx.err;
 	}
 
 	LOG_INF("Sending completed (%lld ms)", k_uptime_delta(&uptime));

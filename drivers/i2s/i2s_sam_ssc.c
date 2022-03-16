@@ -98,6 +98,8 @@ struct i2s_sam_dev_data {
 	struct stream tx;
 };
 
+#define DEV_NAME(dev) ((dev)->name)
+
 #define MODULO_INC(val, max) { val = (++val < max) ? val : 0; }
 
 static const struct device *get_dev_from_dma_channel(uint32_t dma_channel);
@@ -978,7 +980,7 @@ static int i2s_sam_initialize(const struct device *dev)
 	/* Enable module's IRQ */
 	irq_enable(dev_cfg->irq_id);
 
-	LOG_INF("Device %s initialized", dev->name);
+	LOG_INF("Device %s initialized", DEV_NAME(dev));
 
 	return 0;
 }

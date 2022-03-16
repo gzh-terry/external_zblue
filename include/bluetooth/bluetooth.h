@@ -146,17 +146,6 @@ typedef void (*bt_ready_cb_t)(int err);
 int bt_enable(bt_ready_cb_t cb);
 
 /**
- * @brief Disable Bluetooth
- *
- * Disable Bluetooth. Can't be called before bt_enable has completed.
- *
- * Close and release HCI resources. Result is architecture dependent.
- *
- * @return Zero on success or (negative) error code otherwise.
- */
-int bt_disable(void);
-
-/**
  * @brief Set Bluetooth Device Name
  *
  * Set Bluetooth GAP Device Name.
@@ -1462,7 +1451,7 @@ int bt_le_per_adv_sync_delete(struct bt_le_per_adv_sync *per_adv_sync);
  * @brief Register periodic advertising sync callbacks.
  *
  * Adds the callback structure to the list of callback structures for periodic
- * advertising syncs.
+ * adverising syncs.
  *
  * This callback will be called for all periodic advertising sync activity,
  * such as synced, terminated and when data is received.

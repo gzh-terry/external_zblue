@@ -231,7 +231,7 @@ static const struct i2c_driver_api mcux_flexcomm_driver_api = {
 			    &mcux_flexcomm_data_##id,			\
 			    &mcux_flexcomm_config_##id,			\
 			    POST_KERNEL,				\
-			    CONFIG_I2C_INIT_PRIORITY,			\
+			    CONFIG_KERNEL_INIT_PRIORITY_DEVICE,		\
 			    &mcux_flexcomm_driver_api);			\
 	static void mcux_flexcomm_config_func_##id(const struct device *dev) \
 	{								\

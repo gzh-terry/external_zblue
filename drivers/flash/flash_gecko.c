@@ -30,6 +30,8 @@ static const struct flash_parameters flash_gecko_parameters = {
 	.erase_value = 0xff,
 };
 
+#define DEV_NAME(dev) ((dev)->name)
+
 static bool write_range_is_valid(off_t offset, uint32_t size);
 static bool read_range_is_valid(off_t offset, uint32_t size);
 static int erase_flash_block(off_t offset, size_t size);
@@ -202,7 +204,7 @@ static int flash_gecko_init(const struct device *dev)
 	/* Lock the MSC module. */
 	MSC->LOCK = 0;
 
-	LOG_INF("Device %s initialized", dev->name);
+	LOG_INF("Device %s initialized", DEV_NAME(dev));
 
 	return 0;
 }

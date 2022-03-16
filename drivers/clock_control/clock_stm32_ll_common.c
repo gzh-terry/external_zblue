@@ -35,14 +35,13 @@
 #define fn_mco2_prescaler(v) LL_RCC_MCO2_DIV_ ## v
 #define mco2_prescaler(v) fn_mco2_prescaler(v)
 
-/* Calculate MSI freq for the given range (at RUN range, not after standby) */
-#if !defined(LL_RCC_MSIRANGESEL_RUN)
-/* CONFIG_SOC_SERIES_STM32WBX or CONFIG_SOC_SERIES_STM32L0X or CONFIG_SOC_SERIES_STM32L1X */
-#define RCC_CALC_MSI_RUN_FREQ() __LL_RCC_CALC_MSI_FREQ(LL_RCC_MSI_GetRange())
+/* Calculate MSI freq for the given range(at RUN range, not after standby) */
+#if defined(CONFIG_SOC_SERIES_STM32WBX)
+#define RCC_CALC_MSI_RUN_FREQ(range) __LL_RCC_CALC_MSI_FREQ( \
+						range << RCC_CR_MSIRANGE_Pos)
 #else
-/* mainly CONFIG_SOC_SERIES_STM32WLX or CONFIG_SOC_SERIES_STM32L4X or CONFIG_SOC_SERIES_STM32L5X */
-#define RCC_CALC_MSI_RUN_FREQ() __LL_RCC_CALC_MSI_FREQ( \
-			LL_RCC_MSIRANGESEL_RUN, LL_RCC_MSI_GetRange())
+#define RCC_CALC_MSI_RUN_FREQ(range) __LL_RCC_CALC_MSI_FREQ( \
+			LL_RCC_MSIRANGESEL_RUN, range << RCC_CR_MSIRANGE_Pos)
 #endif
 
 #if defined(CONFIG_SOC_SERIES_STM32WBX) || defined(CONFIG_SOC_SERIES_STM32WLX)
@@ -445,15 +444,15 @@ int stm32_clock_control_init(const struct device *dev)
 #if STM32_PLL_SRC_MSI
 
 	/* Set MSI Range */
-#if defined(RCC_CR_MSIRGSEL)
+#if !defined(CONFIG_SOC_SERIES_STM32WBX)
 	LL_RCC_MSI_EnableRangeSelection();
-#endif /* RCC_CR_MSIRGSEL */
+#endif
 	LL_RCC_MSI_SetRange(STM32_MSI_RANGE << RCC_CR_MSIRANGE_Pos);
 	LL_RCC_MSI_SetCalibTrimming(0);
 
 #if STM32_MSI_PLL_MODE
 
-#ifndef STM32_LSE_ENABLED
+#ifndef STM32_LSE_CLOCK
 #error "MSI Hardware auto calibration requires LSE clock activation"
 #endif
 	/* Enable MSI hardware auto calibration */
@@ -605,11 +604,11 @@ int stm32_clock_control_init(const struct device *dev)
 					       GET_CURRENT_FLASH_PRESCALER());
 
 	new_hclk_freq = __LL_RCC_CALC_HCLK_FREQ(
-				RCC_CALC_MSI_RUN_FREQ(),
+				RCC_CALC_MSI_RUN_FREQ(STM32_MSI_RANGE),
 				hclk_prescaler);
 #if defined(CONFIG_SOC_SERIES_STM32WBX) || defined(CONFIG_SOC_SERIES_STM32WLX)
 	new_flash_freq = RCC_CALC_FLASH_FREQ(
-				RCC_CALC_MSI_RUN_FREQ(),
+				RCC_CALC_MSI_RUN_FREQ(STM32_MSI_RANGE),
 				flash_prescaler);
 #else
 	new_flash_freq = new_hclk_freq;
@@ -627,15 +626,10 @@ int stm32_clock_control_init(const struct device *dev)
 	}
 
 	/* Set MSI Range */
-#if defined(RCC_CR_MSIRGSEL)
+#if !defined(CONFIG_SOC_SERIES_STM32WBX)
 	LL_RCC_MSI_EnableRangeSelection();
-#endif /* RCC_CR_MSIRGSEL */
-
-#if defined(CONFIG_SOC_SERIES_STM32L0X) || defined(CONFIG_SOC_SERIES_STM32L1X)
-	LL_RCC_MSI_SetRange(STM32_MSI_RANGE << RCC_ICSCR_MSIRANGE_Pos);
-#else
+#endif
 	LL_RCC_MSI_SetRange(STM32_MSI_RANGE << RCC_CR_MSIRANGE_Pos);
-#endif /* CONFIG_SOC_SERIES_STM32L0X || CONFIG_SOC_SERIES_STM32L1X */
 
 #if STM32_MSI_PLL_MODE
 	/* Enable MSI hardware auto calibration */

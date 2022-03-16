@@ -43,6 +43,12 @@
 #include <soc.h>
 #include "hal/debug.h"
 
+/* LLCP Memory Pool Descriptor */
+struct mem_pool {
+	void *free;
+	uint8_t *pool;
+};
+
 #define LLCTRL_PDU_SIZE (offsetof(struct pdu_data, llctrl) + sizeof(struct pdu_data_llctrl))
 #define PROC_CTX_BUF_SIZE WB_UP(sizeof(struct proc_ctx))
 #define TX_CTRL_BUF_SIZE WB_UP(offsetof(struct node_tx, pdu) + LLCTRL_PDU_SIZE)
@@ -56,42 +62,26 @@ static uint8_t common_tx_buffer_alloc;
 
 /* TODO: Determine 'correct' number of tx nodes */
 static uint8_t buffer_mem_tx[TX_CTRL_BUF_SIZE * LLCP_TX_CTRL_BUF_COUNT];
-static struct llcp_mem_pool mem_tx = { .pool = buffer_mem_tx };
+static struct mem_pool mem_tx = { .pool = buffer_mem_tx };
 
 /* TODO: Determine 'correct' number of ctx */
-static uint8_t buffer_mem_local_ctx[PROC_CTX_BUF_SIZE *
-				    CONFIG_BT_CTLR_LLCP_LOCAL_PROC_CTX_BUF_NUM];
-static struct llcp_mem_pool mem_local_ctx = { .pool = buffer_mem_local_ctx };
-
-/* TODO(thoh-ot): Determine 'correct' number of ctx */
-static uint8_t buffer_mem_remote_ctx[PROC_CTX_BUF_SIZE *
-				     CONFIG_BT_CTLR_LLCP_REMOTE_PROC_CTX_BUF_NUM];
-static struct llcp_mem_pool mem_remote_ctx = { .pool = buffer_mem_remote_ctx };
+static uint8_t buffer_mem_ctx[PROC_CTX_BUF_SIZE * CONFIG_BT_CTLR_LLCP_PROC_CTX_BUF_NUM];
+static struct mem_pool mem_ctx = { .pool = buffer_mem_ctx };
 
 /*
  * LLCP Resource Management
  */
-static struct proc_ctx *proc_ctx_acquire(struct llcp_mem_pool *owner)
+static struct proc_ctx *proc_ctx_acquire(void)
 {
 	struct proc_ctx *ctx;
 
-	ctx = (struct proc_ctx *)mem_acquire(&owner->free);
-
-	if (ctx) {
-		/* Set the owner */
-		ctx->owner = owner;
-	}
-
+	ctx = (struct proc_ctx *)mem_acquire(&mem_ctx.free);
 	return ctx;
 }
 
 void llcp_proc_ctx_release(struct proc_ctx *ctx)
 {
-	/* We need to have an owner otherwise the memory allocated would leak */
-	LL_ASSERT(ctx->owner);
-
-	/* Release the memory back to the owner */
-	mem_release(ctx, &ctx->owner->free);
+	mem_release(ctx, &mem_ctx.free);
 }
 
 #if defined(LLCP_TX_CTRL_BUF_QUEUE_ENABLE)
@@ -259,11 +249,11 @@ void llcp_tx_flush(struct ll_conn *conn)
  * LLCP Procedure Creation
  */
 
-static struct proc_ctx *create_procedure(enum llcp_proc proc, struct llcp_mem_pool *ctx_pool)
+static struct proc_ctx *create_procedure(enum llcp_proc proc)
 {
 	struct proc_ctx *ctx;
 
-	ctx = proc_ctx_acquire(ctx_pool);
+	ctx = proc_ctx_acquire();
 	if (!ctx) {
 		return NULL;
 	}
@@ -288,7 +278,7 @@ struct proc_ctx *llcp_create_local_procedure(enum llcp_proc proc)
 {
 	struct proc_ctx *ctx;
 
-	ctx = create_procedure(proc, &mem_local_ctx);
+	ctx = create_procedure(proc);
 	if (!ctx) {
 		return NULL;
 	}
@@ -356,15 +346,12 @@ struct proc_ctx *llcp_create_remote_procedure(enum llcp_proc proc)
 {
 	struct proc_ctx *ctx;
 
-	ctx = create_procedure(proc, &mem_remote_ctx);
+	ctx = create_procedure(proc);
 	if (!ctx) {
 		return NULL;
 	}
 
 	switch (ctx->proc) {
-	case PROC_UNKNOWN:
-		/* Nothing to do */
-		break;
 #if defined(CONFIG_BT_CTLR_LE_PING)
 	case PROC_LE_PING:
 		llcp_rp_comm_init_proc(ctx);
@@ -429,12 +416,8 @@ struct proc_ctx *llcp_create_remote_procedure(enum llcp_proc proc)
 
 void ull_cp_init(void)
 {
-	mem_init(mem_local_ctx.pool, PROC_CTX_BUF_SIZE,
-		 CONFIG_BT_CTLR_LLCP_LOCAL_PROC_CTX_BUF_NUM,
-		 &mem_local_ctx.free);
-	mem_init(mem_remote_ctx.pool, PROC_CTX_BUF_SIZE,
-		 CONFIG_BT_CTLR_LLCP_REMOTE_PROC_CTX_BUF_NUM,
-		 &mem_remote_ctx.free);
+	mem_init(mem_ctx.pool, PROC_CTX_BUF_SIZE, CONFIG_BT_CTLR_LLCP_PROC_CTX_BUF_NUM,
+		 &mem_ctx.free);
 	mem_init(mem_tx.pool, TX_CTRL_BUF_SIZE, LLCP_TX_CTRL_BUF_COUNT, &mem_tx.free);
 
 #if defined(LLCP_TX_CTRL_BUF_QUEUE_ENABLE)
@@ -1035,19 +1018,13 @@ void ull_cp_rx(struct ll_conn *conn, struct node_rx_pdu *rx)
 
 #ifdef ZTEST_UNITTEST
 
-static uint16_t local_ctx_buffers_free(void)
+int ctx_buffers_free(void)
 {
-	return mem_free_count_get(mem_local_ctx.free);
-}
+	int nr_of_free_ctx;
 
-static uint16_t remote_ctx_buffers_free(void)
-{
-	return mem_free_count_get(mem_remote_ctx.free);
-}
+	nr_of_free_ctx = mem_free_count_get(mem_ctx.free);
 
-uint16_t ctx_buffers_free(void)
-{
-	return local_ctx_buffers_free() + remote_ctx_buffers_free();
+	return nr_of_free_ctx;
 }
 
 void test_int_mem_proc_ctx(void)
@@ -1059,29 +1036,28 @@ void test_int_mem_proc_ctx(void)
 	ull_cp_init();
 
 	nr_of_free_ctx = ctx_buffers_free();
-	zassert_equal(nr_of_free_ctx, CONFIG_BT_CTLR_LLCP_LOCAL_PROC_CTX_BUF_NUM +
-		      CONFIG_BT_CTLR_LLCP_REMOTE_PROC_CTX_BUF_NUM, NULL);
+	zassert_equal(nr_of_free_ctx, CONFIG_BT_CTLR_LLCP_PROC_CTX_BUF_NUM, NULL);
 
-	for (int i = 0U; i < CONFIG_BT_CTLR_LLCP_LOCAL_PROC_CTX_BUF_NUM; i++) {
-		ctx1 = proc_ctx_acquire(&mem_local_ctx);
+	for (int i = 0U; i < CONFIG_BT_CTLR_LLCP_PROC_CTX_BUF_NUM; i++) {
+		ctx1 = proc_ctx_acquire();
 
 		/* The previous acquire should be valid */
 		zassert_not_null(ctx1, NULL);
 	}
 
-	nr_of_free_ctx = local_ctx_buffers_free();
+	nr_of_free_ctx = ctx_buffers_free();
 	zassert_equal(nr_of_free_ctx, 0, NULL);
 
-	ctx2 = proc_ctx_acquire(&mem_local_ctx);
+	ctx2 = proc_ctx_acquire();
 
 	/* The last acquire should fail */
 	zassert_is_null(ctx2, NULL);
 
 	llcp_proc_ctx_release(ctx1);
-	nr_of_free_ctx = local_ctx_buffers_free();
+	nr_of_free_ctx = ctx_buffers_free();
 	zassert_equal(nr_of_free_ctx, 1, NULL);
 
-	ctx1 = proc_ctx_acquire(&mem_local_ctx);
+	ctx1 = proc_ctx_acquire();
 
 	/* Releasing returns the context to the avilable pool */
 	zassert_not_null(ctx1, NULL);
@@ -1158,16 +1134,16 @@ void test_int_create_proc(void)
 
 	ull_cp_init();
 
-	ctx = create_procedure(PROC_VERSION_EXCHANGE, &mem_local_ctx);
+	ctx = create_procedure(PROC_VERSION_EXCHANGE);
 	zassert_not_null(ctx, NULL);
 
 	zassert_equal(ctx->proc, PROC_VERSION_EXCHANGE, NULL);
 	zassert_equal(ctx->collision, 0, NULL);
 	zassert_equal(ctx->pause, 0, NULL);
 
-	for (int i = 0U; i < CONFIG_BT_CTLR_LLCP_LOCAL_PROC_CTX_BUF_NUM; i++) {
+	for (int i = 0U; i < CONFIG_BT_CTLR_LLCP_PROC_CTX_BUF_NUM; i++) {
 		zassert_not_null(ctx, NULL);
-		ctx = create_procedure(PROC_VERSION_EXCHANGE, &mem_local_ctx);
+		ctx = create_procedure(PROC_VERSION_EXCHANGE);
 	}
 
 	zassert_is_null(ctx, NULL);

@@ -53,14 +53,13 @@
 				reset-gpios = <&test_gpio 0 0>;
 			};
 
-			test_i2c_pca95xx: pca95xx@20 {
+			test_i2c_pca95xx: pca95xx@2 {
 				compatible = "nxp,pca95xx";
 				label = "PCA95XX";
-				reg = <0x20>;
-				gpio-controller;
+				reg = <0x2>;
+				/* has-pud; */
 				#gpio-cells = <2>;
-				ngpios = <16>;
-				interrupt-gpios = <&test_gpio 0 0>;
+				gpio-controller;
 			};
 
 			test_i2c_pca953x: pca953x@70 {

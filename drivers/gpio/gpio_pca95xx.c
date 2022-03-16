@@ -121,6 +121,8 @@ static int read_port_regs(const struct device *dev, uint8_t reg,
 			  uint16_t *cache, uint16_t *buf)
 {
 	const struct gpio_pca95xx_config * const config = dev->config;
+	struct gpio_pca95xx_drv_data * const drv_data =
+		(struct gpio_pca95xx_drv_data * const)dev->data;
 	uint16_t port_data, value;
 	int ret;
 
@@ -158,6 +160,8 @@ static int write_port_regs(const struct device *dev, uint8_t reg,
 			   uint16_t *cache, uint16_t value)
 {
 	const struct gpio_pca95xx_config * const config = dev->config;
+	struct gpio_pca95xx_drv_data * const drv_data =
+		(struct gpio_pca95xx_drv_data * const)dev->data;
 	uint8_t buf[3];
 	int ret;
 
@@ -588,7 +592,7 @@ static int gpio_pca95xx_pin_interrupt_configure(const struct device *dev,
 	/* Enable / disable interrupt as needed */
 	if (active != drv_data->interrupt_active) {
 		ret = gpio_pin_interrupt_configure_dt(
-			&config->int_gpio, active ?
+			&int_gpio, active ?
 				   GPIO_INT_EDGE_TO_ACTIVE :
 				   GPIO_INT_MODE_DISABLED);
 		if (ret != 0) {
@@ -682,7 +686,8 @@ static int gpio_pca95xx_init(const struct device *dev)
 		if (!device_is_ready(config->int_gpio.port)) {
 			LOG_ERR("PCA95XX[0x%X]: interrupt GPIO not ready",
 				config->bus.addr);
-			return -ENODEV;
+			err = -ENODEV;
+			goto err;
 		}
 
 		ret = gpio_pin_configure_dt(&config->int_gpio, GPIO_INPUT);
@@ -697,7 +702,7 @@ static int gpio_pca95xx_init(const struct device *dev)
 		gpio_init_callback(&drv_data->gpio_callback,
 				   gpio_pca95xx_interrupt_callback,
 				   BIT(config->int_gpio.pin));
-		gpio_add_callback(config->int_gpio.port, &drv_data->gpio_callback);
+		gpio_add_callback(cfg->int_gpio.port, &drv_data->gpio_callback);
 	}
 #endif
 

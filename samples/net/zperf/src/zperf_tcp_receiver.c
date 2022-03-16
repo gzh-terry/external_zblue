@@ -42,7 +42,6 @@ static void tcp_received(struct net_context *context,
 	const struct shell *shell = tcp_shell;
 	struct session *session;
 	int64_t time;
-	int len = 0;
 
 	if (!shell) {
 		printk("Shell is not set!\n");
@@ -71,8 +70,7 @@ static void tcp_received(struct net_context *context,
 		session->counter++;
 
 		if (pkt) {
-			len = net_pkt_remaining_data(pkt);
-			session->length += len;
+			session->length += net_pkt_remaining_data(pkt);
 		}
 
 		if (pkt == NULL && status == 0) { /* EOF */
@@ -111,11 +109,6 @@ static void tcp_received(struct net_context *context,
 			net_context_unref(context);
 			session->state = STATE_NULL;
 		}
-
-		if (pkt) {
-			(void)net_context_update_recv_wnd(context, len);
-		}
-
 		break;
 	case STATE_LAST_PACKET_RECEIVED:
 		break;

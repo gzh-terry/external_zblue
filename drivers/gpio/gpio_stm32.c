@@ -84,7 +84,7 @@ static int gpio_stm32_flags_to_conf(int flags, int *pincfg)
 			*pincfg |= STM32_PINCFG_FLOATING;
 		}
 	} else {
-		/* Deactivated: Analog */
+		/* Desactivated: Analog */
 		*pincfg = STM32_PINCFG_MODE_ANALOG;
 	}
 

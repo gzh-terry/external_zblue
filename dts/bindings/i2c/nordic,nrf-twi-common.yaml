@@ -4,7 +4,7 @@
 
 # Common fields for Nordic nRF family TWI peripherals
 
-include: [i2c-controller.yaml, pinctrl-device.yaml]
+include: i2c-controller.yaml
 
 properties:
     reg:
@@ -15,11 +15,8 @@ properties:
 
     sda-pin:
       type: int
-      required: false
+      required: true
       description: |
-        IMPORTANT: This option will only be used if the new pin control driver
-        is not enabled. It will be deprecated in the future.
-
         The SDA pin to use.
 
         For pins P0.0 through P0.31, use the pin number. For example,
@@ -34,10 +31,7 @@ properties:
 
     scl-pin:
       type: int
-      required: false
+      required: true
       description: |
-        IMPORTANT: This option will only be used if the new pin control driver
-        is not enabled. It will be deprecated in the future.
-
         The SCL pin to use. The pin numbering scheme is the same as
         the sda-pin property's.

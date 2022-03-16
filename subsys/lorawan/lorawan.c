@@ -448,7 +448,7 @@ int lorawan_set_conf_msg_tries(uint8_t tries)
 	return 0;
 }
 
-int lorawan_send(uint8_t port, uint8_t *data, uint8_t len, enum lorawan_message_type type)
+int lorawan_send(uint8_t port, uint8_t *data, uint8_t len, uint8_t flags)
 {
 	LoRaMacStatus_t status;
 	McpsReq_t mcpsReq;
@@ -480,18 +480,20 @@ int lorawan_send(uint8_t port, uint8_t *data, uint8_t len, enum lorawan_message_
 		mcpsReq.Req.Unconfirmed.fBufferSize = 0;
 		mcpsReq.Req.Unconfirmed.Datarate = DR_0;
 	} else {
-		switch (type) {
-		case LORAWAN_MSG_UNCONFIRMED:
-			mcpsReq.Type = MCPS_UNCONFIRMED;
-			break;
-		case LORAWAN_MSG_CONFIRMED:
+		if (flags & LORAWAN_MSG_CONFIRMED) {
 			mcpsReq.Type = MCPS_CONFIRMED;
-			break;
+			mcpsReq.Req.Confirmed.fPort = port;
+			mcpsReq.Req.Confirmed.fBuffer = data;
+			mcpsReq.Req.Confirmed.fBufferSize = len;
+			mcpsReq.Req.Confirmed.Datarate = current_datarate;
+		} else {
+			/* default message type */
+			mcpsReq.Type = MCPS_UNCONFIRMED;
+			mcpsReq.Req.Unconfirmed.fPort = port;
+			mcpsReq.Req.Unconfirmed.fBuffer = data;
+			mcpsReq.Req.Unconfirmed.fBufferSize = len;
+			mcpsReq.Req.Unconfirmed.Datarate = current_datarate;
 		}
-		mcpsReq.Req.Unconfirmed.fPort = port;
-		mcpsReq.Req.Unconfirmed.fBuffer = data;
-		mcpsReq.Req.Unconfirmed.fBufferSize = len;
-		mcpsReq.Req.Unconfirmed.Datarate = current_datarate;
 	}
 
 	status = LoRaMacMcpsRequest(&mcpsReq);

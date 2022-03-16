@@ -23,6 +23,5 @@ supported:
   - i2c
   - pwm
   - dma
-  - usb_device
   - watchdog
   - netif:eth

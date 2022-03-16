@@ -30,7 +30,7 @@ config APDS9960_TRIGGER
 	bool
 
 config APDS9960_ENABLE_ALS
-	bool "Ambient Light Sense"
+	bool "Enable Ambient Light Sense"
 	default y
 	help
 	  Enable Ambient Light Sense (ALS).

@@ -419,7 +419,7 @@ struct modbus_server_param {
 };
 
 /**
- * @brief User parameter structure to configure Modbus interface
+ * @brief User parameter structure to configure Modbus interfase
  *        as client or server.
  */
 struct modbus_iface_param {

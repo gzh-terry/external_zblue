@@ -143,7 +143,7 @@ struct i2c_ctrl_data {
 	struct i2c_msg *msg; /* cache msg for transaction state machine */
 	int is_write; /* direction of current msg */
 	uint8_t *ptr_msg; /* current msg pointer for FIFO read/write */
-	uint16_t addr; /* slave address of transaction */
+	uint16_t addr; /* slave address of transcation */
 	uint8_t port; /* current port used the controller */
 	bool is_configured; /* is port configured? */
 	const struct npcx_i2c_timing_cfg *ptr_speed_confs;
@@ -921,7 +921,7 @@ static int i2c_ctrl_init(const struct device *dev)
 	/* Initialize i2c module */
 	i2c_ctrl_init_module(dev);
 
-	/* initialize mutex and semaphore for i2c/smb controller */
+	/* initialize mutux and semaphore for i2c/smb controller */
 	k_sem_init(&data->lock_sem, 1, 1);
 	k_sem_init(&data->sync_sem, 0, K_SEM_MAX_LIMIT);
 
@@ -967,7 +967,7 @@ static int i2c_ctrl_init(const struct device *dev)
 			    NPCX_I2C_CTRL_INIT_FUNC(inst),                     \
 			    NULL,                                              \
 			    &i2c_ctrl_data_##inst, &i2c_ctrl_cfg_##inst,       \
-			    PRE_KERNEL_1, CONFIG_I2C_INIT_PRIORITY,            \
+			    PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,  \
 			    NULL);                                             \
 									       \
 	NPCX_I2C_CTRL_INIT_FUNC_IMPL(inst)

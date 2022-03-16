@@ -162,11 +162,9 @@ if (CONFIG_BUILD_WITH_TFM)
   endif()
 
   if(CONFIG_TFM_BL2)
-    set(BL2_ELF_FILE ${TFM_BINARY_DIR}/bin/bl2.elf)
     set(BL2_BIN_FILE ${TFM_BINARY_DIR}/bin/bl2.bin)
     set(BL2_HEX_FILE ${TFM_BINARY_DIR}/bin/bl2.hex)
   endif()
-  set(TFM_S_ELF_FILE ${TFM_BINARY_DIR}/bin/tfm_s.elf)
   set(TFM_S_BIN_FILE ${TFM_BINARY_DIR}/bin/tfm_s.bin)
   set(TFM_S_HEX_FILE ${TFM_BINARY_DIR}/bin/tfm_s.hex)
   set(TFM_NS_BIN_FILE ${TFM_BINARY_DIR}/bin/tfm_ns.bin)
@@ -183,10 +181,8 @@ if (CONFIG_BUILD_WITH_TFM)
     ${PSA_TEST_PAL_FILE}
     ${PSA_TEST_COMBINE_FILE}
     ${PLATFORM_NS_FILE}
-    ${BL2_ELF_FILE}
     ${BL2_BIN_FILE}
     ${BL2_HEX_FILE}
-    ${TFM_S_ELF_FILE}
     ${TFM_S_BIN_FILE}
     ${TFM_S_HEX_FILE}
     ${TFM_NS_BIN_FILE}
@@ -291,7 +287,6 @@ if (CONFIG_BUILD_WITH_TFM)
   # These files are produced by the TFM build system.
   if(CONFIG_TFM_BL2)
     set_target_properties(tfm PROPERTIES
-      BL2_ELF_FILE ${BL2_ELF_FILE}
       BL2_BIN_FILE ${BL2_BIN_FILE}
       BL2_HEX_FILE ${BL2_HEX_FILE}
       )
@@ -302,7 +297,6 @@ if (CONFIG_BUILD_WITH_TFM)
   # Note that the Nonsecure FW is replaced by the Zephyr app in regular Zephyr
   # builds.
   set_target_properties(tfm PROPERTIES
-    TFM_S_ELF_FILE ${TFM_S_ELF_FILE}
     TFM_S_BIN_FILE ${TFM_S_BIN_FILE} # TFM Secure FW (unsigned)
     TFM_S_HEX_FILE ${TFM_S_HEX_FILE} # TFM Secure FW (unsigned)
     TFM_NS_BIN_FILE ${TFM_NS_BIN_FILE} # TFM Nonsecure FW (unsigned)

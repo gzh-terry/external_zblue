@@ -21,7 +21,7 @@ config EEPROM_INIT_PRIORITY
 	  EEPROM driver device initialization priority.
 
 config EEPROM_SHELL
-	bool "EEPROM shell"
+	bool "Enable EEPROM shell"
 	default y
 	depends on SHELL
 	help
@@ -68,7 +68,7 @@ config EEPROM_SIMULATOR
 	  Enable Simulated EEPROM driver.
 
 config EEPROM_SIMULATOR_SIMULATE_TIMING
-	bool "Hardware timing simulation"
+	bool "Enable hardware timing simulation"
 	depends on EEPROM_SIMULATOR
 	help
 	  Enable Simulated hardware timing.

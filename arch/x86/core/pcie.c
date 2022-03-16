@@ -164,7 +164,19 @@ void pcie_conf_write(pcie_bdf_t bdf, unsigned int reg, uint32_t data)
 #include <drivers/interrupt_controller/intel_vtd.h>
 #include <arch/x86/acpi.h>
 
-static const struct device *vtd = DEVICE_DT_GET_ONE(intel_vt_d);
+static const struct device *vtd;
+
+static bool get_vtd(void)
+{
+	if (vtd != NULL) {
+		return true;
+	}
+#define DT_DRV_COMPAT intel_vt_d
+	vtd = device_get_binding(DT_INST_LABEL(0));
+#undef DT_DRV_COMPAT
+
+	return vtd == NULL ? false : true;
+}
 
 #endif /* CONFIG_INTEL_VTD_ICTL */
 
@@ -232,7 +244,7 @@ uint8_t arch_pcie_msi_vectors_allocate(unsigned int priority,
 	{
 		int irte;
 
-		if (!device_is_ready(vtd)) {
+		if (!get_vtd()) {
 			return 0;
 		}
 
@@ -294,7 +306,7 @@ bool arch_pcie_msi_vector_connect(msi_vector_t *vector,
 	if (vector->arch.remap) {
 		union acpi_dmar_id id;
 
-		if (!device_is_ready(vtd)) {
+		if (!get_vtd()) {
 			return false;
 		}
 

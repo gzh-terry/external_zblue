@@ -7,7 +7,7 @@
 # PinMux options
 #
 menuconfig PINMUX
-	bool "Board pinmux driver"
+	bool "Enable board pinmux driver"
 
 if PINMUX
 

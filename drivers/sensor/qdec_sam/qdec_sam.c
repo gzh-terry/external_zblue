@@ -34,6 +34,8 @@ struct qdec_sam_dev_data {
 	uint16_t position;
 };
 
+#define DEV_NAME(dev) ((dev)->name)
+
 static int qdec_sam_fetch(const struct device *dev, enum sensor_channel chan)
 {
 	const struct qdec_sam_dev_cfg *const dev_cfg = dev->config;
@@ -106,7 +108,7 @@ static int qdec_sam_initialize(const struct device *dev)
 
 	qdec_sam_configure(dev);
 
-	LOG_INF("Device %s initialized", dev->name);
+	LOG_INF("Device %s initialized", DEV_NAME(dev));
 
 	return 0;
 }

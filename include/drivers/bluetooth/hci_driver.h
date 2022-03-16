@@ -173,19 +173,6 @@ struct bt_hci_driver {
 	int (*open)(void);
 
 	/**
-	 * @brief Close the HCI transport.
-	 *
-	 * Closes the HCI transport. This function must not return until the
-	 * transport is closed.
-	 *
-	 * If the driver uses its own RX thread, i.e.
-	 * CONFIG_BT_RECV_IS_RX_THREAD is set, then this
-	 * function is expected to abort that thread.
-	 * @return 0 on success or negative error number on failure.
-	 */
-	int (*close)(void);
-
-	/**
 	 * @brief Send HCI buffer to controller.
 	 *
 	 * Send an HCI command or ACL data to the controller. The exact
@@ -243,7 +230,7 @@ int bt_hci_transport_setup(const struct device *dev);
 /** Allocate an HCI event buffer.
  *
  * This function allocates a new buffer for an HCI event. It is given the
- * event code and the total length of the parameters. Upon successful return
+ * avent code and the total length of the parameters. Upon successful return
  * the buffer is ready to have the parameters encoded into it.
  *
  * @param evt        Event OpCode.

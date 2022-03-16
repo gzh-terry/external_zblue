@@ -64,7 +64,7 @@ struct adc_it8xxx2_data {
 };
 
 /*
- * Structure adc_it8xxx2_cfg is about the setting of adc
+ * Strcture adc_it8xxx2_cfg is about the setting of adc
  * this config will be used at initial time
  */
 struct adc_it8xxx2_cfg {

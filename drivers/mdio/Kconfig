@@ -14,7 +14,7 @@ menuconfig MDIO
 if MDIO
 
 config MDIO_SHELL
-	bool "MDIO Shell"
+	bool "Enable MDIO Shell"
 	default y
 	depends on SHELL
 	help

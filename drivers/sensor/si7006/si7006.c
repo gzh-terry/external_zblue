@@ -141,7 +141,7 @@ static const struct sensor_driver_api si7006_api = {
 };
 
 /**
- * @brief initialize the sensor
+ * @brief initiasize the sensor
  *
  * @return 0 for success
  */

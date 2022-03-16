@@ -11,7 +11,6 @@
 #include <device.h>
 #include <errno.h>
 #include <drivers/gpio.h>
-#include <dt-bindings/gpio/ti-cc13xx-cc26xx-gpio.h>
 
 #include <driverlib/gpio.h>
 #include <driverlib/interrupt.h>
@@ -73,21 +72,28 @@ static int gpio_cc13xx_cc26xx_config(const struct device *port,
 
 	config |= IOC_SLEW_DISABLE | IOC_NO_WAKE_UP;
 
-	config |= (flags & CC13XX_CC26XX_GPIO_DEBOUNCE) ?
-		IOC_HYST_ENABLE : IOC_HYST_DISABLE;
+	config |= (flags & GPIO_INT_DEBOUNCE) ? IOC_HYST_ENABLE :
+							IOC_HYST_DISABLE;
 
-	switch (flags & CC13XX_CC26XX_GPIO_DS_MASK) {
-	case CC13XX_CC26XX_GPIO_DS_DFLT:
+	/*
+	 * The GPIO_DS_ALT_HIGH and GPIO_DS_ALT_LOW flags are for setting
+	 * the highest drive strength for a GPIO in the output HIGH and
+	 * output LOW states, respectively. Since only 1 drive strength
+	 * setting is available for a GPIO (irrespective of output state),
+	 * require both flags to be set for highest drive strength, default
+	 * to low/auto drive strength.
+	 * Not all GPIO support 8ma, but setting that bit will use the highest
+	 * supported drive strength.
+	 */
+	switch (flags & (GPIO_DS_ALT_HIGH | GPIO_DS_ALT_LOW)) {
+	case 0:
 		config |= IOC_CURRENT_2MA | IOC_STRENGTH_AUTO;
 		break;
-	case CC13XX_CC26XX_GPIO_DS_ALT:
-		/*
-		 * Not all GPIO support 8ma, but setting that bit will use the
-		 * highest supported drive strength.
-		 */
+	case (GPIO_DS_ALT_HIGH | GPIO_DS_ALT_LOW):
 		config |= IOC_CURRENT_8MA | IOC_STRENGTH_MAX;
 		break;
-	default:
+	case GPIO_DS_ALT_HIGH:
+	case GPIO_DS_ALT_LOW:
 		return -ENOTSUP;
 	}
 

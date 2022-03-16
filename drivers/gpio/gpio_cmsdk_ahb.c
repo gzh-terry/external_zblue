@@ -178,7 +178,7 @@ static int gpio_cmsdk_ahb_pin_interrupt_configure(const struct device *dev,
 			cfg->port->inttypeclr = BIT(pin);
 		}
 
-		/* Level High or Edge Rising */
+		/* Level High or Edge Risising */
 		if (trig == GPIO_INT_TRIG_HIGH) {
 			cfg->port->intpolset = BIT(pin);
 		} else {

@@ -249,6 +249,17 @@ static __pinned_bss unsigned int cyc_per_tick;
 
 #define HPET_MAX_TICKS ((int32_t)0x7fffffff)
 
+#ifdef CONFIG_TIMER_READS_ITS_FREQUENCY_AT_RUNTIME
+static __pinned_bss unsigned int cyc_per_tick;
+static __pinned_bss unsigned int max_ticks;
+#else
+#define cyc_per_tick			\
+	(CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC / CONFIG_SYS_CLOCK_TICKS_PER_SEC)
+
+#define max_ticks			\
+	((MAX_TICKS - cyc_per_tick) / cyc_per_tick)
+#endif /* CONFIG_TIMER_READS_ITS_FREQUENCY_AT_RUNTIME */
+
 __isr
 static void hpet_isr(const void *arg)
 {

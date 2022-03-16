@@ -172,7 +172,7 @@ void lll_sync_aux_prepare_cb(struct lll_sync *lll,
 
 	if (cfg->is_enabled) {
 		lll_df_conf_cte_rx_enable(cfg->slot_durations, cfg->ant_sw_len, cfg->ant_ids,
-					  lll_aux->chan, CTE_INFO_IN_PAYLOAD, lll_aux->phy);
+					  lll_aux->chan, CTE_INFO_IN_PAYLOAD);
 		cfg->cte_count = 0;
 	}
 #endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
@@ -280,7 +280,7 @@ static int create_prepare_cb(struct lll_prepare_param *p)
 	} else if (cfg->is_enabled) {
 
 		lll_df_conf_cte_rx_enable(cfg->slot_durations, cfg->ant_sw_len, cfg->ant_ids,
-					  chan_idx, CTE_INFO_IN_PAYLOAD, lll->phy);
+					  chan_idx, CTE_INFO_IN_PAYLOAD);
 		cfg->cte_count = 0;
 #endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
 	} else if (IS_ENABLED(CONFIG_BT_CTLR_DF_SUPPORT)) {
@@ -339,7 +339,7 @@ static int prepare_cb(struct lll_prepare_param *p)
 
 	if (cfg->is_enabled) {
 		lll_df_conf_cte_rx_enable(cfg->slot_durations, cfg->ant_sw_len, cfg->ant_ids,
-					  chan_idx, CTE_INFO_IN_PAYLOAD, lll->phy);
+					  chan_idx, CTE_INFO_IN_PAYLOAD);
 		cfg->cte_count = 0;
 	}
 #endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
@@ -570,7 +570,7 @@ static void isr_aux_setup(void *param)
 
 	if (cfg->is_enabled && is_max_cte_reached(cfg->max_cte_count, cfg->cte_count)) {
 		lll_df_conf_cte_rx_enable(cfg->slot_durations, cfg->ant_sw_len, cfg->ant_ids,
-					  aux_ptr->chan_idx, CTE_INFO_IN_PAYLOAD, aux_ptr->phy);
+					  aux_ptr->chan_idx, CTE_INFO_IN_PAYLOAD);
 	}
 #endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
 	radio_switch_complete_and_disable();
@@ -1000,6 +1000,7 @@ static inline int create_iq_report(struct lll_sync *lll, uint8_t rssi_ready,
 	struct node_rx_iq_report *iq_report;
 	struct lll_df_sync_cfg *cfg;
 	struct node_rx_ftr *ftr;
+	uint8_t sample_cnt;
 	uint8_t cte_info;
 	uint8_t ant;
 
@@ -1007,17 +1008,19 @@ static inline int create_iq_report(struct lll_sync *lll, uint8_t rssi_ready,
 
 	if (cfg->is_enabled) {
 		if (is_max_cte_reached(cfg->max_cte_count, cfg->cte_count)) {
-			/* If the CTEPRESENT event didn't fire, the CTEInfo was
+			sample_cnt = radio_df_iq_samples_amount_get();
+
+			/* If there are no samples available, the CTEInfo was
 			 * not detected and sampling was not started.
 			 */
-			if (radio_df_cte_ready()) {
+			if (sample_cnt > 0) {
 				cte_info = radio_df_cte_status_get();
 				ant = radio_df_pdu_antenna_switch_pattern_get();
 				iq_report = ull_df_iq_report_alloc();
 				LL_ASSERT(iq_report);
 
 				iq_report->hdr.type = NODE_RX_TYPE_SYNC_IQ_SAMPLE_REPORT;
-				iq_report->sample_count = radio_df_iq_samples_amount_get();
+				iq_report->sample_count = sample_cnt;
 				iq_report->packet_status = packet_status;
 				iq_report->rssi_ant_id = ant;
 				iq_report->cte_info = *(struct pdu_cte_info *)&cte_info;

@@ -213,7 +213,7 @@ config BT_MESH_PROXY_FILTER_SIZE
 endif # BT_CONN
 
 config BT_MESH_ACCESS_LAYER_MSG
-	bool "Direct Bluetooth message access layer messages"
+	bool "Enable direct Bluetooth message access layer messages"
 	help
 	  This option allows the applicaiton to directly access
 	  Bluetooth access layer messages without the need to
@@ -775,7 +775,7 @@ config BT_MESH_HEALTH_CLI
 	  Enable support for the health client model.
 
 config BT_MESH_SHELL
-	bool "Bluetooth mesh shell"
+	bool "Enable Bluetooth mesh shell"
 	select SHELL
 	help
 	  Activate shell module that provides Bluetooth mesh commands to
@@ -837,7 +837,7 @@ config BT_MESH_RPL_STORE_TIMEOUT
 endif # BT_SETTINGS
 
 config BT_MESH_DEBUG
-	bool "Debug logs"
+	bool "Enable debug logs"
 	depends on BT_DEBUG
 	help
 	  Use this option to enable debug logs for the Bluetooth

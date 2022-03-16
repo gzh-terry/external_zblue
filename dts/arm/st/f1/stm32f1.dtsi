@@ -113,7 +113,7 @@
 				gpio-controller;
 				#gpio-cells = <2>;
 				reg = <0x40010800 0x400>;
-				clocks = <&rcc STM32_CLOCK_BUS_APB2 0x00000004>;
+				clocks = <&rcc STM32_CLOCK_BUS_APB2 0x00000005>;
 				label = "GPIOA";
 			};
 
@@ -122,7 +122,7 @@
 				gpio-controller;
 				#gpio-cells = <2>;
 				reg = <0x40010c00 0x400>;
-				clocks = <&rcc STM32_CLOCK_BUS_APB2 0x00000008>;
+				clocks = <&rcc STM32_CLOCK_BUS_APB2 0x00000009>;
 				label = "GPIOB";
 			};
 
@@ -131,7 +131,7 @@
 				gpio-controller;
 				#gpio-cells = <2>;
 				reg = <0x40011000 0x400>;
-				clocks = <&rcc STM32_CLOCK_BUS_APB2 0x00000010>;
+				clocks = <&rcc STM32_CLOCK_BUS_APB2 0x00000011>;
 				label = "GPIOC";
 			};
 
@@ -140,7 +140,7 @@
 				gpio-controller;
 				#gpio-cells = <2>;
 				reg = <0x40011400 0x400>;
-				clocks = <&rcc STM32_CLOCK_BUS_APB2 0x00000020>;
+				clocks = <&rcc STM32_CLOCK_BUS_APB2 0x00000021>;
 				label = "GPIOD";
 			};
 
@@ -149,7 +149,7 @@
 				gpio-controller;
 				#gpio-cells = <2>;
 				reg = <0x40011800 0x400>;
-				clocks = <&rcc STM32_CLOCK_BUS_APB2 0x00000040>;
+				clocks = <&rcc STM32_CLOCK_BUS_APB2 0x00000041>;
 				label = "GPIOE";
 			};
 		};
@@ -314,8 +314,6 @@
 			status = "disabled";
 			label = "ADC_1";
 			#io-channel-cells = <1>;
-			has-temp-channel;
-			has-vref-channel;
 		};
 
 		dma1: dma@40020000 {

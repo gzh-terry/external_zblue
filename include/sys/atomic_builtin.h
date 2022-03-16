@@ -29,9 +29,6 @@ extern "C" {
  * If the current value of @a target does not equal @a old_value, @a target
  * is left unchanged.
  *
- * @note As for all atomic APIs, includes a
- * full/sequentially-consistent memory barrier (where applicable).
- *
  * @param target Address of atomic variable.
  * @param old_value Original value to compare against.
  * @param new_value New value to store.
@@ -53,9 +50,6 @@ static inline bool atomic_cas(atomic_t *target, atomic_val_t old_value,
  * If the current value of @a target does not equal @a old_value, @a target
  * is left unchanged.
  *
- * @note As for all atomic APIs, includes a
- * full/sequentially-consistent memory barrier (where applicable).
- *
  * @param target Address of atomic variable.
  * @param old_value Original value to compare against.
  * @param new_value New value to store.
@@ -75,9 +69,6 @@ static inline bool atomic_ptr_cas(atomic_ptr_t *target, atomic_ptr_val_t old_val
  *
  * This routine performs an atomic addition on @a target.
  *
- * @note As for all atomic APIs, includes a
- * full/sequentially-consistent memory barrier (where applicable).
- *
  * @param target Address of atomic variable.
  * @param value Value to add.
  *
@@ -93,9 +84,6 @@ static inline atomic_val_t atomic_add(atomic_t *target, atomic_val_t value)
  * @brief Atomic subtraction.
  *
  * This routine performs an atomic subtraction on @a target.
- *
- * @note As for all atomic APIs, includes a
- * full/sequentially-consistent memory barrier (where applicable).
  *
  * @param target Address of atomic variable.
  * @param value Value to subtract.
@@ -113,9 +101,6 @@ static inline atomic_val_t atomic_sub(atomic_t *target, atomic_val_t value)
  *
  * This routine performs an atomic increment by 1 on @a target.
  *
- * @note As for all atomic APIs, includes a
- * full/sequentially-consistent memory barrier (where applicable).
- *
  * @param target Address of atomic variable.
  *
  * @return Previous value of @a target.
@@ -130,9 +115,6 @@ static inline atomic_val_t atomic_inc(atomic_t *target)
  * @brief Atomic decrement.
  *
  * This routine performs an atomic decrement by 1 on @a target.
- *
- * @note As for all atomic APIs, includes a
- * full/sequentially-consistent memory barrier (where applicable).
  *
  * @param target Address of atomic variable.
  *
@@ -149,9 +131,6 @@ static inline atomic_val_t atomic_dec(atomic_t *target)
  *
  * This routine performs an atomic read on @a target.
  *
- * @note As for all atomic APIs, includes a
- * full/sequentially-consistent memory barrier (where applicable).
- *
  * @param target Address of atomic variable.
  *
  * @return Value of @a target.
@@ -166,9 +145,6 @@ static inline atomic_val_t atomic_get(const atomic_t *target)
  * @brief Atomic get a pointer value
  *
  * This routine performs an atomic read on @a target.
- *
- * @note As for all atomic APIs, includes a
- * full/sequentially-consistent memory barrier (where applicable).
  *
  * @param target Address of pointer variable.
  *
@@ -185,9 +161,6 @@ static inline atomic_ptr_val_t atomic_ptr_get(const atomic_ptr_t *target)
  *
  * This routine atomically sets @a target to @a value and returns
  * the previous value of @a target.
- *
- * @note As for all atomic APIs, includes a
- * full/sequentially-consistent memory barrier (where applicable).
  *
  * @param target Address of atomic variable.
  * @param value Value to write to @a target.
@@ -210,9 +183,6 @@ static inline atomic_val_t atomic_set(atomic_t *target, atomic_val_t value)
  * This routine atomically sets @a target to @a value and returns
  * the previous value of @a target.
  *
- * @note As for all atomic APIs, includes a
- * full/sequentially-consistent memory barrier (where applicable).
- *
  * @param target Address of atomic variable.
  * @param value Value to write to @a target.
  *
@@ -230,9 +200,6 @@ static inline atomic_ptr_val_t atomic_ptr_set(atomic_ptr_t *target, atomic_ptr_v
  * This routine atomically sets @a target to zero and returns its previous
  * value. (Hence, it is equivalent to atomic_set(target, 0).)
  *
- * @note As for all atomic APIs, includes a
- * full/sequentially-consistent memory barrier (where applicable).
- *
  * @param target Address of atomic variable.
  *
  * @return Previous value of @a target.
@@ -248,9 +215,6 @@ static inline atomic_val_t atomic_clear(atomic_t *target)
  *
  * This routine atomically sets @a target to zero and returns its previous
  * value. (Hence, it is equivalent to atomic_set(target, 0).)
- *
- * @note As for all atomic APIs, includes a
- * full/sequentially-consistent memory barrier (where applicable).
  *
  * @param target Address of atomic variable.
  *
@@ -268,9 +232,6 @@ static inline atomic_ptr_val_t atomic_ptr_clear(atomic_ptr_t *target)
  * This routine atomically sets @a target to the bitwise inclusive OR of
  * @a target and @a value.
  *
- * @note As for all atomic APIs, includes a
- * full/sequentially-consistent memory barrier (where applicable).
- *
  * @param target Address of atomic variable.
  * @param value Value to OR.
  *
@@ -284,9 +245,6 @@ static inline atomic_val_t atomic_or(atomic_t *target, atomic_val_t value)
 /**
  *
  * @brief Atomic bitwise exclusive OR (XOR).
- *
- * @note As for all atomic APIs, includes a
- * full/sequentially-consistent memory barrier (where applicable).
  *
  * This routine atomically sets @a target to the bitwise exclusive OR (XOR) of
  * @a target and @a value.
@@ -308,9 +266,6 @@ static inline atomic_val_t atomic_xor(atomic_t *target, atomic_val_t value)
  * This routine atomically sets @a target to the bitwise AND of @a target
  * and @a value.
  *
- * @note As for all atomic APIs, includes a
- * full/sequentially-consistent memory barrier (where applicable).
- *
  * @param target Address of atomic variable.
  * @param value Value to AND.
  *
@@ -327,9 +282,6 @@ static inline atomic_val_t atomic_and(atomic_t *target, atomic_val_t value)
  *
  * This routine atomically sets @a target to the bitwise NAND of @a target
  * and @a value. (This operation is equivalent to target = ~(target & value).)
- *
- * @note As for all atomic APIs, includes a
- * full/sequentially-consistent memory barrier (where applicable).
  *
  * @param target Address of atomic variable.
  * @param value Value to NAND.

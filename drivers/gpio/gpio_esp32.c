@@ -19,7 +19,6 @@
 #include <errno.h>
 #include <device.h>
 #include <drivers/gpio.h>
-#include <dt-bindings/gpio/espressif-esp32-gpio.h>
 #ifdef CONFIG_SOC_ESP32C3
 #include <drivers/interrupt_controller/intc_esp32c3.h>
 #else
@@ -152,8 +151,8 @@ static int gpio_esp32_config(const struct device *dev,
 		 * to either low or high states. Alternative drive strength is weak-only,
 		 * while any other intermediary combination is considered invalid.
 		 */
-		switch (flags & ESP32_GPIO_DS_MASK) {
-		case ESP32_GPIO_DS_DFLT:
+		switch (flags & GPIO_DS_MASK) {
+		case GPIO_DS_DFLT:
 			if (!rtc_gpio_is_valid_gpio(io_pin) || SOC_GPIO_SUPPORT_RTC_INDEPENDENT) {
 				gpio_ll_set_drive_capability(cfg->gpio_base,
 						io_pin,
@@ -165,7 +164,7 @@ static int gpio_esp32_config(const struct device *dev,
 #endif
 			}
 			break;
-		case ESP32_GPIO_DS_ALT:
+		case GPIO_DS_ALT:
 			if (!rtc_gpio_is_valid_gpio(io_pin) || SOC_GPIO_SUPPORT_RTC_INDEPENDENT) {
 				gpio_ll_set_drive_capability(cfg->gpio_base,
 						io_pin,

@@ -36,7 +36,6 @@ struct bt_mesh_net_cred {
 /** Subnet instance. */
 struct bt_mesh_subnet {
 	uint32_t beacon_sent;        /* Timestamp of last sent beacon */
-	uint32_t beacon_recv;        /* Timestamp of last received beacon */
 	uint8_t  beacons_last;       /* Number of beacons during last
 				      * observation window
 				      */
@@ -80,7 +79,7 @@ struct bt_mesh_subnet_cb {
  *  @param _name Handler name.
  */
 #define BT_MESH_SUBNET_CB_DEFINE(_name)                                    \
-	static const STRUCT_SECTION_ITERABLE(                               \
+	const STRUCT_SECTION_ITERABLE(                              	   \
 		bt_mesh_subnet_cb, _CONCAT(bt_mesh_subnet_cb_, _name))
 
 /** @brief Reset all Network keys. */

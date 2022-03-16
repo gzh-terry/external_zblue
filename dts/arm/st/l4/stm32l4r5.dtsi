@@ -304,11 +304,6 @@
 			label = "DAC_1";
 			#io-channel-cells = <1>;
 		};
-
-		adc1: adc@50040000 {
-			has-temp-channel;
-			has-vref-channel;
-		};
 	};
 
 	otgfs_phy: otgfs_phy {

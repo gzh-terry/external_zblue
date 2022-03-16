@@ -100,25 +100,6 @@
 			};
 		};
 	};
-
-	power-states {
-		idle: idle {
-			compatible = "zephyr,power-state";
-			power-state-name = "runtime-idle";
-			exit-latency-us = <4000>;
-			min-residency-us = <5000>;
-		};
-		suspend: suspend {
-			compatible = "zephyr,power-state";
-			power-state-name = "suspend-to-idle";
-			exit-latency-us = <5000>;
-			min-residency-us = <10000>;
-		};
-	};
-};
-
-&cpu0 {
-	cpu-power-states = <&idle &suspend>;
 };
 
 arduino_i2c: &lpi2c1 {};
@@ -273,10 +254,6 @@ zephyr_udc0: &usb1 {
 &flexcan2 {
 	status = "okay";
 	bus-speed = <125000>;
-
-	can-transceiver {
-		max-bitrate = <5000000>;
-	};
 };
 
 &wdog0 {

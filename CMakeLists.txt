@@ -431,47 +431,12 @@ endif()
 
 if(DEFINED BUILD_VERSION)
   set(build_version_argument "-DBUILD_VERSION=${BUILD_VERSION}")
-elseif(NOT ZEPHYR_GIT_INDEX)
-  set(ZEPHYR_GIT_INDEX ZEPHYR_GIT_INDEX-NOTFOUND CACHE PATH
-    "Path to Zephyr git repository index file")
-  if(EXISTS ${ZEPHYR_BASE}/.git/index)
-    set(ZEPHYR_GIT_DIR ${ZEPHYR_BASE}/.git/index CACHE PATH
-      "Path to Zephyr git repository index file" FORCE)
-  elseif(EXISTS ${ZEPHYR_BASE}/.git)
-    # Likely a git-submodule. Let's ask git where the real database is located.
-    find_package(Git QUIET)
-    if(GIT_FOUND)
-      execute_process(
-        COMMAND ${GIT_EXECUTABLE} rev-parse --absolute-git-dir
-        WORKING_DIRECTORY ${ZEPHYR_BASE}
-        OUTPUT_VARIABLE zephyr_git_dir
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_STRIP_TRAILING_WHITESPACE
-        ERROR_VARIABLE stderr
-        RESULT_VARIABLE return_code)
-      if(return_code)
-        message(WARNING "BUILD_VERSION: git rev-parse failed: ${stderr}")
-      else()
-        if(NOT "${stderr}" STREQUAL "")
-          message(WARNING "BUILD_VERSION: git rev-parse warned: ${stderr}")
-        endif()
-        set(ZEPHYR_GIT_INDEX ${zephyr_git_dir}/index CACHE PATH
-          "Path to Zephyr git repository index file" FORCE)
-      endif()
-    else()
-      message(WARNING "Could not find git installation, "
-        "please specify '-DBUILD_VERSION=<version>'")
-    endif()
-  else()
-    message(WARNING "ZEPHYR_BASE=${ZEPHYR_BASE} doesn't appear to be a git "
-      "repository, please specify '-DBUILD_VERSION=<version>'")
-  endif()
+elseif(EXISTS ${ZEPHYR_BASE}/.git/index)
+  set(git_dependency ${ZEPHYR_BASE}/.git/index)
+else()
+  message(WARNING "ZEPHYR_BASE=${ZEPHYR_BASE} doesn't appear to be a git "
+    "repository, please specify '-DBUILD_VERSION=<version>'")
 endif()
-
-if(ZEPHYR_GIT_INDEX)
-  set(git_dependency ${ZEPHYR_GIT_INDEX})
-endif()
-
 add_custom_command(
   OUTPUT ${PROJECT_BINARY_DIR}/include/generated/version.h
   COMMAND ${CMAKE_COMMAND} -DZEPHYR_BASE=${ZEPHYR_BASE}
@@ -707,7 +672,7 @@ if(CONFIG_64BIT)
 endif()
 
 if(CONFIG_TIMEOUT_64BIT)
-  set(SYSCALL_SPLIT_TIMEOUT_ARG --split-type k_timeout_t --split-type k_ticks_t)
+  set(SYSCALL_SPLIT_TIMEOUT_ARG --split-type k_timeout_t)
 endif()
 
 add_custom_command(OUTPUT include/generated/syscall_dispatch.c ${syscall_list_h}
@@ -912,10 +877,10 @@ if(CONFIG_USERSPACE)
   set(OBJ_FILE_DIR "${PROJECT_BINARY_DIR}/../")
 
   if(CONFIG_NEWLIB_LIBC)
-    set(NEWLIB_PART -l libc.a z_libc_partition -l libm.a z_libc_partition)
+    set(NEWLIB_PART -l libc.a z_libc_partition)
   endif()
   if(CONFIG_NEWLIB_LIBC_NANO)
-    set(NEWLIB_PART -l libc_nano.a z_libc_partition -l libm_nano.a z_libc_partition)
+    set(NEWLIB_PART -l libc_nano.a z_libc_partition)
   endif()
 
   add_custom_command(
@@ -1452,17 +1417,6 @@ if(CONFIG_BUILD_OUTPUT_ADJUST_LMA)
     )
 endif()
 
-if(NOT CONFIG_EXCEPTIONS)
-  set(eh_frame_section ".eh_frame")
-else()
-  set(eh_frame_section "")
-endif()
-set(remove_sections_argument_list "")
-foreach(section .comment COMMON ${eh_frame_section})
-  list(APPEND remove_sections_argument_list
-    $<TARGET_PROPERTY:bintools,elfconvert_flag_section_remove>${section})
-endforeach()
-
 if(CONFIG_BUILD_OUTPUT_HEX OR BOARD_FLASH_RUNNER STREQUAL openocd)
   get_property(elfconvert_formats TARGET bintools PROPERTY elfconvert_formats)
   if(ihex IN_LIST elfconvert_formats)
@@ -1472,7 +1426,9 @@ if(CONFIG_BUILD_OUTPUT_HEX OR BOARD_FLASH_RUNNER STREQUAL openocd)
               $<TARGET_PROPERTY:bintools,elfconvert_flag>
               ${GAP_FILL}
               $<TARGET_PROPERTY:bintools,elfconvert_flag_outtarget>ihex
-              ${remove_sections_argument_list}
+              $<TARGET_PROPERTY:bintools,elfconvert_flag_section_remove>.comment
+              $<TARGET_PROPERTY:bintools,elfconvert_flag_section_remove>COMMON
+              $<TARGET_PROPERTY:bintools,elfconvert_flag_section_remove>.eh_frame
               $<TARGET_PROPERTY:bintools,elfconvert_flag_infile>${KERNEL_ELF_NAME}
               $<TARGET_PROPERTY:bintools,elfconvert_flag_outfile>${KERNEL_HEX_NAME}
               $<TARGET_PROPERTY:bintools,elfconvert_flag_final>
@@ -1494,7 +1450,9 @@ if(CONFIG_BUILD_OUTPUT_BIN)
               $<TARGET_PROPERTY:bintools,elfconvert_flag>
               ${GAP_FILL}
               $<TARGET_PROPERTY:bintools,elfconvert_flag_outtarget>binary
-              ${remove_sections_argument_list}
+              $<TARGET_PROPERTY:bintools,elfconvert_flag_section_remove>.comment
+              $<TARGET_PROPERTY:bintools,elfconvert_flag_section_remove>COMMON
+              $<TARGET_PROPERTY:bintools,elfconvert_flag_section_remove>.eh_frame
               $<TARGET_PROPERTY:bintools,elfconvert_flag_infile>${KERNEL_ELF_NAME}
               $<TARGET_PROPERTY:bintools,elfconvert_flag_outfile>${KERNEL_BIN_NAME}
               $<TARGET_PROPERTY:bintools,elfconvert_flag_final>

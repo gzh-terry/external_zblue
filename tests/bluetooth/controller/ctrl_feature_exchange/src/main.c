@@ -128,7 +128,7 @@ void test_feat_exchange_central_loc(void)
 	}
 	zassert_equal(conn.lll.event_counter, feat_to_test, "Wrong event-count %d\n",
 		      conn.lll.event_counter);
-	zassert_equal(ctx_buffers_free(), test_ctx_buffers_cnt(),
+	zassert_equal(ctx_buffers_free(), CONFIG_BT_CTLR_LLCP_PROC_CTX_BUF_NUM,
 		      "Free CTX buffers %d", ctx_buffers_free());
 }
 
@@ -140,15 +140,13 @@ void test_feat_exchange_central_loc_2(void)
 	ull_cp_state_set(&conn, ULL_CP_CONNECTED);
 
 	err = ull_cp_feature_exchange(&conn);
-	for (int i = 0U; i < CONFIG_BT_CTLR_LLCP_LOCAL_PROC_CTX_BUF_NUM; i++) {
+	for (int i = 0U; i < CONFIG_BT_CTLR_LLCP_PROC_CTX_BUF_NUM; i++) {
 		zassert_equal(err, BT_HCI_ERR_SUCCESS, NULL);
 		err = ull_cp_feature_exchange(&conn);
 	}
 
 	zassert_not_equal(err, BT_HCI_ERR_SUCCESS, NULL);
-	zassert_equal(ctx_buffers_free(),
-		      test_ctx_buffers_cnt() - CONFIG_BT_CTLR_LLCP_LOCAL_PROC_CTX_BUF_NUM,
-		      "Free CTX buffers %d", ctx_buffers_free());
+	zassert_equal(ctx_buffers_free(), 0, "Free CTX buffers %d", ctx_buffers_free());
 }
 
 /*
@@ -211,7 +209,7 @@ void test_feat_exchange_central_rem(void)
 	}
 	zassert_equal(conn.lll.event_counter, CENTRAL_NR_OF_EVENTS * (feat_to_test),
 		      "Wrong event-count %d\n", conn.lll.event_counter);
-	zassert_equal(ctx_buffers_free(), test_ctx_buffers_cnt(),
+	zassert_equal(ctx_buffers_free(), CONFIG_BT_CTLR_LLCP_PROC_CTX_BUF_NUM,
 		      "Free CTX buffers %d", ctx_buffers_free());
 }
 
@@ -299,7 +297,7 @@ void test_feat_exchange_central_rem_2(void)
 
 	zassert_equal(conn.lll.event_counter, CENTRAL_NR_OF_EVENTS * (feat_to_test),
 		      "Wrong event-count %d\n", conn.lll.event_counter);
-	zassert_equal(ctx_buffers_free(), test_ctx_buffers_cnt(),
+	zassert_equal(ctx_buffers_free(), CONFIG_BT_CTLR_LLCP_PROC_CTX_BUF_NUM,
 		      "Free CTX buffers %d", ctx_buffers_free());
 }
 
@@ -357,7 +355,7 @@ void test_peripheral_feat_exchange_periph_loc(void)
 	ut_rx_q_is_empty();
 	zassert_equal(conn.lll.event_counter, 2, "Wrong event-count %d\n",
 		      conn.lll.event_counter);
-	zassert_equal(ctx_buffers_free(), test_ctx_buffers_cnt(),
+	zassert_equal(ctx_buffers_free(), CONFIG_BT_CTLR_LLCP_PROC_CTX_BUF_NUM,
 		      "Free CTX buffers %d", ctx_buffers_free());
 }
 
@@ -419,7 +417,7 @@ void test_feat_exchange_periph_loc_unknown_rsp(void)
 	ut_rx_q_is_empty();
 	zassert_equal(conn.lll.event_counter, 3, "Wrong event-count %d\n",
 		      conn.lll.event_counter);
-	zassert_equal(ctx_buffers_free(), test_ctx_buffers_cnt(),
+	zassert_equal(ctx_buffers_free(), CONFIG_BT_CTLR_LLCP_PROC_CTX_BUF_NUM,
 		      "Free CTX buffers %d", ctx_buffers_free());
 }
 

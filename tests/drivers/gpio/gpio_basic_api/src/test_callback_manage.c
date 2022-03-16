@@ -48,7 +48,8 @@ static int init_callback(const struct device *dev,
 
 	if (rc == 0) {
 		/* 2. configure PIN_IN callback, but don't enable */
-		rc = gpio_pin_configure(dev, PIN_IN, GPIO_INPUT);
+		rc = gpio_pin_configure(dev, PIN_IN,
+					GPIO_INPUT | GPIO_INT_DEBOUNCE);
 	}
 
 	if (rc == 0) {

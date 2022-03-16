@@ -7,13 +7,6 @@
 #include <syscall_handler.h>
 #include <logging/log_internal.h>
 #include <logging/log_ctrl.h>
-#include <logging/log_frontend.h>
-#include <logging/log_backend.h>
-
-/* Returns true if any backend is in use. */
-#define BACKENDS_IN_USE() \
-	!(IS_ENABLED(CONFIG_LOG_FRONTEND) && \
-	 (IS_ENABLED(CONFIG_LOG_FRONTEND_ONLY) || log_backend_count_get() == 0))
 
 void z_log_msg2_finalize(struct log_msg2 *msg, const void *source,
 			 const struct log_msg2_desc desc, const void *data)
@@ -39,14 +32,6 @@ void z_impl_z_log_msg2_static_create(const void *source,
 			      const struct log_msg2_desc desc,
 			      uint8_t *package, const void *data)
 {
-	if (IS_ENABLED(CONFIG_LOG_FRONTEND)) {
-		log_frontend_msg(source, desc, package, data);
-	}
-
-	if (!BACKENDS_IN_USE()) {
-		return;
-	}
-
 	uint32_t msg_wlen = log_msg2_get_total_wlen(desc);
 	struct log_msg2 *msg = z_log_msg2_alloc(msg_wlen);
 
@@ -69,7 +54,7 @@ static inline void z_vrfy_z_log_msg2_static_create(const void *source,
 
 void z_impl_z_log_msg2_runtime_vcreate(uint8_t domain_id, const void *source,
 				uint8_t level, const void *data, size_t dlen,
-				uint32_t package_flags, const char *fmt, va_list ap)
+				const char *fmt, va_list ap)
 {
 	int plen;
 
@@ -77,8 +62,8 @@ void z_impl_z_log_msg2_runtime_vcreate(uint8_t domain_id, const void *source,
 		va_list ap2;
 
 		va_copy(ap2, ap);
-		plen = cbvprintf_package(NULL, Z_LOG_MSG2_ALIGN_OFFSET,
-					 package_flags, fmt, ap2);
+		plen = cbvprintf_package(NULL, Z_LOG_MSG2_ALIGN_OFFSET, 0,
+					 fmt, ap2);
 		__ASSERT_NO_MSG(plen >= 0);
 		va_end(ap2);
 	} else {
@@ -87,44 +72,31 @@ void z_impl_z_log_msg2_runtime_vcreate(uint8_t domain_id, const void *source,
 
 	size_t msg_wlen = Z_LOG_MSG2_ALIGNED_WLEN(plen, dlen);
 	struct log_msg2 *msg;
-	uint8_t *pkg;
 	struct log_msg2_desc desc =
 		Z_LOG_MSG_DESC_INITIALIZER(domain_id, level, plen, dlen);
 
-	if (IS_ENABLED(CONFIG_LOG_MODE_DEFERRED) && BACKENDS_IN_USE()) {
-		msg = z_log_msg2_alloc(msg_wlen);
-		if (IS_ENABLED(CONFIG_LOG_FRONTEND) && msg == NULL) {
-			pkg = alloca(plen);
-		} else {
-			pkg = msg ? msg->data : NULL;
-		}
-	} else {
+	if (IS_ENABLED(CONFIG_LOG_MODE_IMMEDIATE)) {
 		msg = alloca(msg_wlen * sizeof(int));
-		pkg = msg->data;
+	} else {
+		msg = z_log_msg2_alloc(msg_wlen);
 	}
 
-	if (pkg && fmt) {
-		plen = cbvprintf_package(pkg, (size_t)plen, package_flags, fmt, ap);
+	if (msg && fmt) {
+		plen = cbvprintf_package(msg->data, (size_t)plen, 0, fmt, ap);
 		__ASSERT_NO_MSG(plen >= 0);
 	}
 
-	if (IS_ENABLED(CONFIG_LOG_FRONTEND)) {
-		log_frontend_msg(source, desc, pkg, data);
-	}
-
-	if (BACKENDS_IN_USE()) {
-		z_log_msg2_finalize(msg, source, desc, data);
-	}
+	z_log_msg2_finalize(msg, source, desc, data);
 }
 
 #ifdef CONFIG_USERSPACE
 static inline void z_vrfy_z_log_msg2_runtime_vcreate(uint8_t domain_id,
 				const void *source,
 				uint8_t level, const void *data, size_t dlen,
-				uint32_t package_flags, const char *fmt, va_list ap)
+				const char *fmt, va_list ap)
 {
 	return z_impl_z_log_msg2_runtime_vcreate(domain_id, source, level, data,
-						dlen, package_flags, fmt, ap);
+						dlen, fmt, ap);
 }
 #include <syscalls/z_log_msg2_runtime_vcreate_mrsh.c>
 #endif
