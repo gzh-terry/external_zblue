@@ -220,9 +220,99 @@ struct z_poller {
  * Thread Structure
  */
 struct k_thread {
+
+	struct _thread_base base;
+
+	/** defined by the architecture, but all archs need these */
+	struct _callee_saved callee_saved;
+
 	/** static thread init data */
 	void *init_data;
-	sys_snode_t node;
+
+	/** threads waiting in k_thread_join() */
+	_wait_q_t join_queue;
+
+#if defined(CONFIG_POLL)
+	struct z_poller poller;
+#endif
+
+#if defined(CONFIG_EVENTS)
+	struct k_thread *next_event_link;
+
+	uint32_t   events;
+	uint32_t   event_options;
+#endif
+
+#if defined(CONFIG_THREAD_MONITOR)
+	/** thread entry and parameters description */
+	struct __thread_entry entry;
+
+	/** next item in list of all threads */
+	struct k_thread *next_thread;
+#endif
+
+#if defined(CONFIG_THREAD_NAME)
+	/** Thread name */
+	char name[CONFIG_THREAD_MAX_NAME_LEN];
+#endif
+
+#ifdef CONFIG_THREAD_CUSTOM_DATA
+	/** crude thread-local storage */
+	void *custom_data;
+#endif
+
+#ifdef CONFIG_THREAD_USERSPACE_LOCAL_DATA
+	struct _thread_userspace_local_data *userspace_local_data;
+#endif
+
+#if defined(CONFIG_ERRNO) && !defined(CONFIG_ERRNO_IN_TLS)
+#ifndef CONFIG_USERSPACE
+	/** per-thread errno variable */
+	int errno_var;
+#endif
+#endif
+
+#if defined(CONFIG_THREAD_STACK_INFO)
+	/** Stack Info */
+	struct _thread_stack_info stack_info;
+#endif /* CONFIG_THREAD_STACK_INFO */
+
+#if defined(CONFIG_USERSPACE)
+	/** memory domain info of the thread */
+	struct _mem_domain_info mem_domain_info;
+	/** Base address of thread stack */
+	k_thread_stack_t *stack_obj;
+	/** current syscall frame pointer */
+	void *syscall_frame;
+#endif /* CONFIG_USERSPACE */
+
+
+#if defined(CONFIG_USE_SWITCH)
+	/* When using __switch() a few previously arch-specific items
+	 * become part of the core OS
+	 */
+
+	/** z_swap() return value */
+	int swap_retval;
+
+	/** Context handle returned via arch_switch() */
+	void *switch_handle;
+#endif
+	/** resource pool */
+	struct k_heap *resource_pool;
+
+#if defined(CONFIG_THREAD_LOCAL_STORAGE)
+	/* Pointer to arch-specific TLS area */
+	uintptr_t tls;
+#endif /* CONFIG_THREAD_LOCAL_STORAGE */
+
+#ifdef CONFIG_DEMAND_PAGING_THREAD_STATS
+	/** Paging statistics */
+	struct k_mem_paging_stats_t paging_stats;
+#endif
+
+	/** arch-specifics: must always be at the end */
+	struct _thread_arch arch;
 };
 
 typedef struct k_thread _thread_t;

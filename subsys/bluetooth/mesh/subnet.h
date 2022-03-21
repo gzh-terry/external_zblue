@@ -80,7 +80,7 @@ struct bt_mesh_subnet_cb {
  *  @param _name Handler name.
  */
 #define BT_MESH_SUBNET_CB_DEFINE(_name)                                    \
-	const STRUCT_SECTION_ITERABLE(                              	   \
+	static const STRUCT_SECTION_ITERABLE(                               \
 		bt_mesh_subnet_cb, _CONCAT(bt_mesh_subnet_cb_, _name))
 
 /** @brief Reset all Network keys. */
