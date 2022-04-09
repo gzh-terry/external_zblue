@@ -43,16 +43,28 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #endif
 
 /* Linker-defined symbol bound to the static pool structs */
-extern struct net_buf_pool _net_buf_pool_list[];
+extern struct net_buf_pool * const _net_buf_pool_list[];
 
 struct net_buf_pool *net_buf_pool_get(int id)
 {
-	return &_net_buf_pool_list[id];
+	return _net_buf_pool_list[id];
 }
 
 static int pool_id(struct net_buf_pool *pool)
 {
-	return pool - _net_buf_pool_list;
+	int id = 0;
+
+	STRUCT_SECTION_FOREACH(net_buf_pool, p) {
+		if (p == pool) {
+			return id;
+		}
+
+		id ++;
+	}
+
+	__ASSERT(false, "pool %p not in pool list", pool);
+
+	return 0;
 }
 
 int net_buf_id(struct net_buf *buf)

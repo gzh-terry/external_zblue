@@ -99,7 +99,7 @@ config BT_RX_PRIO
 	# Hidden option for Co-Operative Rx thread priority
 	int
 	depends on BT_HCI_HOST || BT_RECV_IS_RX_THREAD
-	default 8
+	default 7
 
 config BT_DRIVER_RX_HIGH_PRIO
 	# Hidden option for Co-Operative HCI driver RX thread priority
@@ -110,8 +110,8 @@ menu "Bluetooth Host"
 
 if BT_HCI_HOST
 
-rsource "../mesh/Kconfig"
-rsource "../audio/Kconfig"
+source "$APPSDIR/external/zblue/subsys/bluetooth/host/../mesh/Kconfig"
+source "$APPSDIR/external/zblue/subsys/bluetooth/host/../audio/Kconfig"
 
 config BT_HOST_CRYPTO
 	# Hidden option that compiles in AES encryption support using TinyCrypt
@@ -468,9 +468,9 @@ config BT_SMP_MIN_ENC_KEY_SIZE
 
 endif # BT_SMP
 
-rsource "Kconfig.l2cap"
-rsource "Kconfig.gatt"
-rsource "../services/Kconfig"
+source "$APPSDIR/external/zblue/subsys/bluetooth/host/Kconfig.l2cap"
+source "$APPSDIR/external/zblue/subsys/bluetooth/host/Kconfig.gatt"
+source "$APPSDIR/external/zblue/subsys/bluetooth/host/../services/Kconfig"
 
 config BT_MAX_PAIRED
 	int "Maximum number of paired devices"
