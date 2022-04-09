@@ -92,28 +92,12 @@ config BT_BROADCASTER
 	help
 	  Select this for LE Broadcaster role support.
 
-<<<<<<< HEAD
-endmenu
-
-source "$APPSDIR/external/zblue/subsys/bluetooth/Kconfig.adv"
-
-menu "Observer"
-	visible if !BT_CENTRAL
-
-=======
->>>>>>> github/main
 config BT_OBSERVER
 	bool "Observer Role support"
 	help
 	  Select this for LE Observer role support.
 
-<<<<<<< HEAD
-endmenu
-
-source "$APPSDIR/external/zblue/subsys/bluetooth/services/Kconfig"
-=======
-rsource "Kconfig.adv"
->>>>>>> github/main
+source "$APPSDIR/external/zblue/subsys/bluetooth/Kconfig.adv"
 
 config BT_CONN
 	bool
