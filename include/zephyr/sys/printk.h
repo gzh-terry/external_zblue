@@ -21,9 +21,11 @@ extern "C" {
 extern int snprintf(char *str, size_t size, const char *format, ...);
 extern int vsnprintf(char *str, size_t size, const char *format, va_list ap);
 
-#define printk(fmt, ...)    syslog(LOG_INFO, fmt, ##__VA_ARGS__)
-#define snprintk            snprintf
-#define vsnprintk           vsnprintf
+#define printk(fmt, ...)	syslog(LOG_INFO, fmt, ##__VA_ARGS__)
+#define vprintk(fmt, ap)	vsyslog(LOG_INFO, fmt, ap)
+
+#define snprintk		snprintf
+#define vsnprintk		vsnprintf
 
 #ifdef __cplusplus
 }

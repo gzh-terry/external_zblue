@@ -23,6 +23,7 @@ CSRCS += port/common/defines.c
 ifeq ($(CONFIG_BT_HCI),y)
   ifeq ($(CONFIG_BT_HCI_RAW),y)
     CSRCS += $(SUBDIR)/host/hci_raw.c
+    CSRCS += $(SUBDIR)/host/hci_common.c
   endif
   ifeq ($(CONFIG_BT_DEBUG_MONITOR),y)
     CSRCS += $(SUBDIR)/host/monitor.c
@@ -160,15 +161,23 @@ ifeq ($(CONFIG_BT_AUDIO),y)
     CSRCS += $(SUBDIR)/audio/csis_crypto.c
   endif
 
-  ifeq ($(CONFIG_BT_OTC),y)
-    CSRCS += $(SUBDIR)audio/otc.c
+  ifeq ($(CONFIG_BT_TBS),y)
+    CSRCS += $(SUBDIR)audio/tbs.c
+  endif
+
+  ifeq ($(CONFIG_BT_TBS_CLIENT),y)
+    CSRCS += $(SUBDIR)audio/tbs_client.c
   endif
   ifeq ($(CONFIG_BT_MCC),y)
     CSRCS += $(SUBDIR)audio/mcc.c
   endif
   ifeq ($(CONFIG_BT_MCS),y)
     CSRCS += $(SUBDIR)audio/mcs.c
+  endif
+  ifeq ($(CONFIG_BT_MPL),y)
     CSRCS += $(SUBDIR)audio/mpl.c
+  endif
+  ifeq ($(CONFIG_MCTL),y)
     CSRCS += $(SUBDIR)audio/media_proxy.c
   endif
   ifeq ($(CONFIG_BT_ASCS),y)
@@ -179,6 +188,7 @@ ifeq ($(CONFIG_BT_AUDIO),y)
   endif
   ifeq ($(CONFIG_BT_AUDIO_STREAM),y)
     CSRCS += $(SUBDIR)audio/stream.c
+    CSRCS += $(SUBDIR)audio/codec.c
   endif
   ifeq ($(CONFIG_BT_AUDIO_UNICAST_SERVER),y)
     CSRCS += $(SUBDIR)audio/unicast_server.c
@@ -194,6 +204,18 @@ ifeq ($(CONFIG_BT_AUDIO),y)
   endif
   ifeq ($(CONFIG_BT_AUDIO_BROADCAST_SINK),y)
     CSRCS += $(SUBDIR)audio/broadcast_sink.c
+  endif
+  ifeq ($(CONFIG_BT_BASS),y)
+    CSRCS += $(SUBDIR)audio/bass.c
+  endif
+  ifeq ($(CONFIG_BT_BASS_CLIENT),y)
+    CSRCS += $(SUBDIR)audio/bass_client.c
+  endif
+  ifeq ($(CONFIG_BT_HAS),y)
+    CSRCS += $(SUBDIR)audio/has.c
+  endif
+  ifeq ($(CONFIG_BT_HAS_CLIENT),y)
+    CSRCS += $(SUBDIR)audio/has_client.c
   endif
 endif
 
@@ -223,6 +245,11 @@ ifeq ($(CONFIG_BT_CONN),y)
 
     ifeq ($(CONFIG_BT_OTS_DIR_LIST_OBJ),y)
       CSRCS += $(SUBDIR)/services/ots/ots_dir_list.c
+    endif
+
+    ifeq ($(CONFIG_BT_OTS_CLIENT),y)
+      CSRCS += $(SUBDIR)/services/ots/ots_client.c
+      CSRCS += $(SUBDIR)/services/ots/ots_l2cap.c
     endif
   endif
 endif
@@ -330,6 +357,7 @@ endif
 ifeq ($(CONFIG_BT_SHELL),y)
   CSRCS += $(SUBDIR)/shell/bt.c
   CSRCS += $(SUBDIR)/shell/hci.c
+  CSRCS += subsys/shell/shell_utils.c
 
   ifeq ($(CONFIG_BT_MIBLE_TEST),y)
     CSRCS += $(SUBDIR)/shell/mible_test.c
@@ -393,6 +421,14 @@ ifeq ($(CONFIG_BT_SHELL),y)
 
   ifeq ($(CONFIG_BT_AUDIO_STREAM),y)
     CSRCS += $(SUBDIR)/shell/audio.c
+  endif
+
+  ifeq ($(CONFIG_BT_BASS),y)
+    CSRCS += $(SUBDIR)/shell/bass.c
+  endif
+
+  ifeq ($(CONFIG_BT_BASS_CLIENT),y)
+    CSRCS += $(SUBDIR)/shell/bass_client.c
   endif
 
   ifeq ($(CONFIG_BT_MESH_SHELL),y)
@@ -505,8 +541,8 @@ CFLAGS += -Wno-format -Wno-pointer-sign -Wno-strict-prototypes -Wno-implicit-int
 CFLAGS += -Wno-int-to-pointer-cast -Wno-pointer-to-int-cast -Wno-undef
 
 CFLAGS += ${shell $(INCDIR) $(INCDIROPT) "$(CC)" port/include}
-CFLAGS += ${shell $(INCDIR) $(INCDIROPT) "$(CC)" include}
 CFLAGS += ${shell $(INCDIR) $(INCDIROPT) "$(CC)" port/include/kernel/include}
+CFLAGS += ${shell $(INCDIR) $(INCDIROPT) "$(CC)" include/zephyr}
 CFLAGS += ${shell $(INCDIR) $(INCDIROPT) "$(CC)" subsys/bluetooth}
 CFLAGS += ${shell $(INCDIR) $(INCDIROPT) "$(CC)" subsys/bluetooth/host}
 CFLAGS += ${shell $(INCDIR) $(INCDIROPT) "$(CC)" subsys/bluetooth/services}
