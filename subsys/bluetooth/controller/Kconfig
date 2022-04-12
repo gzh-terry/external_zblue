@@ -96,6 +96,7 @@ choice BT_LL_CHOICE
 
 config BT_LL_SW_SPLIT
 	bool "Software-based BLE Link Layer"
+	select BT_RECV_IS_RX_THREAD
 	select ENTROPY_GENERATOR
 	select NRF_HW_TIMER0_RESERVED
 	select NRF_HW_RTC0_RESERVED
@@ -805,9 +806,9 @@ config BT_CTLR_HCI_CODEC_AND_DELAY_INFO
 	  Enable HCI commands to read information about supported
 	  codecs, codec capabilities, and controller delay.
 
-rsource "Kconfig.df"
-rsource "Kconfig.ll_sw_split"
-rsource "Kconfig.dtm"
+source "$APPSDIR/external/zblue/subsys/bluetooth/controller/Kconfig.df"
+source "$APPSDIR/external/zblue/subsys/bluetooth/controller/Kconfig.ll_sw_split"
+source "$APPSDIR/external/zblue/subsys/bluetooth/controller/Kconfig.dtm"
 
 config BT_CTLR_ASSERT_HANDLER
 	bool "Application Defined Assertion Handler"

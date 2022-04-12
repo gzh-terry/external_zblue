@@ -80,32 +80,6 @@ struct pdu_data_llctrl_conn_param_rsp conn_param_rsp = { .interval_min = INTVL_M
 							 .offset4 = 0xffffU,
 							 .offset5 = 0xffffU };
 
-/* Invalid conn_param_req PDU */
-struct pdu_data_llctrl_conn_param_req conn_param_req_invalid = { .interval_min = INTVL_MIN - 1,
-							 .interval_max = INTVL_MAX + 1,
-							 .latency = LATENCY,
-							 .timeout = TIMEOUT - 1,
-							 .preferred_periodicity = 0U,
-							 .reference_conn_event_count = 0u,
-							 .offset0 = 0x0000U,
-							 .offset1 = 0xffffU,
-							 .offset2 = 0xffffU,
-							 .offset3 = 0xffffU,
-							 .offset4 = 0xffffU,
-							 .offset5 = 0xffffU };
-/* Invalid conn_param_rsp PDU */
-struct pdu_data_llctrl_conn_param_rsp conn_param_rsp_invalid = { .interval_min = INTVL_MIN - 1,
-								 .interval_max = INTVL_MAX + 1,
-								 .latency = LATENCY,
-								 .timeout = TIMEOUT - 1,
-								 .preferred_periodicity = 0U,
-								 .reference_conn_event_count = 0u,
-								 .offset0 = 0x0000U,
-								 .offset1 = 0xffffU,
-								 .offset2 = 0xffffU,
-								 .offset3 = 0xffffU,
-								 .offset4 = 0xffffU,
-								 .offset5 = 0xffffU };
 /* Different PDU contents for (B) */
 
 /* Default conn_param_req PDU (B) */
@@ -195,7 +169,7 @@ static bool is_instant_reached(struct ll_conn *conn, uint16_t instant)
  * Central requests change in LE connection parameters, peripheral’s Host accepts.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_C  |                    | LT  |
+ * | UT  |                    | LL_M  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    | LE Connection Update      |                           |
@@ -306,83 +280,10 @@ void test_conn_update_central_loc_accept(void)
 
 /*
  * Central-initiated Connection Parameters Request procedure.
- * Central requests change in LE connection parameters, peripheral
- * responds with invalid params
- *
- * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_C  |                    | LT  |
- * +-----+                    +-------+                    +-----+
- *    |                           |                           |
- *    | LE Connection Update      |                           |
- *    |-------------------------->|                           |
- *    |                           | LL_CONNECTION_PARAM_REQ   |
- *    |                           |-------------------------->|
- *    |                           |                           |
- *    |                           |   LL_CONNECTION_PARAM_RSP |
- *    |                           |<--------------------------|
- *    |                           |                           |
- *    |                           | LL_REJECT_EXT_IND         |
- *    |                           |-------------------------->|
- *    |                           |                           |
- *    |                           |                           |
- *    |                           |                           |
- */
-void test_conn_update_central_loc_invalid_param_rsp(void)
-{
-	uint8_t err;
-	struct node_tx *tx;
-	struct pdu_data_llctrl_reject_ext_ind reject_ext_ind = {
-		.reject_opcode = PDU_DATA_LLCTRL_TYPE_CONN_PARAM_RSP,
-		.error_code = BT_HCI_ERR_INVALID_LL_PARAM
-	};
-
-
-	/* Role */
-	test_set_role(&conn, BT_HCI_ROLE_CENTRAL);
-
-	/* Connect */
-	ull_cp_state_set(&conn, ULL_CP_CONNECTED);
-
-	/* Initiate a Connection Parameter Request Procedure */
-	err = ull_cp_conn_update(&conn, INTVL_MIN, INTVL_MAX, LATENCY, TIMEOUT);
-	zassert_equal(err, BT_HCI_ERR_SUCCESS, NULL);
-
-	/* Prepare */
-	event_prepare(&conn);
-
-	/* Tx Queue should have one LL Control PDU */
-	lt_rx(LL_CONNECTION_PARAM_REQ, &conn, &tx, &conn_param_req);
-	lt_rx_q_is_empty(&conn);
-
-	/* Rx */
-	lt_tx(LL_CONNECTION_PARAM_RSP, &conn, &conn_param_rsp_invalid);
-
-	/* Done */
-	event_done(&conn);
-
-	/* Release Tx */
-	ull_cp_release_tx(&conn, tx);
-
-	/* Prepare */
-	event_prepare(&conn);
-
-	/* Tx Queue should have one LL Control PDU */
-	lt_rx(LL_REJECT_EXT_IND, &conn, &tx, &reject_ext_ind);
-	lt_rx_q_is_empty(&conn);
-
-	/* Done */
-	event_done(&conn);
-
-	zassert_equal(ctx_buffers_free(), test_ctx_buffers_cnt(),
-		      "Free CTX buffers %d", ctx_buffers_free());
-}
-
-/*
- * Central-initiated Connection Parameters Request procedure.
  * Central requests change in LE connection parameters, peripheral’s Host rejects.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_C  |                    | LT  |
+ * | UT  |                    | LL_M  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    | LE Connection Update      |                           |
@@ -452,7 +353,7 @@ void test_conn_update_central_loc_reject(void)
  * Central requests change in LE connection parameters, peripheral’s Host is legacy.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_C  |                    | LT  |
+ * | UT  |                    | LL_M  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    | LE Connection Update      |                           |
@@ -576,7 +477,7 @@ void test_conn_update_central_loc_remote_legacy(void)
  * support Connection Parameters Request procedure, features not exchanged.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_C  |                    | LT  |
+ * | UT  |                    | LL_M  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    | LE Connection Update      |                           |
@@ -699,7 +600,7 @@ void test_conn_update_central_loc_unsupp_wo_feat_exch(void)
  * support Connection Parameters Request procedure, features exchanged.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_C  |                    | LT  |
+ * | UT  |                    | LL_M  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    | LE Connection Update      |                           |
@@ -804,7 +705,7 @@ void test_conn_update_central_loc_unsupp_w_feat_exch(void)
  * Procedure collides and is rejected.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_C  |                    | LT  |
+ * | UT  |                    | LL_M  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    | LE Connection Update      |                           |
@@ -962,7 +863,7 @@ void test_conn_update_central_loc_collision(void)
  * Peripheral requests change in LE connection parameters, central’s Host accepts.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_C  |                    | LT  |
+ * | UT  |                    | LL_M  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    |                           |   LL_CONNECTION_PARAM_REQ |
@@ -1079,67 +980,10 @@ void test_conn_update_central_rem_accept(void)
 
 /*
  * Peripheral-initiated Connection Parameters Request procedure.
- * Peripheral requests change in LE connection with invalid parameters,
- *
- * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_C  |                    | LT  |
- * +-----+                    +-------+                    +-----+
- *    |                           |                           |
- *    |                           |   LL_CONNECTION_PARAM_REQ |
- *    |                           |<--------------------------|
- *    |                           |                           |
- *    |                           |                           |
- *    |                           | LL_REJECT_EXT_IND         |
- *    |                           |-------------------------->|
- *    |                           |                           |
- *    |                           |                           |
- */
-void test_conn_update_central_rem_invalid_req(void)
-{
-	struct node_tx *tx;
-	struct pdu_data_llctrl_reject_ext_ind reject_ext_ind = {
-		.reject_opcode = PDU_DATA_LLCTRL_TYPE_CONN_PARAM_REQ,
-		.error_code = BT_HCI_ERR_INVALID_LL_PARAM
-	};
-
-	/* Role */
-	test_set_role(&conn, BT_HCI_ROLE_CENTRAL);
-
-	/* Connect */
-	ull_cp_state_set(&conn, ULL_CP_CONNECTED);
-
-	/* Prepare */
-	event_prepare(&conn);
-
-	/* Rx */
-	lt_tx(LL_CONNECTION_PARAM_REQ, &conn, &conn_param_req_invalid);
-
-	/* Done */
-	event_done(&conn);
-
-	/* Prepare */
-	event_prepare(&conn);
-
-	/* Tx Queue should have one LL Control PDU */
-	lt_rx(LL_REJECT_EXT_IND, &conn, &tx, &reject_ext_ind);
-	lt_rx_q_is_empty(&conn);
-
-	/* Done */
-	event_done(&conn);
-
-	/* Release Tx */
-	ull_cp_release_tx(&conn, tx);
-	zassert_equal(ctx_buffers_free(), test_ctx_buffers_cnt(),
-		      "Free CTX buffers %d", ctx_buffers_free());
-
-}
-
-/*
- * Peripheral-initiated Connection Parameters Request procedure.
  * Peripheral requests change in LE connection parameters, central’s Host rejects.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_C  |                    | LT  |
+ * | UT  |                    | LL_M  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    |                           |   LL_CONNECTION_PARAM_REQ |
@@ -1216,7 +1060,7 @@ void test_conn_update_central_rem_reject(void)
  * support Connection Parameters Request procedure.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_C  |                    | LT  |
+ * | UT  |                    | LL_M  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    |                           |   LL_CONNECTION_PARAM_REQ |
@@ -1250,7 +1094,7 @@ void test_conn_update_central_rem_unsupp_feat(void)
  * Central-initiated Connection Parameters Request procedure is resumed.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_C  |                    | LT  |
+ * | UT  |                    | LL_M  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    |                           |   LL_CONNECTION_PARAM_REQ |
@@ -1479,7 +1323,7 @@ void test_conn_update_central_rem_collision(void)
  * Peripheral requests change in LE connection parameters, central’s Host accepts.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_P  |                    | LT  |
+ * | UT  |                    | LL_S  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    | LE Connection Update      |                           |
@@ -1581,7 +1425,7 @@ void test_conn_update_periph_loc_accept(void)
  * Peripheral requests change in LE connection parameters, central’s Host rejects.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_P  |                    | LT  |
+ * | UT  |                    | LL_S  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    | LE Connection Update      |                           |
@@ -1661,7 +1505,7 @@ void test_conn_update_periph_loc_reject(void)
  * support Connection Parameters Request procedure, features not exchanged.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_P  |                    | LT  |
+ * | UT  |                    | LL_S  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    | LE Connection Update      |                           |
@@ -1740,7 +1584,7 @@ void test_conn_update_periph_loc_unsupp_feat_wo_feat_exch(void)
  * support Connection Parameters Request procedure, features exchanged.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_P  |                    | LT  |
+ * | UT  |                    | LL_S  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    | LE Connection Update      |                           |
@@ -1794,7 +1638,7 @@ void test_conn_update_periph_loc_unsupp_feat_w_feat_exch(void)
  * Central requests change in LE connection parameters, peripheral’s Host accepts.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_P  |                    | LT  |
+ * | UT  |                    | LL_S  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    | LE Connection Update      |                           |
@@ -1965,7 +1809,7 @@ void test_conn_update_periph_loc_collision(void)
  * Central requests change in LE connection parameters, peripheral’s Host accepts.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_P  |                    | LT  |
+ * | UT  |                    | LL_S  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    |                           |   LL_CONNECTION_PARAM_REQ |
@@ -2092,67 +1936,10 @@ void test_conn_update_periph_rem_accept(void)
 
 /*
  * Central-initiated Connection Parameters Request procedure.
- * Central requests change in LE connection with invalid parameters,
- *
- * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_P  |                    | LT  |
- * +-----+                    +-------+                    +-----+
- *    |                           |                           |
- *    |                           |   LL_CONNECTION_PARAM_REQ |
- *    |                           |<--------------------------|
- *    |                           |                           |
- *    |                           |                           |
- *    |                           | LL_REJECT_EXT_IND         |
- *    |                           |-------------------------->|
- *    |                           |                           |
- *    |                           |                           |
- */
-void test_conn_update_periph_rem_invalid_req(void)
-{
-	struct node_tx *tx;
-	struct pdu_data_llctrl_reject_ext_ind reject_ext_ind = {
-		.reject_opcode = PDU_DATA_LLCTRL_TYPE_CONN_PARAM_REQ,
-		.error_code = BT_HCI_ERR_INVALID_LL_PARAM
-	};
-
-	/* Role */
-	test_set_role(&conn, BT_HCI_ROLE_PERIPHERAL);
-
-	/* Connect */
-	ull_cp_state_set(&conn, ULL_CP_CONNECTED);
-
-	/* Prepare */
-	event_prepare(&conn);
-
-	/* Rx */
-	lt_tx(LL_CONNECTION_PARAM_REQ, &conn, &conn_param_req_invalid);
-
-	/* Done */
-	event_done(&conn);
-
-	/* Prepare */
-	event_prepare(&conn);
-
-	/* Tx Queue should have one LL Control PDU */
-	lt_rx(LL_REJECT_EXT_IND, &conn, &tx, &reject_ext_ind);
-	lt_rx_q_is_empty(&conn);
-
-	/* Done */
-	event_done(&conn);
-
-	/* Release Tx */
-	ull_cp_release_tx(&conn, tx);
-	zassert_equal(ctx_buffers_free(), test_ctx_buffers_cnt(),
-		      "Free CTX buffers %d", ctx_buffers_free());
-
-}
-
-/*
- * Central-initiated Connection Parameters Request procedure.
  * Central requests change in LE connection parameters, peripheral’s Host rejects.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_P  |                    | LT  |
+ * | UT  |                    | LL_S  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    |                           |   LL_CONNECTION_PARAM_REQ |
@@ -2233,7 +2020,7 @@ void test_conn_update_periph_rem_reject(void)
  * support Connection Parameters Request procedure.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_P  |                    | LT  |
+ * | UT  |                    | LL_S  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    |                           |   LL_CONNECTION_PARAM_REQ |
@@ -2267,7 +2054,7 @@ void test_conn_update_periph_rem_unsupp_feat(void)
  * Peripheral-initiated Connection Parameters Request procedure is resumed.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_P  |                    | LT  |
+ * | UT  |                    | LL_S  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    |                           |   LL_CONNECTION_PARAM_REQ |
@@ -2485,7 +2272,7 @@ void test_conn_update_periph_rem_collision(void)
  * Central requests update of LE connection.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_C  |                    | LT  |
+ * | UT  |                    | LL_M  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    | LE Connection Update      |                           |
@@ -2596,7 +2383,7 @@ void test_conn_update_central_loc_accept_no_param_req(void)
  * Central receives Connection Update parameters.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_C  |                    | LT  |
+ * | UT  |                    | LL_M  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    |                           |  LL_CONNECTION_UPDATE_IND |
@@ -2653,7 +2440,7 @@ void test_conn_update_central_rem_accept_no_param_req(void)
  * Peripheral receives Connection Update parameters.
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_P  |                    | LT  |
+ * | UT  |                    | LL_S  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    |                           |  LL_CONNECTION_UPDATE_IND |
@@ -2743,7 +2530,7 @@ void test_conn_update_periph_rem_accept_no_param_req(void)
  * Peripheral-initiated Connection Update procedure (not allowed).
  *
  * +-----+                    +-------+                    +-----+
- * | UT  |                    | LL_P  |                    | LT  |
+ * | UT  |                    | LL_S  |                    | LT  |
  * +-----+                    +-------+                    +-----+
  *    |                           |                           |
  *    | LE Connection Update      |                           |
@@ -2790,8 +2577,6 @@ void test_main(void)
 		central_loc,
 		ztest_unit_test_setup_teardown(test_conn_update_central_loc_accept,
 					       setup, unit_test_noop),
-		ztest_unit_test_setup_teardown(test_conn_update_central_loc_invalid_param_rsp,
-					       setup, unit_test_noop),
 		ztest_unit_test_setup_teardown(test_conn_update_central_loc_reject,
 					       setup, unit_test_noop),
 		ztest_unit_test_setup_teardown(test_conn_update_central_loc_remote_legacy,
@@ -2805,8 +2590,6 @@ void test_main(void)
 
 	ztest_test_suite(central_rem,
 			 ztest_unit_test_setup_teardown(test_conn_update_central_rem_accept,
-							setup, unit_test_noop),
-			 ztest_unit_test_setup_teardown(test_conn_update_central_rem_invalid_req,
 							setup, unit_test_noop),
 			 ztest_unit_test_setup_teardown(test_conn_update_central_rem_reject,
 							setup, unit_test_noop),
@@ -2830,8 +2613,6 @@ void test_main(void)
 
 	ztest_test_suite(periph_rem,
 			 ztest_unit_test_setup_teardown(test_conn_update_periph_rem_accept,
-							setup, unit_test_noop),
-			 ztest_unit_test_setup_teardown(test_conn_update_periph_rem_invalid_req,
 							setup, unit_test_noop),
 			 ztest_unit_test_setup_teardown(test_conn_update_periph_rem_reject,
 							setup, unit_test_noop),

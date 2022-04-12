@@ -575,7 +575,7 @@ uint16_t bt_mesh_app_key_find(bool dev_key, uint8_t aid,
 	return BT_MESH_KEY_UNUSED;
 }
 
-static void subnet_evt(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
+static void subnet_evt_app_keys(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
 {
 	if (evt == BT_MESH_KEY_UPDATED || evt == BT_MESH_KEY_ADDED) {
 		return;
@@ -603,7 +603,7 @@ static void subnet_evt(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
 }
 
 BT_MESH_SUBNET_CB_DEFINE(app_keys) = {
-	.evt_handler = subnet_evt,
+	.evt_handler = subnet_evt_app_keys,
 };
 
 void bt_mesh_app_keys_reset(void)

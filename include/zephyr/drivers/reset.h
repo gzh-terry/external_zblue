@@ -161,9 +161,9 @@ __syscall int reset_status(const struct device *dev, uint32_t id, uint8_t *statu
 
 static inline int z_impl_reset_status(const struct device *dev, uint32_t id, uint8_t *status)
 {
-	const struct reset_driver_api *api = (const struct reset_driver_api *)dev->api;
+	const struct reset_driver_api *api = dev->api;
 
-	if (api->status == NULL) {
+	if (!api->status) {
 		return -ENOSYS;
 	}
 
@@ -204,9 +204,9 @@ __syscall int reset_assert(const struct device *dev, uint32_t id);
 
 static inline int z_impl_reset_assert(const struct device *dev, uint32_t id)
 {
-	const struct reset_driver_api *api = (const struct reset_driver_api *)dev->api;
+	const struct reset_driver_api *api = dev->api;
 
-	if (api->assert == NULL) {
+	if (!api->assert) {
 		return -ENOSYS;
 	}
 
@@ -246,9 +246,9 @@ __syscall int reset_deassert(const struct device *dev, uint32_t id);
 
 static inline int z_impl_reset_deassert(const struct device *dev, uint32_t id)
 {
-	const struct reset_driver_api *api = (const struct reset_driver_api *)dev->api;
+	const struct reset_driver_api *api = dev->api;
 
-	if (api->deassert == NULL) {
+	if (!api->deassert) {
 		return -ENOSYS;
 	}
 
@@ -287,9 +287,9 @@ __syscall int reset_toggle(const struct device *dev, uint32_t id);
 
 static inline int z_impl_reset_toggle(const struct device *dev, uint32_t id)
 {
-	const struct reset_driver_api *api = (const struct reset_driver_api *)dev->api;
+	const struct reset_driver_api *api = dev->api;
 
-	if (api->toggle == NULL) {
+	if (!api->toggle) {
 		return -ENOSYS;
 	}
 

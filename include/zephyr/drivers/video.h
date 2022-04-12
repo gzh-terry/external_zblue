@@ -423,7 +423,7 @@ static inline int video_stream_stop(const struct device *dev)
 		(const struct video_driver_api *)dev->api;
 	int ret;
 
-	if (api->stream_stop == NULL) {
+	if (api->stream_stop) {
 		return -ENOSYS;
 	}
 

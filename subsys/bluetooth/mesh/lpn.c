@@ -1067,7 +1067,7 @@ int bt_mesh_lpn_poll(void)
 	return send_friend_poll();
 }
 
-static void subnet_evt(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
+static void subnet_evt_lpn(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
 {
 	switch (evt) {
 	case BT_MESH_KEY_DELETED:
@@ -1086,7 +1086,7 @@ static void subnet_evt(struct bt_mesh_subnet *sub, enum bt_mesh_key_evt evt)
 }
 
 BT_MESH_SUBNET_CB_DEFINE(lpn) = {
-	.evt_handler = subnet_evt,
+	.evt_handler = subnet_evt_lpn,
 };
 
 int bt_mesh_lpn_init(void)

@@ -166,20 +166,23 @@ static void health_fault_status(struct bt_mesh_health_cli *cli, uint16_t addr,
 				uint8_t test_id, uint16_t cid, uint8_t *faults,
 				size_t fault_count)
 {
-	shell_print_ctx("Health Fault Status from 0x%04x", addr);
+	shell_print(ctx_shell, "Health Fault Status from 0x%04x", addr);
 	show_faults(test_id, cid, faults, fault_count);
 }
 
 static void health_attention_status(struct bt_mesh_health_cli *cli,
 				    uint16_t addr, uint8_t attention)
 {
-	shell_print_ctx("Health Attention Status from 0x%04x: %u", addr, attention);
+	shell_print(ctx_shell, "Health Attention Status from 0x%04x: %u", addr,
+		    attention);
 }
 
 static void health_period_status(struct bt_mesh_health_cli *cli, uint16_t addr,
 				 uint8_t period)
 {
-	shell_print_ctx("Health Fast Period Divisor Status from 0x%04x: %u", addr, period);
+	shell_print(ctx_shell,
+		    "Health Fast Period Divisor Status from 0x%04x: %u", addr,
+		    period);
 }
 
 struct bt_mesh_health_cli bt_mesh_shell_health_cli = {
@@ -244,6 +247,10 @@ static int cmd_input_num(const struct shell *shell, size_t argc, char *argv[])
 	int err = 0;
 	uint32_t val;
 
+	if (argc < 2) {
+		return -EINVAL;
+	}
+
 	if (input_act != BT_MESH_ENTER_NUMBER) {
 		shell_print(shell, "A number hasn't been requested!");
 		return 0;
@@ -274,6 +281,10 @@ static int cmd_input_num(const struct shell *shell, size_t argc, char *argv[])
 static int cmd_input_str(const struct shell *shell, size_t argc, char *argv[])
 {
 	int err;
+
+	if (argc < 2) {
+		return -EINVAL;
+	}
 
 	if (input_act != BT_MESH_ENTER_STRING) {
 		shell_print(shell, "A string hasn't been requested!");
@@ -394,6 +405,10 @@ static int cmd_uuid(const struct shell *shell, size_t argc, char *argv[])
 	uint8_t uuid[16];
 	size_t len;
 
+	if (argc < 2) {
+		return -EINVAL;
+	}
+
 	len = hex2bin(argv[1], strlen(argv[1]), uuid, sizeof(uuid));
 	if (len < 1) {
 		return -EINVAL;
@@ -420,6 +435,9 @@ static int cmd_reset(const struct shell *shell, size_t argc, char *argv[])
 {
 	int err = 0;
 	uint16_t addr;
+	if (argc < 2) {
+		return -EINVAL;
+	}
 
 	addr = shell_strtoul(argv[1], 0, &err);
 	if (err) {
@@ -706,6 +724,10 @@ static int cmd_net_send(const struct shell *shell, size_t argc, char *argv[])
 	size_t len;
 	int err;
 
+	if (argc < 2) {
+		return -EINVAL;
+	}
+
 	len = hex2bin(argv[1], strlen(argv[1]),
 		      msg.data, net_buf_simple_tailroom(&msg) - 4);
 	net_buf_simple_add(&msg, len);
@@ -738,6 +760,10 @@ static int cmd_iv_update_test(const struct shell *shell, size_t argc,
 {
 	int err = 0;
 	bool enable;
+
+	if (argc < 2) {
+		return -EINVAL;
+	}
 
 	enable = shell_strtobool(argv[1], 0, &err);
 	if (err) {
@@ -1134,6 +1160,10 @@ static int cmd_net_key_add(const struct shell *shell, size_t argc, char *argv[])
 	uint8_t status;
 	int err = 0;
 
+	if (argc < 2) {
+		return -EINVAL;
+	}
+
 	key_net_idx = shell_strtoul(argv[1], 0, &err);
 	if (err) {
 		shell_warn(shell, "Unable to parse input string argument");
@@ -1296,6 +1326,10 @@ static int cmd_app_key_add(const struct shell *shell, size_t argc, char *argv[])
 	uint8_t status;
 	int err = 0;
 
+	if (argc < 3) {
+		return -EINVAL;
+	}
+
 	key_net_idx = shell_strtoul(argv[1], 0, &err);
 	key_app_idx = shell_strtoul(argv[2], 0, &err);
 	if (err) {
@@ -1366,6 +1400,10 @@ static int cmd_app_key_upd(const struct shell *sh, size_t argc, char *argv[])
 	bool has_key_val = (argc > 3);
 	uint8_t status;
 	int err = 0;
+
+	if (argc < 3) {
+		return -EINVAL;
+	}
 
 	key_net_idx = shell_strtoul(argv[1], 0, &err);
 	key_app_idx = shell_strtoul(argv[2], 0, &err);
@@ -1496,6 +1534,10 @@ static int cmd_app_key_del(const struct shell *shell, size_t argc, char *argv[])
 	uint8_t status;
 	int err = 0;
 
+	if (argc < 3) {
+		return -EINVAL;
+	}
+
 	key_net_idx = shell_strtoul(argv[1], 0, &err);
 	key_app_idx = shell_strtoul(argv[2], 0, &err);
 	if (err) {
@@ -1527,6 +1569,10 @@ static int cmd_mod_app_bind(const struct shell *shell, size_t argc,
 	uint16_t elem_addr, mod_app_idx, mod_id, cid;
 	uint8_t status;
 	int err = 0;
+
+	if (argc < 4) {
+		return -EINVAL;
+	}
 
 	elem_addr = shell_strtoul(argv[1], 0, &err);
 	mod_app_idx = shell_strtoul(argv[2], 0, &err);
@@ -1574,6 +1620,10 @@ static int cmd_mod_app_unbind(const struct shell *shell, size_t argc,
 	uint16_t elem_addr, mod_app_idx, mod_id, cid;
 	uint8_t status;
 	int err = 0;
+
+	if (argc < 4) {
+		return -EINVAL;
+	}
 
 	elem_addr = shell_strtoul(argv[1], 0, &err);
 	mod_app_idx = shell_strtoul(argv[2], 0, &err);
@@ -1680,6 +1730,10 @@ static int cmd_mod_sub_add(const struct shell *shell, size_t argc, char *argv[])
 	uint8_t status;
 	int err = 0;
 
+	if (argc < 4) {
+		return -EINVAL;
+	}
+
 	elem_addr = shell_strtoul(argv[1], 0, &err);
 	sub_addr = shell_strtoul(argv[2], 0, &err);
 	mod_id = shell_strtoul(argv[3], 0, &err);
@@ -1724,6 +1778,10 @@ static int cmd_mod_sub_del(const struct shell *shell, size_t argc, char *argv[])
 	uint16_t elem_addr, sub_addr, mod_id, cid;
 	uint8_t status;
 	int err = 0;
+
+	if (argc < 4) {
+		return -EINVAL;
+	}
 
 	elem_addr = shell_strtoul(argv[1], 0, &err);
 	sub_addr = shell_strtoul(argv[2], 0, &err);
@@ -1772,6 +1830,10 @@ static int cmd_mod_sub_add_va(const struct shell *shell, size_t argc,
 	uint8_t status;
 	size_t len;
 	int err = 0;
+
+	if (argc < 4) {
+		return -EINVAL;
+	}
 
 	elem_addr = shell_strtoul(argv[1], 0, &err);
 
@@ -1826,6 +1888,10 @@ static int cmd_mod_sub_del_va(const struct shell *shell, size_t argc,
 	size_t len;
 	int err = 0;
 
+	if (argc < 4) {
+		return -EINVAL;
+	}
+
 	elem_addr = shell_strtoul(argv[1], 0, &err);
 
 	len = hex2bin(argv[2], strlen(argv[2]), label, sizeof(label));
@@ -1876,6 +1942,10 @@ static int cmd_mod_sub_ow(const struct shell *sh, size_t argc, char *argv[])
 	uint8_t status;
 	int err = 0;
 
+	if (argc < 4) {
+		return -EINVAL;
+	}
+
 	elem_addr = shell_strtoul(argv[1], 0, &err);
 	sub_addr = shell_strtoul(argv[2], 0, &err);
 	mod_id = shell_strtoul(argv[3], 0, &err);
@@ -1923,6 +1993,10 @@ static int cmd_mod_sub_ow_va(const struct shell *sh, size_t argc,
 	uint8_t status;
 	size_t len;
 	int err = 0;
+
+	if (argc < 4) {
+		return -EINVAL;
+	}
 
 	elem_addr = shell_strtoul(argv[1], 0, &err);
 
@@ -1973,6 +2047,10 @@ static int cmd_mod_sub_del_all(const struct shell *sh, size_t argc, char *argv[]
 	uint16_t elem_addr, mod_id, cid;
 	uint8_t status;
 	int err = 0;
+
+	if (argc < 3) {
+		return -EINVAL;
+	}
 
 	elem_addr = shell_strtoul(argv[1], 0, &err);
 	mod_id = shell_strtoul(argv[2], 0, &err);
@@ -2224,6 +2302,10 @@ static int cmd_mod_pub(const struct shell *shell, size_t argc, char *argv[])
 {
 	int err = 0;
 	uint16_t addr, mod_id, cid;
+
+	if (argc < 3) {
+		return -EINVAL;
+	}
 
 	addr = shell_strtoul(argv[1], 0, &err);
 	mod_id = shell_strtoul(argv[2], 0, &err);
@@ -2526,6 +2608,10 @@ static int cmd_provision(const struct shell *shell, size_t argc, char *argv[])
 	uint32_t iv_index;
 	int err = 0;
 
+	if (argc < 3) {
+		return -EINVAL;
+	}
+
 	net_idx = shell_strtoul(argv[1], 0, &err);
 	addr = shell_strtoul(argv[2], 0, &err);
 
@@ -2635,6 +2721,10 @@ static int cmd_fault_clear(const struct shell *shell, size_t argc,
 	uint16_t cid;
 	int err = 0;
 
+	if (argc < 2) {
+		return -EINVAL;
+	}
+
 	cid = shell_strtoul(argv[1], 0, &err);
 	if (err) {
 		shell_warn(shell, "Unable to parse input string argument");
@@ -2661,6 +2751,10 @@ static int cmd_fault_clear_unack(const struct shell *shell, size_t argc,
 	uint16_t cid;
 	int err = 0;
 
+	if (argc < 2) {
+		return -EINVAL;
+	}
+
 	cid = shell_strtoul(argv[1], 0, &err);
 	if (err) {
 		shell_warn(shell, "Unable to parse input string argument");
@@ -2683,6 +2777,10 @@ static int cmd_fault_test(const struct shell *shell, size_t argc, char *argv[])
 	uint8_t test_id;
 	uint16_t cid;
 	int err = 0;
+
+	if (argc < 3) {
+		return -EINVAL;
+	}
 
 	fault_count = sizeof(faults);
 	cid = shell_strtoul(argv[1], 0, &err);
@@ -2710,6 +2808,10 @@ static int cmd_fault_test_unack(const struct shell *shell, size_t argc,
 	uint16_t cid;
 	uint8_t test_id;
 	int err = 0;
+
+	if (argc < 3) {
+		return -EINVAL;
+	}
 
 	cid = shell_strtoul(argv[1], 0, &err);
 	test_id = shell_strtoul(argv[2], 0, &err);
@@ -2748,6 +2850,10 @@ static int cmd_period_set(const struct shell *shell, size_t argc, char *argv[])
 	uint8_t divisor, updated_divisor;
 	int err = 0;
 
+	if (argc < 2) {
+		return -EINVAL;
+	}
+
 	divisor = shell_strtoul(argv[1], 0, &err);
 	if (err) {
 		shell_warn(shell, "Unable to parse input string argument");
@@ -2772,6 +2878,10 @@ static int cmd_period_set_unack(const struct shell *shell, size_t argc,
 {
 	uint8_t divisor;
 	int err = 0;
+
+	if (argc < 2) {
+		return -EINVAL;
+	}
 
 	divisor = shell_strtoul(argv[1], 0, &err);
 	if (err) {
@@ -2812,6 +2922,10 @@ static int cmd_attention_set(const struct shell *shell, size_t argc,
 	uint8_t attention, updated_attention;
 	int err = 0;
 
+	if (argc < 2) {
+		return -EINVAL;
+	}
+
 	attention = shell_strtoul(argv[1], 0, &err);
 	if (err) {
 		shell_warn(shell, "Unable to parse input string argument");
@@ -2836,6 +2950,10 @@ static int cmd_attention_set_unack(const struct shell *shell, size_t argc,
 {
 	uint8_t attention;
 	int err = 0;
+
+	if (argc < 2) {
+		return -EINVAL;
+	}
 
 	attention = shell_strtoul(argv[1], 0, &err);
 	if (err) {
@@ -2874,6 +2992,10 @@ static int cmd_add_fault(const struct shell *shell, size_t argc, char *argv[])
 	elem = primary_element();
 	if (elem == NULL) {
 		shell_print(shell, "Element not found!");
+		return -EINVAL;
+	}
+
+	if (argc < 2) {
 		return -EINVAL;
 	}
 

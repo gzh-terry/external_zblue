@@ -94,9 +94,4 @@ zephyr_library_sources_ifdef(CONFIG_LWM2M_UCIFI_BATTERY
     ucifi_battery.c
     )
 
-# Shell commands
-zephyr_library_sources_ifdef(CONFIG_LWM2M_SHELL
-    lwm2m_shell.c
-)
-
 zephyr_library_link_libraries_ifdef(CONFIG_MBEDTLS mbedTLS)

@@ -341,9 +341,9 @@ struct bt_dev {
 	/* Last sent HCI command */
 	struct net_buf		*sent_cmd;
 
-#if !defined(CONFIG_BT_RECV_BLOCKING)
+#if !defined(CONFIG_BT_RECV_IS_RX_THREAD)
 	/* Queue for incoming HCI events & ACL data */
-	sys_slist_t rx_queue;
+	struct k_fifo		rx_queue;
 #endif
 
 	/* Queue for outgoing HCI commands */
