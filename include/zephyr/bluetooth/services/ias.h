@@ -58,7 +58,7 @@ int bt_ias_local_alert_stop(void);
  *  @param _name Name of callback structure.
  */
 #define BT_IAS_CB_DEFINE(_name)                                                                    \
-	static const STRUCT_SECTION_ITERABLE(bt_ias_cb, _CONCAT(bt_ias_cb_, _name))
+	const STRUCT_SECTION_ITERABLE(bt_ias_cb, _CONCAT(bt_ias_cb_, _name))
 
 #ifdef __cplusplus
 }

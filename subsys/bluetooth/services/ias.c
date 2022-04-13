@@ -131,7 +131,7 @@ static ssize_t bt_ias_write_alert_lvl(struct bt_conn *conn, const struct bt_gatt
 	return len;
 }
 
-BT_CONN_CB_DEFINE(conn_callbacks) = {
+BT_CONN_CB_DEFINE(ias) = {
 	.disconnected = disconnected,
 };
 

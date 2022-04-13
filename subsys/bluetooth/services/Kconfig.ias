@@ -26,8 +26,4 @@ config BT_IAS_SEC_AUTH
 
 endchoice #BT_IAS_SEC_CHOICE
 
-module = BT_IAS
-module-str = IAS
-source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
-
 endif # BT_IAS
