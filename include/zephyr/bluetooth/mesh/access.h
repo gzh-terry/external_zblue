@@ -239,7 +239,7 @@ struct bt_mesh_model_op {
  */
 #define BT_MESH_MODEL_CB(_id, _op, _pub, _user_data, _cb)                    \
 {                                                                            \
-	.id = (_id),                                                         \
+	{ .id = (_id), },                                                    \
 	.pub = _pub,                                                         \
 	.keys = BT_MESH_MODEL_KEYS_UNUSED,                                   \
 	.groups = BT_MESH_MODEL_GROUPS_UNASSIGNED,                           \
@@ -261,8 +261,12 @@ struct bt_mesh_model_op {
  */
 #define BT_MESH_MODEL_VND_CB(_company, _id, _op, _pub, _user_data, _cb)      \
 {                                                                            \
-	.vnd.company = (_company),                                           \
-	.vnd.id = (_id),                                                     \
+	{								     \
+		.vnd = {						     \
+			.company = (_company),				     \
+			.id = (_id),					     \
+		 }							     \
+	},								     \
 	.op = _op,                                                           \
 	.pub = _pub,                                                         \
 	.keys = BT_MESH_MODEL_KEYS_UNUSED,                                   \

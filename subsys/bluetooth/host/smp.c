@@ -3819,8 +3819,9 @@ static uint8_t smp_pairing_random(struct bt_smp *smp, struct net_buf *buf)
 		if (bt_auth && bt_auth->oob_data_request) {
 			struct bt_conn_oob_info info = {
 				.type = BT_CONN_OOB_LE_SC,
-				.lesc.oob_config = BT_CONN_OOB_NO_DATA,
 			};
+
+			info.lesc.oob_config = BT_CONN_OOB_NO_DATA;
 
 			le_sc_oob_config_set(smp, &info);
 
@@ -4310,8 +4311,9 @@ static uint8_t smp_public_key(struct bt_smp *smp, struct net_buf *buf)
 			if (bt_auth && bt_auth->oob_data_request) {
 				struct bt_conn_oob_info info = {
 					.type = BT_CONN_OOB_LE_SC,
-					.lesc.oob_config = BT_CONN_OOB_NO_DATA,
 				};
+
+				info.lesc.oob_config = BT_CONN_OOB_NO_DATA;
 
 				le_sc_oob_config_set(smp, &info);
 

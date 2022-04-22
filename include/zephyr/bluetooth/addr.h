@@ -42,7 +42,7 @@ extern "C" {
 /** Bluetooth Device Address */
 typedef struct {
 	uint8_t  val[BT_ADDR_SIZE];
-} bt_addr_t;
+} __packed bt_addr_t;
 /**/
 
 /** Length in bytes of an LE Bluetooth address. Not packed, so no sizeof() */
@@ -52,7 +52,7 @@ typedef struct {
 typedef struct {
 	uint8_t      type;
 	bt_addr_t a;
-} bt_addr_le_t;
+} __packed bt_addr_le_t;
 
 /** Bluetooth device "any" address, not a valid address */
 #define BT_ADDR_ANY     ((bt_addr_t[]) { { { 0, 0, 0, 0, 0, 0 } } })
