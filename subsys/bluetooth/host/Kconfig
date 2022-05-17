@@ -144,7 +144,7 @@ source "$APPSDIR/external/zblue/subsys/bluetooth/host/../audio/Kconfig"
 config BT_HOST_CRYPTO
 	# Hidden option that compiles in AES encryption support using TinyCrypt
 	# library if this is not provided by the controller implementation.
-	bool
+	bool "Use Tinycrypt library"
 	default y if !BT_CTLR_CRYPTO
 	select TINYCRYPT
 	select TINYCRYPT_AES

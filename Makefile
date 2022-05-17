@@ -81,6 +81,8 @@ ifeq ($(CONFIG_BT_HCI),y)
 
     ifeq ($(CONFIG_BT_HOST_CRYPTO),y)
       CSRCS += $(SUBDIR)/host/crypto.c
+    else
+      CSRCS += port/subsys/bluetooth/crypto.c
     endif
 
     ifeq ($(CONFIG_BT_ECC),y)
