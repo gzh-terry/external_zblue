@@ -602,8 +602,8 @@ ifneq ($(CONFIG_BT_SAMPLE),)
     ifeq ($(CONFIG_BT_MESH_PROV),)
       MAINSRC += samples/bluetooth/mesh_demo/src/main.c
     else
-      CSRCS += samples/bluetooth/mesh/src/board.c
-      MAINSRC += samples/bluetooth/mesh/src/main.c
+      CSRCS += samples/bluetooth/mesh_test/src/board.c
+      MAINSRC += samples/bluetooth/mesh_test/src/main.c
     endif
     ifneq ($(CONFIG_BT_MESH_PROVISIONER),)
       PROGNAME += mesh_provisioner

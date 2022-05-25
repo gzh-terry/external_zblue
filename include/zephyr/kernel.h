@@ -2697,7 +2697,7 @@ struct k_mutex {
  */
 #define Z_MUTEX_INITIALIZER(obj) \
 	{ \
-	.mutex = PTHREAD_MUTEX_INITIALIZER, \
+	.mutex = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP, \
 	.wait_q = Z_WAIT_Q_INIT(&obj.wait_q), \
 	.owner = NULL, \
 	.lock_count = 0, \
