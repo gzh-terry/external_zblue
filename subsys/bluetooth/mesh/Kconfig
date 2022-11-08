@@ -604,6 +604,19 @@ config BT_MESH_RELAY_BUF_COUNT
 	  BT_MESH_RELAY_ADV_SETS allows the increase in the number of buffers
 	  while maintaining the latency.
 
+config BT_MESH_RELAY_PRIORITY
+	bool "Support for prioritized relay messages"
+	help
+	  The prioritized relay messages will be send before other lower priority
+	  relay message to ensure that higher priority messages can be sent in time.
+	  When considering the message latency, also consider the values of
+	  BT_MESH_RELAY_RETRANSMIT_COUNT and BT_MESH_RELAY_RETRANSMIT_INTERVAL.
+	  A higher number of BT_MESH_RELAY_ADV_SETS allows the increase in the number
+	  of buffers while maintaining the latency.
+
+	  Note: To enable this option, the application layer needs to register a callback
+	  function to determine the priority of each relay message. If it is not registered,
+	  the default priority is the same as the lowest(zero).
 endif
 
 config BT_MESH_BEACON_ENABLED

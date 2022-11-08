@@ -41,15 +41,17 @@ struct bt_mesh_adv {
 		  tag:3;
 
 	uint8_t      xmit;
+	uint8_t      prio;
 };
 
 /* Lookup table for Advertising data types for bt_mesh_adv_type: */
 extern const uint8_t bt_mesh_adv_type[BT_MESH_ADV_TYPES];
 
 /* xmit_count: Number of retransmissions, i.e. 0 == 1 transmission */
-struct net_buf *bt_mesh_adv_create(enum bt_mesh_adv_type type,
-				   enum bt_mesh_adv_tag tag,
-				   uint8_t xmit, k_timeout_t timeout);
+struct net_buf *bt_mesh_adv_main_create(enum bt_mesh_adv_type type,
+					uint8_t xmit, k_timeout_t timeout);
+
+struct net_buf *bt_mesh_adv_relay_create(uint8_t prio, uint8_t xmit);
 
 void bt_mesh_adv_send(struct net_buf *buf, const struct bt_mesh_send_cb *cb,
 		      void *cb_data);

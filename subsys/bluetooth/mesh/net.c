@@ -671,12 +671,20 @@ static bool relay_to_adv(enum bt_mesh_net_if net_if)
 	}
 }
 
+static bt_mesh_relay_prio_req_cb_t req_cb;
+
+void bt_mesh_relay_priority_cb_reg(bt_mesh_relay_prio_req_cb_t cb)
+{
+	req_cb = cb;
+}
+
 static void bt_mesh_net_relay(struct net_buf_simple *sbuf,
 			      struct bt_mesh_net_rx *rx)
 {
 	const struct bt_mesh_net_cred *cred;
 	struct net_buf *buf;
 	uint8_t transmit;
+	uint8_t prio = 0;
 
 	if (rx->ctx.recv_ttl <= 1U) {
 		return;
@@ -702,8 +710,11 @@ static void bt_mesh_net_relay(struct net_buf_simple *sbuf,
 		transmit = bt_mesh_net_transmit_get();
 	}
 
-	buf = bt_mesh_adv_create(BT_MESH_ADV_DATA, BT_MESH_RELAY_ADV,
-				 transmit, K_NO_WAIT);
+	if (IS_ENABLED(CONFIG_BT_MESH_RELAY_PRIORITY) && req_cb) {
+		prio = req_cb(rx->local_match, &rx->ctx, &transmit);
+	}
+
+	buf = bt_mesh_adv_relay_create(prio, transmit);
 	if (!buf) {
 		BT_DBG("Out of relay buffers");
 		return;
