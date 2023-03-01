@@ -297,12 +297,16 @@ static bool schedule_send(struct bt_mesh_ext_adv *adv)
 
 	atomic_clear_bit(adv->flags, ADV_FLAG_SCHEDULE_PENDING);
 
-	/* The controller will send the next advertisement immediately.
-	 * Introduce a delay here to avoid sending the next mesh packet closer
-	 * to the previous packet than what's permitted by the specification.
-	 */
-	delta = k_uptime_delta(&timestamp);
-	k_work_reschedule(&adv->work, K_MSEC(ADV_INT_FAST_MS - delta));
+	if (CONFIG_BT_MESH_RELAY_ADV_SETS > 0 && adv->tag == BT_MESH_RELAY_ADV) {
+		k_work_reschedule(&adv->work, K_NO_WAIT);
+	} else {
+		/* The controller will send the next advertisement immediately.
+		 * Introduce a delay here to avoid sending the next mesh packet closer
+		 * to the previous packet than what's permitted by the specification.
+		 */
+		delta = k_uptime_delta(&timestamp);
+		k_work_reschedule(&adv->work, K_MSEC(ADV_INT_FAST_MS - delta));
+	}
 
 	return true;
 }
