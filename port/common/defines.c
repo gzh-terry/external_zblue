@@ -644,7 +644,7 @@ const struct bt_conn_cb * const _bt_conn_cb_list[] =
 };
 /* bt_conn_cb END */
 
-extern const struct bt_conn_cb bt_ias_cb_ias_callbacks;
+extern const struct bt_ias_cb bt_ias_cb_ias_callbacks;
 const struct bt_ias_cb * const _bt_ias_cb__list[] =
 {
 #if defined(CONFIG_BT_SAMPLE)
