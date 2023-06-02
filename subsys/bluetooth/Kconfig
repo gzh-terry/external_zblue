@@ -97,7 +97,7 @@ config BT_OBSERVER
 	help
 	  Select this for LE Observer role support.
 
-source "$APPSDIR/external/zblue/subsys/bluetooth/Kconfig.adv"
+source "$APPSDIR/external/zblue/zblue/subsys/bluetooth/Kconfig.adv"
 
 config BT_CONN
 	bool
@@ -154,11 +154,11 @@ config BT_DATA_LEN_UPDATE
 	  Enable support for Bluetooth v4.2 LE Data Length Update procedure.
 endif # BT_CONN
 
-source "$APPSDIR/external/zblue/subsys/bluetooth/Kconfig.iso"
-source "$APPSDIR/external/zblue/subsys/bluetooth/common/Kconfig"
-source "$APPSDIR/external/zblue/subsys/bluetooth/host/Kconfig"
-source "$APPSDIR/external/zblue/subsys/bluetooth/controller/Kconfig"
-source "$APPSDIR/external/zblue/subsys/bluetooth/shell/Kconfig"
+source "$APPSDIR/external/zblue/zblue/subsys/bluetooth/Kconfig.iso"
+source "$APPSDIR/external/zblue/zblue/subsys/bluetooth/common/Kconfig"
+source "$APPSDIR/external/zblue/zblue/subsys/bluetooth/host/Kconfig"
+source "$APPSDIR/external/zblue/zblue/subsys/bluetooth/controller/Kconfig"
+source "$APPSDIR/external/zblue/zblue/subsys/bluetooth/shell/Kconfig"
 
 endif # BT_HCI
 

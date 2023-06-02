@@ -138,8 +138,8 @@ menu "Bluetooth Host"
 
 if BT_HCI_HOST
 
-source "$APPSDIR/external/zblue/subsys/bluetooth/host/../mesh/Kconfig"
-source "$APPSDIR/external/zblue/subsys/bluetooth/host/../audio/Kconfig"
+source "$APPSDIR/external/zblue/zblue/subsys/bluetooth/host/../mesh/Kconfig"
+source "$APPSDIR/external/zblue/zblue/subsys/bluetooth/host/../audio/Kconfig"
 
 config BT_HOST_CRYPTO
 	# Hidden option that compiles in AES encryption support using TinyCrypt
@@ -496,9 +496,9 @@ config BT_SMP_MIN_ENC_KEY_SIZE
 
 endif # BT_SMP
 
-source "$APPSDIR/external/zblue/subsys/bluetooth/host/Kconfig.l2cap"
-source "$APPSDIR/external/zblue/subsys/bluetooth/host/Kconfig.gatt"
-source "$APPSDIR/external/zblue/subsys/bluetooth/host/../services/Kconfig"
+source "$APPSDIR/external/zblue/zblue/subsys/bluetooth/host/Kconfig.l2cap"
+source "$APPSDIR/external/zblue/zblue/subsys/bluetooth/host/Kconfig.gatt"
+source "$APPSDIR/external/zblue/zblue/subsys/bluetooth/host/../services/Kconfig"
 
 config BT_MAX_PAIRED
 	int "Maximum number of paired devices"
