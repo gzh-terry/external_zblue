@@ -532,7 +532,7 @@ int settings_backend_init(void)
 	 */
 	rc = fs_stat(CONFIG_SETTINGS_FS_DIR, &entry);
 	/* If directory doesn't exist, create it */
-	if (rc == -ENOENT) {
+	if (rc == -EPERM) {
 		rc = fs_mkdir(CONFIG_SETTINGS_FS_DIR);
 	}
 	return rc;
