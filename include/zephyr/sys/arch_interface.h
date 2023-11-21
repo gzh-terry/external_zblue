@@ -429,14 +429,14 @@ void arch_irq_offload(irq_offload_routine_t routine, const void *parameter);
  */
 #ifdef CONFIG_SMP
 /** Return the CPU struct for the currently executing CPU */
-static inline struct _cpu *arch_curr_cpu(void);
+//static inline struct _cpu *arch_curr_cpu(void);
 
 /**
  * Broadcast an interrupt to all CPUs
  *
  * This will invoke z_sched_ipi() on other CPUs in the system.
  */
-void arch_sched_ipi(void);
+//void arch_sched_ipi(void);
 #endif /* CONFIG_SMP */
 
 /** @} */
