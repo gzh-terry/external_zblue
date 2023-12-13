@@ -28,10 +28,6 @@
 #include "proxy.h"
 #include "pb_gatt_srv.h"
 
-/* Window and Interval are equal for continuous scanning */
-#define MESH_SCAN_INTERVAL    BT_MESH_ADV_SCAN_UNIT(BT_MESH_SCAN_INTERVAL_MS)
-#define MESH_SCAN_WINDOW      BT_MESH_ADV_SCAN_UNIT(BT_MESH_SCAN_WINDOW_MS)
-
 const uint8_t bt_mesh_adv_type[BT_MESH_ADV_TYPES] = {
 	[BT_MESH_ADV_PROV]   = BT_DATA_MESH_PROV,
 	[BT_MESH_ADV_DATA]   = BT_DATA_MESH_MESSAGE,
