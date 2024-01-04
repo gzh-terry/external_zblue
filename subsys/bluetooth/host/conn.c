@@ -2610,9 +2610,9 @@ int bt_conn_le_create(const bt_addr_le_t *peer,
 		return -EINVAL;
 	}
 
-	if (atomic_test_bit(bt_dev.flags, BT_DEV_EXPLICIT_SCAN)) {
-		return -EAGAIN;
-	}
+	//if (atomic_test_bit(bt_dev.flags, BT_DEV_EXPLICIT_SCAN)) {
+	//	return -EAGAIN;
+	//}
 
 	if (atomic_test_bit(bt_dev.flags, BT_DEV_INITIATING)) {
 		return -EALREADY;
