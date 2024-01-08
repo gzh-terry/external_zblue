@@ -255,6 +255,12 @@ bool bt_mesh_iv_update(void)
 }
 #endif /* CONFIG_BT_MESH_IV_UPDATE_TEST */
 
+int __attribute__((weak)) iv_report_now(void);
+int __attribute__((weak)) iv_report_now(void){
+	return 0;
+}
+
+
 bool bt_mesh_net_iv_update(uint32_t iv_index, bool iv_update)
 {
 	/* Check if IV index should to be recovered. */
@@ -363,7 +369,9 @@ do_update:
 	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
 		store_iv(false);
 	}
-
+	
+	iv_report_now();
+	
 	return true;
 }
 
