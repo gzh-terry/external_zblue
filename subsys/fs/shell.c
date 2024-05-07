@@ -54,8 +54,9 @@ static char cwd[MAX_PATH_LEN] = "/";
 static void create_abs_path(const char *name, char *path, size_t len)
 {
 	if (name[0] == '/') {
-		strncpy(path, name, len);
-		path[len - 1] = '\0';
+		size_t copy_len = len - 1;
+		strncpy(path, name, copy_len);
+		path[copy_len] = '\0';
 	} else {
 		if (cwd[1] == '\0') {
 			__ASSERT_NO_MSG(len >= 2);
