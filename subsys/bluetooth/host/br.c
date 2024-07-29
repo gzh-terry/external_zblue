@@ -706,6 +706,34 @@ void bt_hci_role_change(struct net_buf *buf)
 	bt_conn_unref(conn);
 }
 
+void bt_hci_link_mode_change(struct net_buf *buf)
+{
+	struct bt_hci_evt_mode_change *evt = (void *)buf->data;
+	uint16_t handle = sys_le16_to_cpu(evt->handle);
+	uint16_t interval = sys_le16_to_cpu(evt->interval);
+	struct bt_conn *conn;
+
+	conn = bt_conn_lookup_handle(handle);
+	if (!conn) {
+		BT_ERR("Can't find conn for handle 0x%x", handle);
+		return;
+	}
+
+	if (evt->status || (conn->type != BT_CONN_TYPE_BR)) {
+		BT_ERR("Error %d, type %d", evt->status, conn->type);
+	} else {
+		BT_INFO("hdl 0x%x mode %d intervel %d", handle, evt->mode, interval);
+		if (evt->mode == BT_ACTIVE_MODE || evt->mode == BT_SNIFF_MODE) {
+			conn->br.mode = evt->mode;
+			conn->br.mode_entering = 0;
+			conn->br.mode_exiting = 0;
+			bt_conn_notify_mode_changed(conn, evt->mode, interval);
+		}
+	}
+
+	bt_conn_unref(conn);
+}
+
 static int read_ext_features(void)
 {
 	int i;

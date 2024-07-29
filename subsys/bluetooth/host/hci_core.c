@@ -2326,6 +2326,8 @@ static const struct event_handler normal_events[] = {
 		      sizeof(struct bt_hci_evt_role_change)),
 	EVENT_HANDLER(BT_HCI_EVT_SYNC_CONN_COMPLETE, bt_hci_synchronous_conn_complete,
 		      sizeof(struct bt_hci_evt_sync_conn_complete)),
+	EVENT_HANDLER(BT_HCI_EVT_MODE_CHANGE, bt_hci_link_mode_change,
+		      sizeof(struct bt_hci_evt_mode_change)),
 #endif /* CONFIG_BT_BREDR */
 #if defined(CONFIG_BT_CONN)
 	EVENT_HANDLER(BT_HCI_EVT_DISCONN_COMPLETE, hci_disconn_complete,

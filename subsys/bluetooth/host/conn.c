@@ -41,6 +41,8 @@
 #include "iso_internal.h"
 #include "direction_internal.h"
 
+#define SNIFF_ENTER_EXIT_TIMEOUT 2000 /* Enter sniff or exit sniff timeout */
+
 struct tx_meta {
 	struct bt_conn_tx *tx;
 };
@@ -1295,6 +1297,13 @@ static void notify_connected(struct bt_conn *conn)
 		}
 	}
 
+#if defined(CONFIG_BT_BREDR)
+	if (conn->type == BT_CONN_TYPE_BR) {
+		conn->br.mode = 0;
+		conn->br.mode_entering = 0;
+		conn->br.mode_exiting = 0;
+	}
+#endif
 	STRUCT_SECTION_FOREACH(bt_conn_cb, cb) {
 		if (cb->connected) {
 			cb->connected(conn, conn->err);
@@ -3023,4 +3032,98 @@ void bt_hci_le_df_cte_req_failed(struct net_buf *buf)
 }
 #endif /* CONFIG_BT_DF_CONNECTION_CTE_REQ */
 
+#if defined(CONFIG_BT_BREDR)
+static int bt_conn_enter_sniff(struct bt_conn *conn, uint16_t min_interval,
+				uint16_t max_interval, uint16_t attempt, uint16_t timeout)
+{
+	struct bt_hci_cp_sniff_mode *cp;
+	struct net_buf *buf;
+
+	buf = bt_hci_cmd_create(BT_HCI_OP_SNIFF_MODE, sizeof(*cp));
+	if (!buf) {
+		return -ENOMEM;
+	}
+
+	cp = net_buf_add(buf, sizeof(*cp));
+	cp->handle = sys_cpu_to_le16(conn->handle);
+	cp->max_interval = sys_cpu_to_le16(max_interval);
+	cp->min_interval = sys_cpu_to_le16(min_interval);
+	cp->attempt = sys_cpu_to_le16(attempt);
+	cp->timeout = sys_cpu_to_le16(timeout);
+
+	return bt_hci_cmd_send(BT_HCI_OP_SNIFF_MODE, buf);
+}
+
+int bt_conn_check_enter_sniff(struct bt_conn *conn, uint16_t min_interval,
+				uint16_t max_interval, uint16_t attempt, uint16_t timeout)
+{
+	if (conn->type != BT_CONN_TYPE_BR  ||
+		conn->state != BT_CONN_CONNECTED) {
+		return -EIO;
+	}
+
+	if (conn->br.mode == BT_SNIFF_MODE) {
+		return 0;
+	}
+
+	if (conn->br.mode_entering &&
+		((k_uptime_get_32() - conn->br.mode_enter_time) < SNIFF_ENTER_EXIT_TIMEOUT)) {
+		return 0;
+	}
+
+	conn->br.mode_entering = 1;
+	conn->br.mode_enter_time = k_uptime_get_32();
+
+	return bt_conn_enter_sniff(conn, min_interval, max_interval, attempt, timeout);
+}
+
+static int bt_conn_exit_sniff(struct bt_conn *conn)
+{
+	struct bt_hci_cp_exit_sniff_mode *cp;
+	struct net_buf *buf;
+
+	buf = bt_hci_cmd_create(BT_HCI_OP_EXIT_SNIFF_MODE, sizeof(*cp));
+	if (!buf) {
+		return -ENOMEM;
+	}
+
+	cp = net_buf_add(buf, sizeof(*cp));
+	cp->handle = sys_cpu_to_le16(conn->handle);
+
+	return bt_hci_cmd_send(BT_HCI_OP_EXIT_SNIFF_MODE, buf);
+}
+
+int bt_conn_check_exit_sniff(struct bt_conn *conn)
+{
+	if (conn->type != BT_CONN_TYPE_BR  ||
+		conn->state != BT_CONN_CONNECTED) {
+		return -EIO;
+	}
+
+	if ((conn->br.mode == BT_ACTIVE_MODE) && (conn->br.mode_entering == 0)) {
+		return 0;
+	}
+
+	if (conn->br.mode_exiting &&
+		((k_uptime_get_32() - conn->br.mode_exit_time) < SNIFF_ENTER_EXIT_TIMEOUT)) {
+		return 0;
+	}
+
+	conn->br.mode_exiting = 1;
+	conn->br.mode_exit_time = k_uptime_get_32();
+
+	return bt_conn_exit_sniff(conn);
+}
+
+void bt_conn_notify_mode_changed(struct bt_conn *conn, uint8_t mode, uint16_t interval)
+{
+	struct bt_conn_cb *cb;
+
+	for (cb = callback_list; cb; cb = cb->_next) {
+		if (cb->link_mode_changed) {
+			cb->link_mode_changed(conn, mode, interval);
+		}
+	}
+}
+#endif /* CONFIG_BT_BREDR */
 #endif /* CONFIG_BT_CONN */

@@ -94,6 +94,13 @@ struct bt_conn_br {
 	uint8_t			features[LMP_MAX_PAGES][8];
 
 	struct bt_keys_link_key	*link_key;
+
+	/* For sniff mode */
+	uint8_t mode : 4;
+	uint8_t mode_entering : 1;
+	uint8_t mode_exiting : 1;
+	uint32_t mode_enter_time;
+	uint32_t mode_exit_time;
 };
 
 struct bt_conn_sco {
@@ -424,3 +431,7 @@ struct k_sem *bt_conn_get_pkts(struct bt_conn *conn);
 /* k_poll related helpers for the TX thread */
 int bt_conn_prepare_events(struct k_poll_event events[]);
 void bt_conn_process_tx(struct bt_conn *conn);
+
+#if defined(CONFIG_BT_BREDR)
+void bt_conn_notify_mode_changed(struct bt_conn *conn, uint8_t mode, uint16_t interval);
+#endif /* CONFIG_BT_BREDR */
