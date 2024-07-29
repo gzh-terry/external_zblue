@@ -659,3 +659,12 @@ const struct bt_ias_cb * const _bt_ias_cb__list[] =
 	NULL,
 };
 /* bt_conn_cb END */
+
+#if defined(CONFIG_BT_BREDR)
+extern const struct bt_l2cap_br_fixed_chan br_fixed_chan;
+const struct bt_l2cap_br_fixed_chan * const _bt_l2cap_br_fixed_chan_list[] =
+{
+	&br_fixed_chan,
+	NULL,
+};
+#endif /* CONFIG_BT_BREDR */
