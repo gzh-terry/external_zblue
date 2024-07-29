@@ -25,7 +25,7 @@ struct bt_br_discovery_result *discovery_results;
 static size_t discovery_results_size;
 static size_t discovery_results_count;
 
-static int reject_conn(const bt_addr_t *bdaddr, uint8_t reason)
+int bt_reject_conn(const bt_addr_t *bdaddr, uint8_t reason)
 {
 	struct bt_hci_cp_reject_conn_req *cp;
 	struct net_buf *buf;
@@ -48,7 +48,7 @@ static int reject_conn(const bt_addr_t *bdaddr, uint8_t reason)
 	return 0;
 }
 
-static int accept_sco_conn(const bt_addr_t *bdaddr, struct bt_conn *sco_conn)
+int bt_accept_sco_conn(const bt_addr_t *bdaddr, struct bt_conn *sco_conn)
 {
 	struct bt_hci_cp_accept_sync_conn_req *cp;
 	struct net_buf *buf;
@@ -76,7 +76,7 @@ static int accept_sco_conn(const bt_addr_t *bdaddr, struct bt_conn *sco_conn)
 	return 0;
 }
 
-static int accept_conn(const bt_addr_t *bdaddr)
+int bt_accept_conn(const bt_addr_t *bdaddr)
 {
 	struct bt_hci_cp_accept_conn_req *cp;
 	struct net_buf *buf;
@@ -105,14 +105,19 @@ static void bt_esco_conn_req(struct bt_hci_evt_conn_request *evt)
 
 	sco_conn = bt_conn_add_sco(&evt->bdaddr, evt->link_type);
 	if (!sco_conn) {
-		reject_conn(&evt->bdaddr, BT_HCI_ERR_INSUFFICIENT_RESOURCES);
+		bt_reject_conn(&evt->bdaddr, BT_HCI_ERR_INSUFFICIENT_RESOURCES);
 		return;
 	}
 
-	if (accept_sco_conn(&evt->bdaddr, sco_conn)) {
+	if (!bt_conn_is_auto()) {
+		bt_conn_notify_connect_req(sco_conn, evt->link_type, evt->dev_class);
+		return;
+	}
+
+	if (bt_accept_sco_conn(&evt->bdaddr, sco_conn)) {
 		BT_ERR("Error accepting connection from %s",
 		       bt_addr_str(&evt->bdaddr));
-		reject_conn(&evt->bdaddr, BT_HCI_ERR_UNSPECIFIED);
+		bt_reject_conn(&evt->bdaddr, BT_HCI_ERR_UNSPECIFIED);
 		bt_sco_cleanup(sco_conn);
 		return;
 	}
@@ -137,11 +142,23 @@ void bt_hci_conn_req(struct net_buf *buf)
 
 	conn = bt_conn_add_br(&evt->bdaddr);
 	if (!conn) {
-		reject_conn(&evt->bdaddr, BT_HCI_ERR_INSUFFICIENT_RESOURCES);
+		bt_reject_conn(&evt->bdaddr, BT_HCI_ERR_INSUFFICIENT_RESOURCES);
 		return;
 	}
 
-	accept_conn(&evt->bdaddr);
+	if (!bt_conn_is_auto()) {
+		bt_conn_notify_connect_req(conn, evt->link_type, evt->dev_class);
+		return;
+	}
+
+	if (bt_accept_conn(&evt->bdaddr)) {
+		BT_ERR("Error accepting connection from %s",
+		       bt_addr_str(&evt->bdaddr));
+		bt_reject_conn(&evt->bdaddr, BT_HCI_ERR_UNSPECIFIED);
+		bt_conn_unref(conn);
+		return;
+	}
+
 	conn->role = BT_HCI_ROLE_PERIPHERAL;
 	bt_conn_set_state(conn, BT_CONN_CONNECTING);
 	bt_conn_unref(conn);

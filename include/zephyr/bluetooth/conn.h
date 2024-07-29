@@ -238,6 +238,32 @@ void bt_conn_foreach(int type, void (*func)(struct bt_conn *conn, void *data),
  */
 struct bt_conn *bt_conn_lookup_addr_le(uint8_t id, const bt_addr_le_t *peer);
 
+/** @brief Look up an existing acl connection by address.
+ *
+ *  Look up an existing connection based on the remote address.
+ *
+ *  The caller gets a new reference to the connection object which must be
+ *  released with bt_conn_unref() once done using the object.
+ *
+ *  @param peer Remote address.
+ *
+ *  @return Connection object or NULL if not found.
+ */
+struct bt_conn *bt_conn_lookup_addr_br(const bt_addr_t *peer);
+
+/** @brief Look up an existing sco connection by address.
+ *
+ *  Look up an existing connection based on the remote address.
+ *
+ *  The caller gets a new reference to the connection object which must be
+ *  released with bt_conn_unref() once done using the object.
+ *
+ *  @param peer Remote address.
+ *
+ *  @return Connection object or NULL if not found.
+ */
+struct bt_conn *bt_conn_lookup_addr_sco(const bt_addr_t *peer);
+
 /** @brief Get destination (peer) address of a connection.
  *
  *  @param conn Connection object.
@@ -245,6 +271,14 @@ struct bt_conn *bt_conn_lookup_addr_le(uint8_t id, const bt_addr_le_t *peer);
  *  @return Destination address.
  */
 const bt_addr_le_t *bt_conn_get_dst(const struct bt_conn *conn);
+
+/** @brief Get destination (peer) address of a br or sco connection.
+ *
+ *  @param conn Connection object.
+ *
+ *  @return Destination address.
+ */
+const bt_addr_t *bt_conn_get_br_dst(const struct bt_conn *conn);
 
 /** @brief Get array index of a connection
  *
@@ -786,6 +820,22 @@ enum bt_security_err {
  *  used for that instance.
  */
 struct bt_conn_cb {
+	/** @brief Query to proceed BR/EDR incoming connection or not.
+	 *
+	 *  On any incoming connection req this callback will be called for
+	 *  the application to decide whether to allow for the connection to
+	 *  continue.
+	 *
+	 *  As this callback is asynchronous, the application should call
+	 *  bt_conn_accept_acl_conn/bt_conn_reject_acl_conn to response value.
+	 *
+	 *  @param conn New connection object.
+	 *  @param link_type Link type.
+	 *  @param cod Device class
+	 *
+	 */
+	void (*connect_req)(struct bt_conn *conn, uint8_t link_type, uint8_t *cod);
+
 	/** @brief A new connection has been established.
 	 *
 	 *  This callback notifies the application of a new connection.
@@ -1549,6 +1599,46 @@ int bt_conn_role_discovery(struct bt_conn *conn, uint8_t *role);
  *  @return  Zero for success, non-zero otherwise.
  */
 int bt_conn_switch_role(struct bt_conn *conn, uint8_t role);
+
+/** @brief Automatically accept or reject connect to remote device.
+ *
+ *  @param enable  Enable auto connection process.
+ *
+ */
+void bt_conn_set_auto(bool enable);
+
+/** @brief Accept the acl connection.
+ *
+ *  @param conn  The connection of peer device to accept.
+ *
+ *  @return Zero for success, non-zero otherwise.
+ */
+int bt_conn_accept_acl_conn(struct bt_conn *conn);
+
+/** @brief Reject the acl connection.
+ *
+ *  @param conn  The connection of peer device to reject.
+ *
+ *  @return Zero for success, non-zero otherwise.
+ */
+int bt_conn_reject_acl_conn(struct bt_conn *conn, uint8_t reason);
+
+/** @brief Accept the sco connection.
+ *
+ *  @param conn  The sco connection of peer device to accept.
+ *
+ *  @return Zero for success, non-zero otherwise.
+ */
+int bt_conn_accept_sco_conn(struct bt_conn *conn);
+
+/** @brief Reject the sco connection.
+ *
+ *  @param conn  The sco connection of peer device to reject.
+ *
+ *  @return Zero for success, non-zero otherwise.
+ */
+int bt_conn_reject_sco_conn(struct bt_conn *conn, uint8_t reason);
+
 #ifdef __cplusplus
 }
 #endif

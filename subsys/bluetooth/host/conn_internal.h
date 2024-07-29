@@ -435,4 +435,13 @@ void bt_conn_process_tx(struct bt_conn *conn);
 #if defined(CONFIG_BT_BREDR)
 void bt_conn_notify_mode_changed(struct bt_conn *conn, uint8_t mode, uint16_t interval);
 void bt_conn_notify_role_changed(struct bt_conn *conn, uint8_t role);
+
+/* Notify connect request */
+void bt_conn_notify_connect_req(struct bt_conn *conn, uint8_t link_type, uint8_t *cod);
+/* Process connection request */
+int bt_reject_conn(const bt_addr_t *bdaddr, uint8_t reason);
+int bt_accept_sco_conn(const bt_addr_t *bdaddr, struct bt_conn *sco_conn);
+int bt_accept_conn(const bt_addr_t *bdaddr);
+/* Auto process connection request in stack */
+bool bt_conn_is_auto(void);
 #endif /* CONFIG_BT_BREDR */

@@ -92,6 +92,8 @@ static struct bt_conn_tx conn_tx[CONFIG_BT_CONN_TX_MAX];
 static int bt_hci_connect_br_cancel(struct bt_conn *conn);
 
 static struct bt_conn sco_conns[CONFIG_BT_MAX_SCO_CONN];
+static bool conn_auto_process = true;
+
 #endif /* CONFIG_BT_BREDR */
 #endif /* CONFIG_BT_CONN */
 
@@ -2214,6 +2216,18 @@ const bt_addr_le_t *bt_conn_get_dst(const struct bt_conn *conn)
 	return &conn->le.dst;
 }
 
+#if defined(CONFIG_BT_BREDR)
+const bt_addr_t *bt_conn_get_br_dst(const struct bt_conn *conn)
+{
+	if (conn->type == BT_CONN_TYPE_BR)
+		return &conn->br.dst;
+	else if (conn->type == BT_CONN_TYPE_SCO)
+		return &conn->sco.acl->br.dst;
+
+	return NULL;
+}
+#endif
+
 static enum bt_conn_state conn_internal_to_public_state(bt_conn_state_t state)
 {
 	switch (state) {
@@ -3188,6 +3202,83 @@ void bt_conn_notify_role_changed(struct bt_conn *conn, uint8_t role)
 			cb->role_changed(conn, role);
 		}
 	}
+}
+
+int bt_conn_accept_acl_conn(struct bt_conn *conn)
+{
+	int err;
+
+	err = bt_accept_conn(&conn->br.dst);
+	if (err) {
+		bt_conn_unref(conn);
+		return err;
+	}
+
+	conn->role = BT_HCI_ROLE_PERIPHERAL;
+	bt_conn_set_state(conn, BT_CONN_CONNECTING);
+	bt_conn_unref(conn);
+
+	return 0;
+}
+
+int bt_conn_reject_acl_conn(struct bt_conn *conn, uint8_t reason)
+{
+	bt_reject_conn(&conn->br.dst, reason);
+	bt_conn_unref(conn);
+
+	return 0;
+}
+
+int bt_conn_accept_sco_conn(struct bt_conn *sco_conn)
+{
+	int err;
+
+	err = bt_accept_sco_conn(&sco_conn->sco.acl->br.dst, sco_conn);
+	if (err) {
+		bt_sco_cleanup(sco_conn);
+		return err;
+	}
+
+	sco_conn->role = BT_HCI_ROLE_PERIPHERAL;
+	bt_conn_set_state(sco_conn, BT_CONN_CONNECTING);
+	bt_conn_unref(sco_conn);
+
+	return 0;
+}
+
+int bt_conn_reject_sco_conn(struct bt_conn *conn, uint8_t reason)
+{
+	bt_conn_reject_conn(&conn->sco.acl->br.dst, reason);
+	bt_sco_cleanup(conn);
+
+	return 0;
+}
+
+void bt_conn_notify_connect_req(struct bt_conn *conn, uint8_t link_type, uint8_t *cod)
+{
+	struct bt_conn_cb *cb;
+
+	for (cb = callback_list; cb; cb = cb->_next) {
+		if (cb->connect_req) {
+			cb->connect_req(conn, link_type, cod);
+		}
+	}
+
+	STRUCT_SECTION_FOREACH(bt_conn_cb, cb) {
+		if (cb->connect_req) {
+			cb->connect_req(conn, link_type, cod);
+		}
+	}
+}
+
+void bt_conn_set_auto(bool enable)
+{
+	conn_auto_process = enable;
+}
+
+bool bt_conn_is_auto(void)
+{
+	return conn_auto_process;
 }
 
 #endif /* CONFIG_BT_BREDR */
