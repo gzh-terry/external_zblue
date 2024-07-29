@@ -434,4 +434,5 @@ void bt_conn_process_tx(struct bt_conn *conn);
 
 #if defined(CONFIG_BT_BREDR)
 void bt_conn_notify_mode_changed(struct bt_conn *conn, uint8_t mode, uint16_t interval);
+void bt_conn_notify_role_changed(struct bt_conn *conn, uint8_t role);
 #endif /* CONFIG_BT_BREDR */

@@ -928,6 +928,15 @@ struct bt_conn_cb {
 	 *  @param interval Hold/Sniff interval.
 	 */
 	void (*link_mode_changed)(struct bt_conn *conn, uint8_t mode, uint16_t interval);
+
+	/** @brief The connection role change
+	 *
+	 *  This callback notifies the application controler role change
+	 *
+	 *  @param conn Connection object.
+	 *  @param buf Data pointer.
+	 */
+	void (*role_changed)(struct bt_conn *conn, uint8_t role);
 #endif /* CONFIG_BT_BREDR */
 
 #if defined(CONFIG_BT_USER_PHY_UPDATE)
@@ -1523,6 +1532,23 @@ int bt_conn_check_enter_sniff(struct bt_conn *conn, uint16_t min_interval,
  */
 int bt_conn_check_exit_sniff(struct bt_conn *conn);
 
+/** @brief Bt role discovery.
+ *
+ *  @param conn  Connection object.
+ *  @param role  return role.
+ *
+ *  @return  Zero for success, non-zero otherwise.
+ */
+int bt_conn_role_discovery(struct bt_conn *conn, uint8_t *role);
+
+/** @brief Bt switch role.
+ *
+ *  @param conn  Connection object.
+ *  @param role  Switch role.
+ *
+ *  @return  Zero for success, non-zero otherwise.
+ */
+int bt_conn_switch_role(struct bt_conn *conn, uint8_t role);
 #ifdef __cplusplus
 }
 #endif

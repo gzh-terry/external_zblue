@@ -3125,5 +3125,70 @@ void bt_conn_notify_mode_changed(struct bt_conn *conn, uint8_t mode, uint16_t in
 		}
 	}
 }
+
+int bt_conn_role_discovery(struct bt_conn *conn, uint8_t *role)
+{
+	int err;
+	struct bt_hci_cp_role_discovery *rp;
+	struct net_buf *buf;
+	struct net_buf *rsp;
+
+	if (conn->type != BT_CONN_TYPE_BR ||
+		conn->state != BT_CONN_CONNECTED) {
+		return -EIO;
+	}
+
+	buf = bt_hci_cmd_create(BT_HCI_OP_ROLE_DISCOVERY, sizeof(uint16_t));
+	if (!buf) {
+		return -ENOMEM;
+	}
+
+	net_buf_add_le16(buf, conn->handle);
+	err = bt_hci_cmd_send_sync(BT_HCI_OP_ROLE_DISCOVERY, buf, &rsp);
+	if (err) {
+		return err;
+	}
+
+	rp = (void *)rsp->data;
+	*role = rp->role;
+	net_buf_unref(rsp);
+
+	return 0;
+}
+
+int bt_conn_switch_role(struct bt_conn *conn, uint8_t role)
+{
+	struct bt_hci_cp_switch_role *cp;
+	struct net_buf *buf;
+
+	if (role != BT_HCI_ROLE_CENTRAL && role != BT_HCI_ROLE_PERIPHERAL) {
+		return -EINVAL;
+	}
+
+	buf = bt_hci_cmd_create(BT_HCI_OP_SWITCH_ROLE, sizeof(*cp));
+	if (!buf) {
+		return -ENOMEM;
+	}
+
+	cp = net_buf_add(buf, sizeof(*cp));
+
+	memset(cp, 0, sizeof(*cp));
+	memcpy(&cp->bdaddr, &conn->br.dst, sizeof(cp->bdaddr));
+	cp->role = role;
+
+	return bt_hci_cmd_send(BT_HCI_OP_SWITCH_ROLE, buf);
+}
+
+void bt_conn_notify_role_changed(struct bt_conn *conn, uint8_t role)
+{
+	struct bt_conn_cb *cb;
+
+	for (cb = callback_list; cb; cb = cb->_next) {
+		if (cb->role_changed) {
+			cb->role_changed(conn, role);
+		}
+	}
+}
+
 #endif /* CONFIG_BT_BREDR */
 #endif /* CONFIG_BT_CONN */
