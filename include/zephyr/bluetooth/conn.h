@@ -1639,6 +1639,15 @@ int bt_conn_accept_sco_conn(struct bt_conn *conn);
  */
 int bt_conn_reject_sco_conn(struct bt_conn *conn, uint8_t reason);
 
+/** @brief Bt set supervision timeout.
+ *
+ *  @param conn  Connection object.
+ *  @param timeout.
+ *
+ *  @return  Zero for success, non-zero otherwise.
+ */
+int bt_conn_set_supervision_timeout(struct bt_conn *conn, uint16_t timeout);
+
 #ifdef __cplusplus
 }
 #endif

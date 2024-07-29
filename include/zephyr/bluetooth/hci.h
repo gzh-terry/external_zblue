@@ -575,6 +575,12 @@ struct bt_hci_cp_host_num_completed_packets {
 	struct bt_hci_handle_count h[0];
 } __packed;
 
+#define BT_HCI_OP_WRITE_LINK_SUPERVISION_TIMEOUT    BT_OP(BT_OGF_BASEBAND, 0x0037)
+struct bt_hci_cp_write_link_supervision_timeout {
+	uint16_t handle;
+	uint16_t timeout;
+} __packed;
+
 #define BT_HCI_OP_WRITE_INQUIRY_MODE            BT_OP(BT_OGF_BASEBAND, 0x0045)
 struct bt_hci_cp_write_inquiry_mode {
 	uint8_t  mode;
