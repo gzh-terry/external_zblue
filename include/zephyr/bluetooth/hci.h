@@ -530,6 +530,13 @@ struct bt_hci_write_local_name {
 #define BT_BREDR_SCAN_INQUIRY                   0x01
 #define BT_BREDR_SCAN_PAGE                      0x02
 
+#define BT_HCI_OP_WRITE_PAGE_SCAN_ACTIVITY      BT_OP(BT_OGF_BASEBAND, 0x001c)
+#define BT_HCI_OP_WRITE_INQUIRY_SCAN_ACTIVITY   BT_OP(BT_OGF_BASEBAND, 0x001e)
+struct bt_hci_write_scan_activity {
+	uint16_t interval;
+	uint16_t windown;
+} __packed;
+
 #define BT_HCI_OP_WRITE_CLASS_OF_DEVICE         BT_OP(BT_OGF_BASEBAND, 0x0024)
 struct bt_hci_cp_write_class_of_device {
 	uint8_t  class_of_device[3];
@@ -581,7 +588,12 @@ struct bt_hci_cp_write_link_supervision_timeout {
 	uint16_t timeout;
 } __packed;
 
+#define BT_HCI_OP_WRITE_INQUIRY_SCAN_TYPE       BT_OP(BT_OGF_BASEBAND, 0x0043)
+
 #define BT_HCI_OP_WRITE_INQUIRY_MODE            BT_OP(BT_OGF_BASEBAND, 0x0045)
+
+#define BT_HCI_OP_WRITE_PAGE_SCAN_TYPE          BT_OP(BT_OGF_BASEBAND, 0x0047)
+
 struct bt_hci_cp_write_inquiry_mode {
 	uint8_t  mode;
 } __packed;

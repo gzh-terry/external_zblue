@@ -2244,6 +2244,52 @@ void bt_foreach_bond(uint8_t id, void (*func)(const struct bt_bond_info *info,
 int bt_configure_data_path(uint8_t dir, uint8_t id, uint8_t vs_config_len,
 			   const uint8_t *vs_config);
 
+/** @brief BR write page scan activity
+ *
+ *  @param interval: page scan interval.
+ *  @param windown: page scan window.
+ *
+ *  @return Zero on success or error code otherwise, positive in case
+ *  of protocol error or negative (POSIX) in case of stack internal error
+ */
+int bt_br_write_page_scan_activity(uint16_t interval, uint16_t window);
+
+/** @brief BR write inquiry scan activity
+ *
+ *  @param interval: inquiry scan interval.
+ *  @param windown: inquiry scan window.
+ *
+ *  @return Zero on success or error code otherwise, positive in case
+ *  of protocol error or negative (POSIX) in case of stack internal error
+ */
+int bt_br_write_inquiry_scan_activity(uint16_t interval, uint16_t window);
+
+/** @brief BR write inquiry scan type
+ *
+ *  @param type: 0:Standard Scan, 1:Interlaced Scan
+ *
+ *  @return Zero on success or error code otherwise, positive in case
+ *  of protocol error or negative (POSIX) in case of stack internal error
+ */
+int bt_br_write_inquiry_scan_type(uint8_t type);
+
+/** @brief BR write page scan type
+ *
+ *  @param type: 0:Standard Scan, 1:Interlaced Scan
+ *
+ *  @return Zero on success or error code otherwise, positive in case
+ *  of protocol error or negative (POSIX) in case of stack internal error
+ */
+int bt_br_write_page_scan_type(uint8_t type);
+
+/** @brief Set class of device
+ *
+ *  @param local_cod local device class of device to set
+ *
+ *  @return Zero if done successfully, other indicator failed.
+ */
+int bt_set_class_of_device(uint32_t local_cod);
+
 /**
  * @}
  */
