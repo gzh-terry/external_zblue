@@ -551,7 +551,7 @@ ifeq ($(CONFIG_BT_H4),y)
   CSRCS += port/drivers/bluetooth/hci/h4.c
 endif
 
-ifeq ($(CONFIG_ARCH_SIM),y)
+ifeq ($(CONFIG_BT_USERCHAN),y)
   CSRCS += port/drivers/bluetooth/hci/userchan.c
 endif
 
