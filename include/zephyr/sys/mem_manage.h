@@ -128,6 +128,7 @@ struct k_mem_paging_histogram_t {
 #endif /* CONFIG_DEMAND_PAGING_TIMING_HISTOGRAM */
 };
 
+#if defined(CONFIG_SRAM_SIZE)
 /* Just like Z_MEM_PHYS_ADDR() but with type safety and assertions */
 static inline uintptr_t z_mem_phys_addr(void *virt)
 {
@@ -168,6 +169,7 @@ static inline void *z_mem_virt_addr(uintptr_t phys)
 
 	return (void *)Z_MEM_VIRT_ADDR(phys);
 }
+#endif
 
 #ifdef __cplusplus
 extern "C" {
