@@ -1148,6 +1148,7 @@ extern const struct net_buf_data_cb net_buf_fixed_cb;
 					 _net_buf_##_name, _count, _ud_size,   \
 					 _destroy)
 
+#if defined(CONFIG_NET_BUF_VARIABLE)
 /** @cond INTERNAL_HIDDEN */
 extern const struct net_buf_data_cb net_buf_var_cb;
 /** @endcond */
@@ -1187,6 +1188,7 @@ extern const struct net_buf_data_cb net_buf_var_cb;
 		NET_BUF_POOL_INITIALIZER(_name, &net_buf_data_alloc_##_name,   \
 					 _net_buf_##_name, _count, _ud_size,   \
 					 _destroy)
+#endif
 
 /**
  * @def NET_BUF_POOL_DEFINE

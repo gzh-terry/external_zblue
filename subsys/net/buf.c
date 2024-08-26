@@ -101,6 +101,7 @@ void net_buf_reset(struct net_buf *buf)
 	net_buf_simple_reset(&buf->b);
 }
 
+#if defined(CONFIG_NET_BUF_VARIABLE)
 static uint8_t *generic_data_ref(struct net_buf *buf, uint8_t *data)
 {
 	uint8_t *ref_count;
@@ -152,6 +153,7 @@ const struct net_buf_data_cb net_buf_var_cb = {
 	.ref   = generic_data_ref,
 	.unref = mem_pool_data_unref,
 };
+#endif
 
 static uint8_t *fixed_data_alloc(struct net_buf *buf, size_t *size,
 			      k_timeout_t timeout)
