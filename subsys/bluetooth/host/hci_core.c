@@ -3778,6 +3778,10 @@ int bt_set_name(const char *name)
 		}
 	}
 
+	if (IS_ENABLED(CONFIG_BT_BREDR)) {
+		return bt_br_write_local_name(name);
+	}
+
 	return 0;
 #else
 	return -ENOMEM;

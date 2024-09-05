@@ -10,3 +10,5 @@ int bt_br_init(void);
 void bt_br_discovery_reset(void);
 
 bool bt_br_update_sec_level(struct bt_conn *conn);
+
+int bt_br_write_local_name(const char *name);
