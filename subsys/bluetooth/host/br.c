@@ -323,6 +323,7 @@ struct discovery_priv {
 	uint16_t clock_offset;
 	uint8_t pscan_rep_mode;
 	uint8_t resolving;
+	uint8_t updated;
 } __packed;
 
 static int request_name(const bt_addr_t *addr, uint8_t pscan, uint16_t offset)
@@ -394,7 +395,7 @@ void bt_br_discovery_reset(void)
 	discovery_results_count = 0;
 }
 
-static void report_discovery_results(void)
+static bool report_discovery_results(void)
 {
 	bool resolving_names = false;
 	int i;
@@ -405,6 +406,36 @@ static void report_discovery_results(void)
 		priv = (struct discovery_priv *)&discovery_results[i]._priv;
 
 		if (eir_has_name(discovery_results[i].eir)) {
+			if (priv->updated) {
+				discovery_cb(&discovery_results[i], 1);
+				priv->updated = 0U;
+			}
+			continue;
+		}
+
+		if (priv->resolving) {
+			resolving_names = true;
+		}
+	}
+
+	return resolving_names;
+}
+
+static void report_discovery_complete(void)
+{
+	bool resolving_names = false;
+	int i;
+
+	for (i = 0; i < discovery_results_count; i++) {
+		struct discovery_priv *priv;
+
+		priv = (struct discovery_priv *)&discovery_results[i]._priv;
+
+		if (eir_has_name(discovery_results[i].eir)) {
+			if (priv->updated) {
+				discovery_cb(&discovery_results[i], 1);
+				priv->updated = 0U;
+			}
 			continue;
 		}
 
@@ -423,7 +454,7 @@ static void report_discovery_results(void)
 
 	atomic_clear_bit(bt_dev.flags, BT_DEV_INQUIRY);
 
-	discovery_cb(discovery_results, discovery_results_count);
+	discovery_cb(NULL, 0);
 	bt_br_discovery_reset();
 }
 
@@ -435,7 +466,7 @@ void bt_hci_inquiry_complete(struct net_buf *buf)
 		BT_ERR("Failed to complete inquiry");
 	}
 
-	report_discovery_results();
+	report_discovery_complete();
 }
 
 static struct bt_br_discovery_result *get_result_slot(const bt_addr_t *addr,
@@ -518,6 +549,7 @@ void bt_hci_inquiry_result_with_rssi(struct net_buf *buf)
 		priv = (struct discovery_priv *)&result->_priv;
 		priv->pscan_rep_mode = evt->pscan_rep_mode;
 		priv->clock_offset = evt->clock_offset;
+		priv->updated = 1U;
 
 		memcpy(result->cod, evt->cod, 3);
 		result->rssi = evt->rssi;
@@ -525,6 +557,8 @@ void bt_hci_inquiry_result_with_rssi(struct net_buf *buf)
 		/* we could reuse slot so make sure EIR is cleared */
 		(void)memset(result->eir, 0, sizeof(result->eir));
 	}
+
+	report_discovery_results();
 }
 
 void bt_hci_extended_inquiry_result(struct net_buf *buf)
@@ -547,10 +581,12 @@ void bt_hci_extended_inquiry_result(struct net_buf *buf)
 	priv = (struct discovery_priv *)&result->_priv;
 	priv->pscan_rep_mode = evt->pscan_rep_mode;
 	priv->clock_offset = evt->clock_offset;
+	priv->updated = 1U;
 
 	result->rssi = evt->rssi;
 	memcpy(result->cod, evt->cod, 3);
 	memcpy(result->eir, evt->eir, sizeof(result->eir));
+	report_discovery_results();
 }
 
 void bt_hci_remote_name_request_complete(struct net_buf *buf)
@@ -615,21 +651,14 @@ void bt_hci_remote_name_request_complete(struct net_buf *buf)
 
 check_names:
 	/* if still waiting for names */
-	for (i = 0; i < discovery_results_count; i++) {
-		struct discovery_priv *priv;
-
-		priv = (struct discovery_priv *)&discovery_results[i]._priv;
-
-		if (priv->resolving) {
-			return;
-		}
+	if (report_discovery_results()) {
+		return;
 	}
 
 	/* all names resolved, report discovery results */
 	atomic_clear_bit(bt_dev.flags, BT_DEV_INQUIRY);
 
-	discovery_cb(discovery_results, discovery_results_count);
-
+	discovery_cb(NULL, 0);
 }
 
 void bt_hci_read_remote_features_complete(struct net_buf *buf)
