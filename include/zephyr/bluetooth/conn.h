@@ -363,6 +363,8 @@ enum bt_conn_state {
 
 /** Connection Info Structure */
 struct bt_conn_info {
+	/** Connection handle. */
+	uint16_t handle;
 	/** Connection Type. */
 	uint8_t type;
 	/** Connection Role. */
