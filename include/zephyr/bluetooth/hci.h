@@ -511,6 +511,18 @@ struct bt_hci_cp_switch_role {
 	uint8_t   role;
 } __packed;
 
+#define BT_HCI_POLICY_ROLE_SWITCH 0
+#define BT_HCI_POLICY_HOLD_MODE   1
+#define BT_HCI_POLICY_SNIFF_MODE  2
+
+#define BT_HCI_OP_READ_LINK_POLICY_SETTINGS     BT_OP(BT_OGF_LINK_POLICY, 0x000c)
+
+#define BT_HCI_OP_WRITE_LINK_POLICY_SETTINGS    BT_OP(BT_OGF_LINK_POLICY, 0x000d)
+struct bt_hci_cp_write_link_policy_settings {
+	uint16_t handle;
+	uint16_t link_policy;
+} __packed;
+
 #define BT_HCI_OP_SET_EVENT_MASK                BT_OP(BT_OGF_BASEBAND, 0x0001)
 struct bt_hci_cp_set_event_mask {
 	uint8_t  events[8];
