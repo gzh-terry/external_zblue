@@ -7,6 +7,8 @@
 
 int bt_ssp_start_security(struct bt_conn *conn);
 
+int bt_ssp_io_capa_reply(struct bt_conn* conn);
+int bt_ssp_io_capa_neg_reply(struct bt_conn *conn, const uint8_t reason);
 int bt_ssp_auth_passkey_entry(struct bt_conn *conn, unsigned int passkey);
 int bt_ssp_auth_passkey_confirm(struct bt_conn *conn);
 int bt_ssp_auth_cancel(struct bt_conn *conn);

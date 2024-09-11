@@ -2856,6 +2856,32 @@ int bt_conn_auth_info_cb_unregister(struct bt_conn_auth_info_cb *cb)
 	return 0;
 }
 
+int bt_conn_auth_pairing_accept(struct bt_conn *conn)
+{
+	if (!bt_auth) {
+		return -EINVAL;
+	}
+
+	if (!IS_ENABLED(CONFIG_BT_BREDR)) {
+		return -ENOTSUP;
+	}
+
+	return bt_ssp_io_capa_reply(conn);
+}
+
+int bt_conn_auth_pairing_reject(struct bt_conn *conn, uint8_t reason)
+{
+	if (!bt_auth) {
+		return -EINVAL;
+	}
+
+	if (!IS_ENABLED(CONFIG_BT_BREDR)) {
+		return -ENOTSUP;
+	}
+
+	return bt_ssp_io_capa_neg_reply(conn, reason);
+}
+
 int bt_conn_auth_passkey_entry(struct bt_conn *conn, unsigned int passkey)
 {
 	if (!bt_auth) {

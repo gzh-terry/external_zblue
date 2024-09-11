@@ -1246,6 +1246,35 @@ struct bt_conn_auth_cb {
 			      const struct bt_conn_pairing_feat *const feat);
 #endif /* CONFIG_BT_SMP_APP_PAIRING_ACCEPT */
 
+#if defined(CONFIG_BT_BREDR)
+	/** @brief Query to proceed BR/EDR incoming pairing or not.
+	 *
+	 *  On any incoming pairing req/rsp this callback will be called for
+	 *  the application to decide whether to allow for the pairing to
+	 *  continue.
+	 *
+	 *  The pairing info received from the peer is passed to assist
+	 *  making the decision.
+	 *
+	 *  As this callback is asynchronous, the application should call
+	 *  bt_conn_auth_pairing_accept/bt_conn_auth_pairing_reject to
+	 *  response value.
+	 *
+	 *  The remaining callbacks are not affected by this, but do notice
+	 *  that other callbacks can be called during the pairing. Eg. if
+	 *  pairing_confirm is registered both will be called for Just-Works
+	 *  pairings.
+	 *
+	 *  This callback may be unregistered in which case pairing continues
+	 *  as if the Kconfig flag was not set.
+	 *
+	 *  This callback is not called for LE SMP.
+	 *
+	 *  @param conn Connection where pairing is initiated.
+	 */
+	void (*pairing_request)(struct bt_conn *conn);
+#endif /* CONFIG_BT_BREDR */
+
 	/** @brief Display a passkey to the user.
 	 *
 	 *  When called the application is expected to display the given
@@ -1452,6 +1481,29 @@ int bt_conn_auth_info_cb_register(struct bt_conn_auth_info_cb *cb);
  */
 int bt_conn_auth_info_cb_unregister(struct bt_conn_auth_info_cb *cb);
 
+/** @brief Accept incoming pairing.
+ *
+ *  This function should be called only after pairing_request callback from
+ *  bt_conn_auth_cb structure was called if need user decide incoming pairing.
+ *
+ *  @param conn Connection object.
+ *
+ *  @return Zero on success or negative error code otherwise
+ */
+int bt_conn_auth_pairing_accept(struct bt_conn *conn);
+
+/** @brief Reject incoming pairing.
+ *
+ *  This function should be called only after pairing_request callback from
+ *  bt_conn_auth_cb structure was called if need user decide incoming pairing.
+ *
+ *  @param conn Connection object.
+ *  @param reason Reason code for reject pairing.
+ *
+ *  @return Zero on success or negative error code otherwise
+ */
+int bt_conn_auth_pairing_reject(struct bt_conn *conn, uint8_t reason);
+
 /** @brief Reply with entered passkey.
  *
  *  This function should be called only after passkey_entry callback from
@@ -1628,6 +1680,7 @@ int bt_conn_reject_acl_conn(struct bt_conn *conn, uint8_t reason);
 /** @brief Accept the sco connection.
  *
  *  @param conn  The sco connection of peer device to accept.
+ *  @param reason Reason code for the disconnection.
  *
  *  @return Zero for success, non-zero otherwise.
  */

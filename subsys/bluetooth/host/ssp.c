@@ -581,7 +581,7 @@ void bt_hci_link_key_req(struct net_buf *buf)
 	bt_conn_unref(conn);
 }
 
-void io_capa_neg_reply(const bt_addr_t *bdaddr, const uint8_t reason)
+static int io_capa_neg_reply(const bt_addr_t *bdaddr, const uint8_t reason)
 {
 	struct bt_hci_cp_io_capability_neg_reply *cp;
 	struct net_buf *resp_buf;
@@ -590,13 +590,18 @@ void io_capa_neg_reply(const bt_addr_t *bdaddr, const uint8_t reason)
 				     sizeof(*cp));
 	if (!resp_buf) {
 		BT_ERR("Out of command buffers");
-		return;
+		return -ENOMEM;
 	}
 
 	cp = net_buf_add(resp_buf, sizeof(*cp));
 	bt_addr_copy(&cp->bdaddr, bdaddr);
 	cp->reason = reason;
-	bt_hci_cmd_send_sync(BT_HCI_OP_IO_CAPABILITY_NEG_REPLY, resp_buf, NULL);
+	return bt_hci_cmd_send_sync(BT_HCI_OP_IO_CAPABILITY_NEG_REPLY, resp_buf, NULL);
+}
+
+int bt_ssp_io_capa_neg_reply(struct bt_conn *conn, const uint8_t reason)
+{
+	return io_capa_neg_reply(&conn->br.dst, reason);
 }
 
 void bt_hci_io_capa_resp(struct net_buf *buf)
@@ -633,28 +638,20 @@ void bt_hci_io_capa_resp(struct net_buf *buf)
 	bt_conn_unref(conn);
 }
 
-void bt_hci_io_capa_req(struct net_buf *buf)
+int bt_ssp_io_capa_reply(struct bt_conn* conn)
 {
-	struct bt_hci_evt_io_capa_req *evt = (void *)buf->data;
 	struct net_buf *resp_buf;
-	struct bt_conn *conn;
 	struct bt_hci_cp_io_capability_reply *cp;
 	uint8_t auth;
 
 	BT_DBG("");
-
-	conn = bt_conn_lookup_addr_br(&evt->bdaddr);
-	if (!conn) {
-		BT_ERR("Can't find conn for %s", bt_addr_str(&evt->bdaddr));
-		return;
-	}
 
 	resp_buf = bt_hci_cmd_create(BT_HCI_OP_IO_CAPABILITY_REPLY,
 				     sizeof(*cp));
 	if (!resp_buf) {
 		BT_ERR("Out of command buffers");
 		bt_conn_unref(conn);
-		return;
+		return -ENOMEM;
 	}
 
 	/*
@@ -674,11 +671,32 @@ void bt_hci_io_capa_req(struct net_buf *buf)
 	}
 
 	cp = net_buf_add(resp_buf, sizeof(*cp));
-	bt_addr_copy(&cp->bdaddr, &evt->bdaddr);
+	bt_addr_copy(&cp->bdaddr, &conn->br.dst);
 	cp->capability = get_io_capa();
 	cp->authentication = auth;
 	cp->oob_data = 0U;
-	bt_hci_cmd_send_sync(BT_HCI_OP_IO_CAPABILITY_REPLY, resp_buf, NULL);
+	return bt_hci_cmd_send_sync(BT_HCI_OP_IO_CAPABILITY_REPLY, resp_buf, NULL);
+}
+
+void bt_hci_io_capa_req(struct net_buf *buf)
+{
+	struct bt_hci_evt_io_capa_req *evt = (void *)buf->data;
+	struct bt_conn *conn;
+
+	BT_DBG("");
+
+	conn = bt_conn_lookup_addr_br(&evt->bdaddr);
+	if (!conn) {
+		BT_ERR("Can't find conn for %s", bt_addr_str(&evt->bdaddr));
+		return;
+	}
+
+	if (bt_auth && bt_auth->pairing_request) {
+		bt_auth->pairing_request(conn);
+	} else {
+		bt_ssp_io_capa_reply(conn);
+	}
+
 	bt_conn_unref(conn);
 }
 
