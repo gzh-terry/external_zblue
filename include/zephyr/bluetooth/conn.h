@@ -1416,6 +1416,15 @@ struct bt_conn_auth_cb {
 
 /** Authenticated pairing information callback structure */
 struct bt_conn_auth_info_cb {
+#if defined(CONFIG_BT_BREDR)
+	/** @brief notify that br/edr pairing link key generated.
+	 *
+	 *  @param conn Connection object.
+	 *  @param key Link key.
+	 *  @param key_type Link key type.
+	 */
+	void (*link_key_notify)(struct bt_conn *conn, uint8_t *key, uint8_t key_type);
+#endif
 	/** @brief notify that pairing procedure was complete.
 	 *
 	 *  This callback notifies the application that the pairing procedure

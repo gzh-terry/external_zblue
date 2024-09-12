@@ -149,6 +149,69 @@ void bt_keys_link_key_store(struct bt_keys_link_key *link_key)
 	}
 }
 
+int bt_br_set_bond_info(const struct bt_bond_info_br *info)
+{
+	struct bt_keys_link_key *key;
+
+	key = bt_keys_get_link_key(&info->addr);
+	if (!key)
+		return -ENOBUFS;
+
+	memcpy(key->val, info->key, 16);
+	key->key_type = info->key_type;
+	key->flags = 0;
+
+	switch (key->key_type) {
+	case BT_LK_COMBINATION:
+	case BT_LK_AUTH_COMBINATION_P192:
+		key->flags |= BT_LINK_KEY_AUTHENTICATED;
+		break;
+	case BT_LK_AUTH_COMBINATION_P256:
+		key->flags |= BT_LINK_KEY_AUTHENTICATED | BT_LINK_KEY_SC;
+		break;
+	default:
+		break;
+	}
+
+	bt_keys_link_key_store(key);
+
+	return 0;
+}
+
+int bt_br_get_bond_info(const bt_addr_t* bdaddr, struct bt_bond_info_br *info)
+{
+	struct bt_keys_link_key *key;
+
+	key = bt_keys_find_link_key(bdaddr);
+	if (!key)
+		return -ENODATA;
+
+	memcpy(&info->addr, &key->addr, 6);
+	memcpy(info->key, key->val, 16);
+	info->key_type = key->key_type;
+
+	return 0;
+}
+
+void bt_br_foreach_bond(void (*func)(const struct bt_bond_info_br *info,
+					   void *user_data), void *user_data)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(key_pool); i++) {
+		struct bt_keys_link_key *key = &key_pool[i];
+
+		if (bt_addr_cmp(&key->addr, BT_ADDR_ANY)) {
+			struct bt_bond_info_br info;
+
+			bt_addr_copy(&info.addr, &key->addr);
+			info.key_type = key->key_type;
+			memcpy(info.key, key->val, 16);
+			func(&info, user_data);
+		}
+	}
+}
+
 #if defined(CONFIG_BT_SETTINGS)
 
 static int link_key_set(const char *name, size_t len_rd,

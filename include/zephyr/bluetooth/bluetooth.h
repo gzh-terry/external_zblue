@@ -2216,6 +2216,13 @@ struct bt_bond_info {
 	bt_addr_le_t addr;
 };
 
+/** Information about a br/edr bond with a remote device. */
+struct bt_bond_info_br {
+	bt_addr_t addr;
+	uint8_t   key_type;
+	uint8_t   key[16];
+};
+
 /**
  * @brief Iterate through all existing bonds.
  *
@@ -2226,6 +2233,34 @@ struct bt_bond_info {
 void bt_foreach_bond(uint8_t id, void (*func)(const struct bt_bond_info *info,
 					   void *user_data),
 		     void *user_data);
+
+/**
+ * @brief Iterate through all existing bredr bonds.
+ *
+ * @param func       Function to call for each bond.
+ * @param user_data  Data to pass to the callback function.
+ */
+void bt_br_foreach_bond(void (*func)(const struct bt_bond_info_br *info,
+					   void *user_data), void *user_data);
+
+/**
+ * @brief Importing bond information from external.
+ *
+ * @param info Bond info include address/linkkey/flags.
+ *
+ * @return 0 on success or negative error value on failure.
+ */
+int bt_br_set_bond_info(const struct bt_bond_info_br *info);
+
+/**
+ * @brief Get bond information.
+ *
+ * @param bdaddr Remote address.
+ * @param[out] info Bond info include address/linkkey/flags.
+ *
+ * @return 0 on success or negative error value on failure.
+ */
+int bt_br_get_bond_info(const bt_addr_t* bdaddr, struct bt_bond_info_br *info);
 
 /** @brief Configure vendor data path
  *
