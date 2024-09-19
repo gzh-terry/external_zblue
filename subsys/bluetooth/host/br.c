@@ -20,10 +20,16 @@
 #include "conn_internal.h"
 #include "keys.h"
 
+struct bt_br_rnr_cb {
+	bt_addr_t addr;
+	bt_br_remote_name_req_cb_t cb;
+}__packed;
+
 static bt_br_discovery_cb_t *discovery_cb;
 struct bt_br_discovery_result *discovery_results;
 static size_t discovery_results_size;
 static size_t discovery_results_count;
+static struct bt_br_rnr_cb rnr_cb;
 
 int bt_reject_conn(const bt_addr_t *bdaddr, uint8_t reason)
 {
@@ -469,6 +475,20 @@ void bt_hci_inquiry_complete(struct net_buf *buf)
 	report_discovery_complete();
 }
 
+static struct bt_br_discovery_result *find_discovery_result(const bt_addr_t *addr)
+{
+	size_t i;
+
+	/* check if already present in results */
+	for (i = 0; i < discovery_results_count; i++) {
+		if (!bt_addr_cmp(addr, &discovery_results[i].addr)) {
+			return &discovery_results[i];
+		}
+	}
+
+	return NULL;
+}
+
 static struct bt_br_discovery_result *get_result_slot(const bt_addr_t *addr,
 						      int8_t rssi)
 {
@@ -589,6 +609,11 @@ void bt_hci_extended_inquiry_result(struct net_buf *buf)
 	report_discovery_results();
 }
 
+static void bt_br_rnr_reset(void)
+{
+	memset(&rnr_cb, 0, sizeof(rnr_cb));
+}
+
 void bt_hci_remote_name_request_complete(struct net_buf *buf)
 {
 	struct bt_hci_evt_remote_name_req_complete *evt = (void *)buf->data;
@@ -597,6 +622,12 @@ void bt_hci_remote_name_request_complete(struct net_buf *buf)
 	int eir_len = 240;
 	uint8_t *eir;
 	int i;
+
+	if (rnr_cb.cb && !bt_addr_cmp(&evt->bdaddr, &rnr_cb.addr)) {
+		BT_DBG("status 0x%02x", evt->status);
+		rnr_cb.cb(&evt->bdaddr, evt->name, evt->status);
+		bt_br_rnr_reset();
+	}
 
 	result = get_result_slot(&evt->bdaddr, 0xff);
 	if (!result) {
@@ -1256,4 +1287,43 @@ int bt_br_write_local_name(const char *name)
 		sizeof(name_cp->local_name));
 
 	return bt_hci_cmd_send_sync(BT_HCI_OP_WRITE_LOCAL_NAME, buf, NULL);
+}
+
+int bt_br_remote_name_request(const bt_addr_t *bdaddr, bt_br_remote_name_req_cb_t cb)
+{
+	struct bt_br_discovery_result *result;
+	struct discovery_priv *priv;
+	int err;
+
+	if (rnr_cb.cb) {
+		return -EBUSY;
+	}
+
+	/* save remote name request control block */
+	rnr_cb.cb = cb;
+	bt_addr_copy(&rnr_cb.addr, bdaddr);
+
+	/* check if we have a cached result */
+	result = find_discovery_result(bdaddr);
+	if (result) {
+		/* check is resolving, just return if resolving */
+		priv = (struct discovery_priv *)&result->_priv;
+		if (priv->resolving) {
+			return 0;
+		}
+
+		priv->resolving = 1;
+		err = request_name(bdaddr, priv->pscan_rep_mode, priv->clock_offset);
+	} else {
+		err = request_name(bdaddr, BT_HCI_PAGE_SCAN_REP_MODE_R2, 0);
+	}
+
+	if (err) {
+		BT_ERR("Unable to request name for %s (err %d)", bt_addr_str(bdaddr), err);
+		rnr_cb.cb(bdaddr, NULL, BT_HCI_ERR_UNSPECIFIED);
+		bt_br_rnr_reset();
+		return err;
+	}
+
+	return 0;
 }

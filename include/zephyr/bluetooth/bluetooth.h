@@ -2161,6 +2161,25 @@ struct bt_br_oob {
 };
 
 /**
+ * @brief Request remote device name callback.
+ *
+ * @param bdaddr Remote device address.
+ * @param name Remote device name.
+ * @param status Status of the request.
+ */
+typedef void (*bt_br_remote_name_req_cb_t)(const bt_addr_t *bdaddr, const char *name, uint8_t status);
+
+/**
+ * @brief Request remote device name.
+ *
+ * @param addr Remote device address.
+ * @param cb Callback to notify about remote device name.
+ *
+ * @return 0 on success or negative error value on failure.
+ */
+int bt_br_remote_name_request(const bt_addr_t *addr, bt_br_remote_name_req_cb_t cb);
+
+/**
  * @brief Get BR/EDR local Out Of Band information
  *
  * This function allows to get local controller information that are useful
