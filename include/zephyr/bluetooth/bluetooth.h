@@ -2229,6 +2229,15 @@ int bt_br_set_connectable(bool enable);
  */
 int bt_unpair(uint8_t id, const bt_addr_le_t *addr);
 
+/**
+ * @brief Unpair with a br remote device.
+ *
+ * @param bdaddr Remote device address.
+ *
+ * @return 0 on success or negative error value on failure.
+ */
+int bt_br_unpair(bt_addr_t *bdaddr);
+
 /** Information about a bond with a remote device. */
 struct bt_bond_info {
 	/** Address of the remote device. */

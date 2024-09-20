@@ -128,6 +128,7 @@ struct bt_hci_cmd_hdr {
 #define BT_FEAT_2EV3_PKT(feat)                  BT_FEAT_TEST(feat, 0, 5, 5)
 #define BT_FEAT_3EV3_PKT(feat)                  BT_FEAT_TEST(feat, 0, 5, 6)
 #define BT_FEAT_3SLOT_PKT(feat)                 BT_FEAT_TEST(feat, 0, 5, 7)
+#define BT_FEAT_SSP(feat)                       BT_FEAT_TEST(feat, 0, 6, 3)
 
 /* LE features */
 #define BT_LE_FEAT_BIT_ENC                      0
@@ -533,6 +534,13 @@ struct bt_hci_cp_set_event_mask {
 } __packed;
 
 #define BT_HCI_OP_RESET                         BT_OP(BT_OGF_BASEBAND, 0x0003)
+
+struct bt_hci_delete_stored_link_key {
+	bt_addr_t bdaddr;
+	uint8_t   delete_all;
+} __packed;
+
+#define BT_HCI_OP_DELETE_STORED_LINK_KEY        BT_OP(BT_OGF_BASEBAND, 0x0012)
 
 #define BT_HCI_OP_WRITE_LOCAL_NAME              BT_OP(BT_OGF_BASEBAND, 0x0013)
 struct bt_hci_write_local_name {

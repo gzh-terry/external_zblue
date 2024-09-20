@@ -779,6 +779,16 @@ bt_security_t bt_conn_get_security(struct bt_conn *conn);
  */
 uint8_t bt_conn_enc_key_size(struct bt_conn *conn);
 
+/**
+ * @brief Pair with a remote device.
+ *
+ * @param bdaddr Remote device address.
+ * @param security Security level to use.
+ *
+ * @return Valid connection object on success or NULL otherwise.
+ */
+struct bt_conn *bt_conn_pair(bt_addr_t *bdaddr, bt_security_t security);
+
 enum bt_security_err {
 	/** Security procedure successful. */
 	BT_SECURITY_ERR_SUCCESS,
