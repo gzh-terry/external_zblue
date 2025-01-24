@@ -12,3 +12,5 @@
 void bt_addr_le_copy_resolved(bt_addr_le_t *dst, const bt_addr_le_t *src);
 
 bool bt_addr_le_is_resolved(const bt_addr_le_t *addr);
+
+ // test
